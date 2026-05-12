@@ -1,9 +1,14 @@
 {
   "version": 2,
+<<<<<<< HEAD
   "dgSpecHash": "EuFQVa3ufsM=",
+=======
+  "dgSpecHash": "m62YxHrpaec=",
+>>>>>>> 79a421faede2b86fd8946e0937a65e7f033e5065
   "success": true,
-  "projectFilePath": "D:\\Delivery\\BackendApi\\BackendApi.csproj",
+  "projectFilePath": "C:\\Users\\ASUS\\Desktop\\Project\\Delivery\\BackendApi\\BackendApi.csproj",
   "expectedPackageFiles": [
+<<<<<<< HEAD
     "C:\\Users\\pirak\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\pirak\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.14\\microsoft.aspnetcore.openapi.9.0.14.nupkg.sha512",
     "C:\\Users\\pirak\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\6.0.0\\microsoft.bcl.asyncinterfaces.6.0.0.nupkg.sha512",
@@ -46,6 +51,15 @@
     "C:\\Users\\pirak\\.nuget\\packages\\system.text.encodings.web\\8.0.0\\system.text.encodings.web.8.0.0.nupkg.sha512",
     "C:\\Users\\pirak\\.nuget\\packages\\system.text.json\\8.0.0\\system.text.json.8.0.0.nupkg.sha512",
     "C:\\Users\\pirak\\.nuget\\packages\\system.threading.channels\\6.0.0\\system.threading.channels.6.0.0.nupkg.sha512"
+=======
+    "C:\\Users\\ASUS\\.nuget\\packages\\microsoft.aspnetcore.openapi\\8.0.26\\microsoft.aspnetcore.openapi.8.0.26.nupkg.sha512",
+    "C:\\Users\\ASUS\\.nuget\\packages\\microsoft.extensions.apidescription.server\\6.0.5\\microsoft.extensions.apidescription.server.6.0.5.nupkg.sha512",
+    "C:\\Users\\ASUS\\.nuget\\packages\\microsoft.openapi\\1.6.14\\microsoft.openapi.1.6.14.nupkg.sha512",
+    "C:\\Users\\ASUS\\.nuget\\packages\\swashbuckle.aspnetcore\\6.6.2\\swashbuckle.aspnetcore.6.6.2.nupkg.sha512",
+    "C:\\Users\\ASUS\\.nuget\\packages\\swashbuckle.aspnetcore.swagger\\6.6.2\\swashbuckle.aspnetcore.swagger.6.6.2.nupkg.sha512",
+    "C:\\Users\\ASUS\\.nuget\\packages\\swashbuckle.aspnetcore.swaggergen\\6.6.2\\swashbuckle.aspnetcore.swaggergen.6.6.2.nupkg.sha512",
+    "C:\\Users\\ASUS\\.nuget\\packages\\swashbuckle.aspnetcore.swaggerui\\6.6.2\\swashbuckle.aspnetcore.swaggerui.6.6.2.nupkg.sha512"
+>>>>>>> 79a421faede2b86fd8946e0937a65e7f033e5065
   ],
   "logs": []
 }

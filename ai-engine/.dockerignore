@@ -1,0 +1,7 @@
+# AI Engine — Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/

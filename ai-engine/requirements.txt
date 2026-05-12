@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 fastapi==0.103.1
 uvicorn==0.23.2
 ortools>=9.7.2996
 pydantic==2.3.0
+=======
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+ortools>=9.9
+>>>>>>> cce9ed0eaafb9984ebe04473510a0d568740e18d

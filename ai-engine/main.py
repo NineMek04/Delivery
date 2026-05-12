@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
@@ -18,7 +17,18 @@ class RoutingRequest(BaseModel):
     depot: int = 0             # จุดเริ่มต้น (index 0)
 
 # สร้างแอป FastAPI
-app = FastAPI(title="AI Delivery Routing Optimization API")
+app = FastAPI(
+    title="AI Delivery Routing Optimization API",
+    description="AI-Optimized Route Calculation Service (VRP Solver)",
+    version="0.1.0",
+)
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint สำหรับ Docker / load balancer"""
+    return {"status": "ok", "service": "ai-engine"}
+
 
 # --- 2. ฟังก์ชันจำลองการหาระยะทาง (Distance Matrix) ---
 def compute_distance_matrix(locations: List[Location]):
@@ -103,27 +113,3 @@ async def optimize_route(request: RoutingRequest):
         }
     else:
         return {"status": "FAILED", "message": "ไม่สามารถหาเส้นทางได้"}
-=======
-from fastapi import FastAPI
-
-app = FastAPI(
-    title="Delivery AI Engine",
-    description="AI-Optimized Route Calculation Service (VRP Solver)",
-    version="0.1.0",
-)
-
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint สำหรับ Docker / load balancer"""
-    return {"status": "ok", "service": "ai-engine"}
-
-
-@app.post("/api/solve-vrp")
-def solve_vrp():
-    """
-    Placeholder — รับพิกัดจุดรับ-ส่ง แล้วคำนวณ VRP
-    TODO: implement Google OR-Tools VRP solver
-    """
-    return {"message": "VRP solver not implemented yet"}
->>>>>>> cce9ed0eaafb9984ebe04473510a0d568740e18d

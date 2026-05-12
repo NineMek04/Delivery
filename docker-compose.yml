@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:latest
+    container_name: delivery_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: DeliveryDB
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data

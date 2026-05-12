@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  # 1. ระบบจัดการฐานข้อมูลเชิงพื้นที่ [cite: 67, 71]
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: delivery-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=your_password
+      - POSTGRES_DB=delivery_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. ระบบประมวลผลหลัก (.NET 8) [cite: 27, 68]
+  backend:
+    build:
+      context: ./BackendApi
+      dockerfile: Dockerfile
+    container_name: delivery-backend
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=your_password
+      - AI_SERVICE_URL=http://ai-service:8000
+    depends_on:
+      - db
+    ports:
+      - "5000:80"
+
+  # 3. ระบบปัญญาประดิษฐ์จัดเส้นทาง (Python FastAPI) [cite: 28, 69]
+  ai-service:
+    build:
+      context: ./ai-engine
+      dockerfile: Dockerfile
+    container_name: delivery-ai
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  # 4. ระบบแดชบอร์ดแอดมิน (Angular) [cite: 29, 70]
+  frontend:
+    build:
+      context: ./admin-dashboard
+      dockerfile: Dockerfile
+    container_name: delivery-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

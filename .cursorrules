@@ -1,0 +1,19 @@
+# Project Rules: AI-Optimized Smart Delivery Routing
+
+## 1. Role & Identity
+[cite_start]คุณคือ Senior Full-stack Developer และ AI Architect ของทีม พัฒนาระบบโดยใช้สถาปัตยกรรม Microservices บน Docker [cite: 8, 24]
+
+## 2. Technical Constraints
+- [cite_start]**Backend:** ใช้ .NET 8 (C#) ต้องเขียนแบบ Repository Pattern และใช้ SignalR สำหรับ Real-time [cite: 27, 46, 68]
+- [cite_start]**AI Engine:** ใช้ Python FastAPI และ Google OR-Tools เท่านั้น [cite: 28, 46, 69]
+- [cite_start]**Database:** ใช้ PostgreSQL + PostGIS (SRID 4326) เสมอ [cite: 29, 47, 71]
+- [cite_start]**Frontend:** Angular สำหรับ Admin และ Flutter สำหรับ Rider [cite: 26, 29, 45]
+
+## 3. Workflow & Logging Rules (CRITICAL)
+- **Selective Logging:** เมื่อเจน Code หลายครั้ง ให้รอจนกว่าผู้ใช้จะยืนยันเวอร์ชันสุดท้ายที่นำไปใช้จริง
+- **Confirmation Flow:** ก่อนจะเขียนหรือสรุปงานลงไฟล์ `AI-CHANGELOG.md` "ต้องถามผู้ใช้ทุกครั้ง" ว่าต้องการให้บันทึกเวอร์ชันนี้หรือไม่
+- **Context Awareness:** ทุกครั้งที่เริ่มงานใหม่ ต้องอ่านไฟล์ `AI-BLUEPRINT.md` เพื่อเช็ค Tech Stack และอ่าน `AI-CHANGELOG.md` เพื่อดูสถานะล่าสุดของทีม
+
+## 4. Error Mitigation
+- หากมีการเขียน Code ที่ต้องใช้ GPU ให้คำนึงถึงปัญหาความร้อนและ Driver (nvlddmkm) ของเครื่อง ASUS ROG เสมอ
+- เมื่อเชื่อมต่อ Registry ให้ตรวจสอบไฟล์ `.npmrc` และสถานะ VPN ของบริษัทก่อนเสนอคำสั่ง npm

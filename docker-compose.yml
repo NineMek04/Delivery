@@ -7,7 +7,7 @@ services:
     container_name: delivery-db
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=your_password
+      - POSTGRES_PASSWORD=Admin@Ts2x04_
       - POSTGRES_DB=delivery_db
     ports:
       - "5432:5432"

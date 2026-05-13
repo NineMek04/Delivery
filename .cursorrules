@@ -14,7 +14,7 @@
 
 ## 3. Workflow & Logging Rules (CRITICAL)
 - **Selective Logging:** เมื่อเจน Code หลายครั้ง ให้รอจนกว่าผู้ใช้จะยืนยันเวอร์ชันสุดท้ายที่นำไปใช้จริง
-- **Confirmation Flow:** ก่อนจะเขียนหรือสรุปงานลงไฟล์ `AI-CHANGELOG.md` "ต้องถามผู้ใช้ทุกครั้ง" ว่าต้องการให้บันทึกเวอร์ชันนี้หรือไม่
+- **Confirmation Flow:** เขียนหรือสรุปงานลงไฟล์ `AI-CHANGELOG.md` 
 - **Context Awareness:** ทุกครั้งที่เริ่มงานใหม่ ต้องอ่านไฟล์ `AI-BLUEPRINT.md` เพื่อเช็ค Tech Stack และอ่าน `AI-CHANGELOG.md` เพื่อดูสถานะล่าสุดของทีม
 
 ## 4. Error Mitigation

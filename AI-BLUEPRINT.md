@@ -111,6 +111,7 @@ Delivery/
 │   ├── BackendApi.csproj    ← net8.0, Swagger, OpenAPI
 │   ├── Program.cs           ← Minimal host delegates to Setup extensions
 │   ├── Core/DeliveryControllerBase.cs
+│   ├── Core/DataHandlers/      ← EF Core DBHandlerCore + ConditionContext
 │   ├── Setup/               ← DI, middleware pipeline, security/env setup
 │   ├── Security/            ← JWT/token constants, token service, login-attempt service
 │   ├── Data/ApplicationDbContext.cs
@@ -143,12 +144,13 @@ Delivery/
 |----------------------|-------------------|--------------------------------------------------------------|
 | **docker-compose**   | ✅ Created         | 4 services: db, backend, ai-service, frontend                |
 | **PostGIS DB**       | ✅ Running         | เชื่อมต่อผ่าน DBeaver ได้แล้ว (ตาม changelog)                  |
-| **BackendApi**       | 🟡 Foundation Ready | EF Core/PostGIS models, setup extensions, Dockerfile, Swagger, JWT security baseline |
+| **BackendApi**       | 🟡 Foundation Ready | EF Core/PostGIS models, DBHandlerCore, setup extensions, Dockerfile, Swagger, JWT security baseline |
 | **ai-engine**        | ❌ Empty           | `main.py` + `requirements.txt` ว่างเปล่า                      |
 | **admin-dashboard**  | ⚠️ Template Only  | Angular 19 default — ไม่มี custom components                  |
 | **Flutter App**      | ❌ Not Created     | ไม่มีโฟลเดอร์ใน repo                                          |
 | **SignalR Hub**      | 🟡 Setup Registered | `AddSignalR()` พร้อมแล้ว แต่ยังไม่มี Hub implementation        |
 | **EF Core + PostGIS**| ✅ Added           | `ApplicationDbContext`, Rider/Order entities, migration, NetTopologySuite |
+| **Data Handler Core**| ✅ Added           | EF Core-based `DBHandlerCore` + `ConditionContext`, registered in DI and exposed via `DeliveryControllerBase.DB` |
 | **Dockerfiles**      | 🟡 Partial          | Backend Dockerfile มีแล้ว; ai-engine/frontend ยังต้องตรวจ/สร้าง |
 | **CI/CD**            | ❌ Empty           | `.github/workflows/` ว่าง                                     |
 
@@ -192,7 +194,7 @@ e0f3089 Initial commit
 
 ## 8. Development Standards (จาก .cursorrules)
 
-- **Backend:** Repository Pattern + Dependency Injection
+- **Backend:** Repository Pattern + Dependency Injection; shared controller data access can use `DBHandlerCore` while domain-specific repositories are added
 - **Frontend:** Component-based architecture (Angular standalone)
 - **Database:** ทุก Geospatial Query ต้องใช้ GiST Index
 - **Communication:** GPS data ส่งผ่าน SignalR/WebSockets เท่านั้น
@@ -228,7 +230,7 @@ e0f3089 Initial commit
 
 ### 🔴 Critical — ขาดและ block การทำงาน
 1. **สร้าง/ตรวจ Dockerfiles ที่เหลือ** — ai-engine และ frontend
-2. **พัฒนา BackendApi ต่อ** — Repository Pattern, AuthController/User model, protected API, SignalR Hub
+2. **พัฒนา BackendApi ต่อ** — domain repositories on top of DBHandlerCore, AuthController/User model, protected API, SignalR Hub
 3. **พัฒนา ai-engine** — FastAPI + OR-Tools VRP solver
 
 ### 🟡 Important — ต้องทำเร็วๆ นี้

@@ -67,3 +67,22 @@
 
 - **Command:** `dotnet build BackendApi\BackendApi.csproj`
 - **Result:** Build succeeded, 0 warnings, 0 errors
+
+---
+
+## [Log Date: 2026-05-13] | By: AI Agent
+
+### Component: BackendApi Data Handler Core
+
+- **Action:** Added `Core/DataHandlers/DBHandlerCore.cs` as an EF Core-based handler inspired by `DBHandlerCore` from `online3-casemanagement-api` and `online3-ds-api`, without bringing DevExpress XPO into this project.
+- **Action:** Added `Core/DataHandlers/ConditionContext.cs` for optional convention-based filters such as `RecordStatus` / `RECORD_STATUS` and `DelFlag` / `DEL_FLAG` when future entities include those fields.
+- **Action:** Updated `Core/DeliveryControllerBase.cs` with a protected `DB` property so child controllers can use a familiar pattern similar to `BetimesControllerBase`.
+- **Action:** Registered `ConditionContext` and `DBHandlerCore` as scoped services in `Setup/ServiceSetup.cs`.
+- **Action:** Added missing policy constants to `Security/AuthConstants.cs` so security setup and policy names are centralized.
+- **Applied Version:** Controllers can now call `DB.GetQuery<T>()`, `DB.GetObjectListAsync<T>()`, `DB.GetObjectByKeyAsync<T>()`, `DB.InsertObject(entity)`, `DB.UpdateObject(entity)`, `DB.DeleteObjectAsync<T>(key)`, and `DB.CommitChangesAsync()`.
+- **Impact:** BackendApi has a practical data-handler layer for upcoming controllers while still matching the project constraint to use EF Core/PostGIS.
+
+### Verification
+
+- **Command:** `dotnet build BackendApi\BackendApi.csproj`
+- **Result:** Build succeeded, 0 warnings, 0 errors

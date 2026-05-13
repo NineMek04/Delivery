@@ -159,6 +159,38 @@ Delivery/
 | SignalR | `AddSignalR()` registered, Hub not yet implemented |
 | AI HTTP client | Named HttpClient: `AiService` |
 
+### Backend Data Handler Core
+
+`DBHandlerCore` is an EF Core-based data handler inspired by the `DBHandlerCore` pattern from the `online3-casemanagement-api` and `online3-ds-api` reference projects. It keeps the controller-facing workflow familiar while avoiding DevExpress XPO dependencies.
+
+| Capability | Method / Property |
+|---|---|
+| Query entities | `DB.GetQuery<TEntity>()` |
+| Query list | `DB.GetObjectListAsync<TEntity>()` |
+| Find by key | `DB.GetObjectByKeyAsync<TEntity>(key)` |
+| Create instance | `DB.CreateEntity<TEntity>()` |
+| Insert | `DB.InsertObject(entity)` |
+| Update | `DB.UpdateObject(entity)` |
+| Soft/hard delete | `DB.DeleteObjectAsync<TEntity>(key, softDelete: true)` |
+| Direct SQL delete by PK | `DB.DirectDeleteAsync<TEntity>(key)` |
+| Commit unit of work | `DB.CommitChangesAsync()` |
+| Clear tracked changes | `DB.ClearAllChanges()` |
+| Begin transaction | `DB.BeginTransactionAsync()` |
+| Execute SQL | `DB.ExecuteSqlAsync(sql, parameters)` |
+
+`DeliveryControllerBase` exposes `protected DBHandlerCore DB`, so future controllers can use this pattern:
+
+```csharp
+var riders = await DB.GetObjectListAsync<Rider>();
+DB.InsertObject(order);
+await DB.CommitChangesAsync();
+```
+
+`ConditionContext` applies optional convention-based filters only when the target entity has matching properties:
+
+- `RecordStatus` / `RECORD_STATUS` equals `A`
+- `DelFlag` / `DEL_FLAG` equals `N`
+
 ### Planned API Endpoints
 
 | Method | Endpoint | Description | Status |
@@ -372,9 +404,10 @@ Important: replace placeholder values in `docker-compose.yml` before using Docke
 | PostGIS Database | Ready | Uses PostGIS image and SRID 4326 standard |
 | Backend Dockerfile | Ready | Multi-stage .NET 8 Dockerfile exists |
 | Backend API | Foundation Ready | EF Core/PostGIS, setup extensions, JWT baseline |
+| Data Handler Core | Ready | EF Core-based `DBHandlerCore` and `ConditionContext` registered in DI |
 | Backend AuthController | Pending | Security services ready, endpoints not implemented |
 | SignalR Hub | Pending | SignalR registered, hub not yet implemented |
-| Repository Pattern | Pending | To be added for domain data access |
+| Repository Pattern | Pending | `DBHandlerCore` foundation exists; domain-specific repositories still pending |
 | AI Engine | Pending / scaffold | Needs implementation and Dockerfile verification |
 | Angular Dashboard | Template | Angular 19 template |
 | Flutter App | Not Created | Rider app not initialized |
@@ -390,7 +423,7 @@ Important: replace placeholder values in `docker-compose.yml` before using Docke
 - [ ] Add AuthController for login/logout/session.
 - [ ] Use `ITokenService` for issuing JWT access tokens.
 - [ ] Apply `LoginAttemptService` and `auth` rate limit policy to login/register endpoints.
-- [ ] Add repositories for Riders and Orders.
+- [ ] Add repositories for Riders and Orders on top of `DBHandlerCore`.
 - [ ] Add OrdersController and RidersController.
 - [ ] Add TrackingHub at `/hubs/tracking`.
 - [ ] Add GiST indexes for spatial fields in migrations.

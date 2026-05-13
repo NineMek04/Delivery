@@ -8,6 +8,9 @@
 - [cite_start]**AI Engine:** ใช้ Python FastAPI และ Google OR-Tools เท่านั้น [cite: 28, 46, 69]
 - [cite_start]**Database:** ใช้ PostgreSQL + PostGIS (SRID 4326) เสมอ [cite: 29, 47, 71]
 - [cite_start]**Frontend:** Angular สำหรับ Admin และ Flutter สำหรับ Rider [cite: 26, 29, 45]
+- **Security:** ใช้ JWT Bearer authentication, role-based authorization policies, rate limiting และ security headers สำหรับ Backend API
+- **Secrets:** ห้าม commit ค่า secret จริง เช่น `Jwt:Key`, database password หรือ `.env`; ให้ใช้ user secrets/environment variables
+- **CORS:** ห้ามใช้ allow-all origin ร่วมกับ credentials ใน production; ให้กำหนดผ่าน `Cors:AllowedOrigins`
 
 ## 3. Workflow & Logging Rules (CRITICAL)
 - **Selective Logging:** เมื่อเจน Code หลายครั้ง ให้รอจนกว่าผู้ใช้จะยืนยันเวอร์ชันสุดท้ายที่นำไปใช้จริง
@@ -15,5 +18,4 @@
 - **Context Awareness:** ทุกครั้งที่เริ่มงานใหม่ ต้องอ่านไฟล์ `AI-BLUEPRINT.md` เพื่อเช็ค Tech Stack และอ่าน `AI-CHANGELOG.md` เพื่อดูสถานะล่าสุดของทีม
 
 ## 4. Error Mitigation
-- หากมีการเขียน Code ที่ต้องใช้ GPU ให้คำนึงถึงปัญหาความร้อนและ Driver (nvlddmkm) ของเครื่อง ASUS ROG เสมอ
 - เมื่อเชื่อมต่อ Registry ให้ตรวจสอบไฟล์ `.npmrc` และสถานะ VPN ของบริษัทก่อนเสนอคำสั่ง npm

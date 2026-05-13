@@ -4,7 +4,7 @@
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
 > **สถาบัน:** มหาวิทยาลัยราชภัฏอุดรธานี — วิศวกรรมคอมพิวเตอร์และการสื่อสาร  
-> **Last Updated:** 2026-05-12
+> **Last Updated:** 2026-05-13
 
 ---
 
@@ -31,11 +31,12 @@
 | Layer              | Technology                  | Version           | Notes                                         |
 |--------------------|-----------------------------|-------------------|-----------------------------------------------|
 | **Backend API**    | .NET (ASP.NET Core)         | **.NET 8**        | `net8.0` in csproj + Swagger/OpenAPI           |
-| **Real-time**      | SignalR                     | —                 | ยังไม่ได้เพิ่ม — ต้อง install NuGet package      |
+| **Real-time**      | SignalR                     | ASP.NET Core built-in | Registered in BackendApi service setup; Hub ยังรอเพิ่มตาม workflow |
 | **AI Engine**      | Python + FastAPI            | —                 | ยังว่าง — `main.py` + `requirements.txt` ว่าง   |
 | **AI Algorithm**   | Google OR-Tools             | —                 | ยังไม่ได้ install                                |
 | **Database**       | PostgreSQL + PostGIS        | 15-3.3 (Docker)   | GEOMETRY(Point, 4326) / SRID 4326              |
-| **ORM**            | EF Core + NetTopologySuite  | —                 | ยังไม่ได้เพิ่ม NuGet packages                    |
+| **ORM**            | EF Core + NetTopologySuite  | 8.0.11            | Added for PostgreSQL/PostGIS geometry mapping |
+| **Security**       | JWT Bearer + ASP.NET Core Auth | 8.0.11         | JWT validation, role policies, rate limiting, security headers |
 | **Frontend**       | Angular                     | **v19.2.0**       | Standalone components (ไม่มี NgModules)         |
 | **Mobile App**     | Flutter (Dart)              | —                 | **❌ ยังไม่ได้สร้างใน repo**                      |
 | **Container**      | Docker + Docker Compose     | v3.8              | 4 services defined                             |
@@ -108,7 +109,14 @@ Delivery/
 │
 ├── BackendApi/              ← .NET 8 Web API
 │   ├── BackendApi.csproj    ← net8.0, Swagger, OpenAPI
-│   ├── Program.cs           ← ⚠️ ยังเป็น WeatherForecast template
+│   ├── Program.cs           ← Minimal host delegates to Setup extensions
+│   ├── Core/DeliveryControllerBase.cs
+│   ├── Setup/               ← DI, middleware pipeline, security/env setup
+│   ├── Security/            ← JWT/token constants, token service, login-attempt service
+│   ├── Data/ApplicationDbContext.cs
+│   ├── Models/              ← Rider, Order
+│   ├── Migrations/          ← EF Core initial migration
+│   ├── Dockerfile
 │   ├── appsettings.json
 │   └── Properties/
 │
@@ -135,13 +143,13 @@ Delivery/
 |----------------------|-------------------|--------------------------------------------------------------|
 | **docker-compose**   | ✅ Created         | 4 services: db, backend, ai-service, frontend                |
 | **PostGIS DB**       | ✅ Running         | เชื่อมต่อผ่าน DBeaver ได้แล้ว (ตาม changelog)                  |
-| **BackendApi**       | ⚠️ Template Only  | WeatherForecast template + Swagger — ไม่มี domain models      |
+| **BackendApi**       | 🟡 Foundation Ready | EF Core/PostGIS models, setup extensions, Dockerfile, Swagger, JWT security baseline |
 | **ai-engine**        | ❌ Empty           | `main.py` + `requirements.txt` ว่างเปล่า                      |
 | **admin-dashboard**  | ⚠️ Template Only  | Angular 19 default — ไม่มี custom components                  |
 | **Flutter App**      | ❌ Not Created     | ไม่มีโฟลเดอร์ใน repo                                          |
-| **SignalR Hub**      | ❌ Not Added       | ยังไม่ได้ install NuGet package                                |
-| **EF Core + PostGIS**| ❌ Not Added       | ยังไม่มี entities / migrations / NetTopologySuite              |
-| **Dockerfiles**      | ❌ Missing         | docker-compose อ้าง Dockerfile แต่ยังไม่ได้สร้างในแต่ละ service |
+| **SignalR Hub**      | 🟡 Setup Registered | `AddSignalR()` พร้อมแล้ว แต่ยังไม่มี Hub implementation        |
+| **EF Core + PostGIS**| ✅ Added           | `ApplicationDbContext`, Rider/Order entities, migration, NetTopologySuite |
+| **Dockerfiles**      | 🟡 Partial          | Backend Dockerfile มีแล้ว; ai-engine/frontend ยังต้องตรวจ/สร้าง |
 | **CI/CD**            | ❌ Empty           | `.github/workflows/` ว่าง                                     |
 
 ### Git History (4 commits)
@@ -159,7 +167,7 @@ e0f3089 Initial commit
 | Service        | Image / Build          | Port  | Container Name       | Status              |
 |----------------|------------------------|-------|----------------------|---------------------|
 | **db**         | `postgis/postgis:15-3.3`| 5432  | delivery-db          | ✅ ใช้งานได้          |
-| **backend**    | `./BackendApi/Dockerfile`| 5000 | delivery-backend     | ❌ ไม่มี Dockerfile   |
+| **backend**    | `./BackendApi/Dockerfile`| 5000 | delivery-backend     | ✅ มี Dockerfile + JWT env placeholders |
 | **ai-service** | `./ai-engine/Dockerfile` | 8000 | delivery-ai          | ❌ ไม่มี Dockerfile   |
 | **frontend**   | `./admin-dashboard/Dockerfile`| 80| delivery-frontend    | ❌ ไม่มี Dockerfile   |
 
@@ -190,6 +198,20 @@ e0f3089 Initial commit
 - **Communication:** GPS data ส่งผ่าน SignalR/WebSockets เท่านั้น
 - **Container:** ทุก service ต้องนิยามใน `docker-compose.yml`
 - **Logging:** ก่อนบันทึกลง `AI-CHANGELOG.md` ต้องถามผู้ใช้ยืนยันก่อน
+- **Security:** ใช้ JWT Bearer สำหรับ protected API, ตั้ง `Jwt:Key` ผ่าน user secrets/environment variables เท่านั้น และ key ต้องยาวอย่างน้อย 32 ตัวอักษร
+- **Security:** ห้ามเปิด CORS แบบ allow-all ร่วมกับ credentials; อ่าน allowed origins จาก `Cors:AllowedOrigins`
+- **Security:** Auth endpoints ในอนาคตควรใช้ rate limit policy `auth` และ `LoginAttemptService` เพื่อลด brute-force login
+- **Security:** Token สามารถรับจาก `Authorization: Bearer` หรือ HttpOnly cookie ชื่อ `access_token` เพื่อรองรับ web/mobile clients
+
+---
+
+## 8.1 Backend Security Baseline
+
+- `BackendApi/Setup/SecurityConfiguration.cs` ลงทะเบียน JWT bearer authentication, role policies, rate limiter และ login-attempt lockout service
+- `BackendApi/Security/JwtTokenService.cs` เป็น service กลางสำหรับออก access token ด้วย claims มาตรฐาน: `NameIdentifier`, `Email`, `Name`, `Role`
+- `BackendApi/Setup/SecurityHeadersMiddleware.cs` เพิ่ม `Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, และ `Permissions-Policy`
+- `BackendApi/Setup/DotEnvLoader.cs` โหลด `.env` แล้วแปลง `__` เป็น configuration path เช่น `Jwt__Key` → `Jwt:Key`
+- `BackendApi/.env.example` เป็น template สำหรับ local secret/config โดยไม่ควร commit `.env` จริง
 
 ---
 
@@ -205,14 +227,14 @@ e0f3089 Initial commit
 ## 10. What Needs to Be Done Next (Priority Order)
 
 ### 🔴 Critical — ขาดและ block การทำงาน
-1. **สร้าง Dockerfiles** — backend, ai-engine, frontend (docker-compose อ้างอยู่แต่ไม่มีไฟล์)
-2. **พัฒนา BackendApi** — เปลี่ยนจาก WeatherForecast → Domain models + EF Core + SignalR Hub
+1. **สร้าง/ตรวจ Dockerfiles ที่เหลือ** — ai-engine และ frontend
+2. **พัฒนา BackendApi ต่อ** — Repository Pattern, AuthController/User model, protected API, SignalR Hub
 3. **พัฒนา ai-engine** — FastAPI + OR-Tools VRP solver
 
 ### 🟡 Important — ต้องทำเร็วๆ นี้
 4. **พัฒนา Angular Dashboard** — Map view + real-time tracking UI
 5. **สร้าง Flutter project** — Rider App + GPS tracking
-6. **ออกแบบ Database Schema** — EF Core entities + migrations
+6. **ขยาย Database Schema** — users/roles/auth tables, delivery domain tables, GiST indexes เพิ่มเติม
 
 ### 🟢 Nice-to-have
 7. **CI/CD Workflows** — GitHub Actions
@@ -225,7 +247,8 @@ e0f3089 Initial commit
 ### ⚠️ สิ่งที่ต้องระวัง
 - **Version จริง:** Backend ใช้ `.NET 8` (ไม่ใช่ .NET 9 — ตรวจแล้วจาก csproj ล่าสุด)
 - **PostGIS image:** ต้องใช้ `postgis/postgis` ไม่ใช่ `postgres` ธรรมดา
-- **Dockerfiles ยังไม่มี:** docker-compose อ้าง `./BackendApi/Dockerfile` etc. แต่ไม่มีไฟล์จริง
+- **Dockerfiles:** Backend Dockerfile มีแล้ว; ai-engine/frontend ยังต้องตรวจหรือสร้างเพิ่ม
+- **JWT Security:** ต้องตั้ง `Jwt__Key` ผ่าน environment variable/user secrets ก่อนรัน backend เพราะ app จะ fail-fast ถ้าใช้ placeholder หรือ key สั้นกว่า 32 ตัวอักษร
 - **Angular 19** ใช้ standalone components — ไม่มี NgModules
 - **SignalR** ต้อง config CORS ให้ Flutter + Angular เชื่อมต่อได้
 - **NetTopologySuite** ต้องเพิ่มเป็น NuGet package เพื่อ map GEOMETRY types

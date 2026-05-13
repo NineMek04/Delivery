@@ -1,30 +1,24 @@
-using BackendApi.Data;
-using Microsoft.EntityFrameworkCore;
+using BackendApi.Setup;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- เพิ่มโค้ดส่วนนี้เพื่อเชื่อมต่อ Database ---
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        x => x.UseNetTopologySuite() // เปิดใช้งานฟีเจอร์แผนที่
-    )
-);
-// ----------------------------------------------
+var dotEnvValues = DotEnvLoader.Load(builder.Environment.ContentRootPath)
+    .ToDictionary(pair => pair.Key.Replace("__", ":"), pair => pair.Value);
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+if (dotEnvValues.Count > 0)
+{
+    builder.Configuration.AddInMemoryCollection(dotEnvValues);
+}
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.AddServerHeader = false;
+});
+
+builder.Services.AddBackendApiServices(builder.Configuration);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseBackendApiPipeline();
 
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
 app.Run();

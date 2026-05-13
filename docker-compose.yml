@@ -23,6 +23,11 @@ services:
     environment:
       - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=your_password
       - AI_SERVICE_URL=http://ai-service:8000
+      - Jwt__Key=replace-with-a-long-random-key-that-is-at-least-32-characters
+      - Jwt__Issuer=DeliveryBackendApi
+      - Jwt__Audience=DeliveryClients
+      - Cors__AllowedOrigins=http://localhost,http://localhost:4200
+      - Authentication__RequireSecureCookie=false
     depends_on:
       - db
     ports:

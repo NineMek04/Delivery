@@ -1,407 +1,447 @@
-# 📋 Project Specification
+# Project Specification
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.1.0 (Infrastructure Phase)  
-> **Last Updated:** 2026-05-12  
+> **Version:** 0.2.0 (Backend Foundation + Security Baseline)  
+> **Last Updated:** 2026-05-13  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
 ---
 
-## 1. ภาพรวมโครงการ (Overview)
+## 1. Overview
 
-ระบบที่ใช้ **AI คำนวณเส้นทางขนส่ง** ให้สั้นที่สุดและประหยัดที่สุด สำหรับการจัดส่งสินค้า/อาหารที่มีจุดรับ-ส่งหลายจุด (Multi-drop) พัฒนาเป็น **Microservices Architecture** บน Docker Container เพื่อให้ทั้งทีมสามารถ setup dev environment ได้ในคำสั่งเดียว
+ระบบนี้เป็นแพลตฟอร์มจำลองการจัดส่งสินค้า/อาหารที่ใช้ AI ช่วยคำนวณเส้นทางที่เหมาะสมสำหรับงานแบบ multi-drop หรือ batched orders โดยพัฒนาเป็น microservices บน Docker เพื่อให้ setup และทดสอบแต่ละ service ได้ง่าย
 
-### ปัญหาที่แก้
-- คนขับรถได้เส้นทางที่ไม่ผ่านการ optimize → เสียเวลา + เชื้อเพลิง
-- ระบบที่มีอยู่ต้องใช้ฮาร์ดแวร์ GPS แพง → ใช้สมาร์ทโฟนแทน (BYOD)
+### Problems To Solve
+
+- เส้นทางจัดส่งที่ไม่ได้ optimize ทำให้เสียเวลาและเชื้อเพลิง
+- งานจัดส่งหลายจุดต้องการการจัดลำดับ waypoint ที่เหมาะสม
+- ต้องการ real-time GPS tracking ระหว่าง Rider mobile app และ Admin dashboard
+- ต้องการ prototype ที่ใช้ smartphone เป็น GPS sensor แทน hardware เฉพาะทาง
 
 ### Core Features
-| Feature | Description |
-|---------|-------------|
-| 🗺️ AI Route Optimization | คำนวณเส้นทางที่สั้นที่สุดด้วย VRP Algorithm (Google OR-Tools) |
-| 📡 Real-time GPS Tracking | ติดตามตำแหน่งคนขับ real-time ผ่าน WebSocket (SignalR) |
-| 📊 Admin Dashboard | แดชบอร์ดดูสถานะคนขับ + ออเดอร์ บนแผนที่ |
-| 📱 Rider Mobile App | แอปสำหรับคนขับ — ส่งพิกัด GPS + รับเส้นทาง |
-| 🐳 One-Command Deploy | `docker-compose up` รันทั้งระบบ |
+
+| Feature | Description | Status |
+|---|---|---|
+| AI Route Optimization | คำนวณเส้นทางด้วย VRP algorithm ผ่าน Google OR-Tools | Planned |
+| Real-time GPS Tracking | ส่งตำแหน่ง Rider ผ่าน SignalR/WebSocket | SignalR registered, Hub pending |
+| Admin Dashboard | Dashboard สำหรับดู order/rider/map แบบ real-time | Angular template |
+| Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | Not created |
+| Dockerized Services | รันระบบด้วย Docker Compose | Partial |
+| Backend Security | JWT, role policy, rate limit, security headers | Foundation ready |
 
 ---
 
 ## 2. Tech Stack
 
-### สรุปแบบรวดเร็ว
+| Layer | Technology | Version / Notes |
+|---|---|---|
+| Backend API | ASP.NET Core | .NET 8 |
+| Backend ORM | EF Core + Npgsql + NetTopologySuite | 8.0.11 |
+| Backend API Docs | Swagger / Swashbuckle | 6.6.2 |
+| Backend Security | JWT Bearer Authentication | Microsoft.AspNetCore.Authentication.JwtBearer 8.0.11 |
+| Real-time | SignalR | ASP.NET Core built-in, registered in DI |
+| Database | PostgreSQL + PostGIS | `postgis/postgis:15-3.3` |
+| AI Engine | Python FastAPI + OR-Tools | Planned / scaffold pending verification |
+| Frontend | Angular | 19.2.0, standalone components |
+| Mobile | Flutter | Not created |
+| Container | Docker Compose | v3.8 |
 
-```
-Frontend:  Angular 19        →  Admin Dashboard (Web)
-Mobile:    Flutter            →  Rider App (iOS/Android)
-Backend:   .NET 8 + SignalR   →  API Gateway + Real-time Hub
-AI:        Python FastAPI     →  VRP Solver (OR-Tools)
-Database:  PostgreSQL/PostGIS →  Spatial Data (GPS coordinates)
-Infra:     Docker Compose     →  ทุก service รวมในที่เดียว
-```
+### Backend Packages
 
-### รายละเอียด Version
-
-| Component | Technology | Version | Package Manager |
-|-----------|-----------|---------|-----------------|
-| Backend API | ASP.NET Core | **.NET 8.0** | NuGet |
-| Backend Packages | Swashbuckle (Swagger) | 6.6.2 | NuGet |
-| Backend Packages | Microsoft.AspNetCore.OpenApi | 8.0.26 | NuGet |
-| AI Engine | Python + FastAPI | 3.11 + ≥0.110.0 | pip |
-| AI Engine | Google OR-Tools | ≥9.9 | pip |
-| AI Engine | Uvicorn | ≥0.29.0 | pip |
-| Frontend | Angular | **19.2.0** | npm |
-| Frontend | TypeScript | 5.7.2 | npm |
-| Frontend | RxJS | 7.8.x | npm |
-| Database | PostgreSQL + PostGIS | **15-3.3** | Docker image |
-| Mobile | Flutter (Dart) | TBD | pub |
-
-### Packages ที่ยังต้องเพิ่ม (ยังไม่ได้ install)
-
-| Service | Package | Purpose |
-|---------|---------|---------|
-| Backend | `Microsoft.AspNetCore.SignalR` | WebSocket real-time communication |
-| Backend | `Npgsql.EntityFrameworkCore.PostgreSQL` | EF Core + PostgreSQL |
-| Backend | `NetTopologySuite` | Map PostGIS GEOMETRY types ใน C# |
-| Frontend | `@microsoft/signalr` | SignalR client สำหรับ Angular |
-| Frontend | `leaflet` หรือ `@angular/google-maps` | แสดงแผนที่ |
+| Package | Purpose | Status |
+|---|---|---|
+| `Microsoft.AspNetCore.OpenApi` | OpenAPI support | Added |
+| `Swashbuckle.AspNetCore` | Swagger UI | Added |
+| `Microsoft.AspNetCore.Authentication.JwtBearer` | JWT validation | Added |
+| `Microsoft.EntityFrameworkCore` | ORM | Added |
+| `Microsoft.EntityFrameworkCore.Design` | EF migrations tooling | Added |
+| `Microsoft.EntityFrameworkCore.Tools` | EF tools | Added |
+| `Npgsql.EntityFrameworkCore.PostgreSQL` | PostgreSQL provider | Added |
+| `Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite` | PostGIS geometry mapping | Added |
 
 ---
 
 ## 3. System Architecture
 
-### 3.1 Services Overview
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     Docker Compose Network                    │
-│                                                              │
-│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  │
-│  │    db           │  │   backend      │  │  ai-service    │  │
-│  │  PostGIS 15     │  │  .NET 8        │  │  Python 3.11   │  │
-│  │                 │  │  ASP.NET Core  │  │  FastAPI       │  │
-│  │  Port: 5432     │  │  + SignalR     │  │  + OR-Tools    │  │
-│  │                 │  │  Port: 5000    │  │  Port: 8000    │  │
-│  └────────────────┘  └────────────────┘  └────────────────┘  │
-│          ▲                   ▲ ▲                  ▲           │
-│          │                   │ │                  │           │
-│          └───────────────────┘ └──────────────────┘           │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │                    frontend                               │ │
-│  │              Angular 19 + Nginx                           │ │
-│  │              Port: 80                                     │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-                              ▲
-                              │ WebSocket (SignalR)
-                    ┌─────────┴─────────┐
-                    │   Flutter App      │
-                    │   Rider Mobile     │
-                    │   (ยังไม่ได้สร้าง)    │
-                    └───────────────────┘
+```text
+Flutter Rider App
+    |
+    | SignalR / WebSocket
+    v
+.NET Backend API  <---- REST ---->  Python AI Service
+    |
+    | EF Core + NetTopologySuite
+    v
+PostgreSQL + PostGIS
+    ^
+    |
+Angular Admin Dashboard
 ```
 
-### 3.2 Docker Services
+### Docker Services
 
-| Service | Container Name | Build Context | Port (Host:Container) | Depends On |
-|---------|---------------|---------------|----------------------|------------|
-| **db** | delivery-db | `postgis/postgis:15-3.3` (image) | `5432:5432` | — |
-| **backend** | delivery-backend | `./BackendApi/Dockerfile` | `5000:80` | db |
-| **ai-service** | delivery-ai | `./ai-engine/Dockerfile` | `8000:8000` | db |
-| **frontend** | delivery-frontend | `./admin-dashboard/Dockerfile` | `80:80` | backend |
+| Service | Container | Build / Image | Port | Status |
+|---|---|---|---|---|
+| `db` | `delivery-db` | `postgis/postgis:15-3.3` | `5432:5432` | Ready |
+| `backend` | `delivery-backend` | `./BackendApi/Dockerfile` | `5000:80` | Backend Dockerfile exists |
+| `ai-service` | `delivery-ai` | `./ai-engine/Dockerfile` | `8000:8000` | Needs verification / implementation |
+| `frontend` | `delivery-frontend` | `./admin-dashboard/Dockerfile` | `80:80` | Needs verification / implementation |
 
-### 3.3 Data Flow
+### Data Flow
 
-```
-1. คนขับเปิดแอป Flutter → ส่ง GPS ผ่าน SignalR → .NET Backend
-2. มีออเดอร์เข้า → Backend รวมข้อมูล (orders + พิกัดร้าน + พิกัดลูกค้า + คนขับว่าง)
-3. Backend ส่ง REST request → AI Service (Python)
-4. AI Service แก้สมการ VRP → ส่ง Waypoint Sequence กลับ
-5. Backend บันทึก DB → Broadcast ผ่าน SignalR → แอปคนขับ + Dashboard อัปเดตพร้อมกัน
-```
+1. Rider app sends GPS location to Backend via SignalR.
+2. Backend stores GPS/order data in PostgreSQL/PostGIS.
+3. Backend sends order and rider data to AI service for VRP optimization.
+4. AI service returns waypoint sequence.
+5. Backend saves route result and broadcasts updates to Rider app and Admin dashboard.
 
 ---
 
 ## 4. Project Structure
 
-```
+```text
 Delivery/
-│
-├── 📄 Delivery.sln              .NET Solution file
-├── 📄 docker-compose.yml        Docker orchestration (4 services)
-├── 📄 AI-BLUEPRINT.md           AI Context Ledger (สำหรับ AI assistant)
-├── 📄 AI-CHANGELOG.md           AI Change Log
-├── 📄 PROJECT-SPEC.md           ไฟล์นี้ — สเปคโปรเจค
-├── 📄 .cursorrules              กฎสำหรับ AI coding assistant
-├── 📄 README.md
-│
-├── 📁 BackendApi/               ── .NET 8 Web API ──
-│   ├── Dockerfile               Multi-stage build (SDK → Runtime)
-│   ├── .dockerignore
-│   ├── BackendApi.csproj         Target: net8.0
-│   ├── Program.cs               ⚠️ ยังเป็น template (WeatherForecast)
+├── Delivery.sln
+├── docker-compose.yml
+├── AI-BLUEPRINT.md
+├── AI-CHANGELOG.md
+├── PROJECT-SPEC.md
+├── .cursorrules
+├── BackendApi/
+│   ├── BackendApi.csproj
+│   ├── Program.cs
+│   ├── Dockerfile
+│   ├── .env.example
 │   ├── appsettings.json
-│   └── Properties/
-│
-├── 📁 ai-engine/                ── Python FastAPI ──
-│   ├── Dockerfile               Python 3.11-slim + uvicorn
-│   ├── .dockerignore
-│   ├── main.py                  ✅ Minimal — /health + /api/solve-vrp (placeholder)
-│   └── requirements.txt         fastapi, uvicorn, ortools
-│
-├── 📁 admin-dashboard/          ── Angular 19 ──
-│   ├── Dockerfile               Multi-stage build (Node → Nginx)
-│   ├── nginx.conf               SPA fallback + API proxy
-│   ├── package.json             Angular ^19.2.0
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── app.component.*  ⚠️ Default Angular template
-│   │   │   ├── app.routes.ts
-│   │   │   └── app.config.ts
-│   │   ├── index.html
-│   │   ├── main.ts
-│   │   └── styles.css
-│   └── tsconfig*.json
-│
-└── 📁 .github/workflows/       CI/CD (ว่าง — ยังไม่ได้ setup)
+│   ├── appsettings.Development.json
+│   ├── Core/
+│   │   └── DeliveryControllerBase.cs
+│   ├── Data/
+│   │   └── ApplicationDbContext.cs
+│   ├── Models/
+│   │   ├── Rider.cs
+│   │   └── Order.cs
+│   ├── Migrations/
+│   ├── Security/
+│   │   ├── AuthConstants.cs
+│   │   ├── ITokenService.cs
+│   │   ├── JwtTokenService.cs
+│   │   ├── LoginAttemptService.cs
+│   │   └── TokenSubject.cs
+│   └── Setup/
+│       ├── ApplicationSetup.cs
+│       ├── DotEnvLoader.cs
+│       ├── SecurityConfiguration.cs
+│       ├── SecurityHeadersMiddleware.cs
+│       └── ServiceSetup.cs
+├── ai-engine/
+├── admin-dashboard/
+└── .github/workflows/
 ```
 
 ---
 
-## 5. Environment Setup
+## 5. Backend API Specification
 
-### Prerequisites
-| Tool | Version | Download |
-|------|---------|----------|
-| Docker Desktop | ≥ 4.x | https://www.docker.com/products/docker-desktop |
-| Git | ≥ 2.x | https://git-scm.com |
-| Node.js | ≥ 20 LTS | https://nodejs.org (สำหรับ dev Angular โดยตรง) |
-| .NET SDK | 8.0 | https://dotnet.microsoft.com/download (สำหรับ dev Backend โดยตรง) |
-| Python | 3.11+ | https://python.org (สำหรับ dev AI Engine โดยตรง) |
+### Current Backend Foundation
 
-### Quick Start — รันทั้งระบบ
+| Area | Current Implementation |
+|---|---|
+| Hosting | .NET 8 minimal hosting |
+| Program setup | `Program.cs` delegates to setup extensions |
+| DI setup | `Setup/ServiceSetup.cs` |
+| Middleware pipeline | `Setup/ApplicationSetup.cs` |
+| DbContext | `Data/ApplicationDbContext.cs` |
+| Domain models | `Models/Rider.cs`, `Models/Order.cs` |
+| Base controller | `Core/DeliveryControllerBase.cs` |
+| Swagger | Enabled in development |
+| SignalR | `AddSignalR()` registered, Hub not yet implemented |
+| AI HTTP client | Named HttpClient: `AiService` |
 
-```bash
-# 1. Clone repo
-git clone <repo-url>
-cd Delivery
+### Planned API Endpoints
 
-# 2. รันทุก service ด้วย Docker Compose
-docker-compose up --build
+| Method | Endpoint | Description | Status |
+|---|---|---|---|
+| GET | `/swagger` | Swagger UI | Ready in development |
+| POST | `/api/auth/login` | Login and issue JWT/session cookie | Planned |
+| POST | `/api/auth/logout` | Clear auth cookie | Planned |
+| GET | `/api/auth/session` | Read current session | Planned |
+| POST | `/api/orders` | Create order | Planned |
+| GET | `/api/orders` | List orders | Planned |
+| GET | `/api/riders` | List riders | Planned |
+| GET | `/api/riders/available` | List available riders, optionally by location | Planned |
+| PUT | `/api/riders/{id}/location` | Update rider GPS location | Planned |
+| POST | `/api/routes/optimize` | Send batched orders to AI service | Planned |
+| WebSocket | `/hubs/tracking` | SignalR hub for real-time GPS tracking | Planned |
 
-# 3. เปิดใช้งาน
-#    Frontend:     http://localhost
-#    Backend API:  http://localhost:5000/swagger
-#    AI Engine:    http://localhost:8000/health
-#    Database:     localhost:5432 (user: postgres / pass: your_password)
+---
+
+## 6. Backend Security Baseline
+
+Security foundation is implemented before adding full AuthController/User domain logic.
+
+### Implemented Components
+
+| File | Purpose |
+|---|---|
+| `Setup/SecurityConfiguration.cs` | Registers JWT auth, authorization policies, rate limiting, token services |
+| `Setup/SecurityHeadersMiddleware.cs` | Adds baseline security headers |
+| `Setup/DotEnvLoader.cs` | Loads `.env` values and maps `__` to configuration paths |
+| `Security/AuthConstants.cs` | Shared auth constants, roles, policy names, cookie name |
+| `Security/JwtTokenService.cs` | Central JWT access token creation |
+| `Security/LoginAttemptService.cs` | In-memory login failure tracking and lockout |
+| `Security/TokenSubject.cs` | Token subject DTO |
+| `Security/ITokenService.cs` | Token service abstraction |
+
+### Security Rules
+
+- `Jwt:Key` must be provided through user secrets, environment variables, or `.env`.
+- `Jwt:Key` must be at least 32 characters.
+- Placeholder values such as `__SET_VIA_USER_SECRETS_OR_ENV__` and `replace-with...` are rejected at startup.
+- JWT is accepted from `Authorization: Bearer <token>`.
+- JWT can also be read from an HttpOnly cookie named `access_token`.
+- Kestrel server header is disabled.
+- Security headers are enabled by default through `SecurityHeaders:Enabled`.
+- CORS reads allowed origins from `Cors:AllowedOrigins`.
+- Avoid allow-all CORS with credentials in production.
+- Future auth endpoints should use the rate limit policy named `auth`.
+
+### Role Policies
+
+| Policy | Allowed Roles |
+|---|---|
+| `AdminOnly` | `Admin` |
+| `Operations` | `Admin`, `Dispatcher` |
+| `Rider` | `Admin`, `Rider` |
+
+### Local JWT Configuration
+
+Create `BackendApi/.env` from `BackendApi/.env.example`:
+
+```env
+ASPNETCORE_ENVIRONMENT=Development
+ASPNETCORE_URLS=http://localhost:5000
+ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=delivery_db;Username=postgres;Password=replace-with-local-password"
+AI_SERVICE_URL=http://localhost:8000
+Jwt__Key="delivery-dev-jwt-secret-key-please-change-2026"
+Jwt__Issuer=DeliveryBackendApi
+Jwt__Audience=DeliveryClients
+Cors__AllowedOrigins=http://localhost:4200,http://localhost:80
+Authentication__SessionLifetimeHours=24
+Authentication__RequireSecureCookie=false
+Authentication__CookieSameSite=Lax
 ```
 
-### Dev Mode — รันแต่ละ service แยก
+Alternative with user secrets:
 
-```bash
-# Database (จำเป็นต้องรันก่อน)
-docker-compose up db
-
-# Backend (.NET)
+```powershell
 cd BackendApi
-dotnet run
-
-# AI Engine (Python)
-cd ai-engine
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-
-# Frontend (Angular)
-cd admin-dashboard
-npm install
-npm start
-# → http://localhost:4200
+dotnet user-secrets init
+dotnet user-secrets set "Jwt:Key" "delivery-dev-jwt-secret-key-please-change-2026"
+dotnet user-secrets set "Jwt:Issuer" "DeliveryBackendApi"
+dotnet user-secrets set "Jwt:Audience" "DeliveryClients"
 ```
-
-### Database Connection
-
-| Parameter | Value |
-|-----------|-------|
-| Host | `localhost` (dev) / `db` (Docker internal) |
-| Port | `5432` |
-| Database | `delivery_db` |
-| User | `postgres` |
-| Password | `your_password` |
-| Extensions | PostGIS (auto-enabled) |
-| Coordinate System | SRID 4326 (WGS84 — มาตรฐาน GPS) |
 
 ---
 
-## 6. API Specification (Planned)
+## 7. Database Specification
 
-### Backend API (.NET) — `http://localhost:5000`
+### Current EF Core Models
 
-| Method | Endpoint | Description | Status |
-|--------|----------|-------------|--------|
-| GET | `/swagger` | Swagger UI | ✅ Ready |
-| GET | `/weatherforecast` | Template endpoint (จะลบ) | ⚠️ Template |
-| POST | `/api/orders` | สร้างออเดอร์ใหม่ | 🔲 TODO |
-| GET | `/api/orders` | ดึงรายการออเดอร์ | 🔲 TODO |
-| GET | `/api/riders` | ดึงรายชื่อคนขับ | 🔲 TODO |
-| GET | `/api/riders/available` | คนขับที่ว่าง + location filter | 🔲 TODO |
-| PUT | `/api/riders/{id}/location` | อัปเดตตำแหน่งคนขับ | 🔲 TODO |
-| POST | `/api/routes/optimize` | ส่ง batch orders ไปคำนวณ AI | 🔲 TODO |
-| — | `/hubs/tracking` | SignalR Hub — GPS real-time | 🔲 TODO |
+| Entity | Purpose | Spatial Fields |
+|---|---|---|
+| `Rider` | Delivery driver/rider profile and current status | `CurrentLocation` as `geometry(Point, 4326)` |
+| `Order` | Delivery order with pickup/dropoff points | `PickupLocation`, `DropoffLocation` as `geometry(Point, 4326)` |
 
-### AI Service (Python) — `http://localhost:8000`
+### Current DbContext
 
-| Method | Endpoint | Description | Status |
-|--------|----------|-------------|--------|
-| GET | `/health` | Health check | ✅ Ready |
-| POST | `/api/solve-vrp` | รับพิกัด → คำนวณ VRP → return waypoints | ⚠️ Placeholder |
-| GET | `/docs` | FastAPI auto-generated docs | ✅ Ready |
-
----
-
-## 7. Database Schema (Planned)
-
-### Core Entities
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│     Riders       │     │     Orders       │     │    Customers      │
-│─────────────────│     │─────────────────│     │──────────────────│
-│ Id         (PK)  │     │ Id         (PK)  │     │ Id          (PK)  │
-│ Name             │◄────│ RiderId    (FK)  │     │ Name              │
-│ Phone            │     │ CustomerId (FK)──│────►│ Phone             │
-│ CurrentLocation  │     │ ShopId     (FK)  │     │ Location (GEOM)   │
-│  (GEOMETRY 4326) │     │ Status           │     │ Address           │
-│ IsAvailable      │     │ CreatedAt        │     └──────────────────┘
-│ TotalPoints      │     │ CompletedAt      │
-└─────────────────┘     └────────┬────────┘     ┌──────────────────┐
-                                 │               │     Shops         │
-                                 └──────────────►│──────────────────│
-                                                 │ Id          (PK)  │
-┌─────────────────┐                              │ Name              │
-│     Routes       │                              │ Location (GEOM)   │
-│─────────────────│                              │ Address           │
-│ Id         (PK)  │                              └──────────────────┘
-│ RiderId    (FK)  │
-│ WaypointSeq      │  ← JSON: ลำดับจุดที่ต้องไป
-│ TotalDistance     │  ← เมตร
-│ TotalTime         │  ← วินาที
-│ Status            │
-│ CreatedAt         │
-└─────────────────┘
-```
+- `ApplicationDbContext`
+- `DbSet<Rider> Riders`
+- `DbSet<Order> Orders`
+- PostGIS extension is enabled via EF model configuration
 
 ### Spatial Data Rules
-- ทุก location field ใช้ `GEOMETRY(Point, 4326)` — มาตรฐาน WGS84
-- ใช้ **GiST Index** สำหรับ geospatial queries
-- ค้นหาคนขับในรัศมี → `ST_DWithin()` + GiST → ระดับ millisecond
+
+- Use SRID 4326 / WGS84 for all GPS coordinates.
+- Use `geometry(Point, 4326)` for location points.
+- Add GiST indexes for production geospatial queries.
+- Prefer EF Core + NetTopologySuite for geometry mapping instead of raw coordinate strings.
+
+### Planned Schema Additions
+
+- Users / roles / auth tables
+- Customers
+- Shops
+- Routes
+- Route waypoints
+- Delivery assignment history
+- Activity or audit logs
 
 ---
 
-## 8. Development Standards
+## 8. Environment Setup
 
-### Code Patterns
-| Layer | Pattern | Detail |
-|-------|---------|--------|
-| Backend | **Repository Pattern** | แยก data access ออกจาก business logic |
-| Backend | **Dependency Injection** | ใช้ built-in DI ของ ASP.NET Core |
-| Frontend | **Component-based** | Angular standalone components (ไม่ใช้ NgModules) |
-| AI Engine | **Async-first** | FastAPI async endpoints |
-| Database | **Spatial Index** | ทุก geospatial query ต้องมี GiST index |
-| Communication | **SignalR** | GPS data ส่งผ่าน WebSockets เท่านั้น |
+### Prerequisites
 
-### Git Convention
-```
-feat: เพิ่ม feature ใหม่
-fix: แก้ bug
-docs: แก้เอกสาร
-refactor: ปรับโค้ดไม่เปลี่ยน behavior
-chore: งาน infra / dependency
+| Tool | Version |
+|---|---|
+| .NET SDK | 8.x |
+| Docker Desktop | 4.x or newer |
+| Node.js | 20 LTS or compatible with Angular 19 |
+| Python | 3.11+ |
+| Git | 2.x |
+
+### Run Backend Locally
+
+```powershell
+cd BackendApi
+copy .env.example .env
+# edit .env and set Jwt__Key + database password
+dotnet run
 ```
 
-### Branch Strategy
+Swagger:
+
+```text
+http://localhost:<port>/swagger
 ```
-main          ← production-ready
-└── develop   ← integration branch
-    ├── feature/xxx
-    └── fix/xxx
+
+Check the actual development port in `BackendApi/Properties/launchSettings.json`.
+
+### Run Backend Build Verification
+
+```powershell
+dotnet build BackendApi\BackendApi.csproj
 ```
+
+Expected result:
+
+```text
+Build succeeded.
+0 Warning(s)
+0 Error(s)
+```
+
+### Docker Compose
+
+```powershell
+docker-compose up --build
+```
+
+Important: replace placeholder values in `docker-compose.yml` before using Docker for realistic testing, especially:
+
+- `ConnectionStrings__DefaultConnection`
+- `Jwt__Key`
 
 ---
 
-## 9. Current Status
+## 9. Development Standards
 
-### Phase: 🟡 Infrastructure Setup (Phase 1 of 4)
+| Area | Standard |
+|---|---|
+| Backend | .NET 8, Repository Pattern, Dependency Injection |
+| Real-time | SignalR for GPS updates |
+| Database | PostgreSQL/PostGIS, SRID 4326, GiST indexes |
+| AI Engine | FastAPI + Google OR-Tools |
+| Frontend | Angular standalone components |
+| Mobile | Flutter |
+| Security | JWT Bearer, role policies, rate limiting, security headers |
+| Secrets | No real secrets in git; use user secrets/env/.env ignored locally |
+| CORS | Configure allowed origins explicitly |
+| Containers | Keep services consistent with `docker-compose.yml` |
 
-```
-Phase 1: Infrastructure   ████████░░░░  70%  ← ตอนนี้อยู่ตรงนี้
-Phase 2: Core Backend      ░░░░░░░░░░░░   0%
-Phase 3: AI + Frontend     ░░░░░░░░░░░░   0%
-Phase 4: Integration       ░░░░░░░░░░░░   0%
-```
+---
+
+## 10. Current Status
+
+### Phase Status
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 1: Infrastructure | In progress | Docker Compose exists; backend foundation improved |
+| Phase 2: Core Backend | Starting | EF/PostGIS foundation and security baseline ready |
+| Phase 3: AI + Frontend | Pending | AI/front dashboard work remains |
+| Phase 4: Integration | Pending | End-to-end workflows not yet implemented |
 
 ### Component Status
 
-| # | Component | Status | Owner | Notes |
-|---|-----------|--------|-------|-------|
-| 1 | Docker Compose | ✅ Done | — | 4 services, volumes configured |
-| 2 | PostGIS Database | ✅ Running | — | เชื่อมต่อผ่าน DBeaver แล้ว |
-| 3 | Dockerfiles (x3) | ✅ Created | — | backend, ai-engine, frontend |
-| 4 | AI Engine Scaffold | ✅ Basic | — | /health + /api/solve-vrp placeholder |
-| 5 | Backend API | ⚠️ Template | — | ยังเป็น WeatherForecast template |
-| 6 | Angular Dashboard | ⚠️ Template | — | ยังเป็น default Angular template |
-| 7 | Database Schema | 🔲 TODO | — | ต้อง design entities + migrations |
-| 8 | SignalR Hub | 🔲 TODO | — | ต้องเพิ่ม NuGet package |
-| 9 | VRP Solver | 🔲 TODO | — | ต้อง implement OR-Tools logic |
-| 10 | Flutter Rider App | 🔲 TODO | — | ยังไม่ได้ init project |
-| 11 | CI/CD Pipeline | 🔲 TODO | — | GitHub Actions ว่าง |
+| Component | Status | Notes |
+|---|---|---|
+| Docker Compose | Partial | 4 services defined |
+| PostGIS Database | Ready | Uses PostGIS image and SRID 4326 standard |
+| Backend Dockerfile | Ready | Multi-stage .NET 8 Dockerfile exists |
+| Backend API | Foundation Ready | EF Core/PostGIS, setup extensions, JWT baseline |
+| Backend AuthController | Pending | Security services ready, endpoints not implemented |
+| SignalR Hub | Pending | SignalR registered, hub not yet implemented |
+| Repository Pattern | Pending | To be added for domain data access |
+| AI Engine | Pending / scaffold | Needs implementation and Dockerfile verification |
+| Angular Dashboard | Template | Angular 19 template |
+| Flutter App | Not Created | Rider app not initialized |
+| CI/CD | Not Created | `.github/workflows` empty |
 
 ---
 
-## 10. Task Breakdown — สิ่งที่ต้องทำ
+## 11. Next Tasks
 
-### 🔴 Phase 2: Core Backend (ทำต่อ)
-- [ ] ออกแบบ + สร้าง EF Core Entities (Rider, Order, Customer, Shop, Route)
-- [ ] สร้าง Database Migrations + seed data
-- [ ] เพิ่ม SignalR Hub (`/hubs/tracking`)
-- [ ] สร้าง REST API endpoints (Orders, Riders, Routes)
-- [ ] เชื่อม Backend → AI Service (HTTP client)
+### Backend
 
-### 🟡 Phase 3: AI + Frontend
-- [ ] Implement VRP Solver ด้วย Google OR-Tools
-- [ ] สร้าง Angular components (Map, OrderList, RiderStatus)
-- [ ] เชื่อม Angular → SignalR (real-time updates)
-- [ ] Init Flutter project + GPS tracking
+- [ ] Add User/Auth domain model and migration.
+- [ ] Add AuthController for login/logout/session.
+- [ ] Use `ITokenService` for issuing JWT access tokens.
+- [ ] Apply `LoginAttemptService` and `auth` rate limit policy to login/register endpoints.
+- [ ] Add repositories for Riders and Orders.
+- [ ] Add OrdersController and RidersController.
+- [ ] Add TrackingHub at `/hubs/tracking`.
+- [ ] Add GiST indexes for spatial fields in migrations.
 
-### 🟢 Phase 4: Integration & Testing
-- [ ] Integration test ทุก service ผ่าน Docker
-- [ ] End-to-end test: สร้าง order → AI คำนวณ → แสดงบน map
-- [ ] Setup CI/CD pipeline
+### AI Engine
 
----
+- [ ] Implement FastAPI service.
+- [ ] Add OR-Tools VRP solver.
+- [ ] Define request/response DTO contract with BackendApi.
+- [ ] Verify `ai-engine/Dockerfile`.
 
-## 11. URLs & Ports (Quick Reference)
+### Frontend / Mobile
 
-| Service | Dev URL | Docker URL |
-|---------|---------|------------|
-| **Frontend** | http://localhost:4200 | http://localhost |
-| **Backend Swagger** | http://localhost:5000/swagger | http://localhost:5000/swagger |
-| **AI Docs** | http://localhost:8000/docs | http://localhost:8000/docs |
-| **AI Health** | http://localhost:8000/health | http://localhost:8000/health |
-| **Database** | localhost:5432 | db:5432 (internal) |
+- [ ] Build Angular dashboard map view.
+- [ ] Connect Angular to SignalR.
+- [ ] Initialize Flutter Rider app.
+- [ ] Send live GPS updates from Rider app.
 
----
+### Integration
 
-## 12. Environment Notes
-
-- **Machine:** ASUS ROG — ระวังปัญหาความร้อน / GPU Driver (nvlddmkm)
-- **Private Registry:** Azure Artifacts (BetimesShare) — **ต้องต่อ VPN** ก่อน `npm install`
-- **DB Password:** ตอนนี้ใช้ `your_password` ใน docker-compose (**เปลี่ยนก่อน production**)
-- **SRID 4326:** ใช้ทั้งระบบ — อย่าใช้ coordinate system อื่น
+- [ ] End-to-end flow: create order → optimize route → assign rider → broadcast tracking.
+- [ ] Docker Compose smoke test.
+- [ ] Add CI build workflow.
 
 ---
 
-> 📌 **อ่านเพิ่มเติม:**  
-> - [AI-BLUEPRINT.md](./AI-BLUEPRINT.md) — AI Context Ledger ฉบับเต็ม  
-> - [AI-CHANGELOG.md](./AI-CHANGELOG.md) — ประวัติการเปลี่ยนแปลง  
-> - [docker-compose.yml](./docker-compose.yml) — Docker configuration
+## 12. URLs & Ports
+
+| Service | Local URL | Docker URL |
+|---|---|---|
+| Frontend | `http://localhost:4200` | `http://localhost` |
+| Backend Swagger | check `launchSettings.json` | `http://localhost:5000/swagger` |
+| AI Docs | `http://localhost:8000/docs` | `http://localhost:8000/docs` |
+| AI Health | `http://localhost:8000/health` | `http://localhost:8000/health` |
+| Database | `localhost:5432` | `db:5432` |
+
+---
+
+## 13. Environment Notes
+
+- Development machine may be ASUS ROG; avoid GPU-dependent implementation unless required.
+- For npm work, check `.npmrc` and VPN/private registry status first.
+- `Jwt__Key` must be set before running BackendApi.
+- `.env` is for local development only and should not contain production secrets in git.
+- Database password in sample config must be changed before non-local use.
+
+---
+
+## 14. Related Documents
+
+- [AI-BLUEPRINT.md](./AI-BLUEPRINT.md)
+- [AI-CHANGELOG.md](./AI-CHANGELOG.md)
+- [.cursorrules](./.cursorrules)
+- [docker-compose.yml](./docker-compose.yml)

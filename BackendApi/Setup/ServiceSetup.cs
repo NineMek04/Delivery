@@ -1,5 +1,10 @@
 using BackendApi.Data;
 using BackendApi.Core.DataHandlers;
+using BackendApi.Core.Filters;
+using BackendApi.Core.Mappings;
+using FluentValidation;
+using Mapster;
+using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -16,6 +21,7 @@ public static class ServiceSetup
         services.AddHttpContextAccessor();
         services.AddBackendSecurity(configuration);
 
+        // --- Database ---
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
@@ -23,6 +29,15 @@ public static class ServiceSetup
         services.AddScoped<ConditionContext>();
         services.AddScoped<DBHandlerCore>();
 
+        // --- Mapster ---
+        var mapsterConfig = MappingConfig.Configure();
+        services.AddSingleton(mapsterConfig);
+        services.AddScoped<IMapper, ServiceMapper>();
+
+        // --- FluentValidation ---
+        services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);
+
+        // --- CORS ---
         services.AddCors(options =>
         {
             options.AddPolicy(ClientCorsPolicy, policy =>
@@ -37,9 +52,17 @@ public static class ServiceSetup
             });
         });
 
-        services.AddControllers();
+        // --- Controllers with Global Filters ---
+        services.AddControllers(options =>
+        {
+            options.Filters.Add<GlobalResponseFilter>();
+            options.Filters.Add<GlobalExceptionFilter>();
+            options.Filters.Add<ValidationFilter>();
+        });
+
         services.AddSignalR();
 
+        // --- AI Service HttpClient ---
         services.AddHttpClient("AiService", client =>
         {
             var aiServiceUrl = configuration["AI_SERVICE_URL"]
@@ -51,14 +74,24 @@ public static class ServiceSetup
             }
         });
 
+        // --- Swagger / OpenAPI ---
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>
         {
             options.SwaggerDoc("v1", new OpenApiInfo
             {
                 Title = "Delivery Backend API",
-                Version = "v1"
+                Version = "v1",
+                Description = "AI-Optimized Smart Delivery Routing System — Backend API"
             });
+
+            // Include XML Comments for Swagger descriptions
+            var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
 
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {

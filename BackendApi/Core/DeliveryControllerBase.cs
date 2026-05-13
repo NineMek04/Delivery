@@ -6,6 +6,8 @@ using System.Security.Claims;
 namespace BackendApi.Core;
 
 [ApiController]
+[Route("api/v1/[controller]")]
+[Produces("application/json")]
 public abstract class DeliveryControllerBase : ControllerBase
 {
     private ApplicationDbContext? _dbContext;

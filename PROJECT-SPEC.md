@@ -2,8 +2,8 @@
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.2.0 (Backend Foundation + Security Baseline)  
-> **Last Updated:** 2026-05-13  
+> **Version:** 0.3.0 (Data Foundation + Position Tracking Ready)  
+> **Last Updated:** 2026-05-14  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
 ---
@@ -11,6 +11,7 @@
 ## 1. Overview
 
 ระบบนี้เป็นแพลตฟอร์มจำลองการจัดส่งสินค้า/อาหารที่ใช้ AI ช่วยคำนวณเส้นทางที่เหมาะสมสำหรับงานแบบ multi-drop หรือ batched orders โดยพัฒนาเป็น microservices บน Docker เพื่อให้ setup และทดสอบแต่ละ service ได้ง่าย
+**เน้นเป็นพิเศษ:** ระบบจับตำแหน่งและติดตาม Rider แบบ Real-time ด้วย High-frequency GPS data.
 
 ### Problems To Solve
 
@@ -24,11 +25,11 @@
 | Feature | Description | Status |
 |---|---|---|
 | AI Route Optimization | คำนวณเส้นทางด้วย VRP algorithm ผ่าน Google OR-Tools | Planned |
-| Real-time GPS Tracking | ส่งตำแหน่ง Rider ผ่าน SignalR/WebSocket | SignalR registered, Hub pending |
+| Real-time GPS Tracking | ระบบจับตำแหน่งและส่งพิกัด Rider ผ่าน SignalR/WebSocket | Foundation Ready |
 | Admin Dashboard | Dashboard สำหรับดู order/rider/map แบบ real-time | Angular template |
 | Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | Not created |
-| Dockerized Services | รันระบบด้วย Docker Compose | Partial |
-| Backend Security | JWT, role policy, rate limit, security headers | Foundation ready |
+| Dockerized Services | รันระบบด้วย Docker Compose ครบ 4 services | Ready |
+| Backend Security | JWT, role policy, rate limit, security headers | Ready |
 
 ---
 
@@ -59,6 +60,9 @@
 | `Microsoft.EntityFrameworkCore.Tools` | EF tools | Added |
 | `Npgsql.EntityFrameworkCore.PostgreSQL` | PostgreSQL provider | Added |
 | `Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite` | PostGIS geometry mapping | Added |
+| `Mapster` | Object Mapping (Entity <-> DTO) | Added |
+| `FluentValidation` | Automatic Request Validation | Added |
+| `Microsoft.AspNetCore.Mvc.NewtonsoftJson` | JSON handling for Spatial types | Added |
 
 ---
 
@@ -155,8 +159,10 @@ Delivery/
 | DbContext | `Data/ApplicationDbContext.cs` |
 | Domain models | `Models/Rider.cs`, `Models/Order.cs` |
 | Base controller | `Core/DeliveryControllerBase.cs` |
+| Response Wrapper | `ApiResponse<T>` (Global success/error format) |
+| Mapping | `Mapster` configuration for PostGIS/DTOs |
 | Swagger | Enabled in development |
-| SignalR | `AddSignalR()` registered, Hub not yet implemented |
+| SignalR | Hub registered, ready for `TrackingHub` |
 | AI HTTP client | Named HttpClient: `AiService` |
 
 ### Backend Data Handler Core
@@ -182,7 +188,7 @@ Delivery/
 
 ```csharp
 var riders = await DB.GetObjectListAsync<Rider>();
-DB.InsertObject(order);
+DB.InsertObject(order); 
 await DB.CommitChangesAsync();
 ```
 

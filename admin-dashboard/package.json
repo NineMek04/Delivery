@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "generate:api": "openapi-generator-cli generate -g typescript-angular -i http://localhost:5000/swagger/v1/swagger.json -o src/app/api/generated --global-property models,supportingFiles=index.ts --additional-properties=ngVersion=19.2.0,supportsES6=true,withInterfaces=true,modelPropertyNaming=original,fileNaming=kebab-case"
   },
   "private": true,
   "dependencies": {
@@ -17,7 +18,9 @@
     "@angular/platform-browser": "^19.2.0",
     "@angular/platform-browser-dynamic": "^19.2.0",
     "@angular/router": "^19.2.0",
+    "jwt-decode": "^4.0.0",
     "rxjs": "~7.8.0",
+    "sweetalert2": "^11.26.24",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
   },
@@ -25,6 +28,7 @@
     "@angular-devkit/build-angular": "^19.2.25",
     "@angular/cli": "^19.2.25",
     "@angular/compiler-cli": "^19.2.0",
+    "@openapitools/openapi-generator-cli": "^2.13.0",
     "@types/jasmine": "~5.1.0",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",
@@ -35,3 +39,4 @@
     "typescript": "~5.7.2"
   }
 }
+

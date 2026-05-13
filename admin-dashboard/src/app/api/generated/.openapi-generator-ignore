@@ -1,0 +1,6 @@
+# OpenAPI Generator — ไฟล์ที่ไม่ต้อง Gen ซ้ำ
+# ห้ามแก้ไขไฟล์ที่ Gen ออกมาด้วยมือ (Manual Edit)
+# ถ้าต้องการ Custom ให้สร้าง Wrapper Service ครอบอีกที
+
+# อย่า overwrite ไฟล์พิเศษ
+.openapi-generator-ignore

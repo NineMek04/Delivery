@@ -122,8 +122,10 @@ Delivery/
 │   └── Properties/
 │
 ├── ai-engine/               ← Python FastAPI
-│   ├── main.py              ← ❌ ว่าง
-│   └── requirements.txt     ← ❌ ว่าง
+│   ├── main.py              ← ✅ โค้ด FastAPI + OR-Tools VRP Solver
+│   ├── requirements.txt     ← ✅ Dependencies ครบถ้วน
+│   ├── Dockerfile           ← ✅ พร้อมสำหรับ docker-compose
+│   └── .dockerignore        ← ✅ มีแล้ว
 │
 └── admin-dashboard/         ← Angular 19
     ├── package.json          ← Angular ^19.2.0
@@ -145,13 +147,13 @@ Delivery/
 | **docker-compose**   | ✅ Created         | 4 services: db, backend, ai-service, frontend                |
 | **PostGIS DB**       | ✅ Running         | เชื่อมต่อผ่าน DBeaver ได้แล้ว (ตาม changelog)                  |
 | **BackendApi**       | 🟡 Foundation Ready | EF Core/PostGIS models, DBHandlerCore, setup extensions, Dockerfile, Swagger, JWT security baseline |
-| **ai-engine**        | ❌ Empty           | `main.py` + `requirements.txt` ว่างเปล่า                      |
+| **ai-engine**        | 🟡 Foundation Ready | FastAPI + OR-Tools setup complete (`main.py`, `requirements.txt`, `Dockerfile` ready) |
 | **admin-dashboard**  | ⚠️ Template Only  | Angular 19 default — ไม่มี custom components                  |
 | **Flutter App**      | ❌ Not Created     | ไม่มีโฟลเดอร์ใน repo                                          |
 | **SignalR Hub**      | 🟡 Setup Registered | `AddSignalR()` พร้อมแล้ว แต่ยังไม่มี Hub implementation        |
 | **EF Core + PostGIS**| ✅ Added           | `ApplicationDbContext`, Rider/Order entities, migration, NetTopologySuite |
 | **Data Handler Core**| ✅ Added           | EF Core-based `DBHandlerCore` + `ConditionContext`, registered in DI and exposed via `DeliveryControllerBase.DB` |
-| **Dockerfiles**      | 🟡 Partial          | Backend Dockerfile มีแล้ว; ai-engine/frontend ยังต้องตรวจ/สร้าง |
+| **Dockerfiles**      | 🟡 Partial          | Backend และ ai-engine มี Dockerfile แล้ว; frontend ยังต้องตรวจ/สร้าง |
 | **CI/CD**            | ❌ Empty           | `.github/workflows/` ว่าง                                     |
 
 ### Git History (4 commits)

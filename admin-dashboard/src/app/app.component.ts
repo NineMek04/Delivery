@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, Injector } from '@angular/core';
 
 type PageId = 'dashboard' | 'map' | 'orders' | 'analytics';
 
@@ -14,8 +14,14 @@ interface NavItem {
   styleUrl: './app.component.css',
 })
 export class AppComponent {
+  static InjectorInstance: Injector;
+
   title = 'FleetControl AI';
   activePage: PageId = 'dashboard';
+
+  constructor(private injector: Injector) {
+    AppComponent.InjectorInstance = this.injector;
+  }
 
   readonly navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '▦' },

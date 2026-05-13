@@ -1,4 +1,5 @@
 using BackendApi.Data;
+using BackendApi.Core.DataHandlers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -19,6 +20,8 @@ public static class ServiceSetup
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
                 npgsql => npgsql.UseNetTopologySuite()));
+        services.AddScoped<ConditionContext>();
+        services.AddScoped<DBHandlerCore>();
 
         services.AddCors(options =>
         {

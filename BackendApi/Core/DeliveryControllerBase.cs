@@ -1,4 +1,5 @@
 using BackendApi.Data;
+using BackendApi.Core.DataHandlers;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -8,7 +9,11 @@ namespace BackendApi.Core;
 public abstract class DeliveryControllerBase : ControllerBase
 {
     private ApplicationDbContext? _dbContext;
+    private DBHandlerCore? _db;
     private ILogger? _logger;
+
+    protected DBHandlerCore DB =>
+        _db ??= HttpContext.RequestServices.GetRequiredService<DBHandlerCore>();
 
     protected ApplicationDbContext DbContext =>
         _dbContext ??= HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();

@@ -16,15 +16,22 @@ public sealed class JwtTokenService : ITokenService
 
     public string CreateAccessToken(TokenSubject subject, DateTime expiresAtUtc)
     {
+        var jwtKey = _configuration["Jwt:Key"];
+        if (string.IsNullOrEmpty(jwtKey))
+        {
+            throw new InvalidOperationException("JWT configuration 'Jwt:Key' is missing.");
+        }
+
         var claims = new[]
         {
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.NameIdentifier, subject.UserId),
             new Claim(ClaimTypes.Email, subject.Email),
             new Claim(ClaimTypes.Name, subject.DisplayName),
             new Claim(ClaimTypes.Role, subject.Role)
         };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(

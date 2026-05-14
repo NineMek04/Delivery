@@ -56,7 +56,7 @@ export class AuthService implements OnDestroy {
   }
 
   public login(credentials: any): Observable<any> {
-    return req<any>('/auth/login').body(credentials).post().pipe(
+    return req<any>('/Auth/login').body(credentials).post().pipe(
       tap((res: any) => {
         const data = res.Value || res.value || res;
         if (data && data.AccessToken) {
@@ -67,7 +67,7 @@ export class AuthService implements OnDestroy {
   }
 
   public register(data: any): Observable<any> {
-    return req<any>('/auth/register').body(data).post().pipe(
+    return req<any>('/Auth/register').body(data).post().pipe(
       tap((res: any) => {
         const d = res.Value || res.value || res;
         if (d && d.AccessToken) {

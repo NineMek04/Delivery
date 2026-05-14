@@ -57,9 +57,9 @@ public static class ServiceSetup
         services.AddScoped<DispatchService>();
 
         // --- Background Workers (The System Janitors) ---
-        // services.AddHostedService<DispatchTimeoutWorker>();
-        // services.AddHostedService<HeartbeatMonitor>();
-        // services.AddHostedService<GpsSyncWorker>();
+        services.AddHostedService<DispatchTimeoutWorker>();
+        services.AddHostedService<HeartbeatMonitor>();
+        services.AddHostedService<GpsSyncWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

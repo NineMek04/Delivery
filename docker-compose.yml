@@ -13,6 +13,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d delivery_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # 2. ระบบประมวลผลหลัก (.NET 8) [cite: 27, 68]
   backend:
@@ -21,16 +26,22 @@ services:
       dockerfile: Dockerfile
     container_name: delivery-backend
     environment:
-      - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=password123
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=Admin@Ts2x04_
+      - ConnectionStrings__Redis=redis:6379
       - AI_SERVICE_URL=http://ai-service:8000
-      - Jwt__Key=replace-with-a-long-random-key-that-is-at-least-32-characters
+      - Jwt__Key=DeliverySmartRoutingSystem_SuperSecretKey_2024
       - Jwt__Issuer=DeliveryBackendApi
       - Jwt__Audience=DeliveryClients
-      - Cors__AllowedOrigins=http://localhost,http://localhost:4200
+      - Cors__AllowedOrigins__0=http://localhost
+      - Cors__AllowedOrigins__1=http://localhost:80
+      - Cors__AllowedOrigins__2=http://localhost:4200
       - Authentication__RequireSecureCookie=false
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "5000:80"
 
@@ -44,6 +55,11 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # 4. ระบบปัญญาประดิษฐ์จัดเส้นทาง (Python FastAPI)
   ai-service:
@@ -51,8 +67,11 @@ services:
       context: ./ai-engine
       dockerfile: Dockerfile
     container_name: delivery-ai
+    environment:
+      - DATABASE_URL=postgresql://postgres:Admin@Ts2x04_@db:5432/delivery_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
 
@@ -65,7 +84,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
 
 volumes:
   postgres_data:

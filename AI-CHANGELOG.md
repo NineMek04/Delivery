@@ -139,3 +139,22 @@
 ### Pending
 - ⚠️ **Database Migration:** ต้องรัน `dotnet ef migrations add Phase2DispatchStateAndLocationHistory` และ `dotnet ef database update`
 - ⚠️ **Integration Test:** ทดสอบ End-to-end Dispatch flow เมื่อ Dashboard และ Rider App พร้อม
+
+---
+
+## [Log Date: 2026-05-14 (4)] | By: AI Agent
+
+### Component: Infrastructure — Backend Stabilization & Docker Setup
+- **Action:** สร้างไฟล์ `.env` สำหรับ Backend เพื่อกำหนดโหมด `Development` และจัดการ Connection String นอกโค้ด
+- **Action:** แก้ไขปัญหาฐานข้อมูล — ปรับรหัสผ่านใน Docker ให้ตรงกับแอป (`Admin@Ts2x04_`) และรัน Migrations สำเร็จ
+- **Action:** แก้ไข CORS Policy — เพิ่มการอนุญาต `http://localhost` ใน `docker-compose.yml` เพื่อรองรับการรัน Dashboard ผ่าน Docker (Port 80)
+- **Action:** Re-enable Background Workers — เปิดการทำงานของ `DispatchTimeoutWorker`, `HeartbeatMonitor`, และ `GpsSyncWorker` หลังฐานข้อมูลพร้อมใช้งาน
+
+### Component: Documentation & Team Readiness
+- **Action:** อัปเดต `PROJECT-SPEC.md` เพิ่มส่วน **Setup Guide** และ **Port Mapping Table** สำหรับสมาชิกในทีม
+- **Status:** ระบบพร้อมรัน 100% ทั้งแบบ Local (Visual Studio/npm) และแบบ Full Docker Stack
+
+### Verification
+- **Backend:** `http://localhost:5000/swagger` เข้าใช้งานได้ปกติทั้งในและนอก Docker
+- **Frontend Integration:** ปัญหา CORS (ERR_FAILED) ถูกแก้ไขแล้ว หน้า Login สามารถสื่อสารกับ API ได้
+- **Infrastructure:** `delivery-db` และ `delivery-redis` รันในสถานะ Healthy และรับการเชื่อมต่อได้

@@ -12,6 +12,7 @@
 
 ระบบนี้เป็นแพลตฟอร์มจำลองการจัดส่งสินค้า/อาหารที่ใช้ AI ช่วยคำนวณเส้นทางที่เหมาะสมสำหรับงานแบบ multi-drop หรือ batched orders โดยพัฒนาเป็น microservices บน Docker เพื่อให้ setup และทดสอบแต่ละ service ได้ง่าย
 **เน้นเป็นพิเศษ:** ระบบจับตำแหน่งและติดตาม Rider แบบ Real-time ด้วย High-frequency GPS data.
+**Zero-SDK Setup:** สมาชิกในทีมไม่จำเป็นต้องติดตั้ง .NET, Python, หรือ Node.js ในเครื่อง ขอเพียงมี Docker Desktop ก็สามารถรันระบบทั้งหมดได้ทันที
 
 ### Problems To Solve
 
@@ -267,15 +268,41 @@ Delivery/
 
 ---
 
-## 11. URLs & Ports
+## 11. Getting Started (For Team Members)
+
+### 11.1 Run with Docker (Recommended)
+1. **Prerequisites:** ติดตั้ง Docker Desktop และเปิดใช้งาน **WSL 2 Backend** (แนะนำสำหรับ Windows)
+2. **Configuration Check:** ตรวจสอบว่าในเครื่องมีพอร์ตชนหรือไม่ (80, 5000, 5432, 6379, 8000) หากมีโปรแกรมเดิมรันอยู่ให้ปิดก่อน
+3. **Start Project:** เปิด Terminal ในโฟลเดอร์ Root ของโปรเจกต์ แล้วรันคำสั่งเดียวเพื่อสร้างและเริ่มทำงานทุก Service:
+   ```bash
+   docker-compose up -d --build
+   ```
+4. **Database Migration:** สำหรับเครื่องที่ไม่มี .NET SDK ให้รันคำสั่งนี้เพื่ออัปเดต Schema ของฐานข้อมูลภายใน Container:
+   ```bash
+   docker-compose exec backend dotnet ef database update
+   ```
+5. **Verification:** ตรวจสอบว่าทุก Container รันอยู่ด้วยคำสั่ง `docker-compose ps` หรือดูผ่าน Docker Desktop Dashboard (ต้องขึ้นสีเขียวครบทั้ง 5 services)
+
+### 11.2 Docker Desktop Optimization
+เพื่อให้ระบบประมวลผลเส้นทาง (AI) และการจัดเก็บพิกัด (PostGIS) ทำงานได้เสถียร ควรตั้งค่าทรัพยากรดังนี้:
+- **Settings > Resources**: ปรับ RAM อย่างน้อย **4GB** (แนะนำ 8GB หาก RAM เครื่องเพียงพอ)
+- **Settings > General**: มั่นใจว่าติ๊กเลือก **"Use the WSL 2 based engine"**
+
+### 11.3 Troubleshooting
+- **CORS Issue:** หาก Browser แจ้งเตือน CORS ให้ตรวจสอบค่า `Cors__AllowedOrigins` ใน `docker-compose.yml`
+- **DB Connection Error:** ตรวจสอบว่า `delivery-db` พร้อมใช้งานก่อนที่ `delivery-backend` จะเริ่มทำงาน (หากพลาดให้สั่ง `docker-compose restart backend`)
+- **Logs:** ดู Error เพิ่มเติมได้ด้วยคำสั่ง `docker-compose logs -f [service_name]`
+
+### 11.2 URLs & Ports
 
 | Service | Local URL | Docker URL |
 |---|---|---|
 | Frontend | `http://localhost:4200` | `http://localhost` |
-| Backend Swagger | check `launchSettings.json` | `http://localhost:5000/swagger` |
+| Backend Swagger | `http://localhost:5000/swagger` | `http://localhost:5000/swagger` |
 | AI Docs | `http://localhost:8000/docs` | `http://localhost:8000/docs` |
 | AI Health | `http://localhost:8000/health` | `http://localhost:8000/health` |
-| Database | `localhost:5432` | `db:5432` |
+| Database | `localhost:5432` | `db:5432` (Internal) |
+| Redis | `localhost:6379` | `redis:6379` (Internal) |
 
 ---
 

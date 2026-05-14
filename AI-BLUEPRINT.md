@@ -38,7 +38,7 @@
 | **ORM**            | EF Core + NetTopologySuite  | 8.0.11            | Added for PostgreSQL/PostGIS geometry mapping |
 | **Security**       | JWT Bearer + ASP.NET Core Auth | 8.0.11         | JWT validation, role policies, rate limiting, security headers |
 | **Frontend**       | Angular                     | **v19.2.0**       | Standalone components (ไม่มี NgModules)         |
-| **Mobile App**     | Flutter (Dart)              | —                 | **❌ ยังไม่ได้สร้างใน repo**                      |
+| **Mobile App**     | Flutter (Dart)              | ^3.9.0            | **🟡 Foundation Ready** (30 files, 9 phases) |
 | **Container**      | Docker + Docker Compose     | v3.8              | 4 services defined                             |
 | **Web Server**     | Nginx                       | —                 | สำหรับ serve Angular ใน container               |
 
@@ -68,7 +68,7 @@
                     ┌────────┴────────┐
                     │  Flutter App    │
                     │  (Rider Mobile) │
-                    │  ❌ ยังไม่สร้าง    │
+                    │  🟡 Foundation Ready│
                     └─────────────────┘
 ```
 
@@ -134,6 +134,17 @@ Delivery/
     │   ├── app.routes.ts
     │   └── app.config.ts
     └── ...configs
+│
+└── rider_app/               ← Flutter Mobile App
+    ├── lib/
+    │   ├── app/             ← Shell, Router, Theme
+    │   ├── core/            ← API, Auth, SignalR, Location, Config
+    │   ├── features/        ← Auth, Home, Delivery, Tracking (Scaffolding)
+    │   ├── models/          ← Rider, Order, RouteResult (DTOs)
+    │   ├── shared/          ← Widgets, Extensions
+    │   └── main.dart        ← ProviderScope (DI)
+    ├── pubspec.yaml         ← Dependencies defined
+    └── ...config files
 ```
 
 ---
@@ -149,7 +160,7 @@ Delivery/
 | **BackendApi**       | 🟡 Foundation Ready | EF Core/PostGIS models, DBHandlerCore, setup extensions, Dockerfile, Swagger, JWT security baseline |
 | **ai-engine**        | 🟡 Foundation Ready | FastAPI + OR-Tools setup complete (`main.py`, `requirements.txt`, `Dockerfile` ready) |
 | **admin-dashboard**  | ⚠️ Template Only  | Angular 19 default — ไม่มี custom components                  |
-| **Flutter App**      | ❌ Not Created     | ไม่มีโฟลเดอร์ใน repo                                          |
+| **Flutter App**      | 🟡 Foundation Ready | 30 files created: API client, Auth, SignalR, Location, Scaffolding, Models (Freezed) |
 | **SignalR Hub**      | 🟡 Setup Registered | `AddSignalR()` พร้อมแล้ว แต่ยังไม่มี Hub implementation        |
 | **EF Core + PostGIS**| ✅ Added           | `ApplicationDbContext`, Rider/Order entities, migration, NetTopologySuite |
 | **Data Handler Core**| ✅ Added           | EF Core-based `DBHandlerCore` + `ConditionContext`, registered in DI and exposed via `DeliveryControllerBase.DB` |
@@ -237,7 +248,7 @@ e0f3089 Initial commit
 
 ### 🟡 Important — ต้องทำเร็วๆ นี้
 4. **พัฒนา Angular Dashboard** — Map view + real-time tracking UI
-5. **สร้าง Flutter project** — Rider App + GPS tracking
+5. **พัฒนา Flutter Rider App ต่อ** — Implement UI จริงแทน placeholder และเชื่อมต่อ API
 6. **ขยาย Database Schema** — users/roles/auth tables, delivery domain tables, GiST indexes เพิ่มเติม
 
 ### 🟢 Nice-to-have

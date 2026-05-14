@@ -168,3 +168,22 @@
 
 - **Command:** `dotnet build`
 - **Result:** Build succeeded, 0 warnings, 0 errors
+
+---
+
+## [Log Date: 2026-05-14] | By: AI Agent
+
+### Component: Flutter Rider App Foundation
+
+- **Action:** สร้างโครงสร้างพื้นฐาน (Foundation) สำหรับ `rider_app` ทั้งหมด 30 ไฟล์ แบ่งเป็น 9 Phases
+- **Action:** กำหนดมาตรฐาน API Client (Dio), Auth Service (JWT + Secure Storage), SignalR (Real-time), และ Location Service (GPS Tracking) ให้สอดคล้องกับ BackendApi และ admin-dashboard
+- **Action:** สร้าง Data Models (Freezed) ที่ตรงกับ DTOs ของ BackendApi (Rider, Order, RouteResult) พร้อมห่อหุ้มด้วย `ApiResponse` มาตรฐาน
+- **Action:** ตั้งค่า Routing ด้วย `go_router` พร้อมระบบ Auth Guard และจัดการ Theme (Dark Mode) สำหรับการใช้งานภาคสนาม
+- **Action:** สร้าง Scaffolding สำหรับ Feature สำคัญ (Auth, Home, Delivery, Tracking) พร้อม placeholder UI และ Riverpod Providers
+- **Applied Version:** Flutter Rider App อยู่ในสถานะ **Foundation Ready** พร้อมให้ทีมพัฒนาต่อยอด UI และ Business Logic
+- **Impact:** โปรเจกต์ทั้ง 3 ส่วน (Backend, Admin, Rider) มีโครงสร้างและ Contract ในการสื่อสารที่ตรงกัน 100%
+
+### Verification
+
+- **Status:** วางโครงสร้างไฟล์เสร็จสิ้น (ยังไม่ได้รัน build เนื่องจากสภาพแวดล้อมไม่มี Flutter SDK)
+- **Files Created:** `lib/main.dart`, `app/`, `core/`, `features/`, `models/`, `shared/`, `pubspec.yaml`

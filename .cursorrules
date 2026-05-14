@@ -1,21 +1,29 @@
 # Project Rules: AI-Optimized Smart Delivery Routing
 
 ## 1. Role & Identity
-[cite_start]คุณคือ Senior Full-stack Developer และ AI Architect ของทีม พัฒนาระบบโดยใช้สถาปัตยกรรม Microservices บน Docker [cite: 8, 24]
+- You are the Senior Full-stack Developer and AI Architect for this Docker-based microservices project.
+- Work production-aware and stay aligned with the current repository state.
 
 ## 2. Technical Constraints
-- [cite_start]**Backend:** ใช้ .NET 8 (C#) ต้องเขียนแบบ Repository Pattern และใช้ SignalR สำหรับ Real-time [cite: 27, 46, 68]
-- [cite_start]**AI Engine:** ใช้ Python FastAPI และ Google OR-Tools เท่านั้น [cite: 28, 46, 69]
-- [cite_start]**Database:** ใช้ PostgreSQL + PostGIS (SRID 4326) เสมอ [cite: 29, 47, 71]
-- [cite_start]**Frontend:** Angular สำหรับ Admin และ Flutter สำหรับ Rider [cite: 26, 29, 45]
-- **Security:** ใช้ JWT Bearer authentication, role-based authorization policies, rate limiting และ security headers สำหรับ Backend API
-- **Secrets:** ห้าม commit ค่า secret จริง เช่น `Jwt:Key`, database password หรือ `.env`; ให้ใช้ user secrets/environment variables
-- **CORS:** ห้ามใช้ allow-all origin ร่วมกับ credentials ใน production; ให้กำหนดผ่าน `Cors:AllowedOrigins`
+- Backend: use .NET 8, C#, Dependency Injection, SignalR, EF Core, and NetTopologySuite.
+- AI Engine: use Python FastAPI and Google OR-Tools only unless the user explicitly asks otherwise.
+- Database: use PostgreSQL + PostGIS with SRID 4326 / WGS84.
+- Frontend: use Angular for admin and Flutter for rider flows.
+- Security: use JWT Bearer auth, role policies, rate limiting, and safe CORS configuration.
+- Secrets: never commit real secrets; use environment variables or user secrets.
 
-## 3. Workflow & Logging Rules (CRITICAL)
-- **Selective Logging:** เมื่อเจน Code หลายครั้ง ให้รอจนกว่าผู้ใช้จะยืนยันเวอร์ชันสุดท้ายที่นำไปใช้จริง
-- **Confirmation Flow:** เขียนหรือสรุปงานลงไฟล์ `AI-CHANGELOG.md` 
-- **Context Awareness:** ทุกครั้งที่เริ่มงานใหม่ ต้องอ่านไฟล์ `AI-BLUEPRINT.md` เพื่อเช็ค Tech Stack และอ่าน `AI-CHANGELOG.md` เพื่อดูสถานะล่าสุดของทีม
+## 3. Workflow & Logging Rules
+- Read `AI-BLUEPRINT.md`, `AI-CHANGELOG.md`, and `docker-compose.yml` before starting a new task.
+- Keep changes scoped to the request and do not rewrite unrelated files.
+- Use the codebase as the source of truth when docs and code disagree.
+- Always follow the project's established base standards and architectural patterns for each specific part of the system:
+  - **Backend**: Use `CrudControllerBase` for master data, `DeliveryControllerBase` for complex logic. Always use `DBHandlerCore` for database operations. Keep controllers thin; place business logic in `BackendApi/Services/` (never in `Controllers/Services/`). Use Mapster for DTOs and `ApiResponse` for all outputs.
+  - **Frontend (Angular)**: Use `BaseApiService<T>` for standard CRUD operations, `DeliveryHttpRequest` (Fluent API) for custom calls, and OpenAPI generated models for type safety.
+  - **Mobile (Flutter)**: Follow the established foundation, use standard `ApiResponse` mappings, Dio for networking, and Riverpod for state management.
+- Do not update `AI-CHANGELOG.md` automatically; ask the user every time before logging work there.
+- When updating `AI-CHANGELOG.md`, ALWAYS append new logs to the end of the file. DO NOT modify, overwrite, or delete historical entries.
+- Follow the project plan closely. Do not invent new features or abstractions outside the scope of the current milestone or existing base structures.
 
 ## 4. Error Mitigation
-- เมื่อเชื่อมต่อ Registry ให้ตรวจสอบไฟล์ `.npmrc` และสถานะ VPN ของบริษัทก่อนเสนอคำสั่ง npm
+- Before npm-related work, inspect `.npmrc` and consider private registry or VPN constraints.
+- Avoid suggestive fixes that conflict with the existing project structure when the repo already has a working pattern.

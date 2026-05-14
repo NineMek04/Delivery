@@ -26,6 +26,10 @@ Use the actual codebase as the source of truth when it differs from documentatio
 - Use SignalR for real-time communication.
 - Configure CORS carefully so Angular and Flutter clients can connect.
 - Use EF Core with NetTopologySuite for PostGIS geometry types.
+- **Base Standards**: 
+  - For Master Data, inherit from `CrudControllerBase`.
+  - For Custom Logic, inherit from `DeliveryControllerBase` and place business logic in `BackendApi/Services/` (Root level, never inside `Controllers/Services/`).
+  - Data Access: Use `DBHandlerCore` for all database interactions. Input/Output must always use standard DTOs (via Mapster) and `ApiResponse`.
 
 ### AI Engine
 
@@ -44,7 +48,9 @@ Use the actual codebase as the source of truth when it differs from documentatio
 
 - Use Angular for the Admin Dashboard.
 - The existing Angular app uses standalone components, not NgModules.
+- Follow the established Fluent API (`DeliveryHttpRequest`) and inherit from `BaseApiService<T>` for data access. Use OpenAPI-generated models.
 - Use Flutter for the Rider mobile app.
+- **Flutter**: Adhere to the created foundation structure (Dio, Riverpod, GoRouter, standard `ApiResponse` models).
 
 ### Containers
 
@@ -53,11 +59,11 @@ Use the actual codebase as the source of truth when it differs from documentatio
 
 ## Current Project State
 
-- Backend API is currently a .NET 8 template and needs domain models, EF Core, SignalR, and repositories.
-- AI engine folder exists but is empty.
-- Admin dashboard is an Angular 19 template.
-- Flutter rider app has not been created yet.
-- `docker-compose.yml` references Dockerfiles for backend, AI service, and frontend, but those Dockerfiles may not exist yet.
+- Backend API foundation already includes auth, SignalR, EF Core/PostGIS, and base controller infrastructure.
+- AI engine is implemented with FastAPI and OR-Tools.
+- Admin dashboard is an Angular 19 template with project-specific structure.
+- Flutter rider app foundation exists in `rider_app`.
+- `docker-compose.yml` should stay aligned with the actual Dockerfiles and service folders in the repo.
 - PostGIS database is available and uses SRID 4326.
 
 ## Workflow Rules
@@ -66,6 +72,9 @@ Use the actual codebase as the source of truth when it differs from documentatio
 - Do not rewrite unrelated files or revert user changes.
 - Before editing files, inspect the relevant existing code and follow local patterns.
 - Prefer existing project conventions over introducing new abstractions.
+- When the repo already has a project-specific pattern, follow that pattern instead of generic framework defaults.
+- **Strict Adherence to Base Structures**: Always utilize the standard base structures already implemented in the project (`CrudControllerBase`, `DBHandlerCore`, `BaseApiService`, etc.) before creating custom logic.
+- Follow the defined plans in `AI-BLUEPRINT.md` and `PROJECT-SPEC.md`. Do not bypass the established patterns.
 - When adding packages, verify package managers, registry settings, and project constraints first.
 - For npm-related work, check `.npmrc` and confirm VPN/private registry assumptions before suggesting or running install commands.
 
@@ -73,6 +82,7 @@ Use the actual codebase as the source of truth when it differs from documentatio
 
 - Do not write to `AI-CHANGELOG.md` automatically.
 - Before adding or summarizing work in `AI-CHANGELOG.md`, ask the user for confirmation every time.
+- `AI-CHANGELOG.md` is an append-only ledger. When instructed to update it, ALWAYS add new entries at the bottom. DO NOT edit, overwrite, or remove past entries.
 - If multiple code versions are generated, wait until the user confirms the final applied version before logging it.
 
 ## Hardware And Environment Notes
@@ -86,4 +96,3 @@ Use the actual codebase as the source of truth when it differs from documentatio
 - Respond in Thai when the user writes in Thai, unless code or technical terms are clearer in English.
 - Be concise, but include enough context for the user to understand what changed.
 - When tests or verification cannot be run, state that clearly.
-

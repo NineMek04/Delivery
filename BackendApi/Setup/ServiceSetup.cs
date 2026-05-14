@@ -2,6 +2,7 @@ using BackendApi.Data;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Core.Filters;
 using BackendApi.Core.Mappings;
+using BackendApi.Services.Auth;
 using FluentValidation;
 using Mapster;
 using MapsterMapper;
@@ -28,6 +29,7 @@ public static class ServiceSetup
                 npgsql => npgsql.UseNetTopologySuite()));
         services.AddScoped<ConditionContext>();
         services.AddScoped<DBHandlerCore>();
+        services.AddScoped<IAuthService, AuthService>();
 
         // --- Mapster ---
         var mapsterConfig = MappingConfig.Configure();

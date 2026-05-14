@@ -60,3 +60,16 @@
 ### Verification
 - **Backend Build:** `dotnet build BackendApi\BackendApi.csproj` → 0 errors
 - **Database Status:** ตาราง `Orders`, `Riders`, `Users` ถูกสร้างและพร้อมใช้งานใน PostGIS
+
+---
+
+## [Log Date: 2026-05-15] | By: AI Agent
+
+### Component: Architecture & AI Configuration
+- **Action:** อัปเดตกฎในระบบ AI (Cursorrules & AGENTS) ให้ครอบคลุมการใช้ Base มาตรฐานในทุกส่วนของโปรเจกต์ (Backend, Frontend, Mobile, AI)
+- **Action:** จัดระเบียบโครงสร้าง Service ย้ายออกจาก `Controllers/Services/` ไปยัง `BackendApi/Services/` ตามหลัก DI และ Separation of Concerns
+- **Standard Enforcement:**
+  - **Backend:** บังคับใช้ `CrudControllerBase`, `DeliveryControllerBase` และ `DBHandlerCore` สำหรับจัดการ Database
+  - **Frontend:** บังคับใช้ `BaseApiService<T>` และ `DeliveryHttpRequest` (Angular)
+  - **Mobile:** บังคับใช้โครงสร้าง Foundation ของ Flutter ที่วางไว้
+- **Impact:** ช่วยให้ AI ทำงานได้ตรงตามโครงสร้างและรักษาความสะอาดของ Codebase ในระยะยาว

@@ -42,8 +42,12 @@ public static class ServiceSetup
 
         // --- Redis ---
         var redisConnection = configuration.GetConnectionString("Redis") ?? "localhost:6379";
+        // ปิด abortConnect เพื่อไม่ให้แอปล่มถ้า Redis ยังไม่รันตอน Start
+        var redisConfig = ConfigurationOptions.Parse(redisConnection);
+        redisConfig.AbortOnConnectFail = false; 
+        
         services.AddSingleton<IConnectionMultiplexer>(
-            ConnectionMultiplexer.Connect(redisConnection));
+            ConnectionMultiplexer.Connect(redisConfig));
 
         // --- Dispatch Services ---
         services.AddSingleton<GpsSyncBuffer>();
@@ -53,9 +57,9 @@ public static class ServiceSetup
         services.AddScoped<DispatchService>();
 
         // --- Background Workers (The System Janitors) ---
-        services.AddHostedService<DispatchTimeoutWorker>();
-        services.AddHostedService<HeartbeatMonitor>();
-        services.AddHostedService<GpsSyncWorker>();
+        // services.AddHostedService<DispatchTimeoutWorker>();
+        // services.AddHostedService<HeartbeatMonitor>();
+        // services.AddHostedService<GpsSyncWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

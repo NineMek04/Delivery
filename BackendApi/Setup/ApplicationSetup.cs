@@ -1,3 +1,5 @@
+using BackendApi.Hubs;
+
 namespace BackendApi.Setup;
 
 public static class ApplicationSetup
@@ -32,6 +34,9 @@ public static class ApplicationSetup
         app.UseAuthorization();
 
         app.MapControllers();
+
+        // --- SignalR Hub ---
+        app.MapHub<TrackingHub>("/hubs/tracking");
 
         return app;
     }

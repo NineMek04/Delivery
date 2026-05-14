@@ -14,6 +14,13 @@ public interface IAuthService
         RegisterRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// ใช้ Refresh Token เพื่อขอ Access Token + Refresh Token ชุดใหม่
+    /// </summary>
+    Task<ServiceResult<AuthResponse>> RefreshTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken = default);
+
     Task<ServiceResult<UserInfo>> GetSessionAsync(
         string? userId,
         CancellationToken cancellationToken = default);

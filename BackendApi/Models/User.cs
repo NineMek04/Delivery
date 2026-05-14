@@ -31,4 +31,14 @@ public class User
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
+
+    /// <summary>
+    /// Refresh Token (hashed) — ใช้ขอ Access Token ใหม่เมื่อหมดอายุ
+    /// </summary>
+    public string? RefreshToken { get; set; }
+
+    /// <summary>
+    /// เวลาหมดอายุของ Refresh Token
+    /// </summary>
+    public DateTime? RefreshTokenExpiresAt { get; set; }
 }

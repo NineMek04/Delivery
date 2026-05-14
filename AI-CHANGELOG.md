@@ -73,3 +73,35 @@
   - **Frontend:** บังคับใช้ `BaseApiService<T>` และ `DeliveryHttpRequest` (Angular)
   - **Mobile:** บังคับใช้โครงสร้าง Foundation ของ Flutter ที่วางไว้
 - **Impact:** ช่วยให้ AI ทำงานได้ตรงตามโครงสร้างและรักษาความสะอาดของ Codebase ในระยะยาว
+
+---
+
+## [Log Date: 2026-05-14 (2)] | By: AI Agent
+
+### Component: BackendApi — Refresh Token System
+- **Action:** เพิ่ม `RefreshToken` (SHA-256 hash) และ `RefreshTokenExpiresAt` ใน `Models/User.cs`
+- **Action:** เพิ่ม `RefreshTokenRequest` DTO และ `RefreshToken` field ใน `AuthResponse` (`Models/DTOs/AuthDtos.cs`)
+- **Action:** เพิ่ม `RefreshTokenAsync()` ใน `IAuthService` + implement Token Rotation ใน `Services/Auth/AuthService.cs`
+- **Action:** เพิ่ม `POST /api/v1/auth/refresh` endpoint ใน `Controllers/Business/AuthController.cs`
+- **Security:** Refresh Token ถูก hash ด้วย SHA-256 ก่อนเก็บลง DB, Token Rotation ทุกครั้งที่ refresh (อันเก่าใช้ไม่ได้)
+- **Config:** `Authentication:RefreshTokenLifetimeDays` (default: 7 วัน) ใน `appsettings.json`
+
+### Component: Flutter Rider App — AuthService Overhaul
+- **Action:** เพิ่ม `refreshAccessToken()` — เรียก `POST /auth/refresh` เพื่อขอ Access Token ใหม่อัตโนมัติ
+- **Action:** เพิ่ม Token Clocking (`Timer.periodic` 30s) พร้อม proactive refresh เมื่อ token เหลือ < 2 นาที (เทียบ Angular `startTokenClocking()`)
+- **Action:** เพิ่ม `setTokens()`, `setUserData()`, `getUserData()` สำหรับจัดการข้อมูลผู้ใช้ใน SecureStorage
+- **Action:** เพิ่ม malformed token handling — `try-catch` รอบ `JwtDecoder.isExpired()` เพื่อจัดการ token ที่เสียหาย
+- **Action:** เพิ่ม concurrent refresh protection (`_isRefreshing` flag) ป้องกัน race condition
+
+### Component: Flutter Rider App — ErrorInterceptor Auto-Retry
+- **Action:** อัปเดต `ErrorInterceptor` ใน `api_interceptors.dart` — auto refresh + retry original request เมื่อเจอ 401
+- **Action:** เพิ่ม loop protection (ไม่ retry สำหรับ `/auth/refresh` และ `/auth/login`)
+- **Action:** อัปเดต `delivery_api_client.dart` — ส่ง `Ref` ให้ `ErrorInterceptor`
+
+### Verification
+- **Backend Build:** `dotnet build` → 0 errors, 0 warnings
+- **Flutter:** ⚠️ ต้อง analyze ใน IDE (Flutter SDK ไม่อยู่ใน PowerShell PATH)
+
+### Pending
+- ⚠️ **ต้องรัน EF Core migration:** `dotnet ef migrations add AddRefreshTokenFields` + `dotnet ef database update`
+- ⚠️ **ต้องรัน build_runner:** `flutter pub run build_runner build` เพื่อ generate `.g.dart` files

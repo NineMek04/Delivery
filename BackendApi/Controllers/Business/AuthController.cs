@@ -81,7 +81,31 @@ public class AuthController : DeliveryControllerBase
     }
 
     /// <summary>
-    /// ออกจากระบบ — ลบ access_token cookie
+    /// ใช้ Refresh Token เพื่อขอ Access Token ใหม่ (Token Rotation)
+    /// </summary>
+    /// <param name="request">Refresh Token</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>JWT Access Token + Refresh Token ชุดใหม่</returns>
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> RefreshToken(
+        [FromBody] RefreshTokenRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+
+        if (!result.Succeeded || result.Value is null)
+            return StatusCode(result.StatusCode, result.ToApiResponseBase());
+
+        SetAccessTokenCookie(result.Value.AccessToken, result.Value.ExpiresAt);
+
+        return StatusCode(result.StatusCode, result.ToApiResponse());
+    }
+
+    /// <summary>
+    /// ออกจากระบบ — ลบ access_token cookie + revoke refresh token
     /// </summary>
     /// <returns>ผลลัพธ์การออกจากระบบ</returns>
     [HttpPost("logout")]

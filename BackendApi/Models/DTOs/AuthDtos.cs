@@ -43,14 +43,27 @@ public class RegisterRequest
 }
 
 /// <summary>
-/// DTO สำหรับ Auth Response — ส่งกลับหลัง Login / Register สำเร็จ
+/// DTO สำหรับ Refresh Token Request
+/// </summary>
+public class RefreshTokenRequest
+{
+    /// <summary>Refresh Token ที่ได้จาก Login/Register</summary>
+    [Required(ErrorMessage = "กรุณาระบุ Refresh Token")]
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// DTO สำหรับ Auth Response — ส่งกลับหลัง Login / Register / Refresh สำเร็จ
 /// </summary>
 public class AuthResponse
 {
     /// <summary>JWT Access Token</summary>
     public string AccessToken { get; set; } = string.Empty;
 
-    /// <summary>เวลาหมดอายุ (UTC)</summary>
+    /// <summary>Refresh Token — ใช้ขอ Access Token ใหม่เมื่อหมดอายุ</summary>
+    public string RefreshToken { get; set; } = string.Empty;
+
+    /// <summary>เวลาหมดอายุของ Access Token (UTC)</summary>
     public DateTime ExpiresAt { get; set; }
 
     /// <summary>ข้อมูลผู้ใช้</summary>

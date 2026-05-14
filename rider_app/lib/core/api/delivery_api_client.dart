@@ -40,8 +40,8 @@ Dio deliveryApiClient(Ref ref) {
     // 1. Auth interceptor — แนบ Bearer token (เทียบ auth.interceptor.ts)
     AuthInterceptor(ref),
 
-    // 2. Error interceptor — จัดการ global errors (เทียบ error.interceptor.ts)
-    ErrorInterceptor(),
+    // 2. Error interceptor — จัดการ global errors + auto refresh (เทียบ error.interceptor.ts)
+    ErrorInterceptor(ref),
 
     // 3. Logging — เฉพาะ dev mode
     if (Environment.enableHttpLogging)

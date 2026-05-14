@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using BackendApi.Core.Models;
 using BackendApi.Data;
 using BackendApi.Models;
@@ -80,9 +81,16 @@ public sealed class AuthService : IAuthService
 
         _loginAttemptService.Reset(lockoutKey);
         user.LastLoginAt = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         var response = GenerateAuthResponse(user);
+
+        // บันทึก Refresh Token ลง DB
+        user.RefreshToken = HashRefreshToken(response.RefreshToken);
+        user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(
+            _configuration.GetValue("Authentication:RefreshTokenLifetimeDays", 7));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         _logger.LogInformation("User {Email} logged in successfully", user.Email);
 
         return ServiceResult<AuthResponse>.Success(response, "เข้าสู่ระบบสำเร็จ");
@@ -135,15 +143,87 @@ public sealed class AuthService : IAuthService
         }
 
         _dbContext.Users.Add(user);
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         var response = GenerateAuthResponse(user);
+
+        // บันทึก Refresh Token ลง DB
+        user.RefreshToken = HashRefreshToken(response.RefreshToken);
+        user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(
+            _configuration.GetValue("Authentication:RefreshTokenLifetimeDays", 7));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         _logger.LogInformation("New user registered: {Email} as {Role}", user.Email, user.Role);
 
         return ServiceResult<AuthResponse>.Success(
             response,
             "ลงทะเบียนสำเร็จ",
             StatusCodes.Status201Created);
+    }
+
+    /// <summary>
+    /// ใช้ Refresh Token เพื่อขอ Access Token + Refresh Token ชุดใหม่ (Token Rotation)
+    /// </summary>
+    public async Task<ServiceResult<AuthResponse>> RefreshTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return ServiceResult<AuthResponse>.Failure(
+                StatusCodes.Status400BadRequest,
+                "กรุณาระบุ Refresh Token",
+                "MISSING_REFRESH_TOKEN");
+        }
+
+        var hashedToken = HashRefreshToken(refreshToken);
+
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.RefreshToken == hashedToken, cancellationToken);
+
+        if (user is null)
+        {
+            _logger.LogWarning("Refresh token not found in database (possible reuse attack)");
+            return ServiceResult<AuthResponse>.Failure(
+                StatusCodes.Status401Unauthorized,
+                "Refresh Token ไม่ถูกต้อง",
+                "INVALID_REFRESH_TOKEN");
+        }
+
+        if (user.RefreshTokenExpiresAt < DateTime.UtcNow)
+        {
+            // Refresh Token หมดอายุ → ลบออก → บังคับ re-login
+            user.RefreshToken = null;
+            user.RefreshTokenExpiresAt = null;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogWarning("Refresh token expired for user {Email}", user.Email);
+            return ServiceResult<AuthResponse>.Failure(
+                StatusCodes.Status401Unauthorized,
+                "Refresh Token หมดอายุ กรุณาเข้าสู่ระบบใหม่",
+                "REFRESH_TOKEN_EXPIRED");
+        }
+
+        if (!user.IsActive)
+        {
+            return ServiceResult<AuthResponse>.Failure(
+                StatusCodes.Status401Unauthorized,
+                "บัญชีถูกระงับการใช้งาน",
+                "ACCOUNT_DISABLED");
+        }
+
+        // Token Rotation: สร้าง Access Token + Refresh Token ชุดใหม่
+        var response = GenerateAuthResponse(user);
+
+        user.RefreshToken = HashRefreshToken(response.RefreshToken);
+        user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(
+            _configuration.GetValue("Authentication:RefreshTokenLifetimeDays", 7));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Token refreshed for user {Email}", user.Email);
+
+        return ServiceResult<AuthResponse>.Success(response, "Token refreshed สำเร็จ");
     }
 
     public async Task<ServiceResult<UserInfo>> GetSessionAsync(
@@ -173,6 +253,8 @@ public sealed class AuthService : IAuthService
         return ServiceResult<UserInfo>.Success(MapUserInfo(user));
     }
 
+    // ── Private helpers ──────────────────────────────────────────────
+
     private AuthResponse GenerateAuthResponse(User user)
     {
         var lifetimeHours = _configuration.GetValue("Authentication:SessionLifetimeHours", 24);
@@ -180,13 +262,36 @@ public sealed class AuthService : IAuthService
 
         var subject = new TokenSubject(user.Id, user.Email, user.FullName, user.Role);
         var accessToken = _tokenService.CreateAccessToken(subject, expiresAt);
+        var refreshToken = GenerateRefreshToken();
 
         return new AuthResponse
         {
             AccessToken = accessToken,
+            RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
             User = MapUserInfo(user)
         };
+    }
+
+    /// <summary>
+    /// สร้าง cryptographically-secure random Refresh Token (Base64)
+    /// </summary>
+    private static string GenerateRefreshToken()
+    {
+        var randomBytes = new byte[64];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomBytes);
+        return Convert.ToBase64String(randomBytes);
+    }
+
+    /// <summary>
+    /// Hash Refresh Token ด้วย SHA-256 ก่อนเก็บลง DB เพื่อความปลอดภัย
+    /// </summary>
+    private static string HashRefreshToken(string token)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(token);
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToBase64String(hash);
     }
 
     private static UserInfo MapUserInfo(User user) =>

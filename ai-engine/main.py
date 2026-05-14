@@ -16,12 +16,52 @@ class RoutingRequest(BaseModel):
     num_vehicles: int = 1      # จำนวนรถที่ใช้ (เริ่มต้นที่ 1 คันสำหรับออเดอร์พ่วง)
     depot: int = 0             # จุดเริ่มต้น (index 0)
 
+# --- Models สำหรับ Dispatch Ranking ---
+class DispatchContext(BaseModel):
+    timestamp: str
+    city: str = ""
+
+class DispatchOrder(BaseModel):
+    id: str
+    pickup: List[float]  # [lat, lng]
+    dropoff: List[float] # [lat, lng]
+    sla_limit_minutes: int = 30
+
+class DispatchCandidate(BaseModel):
+    rider_id: str
+    lat: float
+    lng: float
+    current_tasks: List[Dict[str, Any]] = []
+
+class DispatchRankRequest(BaseModel):
+    context: DispatchContext
+    order: DispatchOrder
+    candidates: List[DispatchCandidate]
+
 # สร้างแอป FastAPI
 app = FastAPI(
     title="AI Delivery Routing Optimization API",
-    description="AI-Optimized Route Calculation Service (VRP Solver)",
-    version="0.1.0",
+    description="AI-Optimized Route Calculation Service (VRP Solver) and Real-time Dispatch Scorer",
+    version="0.2.0",
 )
+
+from app.core.scoring import rank_candidates
+
+@app.post("/api/v1/dispatch/rank")
+async def rank_dispatch_candidates(request: DispatchRankRequest):
+    """
+    Phase A: รับรายการ Rider ที่ว่างอยู่ และคืนค่าเรียงลำดับตามความเหมาะสม
+    """
+    if not request.candidates:
+        return {"ranked_candidates": []}
+
+    # แปลง Pydantic models เป็น dict สำหรับฟังก์ชัน rank_candidates
+    order_dict = request.order.dict()
+    candidates_list = [c.dict() for c in request.candidates]
+
+    ranked = rank_candidates(order_dict, candidates_list)
+    
+    return {"ranked_candidates": ranked}
 
 
 @app.get("/health")

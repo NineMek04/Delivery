@@ -2,7 +2,7 @@
 
 ## [Project Status: In Development]
 
-- **Current Milestone:** Phase 1 - Architecture & Database Setup
+- **Current Milestone:** Phase 2 - Real-time Dispatch Orchestration
 - **Shared Registry:** Azure Artifacts (BetimesShare)
 
 ---
@@ -63,7 +63,7 @@
 
 ---
 
-## [Log Date: 2026-05-15] | By: AI Agent
+## [Log Date: 2026-05-14] | By: AI Agent
 
 ### Component: Architecture & AI Configuration
 - **Action:** อัปเดตกฎในระบบ AI (Cursorrules & AGENTS) ให้ครอบคลุมการใช้ Base มาตรฐานในทุกส่วนของโปรเจกต์ (Backend, Frontend, Mobile, AI)
@@ -105,3 +105,37 @@
 ### Pending
 - ⚠️ **ต้องรัน EF Core migration:** `dotnet ef migrations add AddRefreshTokenFields` + `dotnet ef database update`
 - ⚠️ **ต้องรัน build_runner:** `flutter pub run build_runner build` เพื่อ generate `.g.dart` files
+
+---
+
+## [Log Date: 2026-05-14 (3)] | By: AI Agent
+
+### Component: Infrastructure — Redis Integration
+- **Action:** เพิ่ม Redis 7 (Alpine) เข้าสู่ `docker-compose.yml` สำหรับเก็บ Hot Data (GPS, Presence, Locks)
+- **Action:** ติดตั้ง `StackExchange.Redis` ใน Backend และสร้าง `IConnectionMultiplexer` ใน DI
+- **Action:** พัฒนา `GpsSyncBuffer` และ `GpsSyncWorker` — ระบบรับ GPS ความถี่สูงลง Memory และ Batch Flush ลง PostGIS ทุก 30 วินาที
+
+### Component: BackendApi — Dispatch Orchestrator (The Heart)
+- **Action:** สร้าง `Services/Dispatch/DispatchService.cs` — ควบคุม Dispatch Lifecycle (30s timeout, Rider offering, offer versioning)
+- **Action:** สร้าง `Services/Dispatch/StateMachineService.cs` — จัดการสถานะ `OrderState` และ `RiderState` แบบเข้มงวด
+- **Action:** สร้าง `Infrastructure/Redis/RedisLockService.cs` — ระบบ Distributed Locking ด้วย Redis `SETNX` + Lua Script
+- **Action:** สร้าง `Infrastructure/Redis/RiderPresenceService.cs` — ระบบ Geolocation บน Redis สำหรับค้นหา Nearby Idle Riders
+
+### Component: AI Engine — Dispatch Scoring (The Brain)
+- **Action:** สร้าง `app/core/geo_utils.py` — คำนวณ Haversine Distance และ Bearing (ทิศทางการเคลื่อนที่)
+- **Action:** สร้าง `app/core/scoring.py` — ระบบ Ranking ไรเดอร์ (Heuristic Phase A) พิจารณาจาก ระยะทาง + ภาระงาน + ทิศทาง
+- **Action:** อัปเดต `main.py` — เพิ่ม endpoint `POST /api/v1/dispatch/rank` เชื่อมต่อกับ .NET Backend
+
+### Component: BackendApi — Pipeline & Background Workers
+- **Action:** สร้าง `DispatchTimeoutWorker` — ระบบ Janitor ตรวจสอบ Offer หมดเวลาและสั่ง Re-dispatch อัตโนมัติ
+- **Action:** สร้าง `HeartbeatMonitor` — ระบบตรวจสอบ Rider Offline (Detection of ghost riders)
+- **Action:** ปรับปรุง `TrackingHub` — เชื่อมต่อกับ Redis Presence และ Dispatch logic พร้อมเพิ่ม GPS Sanity Check (Max Drift 5km)
+- **Fix:** ย้าย `app.UseCors()` ไปไว้บนสุดของ Middleware Pipeline และเพิ่ม Default Ports (3000, 5173) เพื่อแก้ปัญหา CORS ในฝั่ง Dashboard
+
+### Verification
+- **Backend Build:** `dotnet build` → 0 errors, 5 warnings (Pending awaits in PresenceService)
+- **AI Engine:** รันสำเร็จพร้อม endpoint ใหม่
+
+### Pending
+- ⚠️ **Database Migration:** ต้องรัน `dotnet ef migrations add Phase2DispatchStateAndLocationHistory` และ `dotnet ef database update`
+- ⚠️ **Integration Test:** ทดสอบ End-to-end Dispatch flow เมื่อ Dashboard และ Rider App พร้อม

@@ -2,7 +2,7 @@
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.4.1 (Auth System Enhanced with Refresh Token & Rotation)  
+> **Version:** 0.5.0 (Phase 2: Real-time Dispatch Orchestration — Heart vs. Brain)  
 > **Last Updated:** 2026-05-14  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
@@ -25,10 +25,11 @@
 | Feature | Description | Status |
 |---|---|---|
 | AI Route Optimization | คำนวณเส้นทางด้วย VRP algorithm ผ่าน Google OR-Tools | **Foundation Ready** |
-| Real-time GPS Tracking | ระบบจับตำแหน่งและส่งพิกัด Rider ผ่าน SignalR/WebSocket | Foundation Ready |
+| Real-time GPS Tracking | ระบบจับตำแหน่งและส่งพิกัด Rider ผ่าน SignalR/WebSocket | **Ready (Redis Speed Layer)** |
+| Dispatch Orchestrator | ระบบจองและเสนอขายงานให้ Rider อัตโนมัติ (30s Lifecycle) | **Phase A Ready** |
 | Admin Dashboard | Dashboard สำหรับดู order/rider/map แบบ real-time | **Core Architecture Ready** |
 | Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | **Foundation Ready** |
-| Dockerized Services | รันระบบด้วย Docker Compose ครบ 4 services | **Ready** |
+| Dockerized Services | รันระบบด้วย Docker Compose ครบ 5 services | **Ready** |
 | Backend Security | JWT, Refresh Token, Rotation, Role policy | **Enhanced** |
 
 ---
@@ -43,7 +44,8 @@
 | Backend Security | JWT Bearer Authentication | 8.0.11 + Security Baseline |
 | Real-time | SignalR | ASP.NET Core built-in |
 | Database | PostgreSQL + PostGIS | `postgis/postgis:15-3.3` |
-| AI Engine | Python FastAPI + OR-Tools | **Ready** (VRP Solver implemented) |
+| Cache (Hot Data) | Redis | `redis:7-alpine` |
+| AI Engine | Python FastAPI + OR-Tools | **Ready** (VRP + Scorer implemented) |
 | Frontend | Angular | 19.2.0, standalone components |
 | Mobile | Flutter | **Initialized** (rider_app) |
 | Container | Docker Compose | v3.8 |
@@ -62,6 +64,7 @@
 | `Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite` | PostGIS geometry mapping | Added |
 | `Mapster` | Object Mapping (Entity <-> DTO) | Added |
 | `FluentValidation` | Automatic Request Validation | Added |
+| `StackExchange.Redis` | Redis Client for .NET | Added |
 | `Microsoft.AspNetCore.Mvc.NewtonsoftJson` | JSON handling for Spatial types | Added |
 
 ---
@@ -73,11 +76,11 @@ Flutter Rider App
     |
     | SignalR / WebSocket
     v
-.NET Backend API  <---- REST ---->  Python AI Service (Port 8000)
+.NET Backend API  <──── REST ────>  Python AI Service (Port 8000)
     |
-    | EF Core + NetTopologySuite
-    v
-PostgreSQL + PostGIS
+    | EF Core (The Ledger)           | Redis (The Pulse)
+    v                                v
+PostgreSQL + PostGIS           GPS, Locks, Presence (Hot Data)
     ^
     |
     | REST (Fluent API)
@@ -90,6 +93,7 @@ Angular Admin Dashboard (Port 80)
 | Service | Container | Build / Image | Port | Status |
 |---|---|---|---|---|
 | `db` | `delivery-db` | `postgis/postgis:15-3.3` | `5432:5432` | Ready |
+| `redis` | `delivery-redis` | `redis:7-alpine` | `6379:6379` | **New** |
 | `backend` | `delivery-backend` | `./BackendApi/Dockerfile` | `5000:80` | Ready |
 | `ai-service` | `delivery-ai` | `./ai-engine/Dockerfile` | `8000:8000` | **Ready** |
 | `frontend` | `delivery-frontend` | `./admin-dashboard/Dockerfile` | `80:80` | **Ready** |
@@ -135,12 +139,13 @@ Delivery/
 │   ├── Models/
 │   │   ├── DTOs/                     ← Type-safe API Contract
 │   │   │   ├── OrderDto.cs
-│   │   │   └── RiderDto.cs
-│   │   ├── Rider.cs
-│   │   └── Order.cs
+│   │   │   ├── Models/
+│   │   ├── RiderLocationHistory.cs    ← PostGIS GPS Ledger
+│   │   ├── Rider.cs                   ← Added RiderState
+│   │   └── Order.cs                   ← Added OrderState & Offer Version
 │   └── Setup/
-│       ├── ServiceSetup.cs           ← DI, Filters, Mapster, Validation
-│       └── ApplicationSetup.cs       ← Middleware pipeline
+│       ├── ServiceSetup.cs           ← DI, Redis, BackgroundWorkers
+│       └── ApplicationSetup.cs       ← Middleware pipeline (CORS Top)
 ├── ai-engine/
 │   ├── main.py                       ← FastAPI + OR-Tools VRP Solver
 │   ├── requirements.txt

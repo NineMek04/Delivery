@@ -30,10 +30,22 @@ services:
       - Authentication__RequireSecureCookie=false
     depends_on:
       - db
+      - redis
     ports:
       - "5000:80"
 
-  # 3. ระบบปัญญาประดิษฐ์จัดเส้นทาง (Python FastAPI) [cite: 28, 69]
+  # 3. Redis — Realtime Speed Layer (GPS Cache, Distributed Lock, Rider Presence)
+  redis:
+    image: redis:7-alpine
+    container_name: delivery-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # 4. ระบบปัญญาประดิษฐ์จัดเส้นทาง (Python FastAPI)
   ai-service:
     build:
       context: ./ai-engine
@@ -44,7 +56,7 @@ services:
     ports:
       - "8000:8000"
 
-  # 4. ระบบแดชบอร์ดแอดมิน (Angular) [cite: 29, 70]
+  # 5. ระบบแดชบอร์ดแอดมิน (Angular)
   frontend:
     build:
       context: ./admin-dashboard
@@ -57,3 +69,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

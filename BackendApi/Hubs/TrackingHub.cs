@@ -1,36 +1,51 @@
 using System.Security.Claims;
+using BackendApi.Core.StateMachines;
 using BackendApi.Data;
+using BackendApi.Infrastructure.Redis;
 using BackendApi.Security;
+using BackendApi.Services.Dispatch;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
 
 namespace BackendApi.Hubs;
 
 /// <summary>
-/// SignalR Hub สำหรับ real-time GPS tracking
-/// รองรับการส่งพิกัดจาก Rider App → Server → Admin Dashboard
+/// Realtime Gateway — สื่อสารสองทางระหว่าง Rider App และ Backend
+/// รับพิกัด, รับ Heartbeat, และจัดการการรับ-ปฏิเสธ Offer งาน
 /// </summary>
 [Authorize]
 public class TrackingHub : Hub
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly RiderPresenceService _presenceService;
+    private readonly GpsSyncBuffer _gpsBuffer;
+    private readonly DispatchService _dispatchService;
+    private readonly StateMachineService _stateMachine;
+    private readonly IConfiguration _config;
     private readonly ILogger<TrackingHub> _logger;
 
-    // ===== ชื่อ Groups =====
     private const string AdminGroup = "admins";
     private static string RiderGroup(string riderId) => $"rider:{riderId}";
 
-    public TrackingHub(ApplicationDbContext dbContext, ILogger<TrackingHub> logger)
+    public TrackingHub(
+        ApplicationDbContext dbContext,
+        RiderPresenceService presenceService,
+        GpsSyncBuffer gpsBuffer,
+        DispatchService dispatchService,
+        StateMachineService stateMachine,
+        IConfiguration config,
+        ILogger<TrackingHub> logger)
     {
         _dbContext = dbContext;
+        _presenceService = presenceService;
+        _gpsBuffer = gpsBuffer;
+        _dispatchService = dispatchService;
+        _stateMachine = stateMachine;
+        _config = config;
         _logger = logger;
     }
 
-    /// <summary>
-    /// เมื่อ client เชื่อมต่อ → เพิ่มเข้า group ตาม role
-    /// </summary>
     public override async Task OnConnectedAsync()
     {
         var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
@@ -38,48 +53,41 @@ public class TrackingHub : Hub
 
         if (role is null || userId is null)
         {
-            _logger.LogWarning("Connection rejected — missing role or userId");
             Context.Abort();
             return;
         }
 
-        // Admin / Dispatcher → เข้า admin group เพื่อรับ broadcast ตำแหน่ง Rider ทุกคน
         if (role == AuthConstants.AdminRole || role == AuthConstants.DispatcherRole)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
-            _logger.LogInformation("Admin/Dispatcher {UserId} connected to tracking hub", userId);
         }
-
-        // Rider → ค้นหา RiderId จาก User แล้วเข้า rider group
-        if (role == AuthConstants.RiderRole)
+        else if (role == AuthConstants.RiderRole)
         {
-            var user = await _dbContext.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
+            var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
             if (user?.RiderId is not null)
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, RiderGroup(user.RiderId));
+                await _presenceService.UpdateHeartbeatAsync(user.RiderId);
 
-                // อัปเดตสถานะ Rider เป็น AVAILABLE เมื่อเชื่อมต่อ
                 var rider = await _dbContext.Riders.FindAsync(user.RiderId);
-                if (rider is not null && rider.Status == "OFFLINE")
-                {
-                    rider.Status = "AVAILABLE";
-                    rider.LastUpdated = DateTime.UtcNow;
-                    await _dbContext.SaveChangesAsync();
-                }
+                if (rider is null) return;
 
-                _logger.LogInformation("Rider {RiderId} connected to tracking hub", user.RiderId);
+                if (rider.State == RiderState.OFFLINE)
+                {
+                    await _stateMachine.TransitionRiderAsync(rider, RiderState.IDLE);
+                }
+                else if (rider.State == RiderState.STALE)
+                {
+                    // กู้คืนสถานะ
+                    var newState = await HasActiveJobAsync(rider.Id) ? RiderState.BUSY : RiderState.IDLE;
+                    await _stateMachine.TransitionRiderAsync(rider, newState);
+                }
             }
         }
 
         await base.OnConnectedAsync();
     }
 
-    /// <summary>
-    /// เมื่อ client ตัดการเชื่อมต่อ → ถ้าเป็น Rider ให้ตั้งสถานะเป็น OFFLINE
-    /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
@@ -87,125 +95,145 @@ public class TrackingHub : Hub
 
         if (role == AuthConstants.RiderRole && userId is not null)
         {
-            var user = await _dbContext.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
+            var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
             if (user?.RiderId is not null)
             {
-                var rider = await _dbContext.Riders.FindAsync(user.RiderId);
-                if (rider is not null)
-                {
-                    rider.Status = "OFFLINE";
-                    rider.LastUpdated = DateTime.UtcNow;
-                    await _dbContext.SaveChangesAsync();
-                }
-
-                _logger.LogInformation("Rider {RiderId} disconnected from tracking hub", user.RiderId);
+                // ไม่ได้ตัดเป็น OFFLINE ทันที ปล่อยให้ HeartbeatMonitor เช็คและให้เป็น STALE ก่อน
+                _logger.LogInformation("Rider {RiderId} SignalR disconnected. Waiting for heartbeat timeout.", user.RiderId);
             }
         }
 
         await base.OnDisconnectedAsync(exception);
     }
 
-    /// <summary>
-    /// Rider ส่งพิกัด GPS มาอัปเดต
-    /// Client เรียก: hubConnection.invoke("UpdateLocation", lat, lng, accuracy)
-    /// </summary>
+    // ── 1. GPS & Heartbeat ─────────────────────────────────────────
+
+    public async Task UpdateHeartbeat()
+    {
+        var riderId = await GetRiderIdAsync();
+        if (riderId is null) return;
+
+        await _presenceService.UpdateHeartbeatAsync(riderId);
+
+        // ดึงสถานะปัจจุบันกลับมาให้ Rider เผื่อหลุดและกลับมา (State Sync)
+        var rider = await _dbContext.Riders.FindAsync(riderId);
+        if (rider is not null && rider.State == RiderState.STALE)
+        {
+            var newState = await HasActiveJobAsync(riderId) ? RiderState.BUSY : RiderState.IDLE;
+            await _stateMachine.TransitionRiderAsync(rider, newState);
+        }
+    }
+
     public async Task UpdateLocation(double lat, double lng, double accuracy)
+    {
+        var riderId = await GetRiderIdAsync();
+        if (riderId is null) return;
+
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+
+        if (accuracy > 50) return; // กรอง Drift เล็กๆ
+
+        // Sanity Check: โดดไปไกลผิดปกติไหม (Teleport protection)
+        var lastGps = await _presenceService.GetLastKnownLocationAsync(riderId);
+        if (lastGps is not null)
+        {
+            var maxDriftKm = _config.GetValue("Dispatch:MaxGpsDriftKm", 5.0);
+            var distMeters = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, lat, lng);
+            var timeDiffSeconds = (DateTime.UtcNow - lastGps.Value.UpdatedAt).TotalSeconds;
+            
+            // ความเร็ว > 18,000 km/h (5 km in 1 sec)
+            if (timeDiffSeconds > 0 && (distMeters / 1000.0) / (timeDiffSeconds / 3600.0) > 18000)
+            {
+                _logger.LogWarning("GPS Teleport detected for Rider {RiderId}", riderId);
+                return;
+            }
+        }
+
+        // อัปเดตลง Redis Cache
+        await _presenceService.UpdateGpsAsync(riderId, lat, lng);
+
+        // เก็บลง Buffer เพื่อเขียนลง PostGIS
+        _gpsBuffer.AddPointAndCheckFlush(riderId, lat, lng);
+
+        // อัปเดตใน Entity
+        var rider = await _dbContext.Riders.FindAsync(riderId);
+        if (rider is not null)
+        {
+            rider.LastGpsUpdate = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync();
+
+            // Broadcast ไปให้ Admin
+            await Clients.Group(AdminGroup).SendAsync("RiderLocationUpdated", new
+            {
+                RiderId = riderId,
+                Lat = lat,
+                Lng = lng,
+                Status = rider.State.ToString(),
+                Timestamp = rider.LastGpsUpdate
+            });
+        }
+    }
+
+    // ── 2. Dispatch Offer Handling ─────────────────────────────────
+
+    public async Task AcceptOffer(string offerId, int version)
+    {
+        var riderId = await GetRiderIdAsync();
+        if (riderId is null) return;
+
+        var success = await _dispatchService.AcceptOfferAsync(riderId, offerId, version);
+
+        if (success)
+        {
+            await Clients.Caller.SendAsync("OfferAcceptedResult", new { Success = true });
+        }
+        else
+        {
+            await Clients.Caller.SendAsync("OfferAcceptedResult", new { Success = false, Message = "งานนี้หลุดไปแล้ว หรือมีผู้รับแล้ว" });
+        }
+    }
+
+    public async Task RejectOffer(string offerId, string orderId)
+    {
+        var riderId = await GetRiderIdAsync();
+        if (riderId is null) return;
+
+        await _dispatchService.RejectOrTimeoutAsync(orderId, riderId, offerId);
+    }
+
+    // ── Utility ────────────────────────────────────────────────────
+
+    private async Task<string?> GetRiderIdAsync()
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
 
-        if (userId is null || role != AuthConstants.RiderRole)
-        {
-            await Clients.Caller.SendAsync("Error", "ไม่มีสิทธิ์ส่งพิกัด");
-            return;
-        }
+        if (userId is null || role != AuthConstants.RiderRole) return null;
 
-        // ตรวจสอบค่าพิกัดเบื้องต้น
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180)
-        {
-            await Clients.Caller.SendAsync("Error", "พิกัดไม่ถูกต้อง");
-            return;
-        }
-
-        // กรองค่าความแม่นยำ GPS ที่ต่ำเกินไป (GPS Drift protection)
-        if (accuracy > 50)
-        {
-            _logger.LogDebug("GPS update from user {UserId} rejected — accuracy {Accuracy}m too low", userId, accuracy);
-            return; // เงียบ ๆ ไม่ต้อง error กลับไป
-        }
-
-        var user = await _dbContext.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == userId);
-
-        if (user?.RiderId is null) return;
-
-        // อัปเดตพิกัดใน DB
-        var rider = await _dbContext.Riders.FindAsync(user.RiderId);
-        if (rider is null) return;
-
-        rider.CurrentLocation = new Point(lng, lat) { SRID = 4326 }; // PostGIS: X=Lng, Y=Lat
-        rider.LastUpdated = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync();
-
-        // Broadcast ไปยัง Admin Dashboard
-        var locationUpdate = new
-        {
-            RiderId = user.RiderId,
-            RiderName = rider.Name,
-            Lat = lat,
-            Lng = lng,
-            Accuracy = accuracy,
-            Status = rider.Status,
-            Timestamp = rider.LastUpdated
-        };
-
-        await Clients.Group(AdminGroup).SendAsync("RiderLocationUpdated", locationUpdate);
-
-        _logger.LogDebug("Rider {RiderId} location updated: ({Lat}, {Lng})", user.RiderId, lat, lng);
+        var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        return user?.RiderId;
     }
 
-    /// <summary>
-    /// Rider อัปเดตสถานะการทำงาน (AVAILABLE / DELIVERING / OFFLINE)
-    /// Client เรียก: hubConnection.invoke("UpdateStatus", "AVAILABLE")
-    /// </summary>
-    public async Task UpdateStatus(string status)
+    private async Task<bool> HasActiveJobAsync(string riderId)
     {
-        var allowedStatuses = new[] { "AVAILABLE", "DELIVERING", "OFFLINE" };
-        if (!allowedStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
-        {
-            await Clients.Caller.SendAsync("Error", "สถานะไม่ถูกต้อง");
-            return;
-        }
+        return await _dbContext.Orders.AnyAsync(o => 
+            o.AssignedRiderId == riderId && 
+            (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+    }
 
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId is null) return;
+    private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)
+    {
+        var r = 6371e3;
+        var phi1 = lat1 * Math.PI / 180;
+        var phi2 = lat2 * Math.PI / 180;
+        var deltaPhi = (lat2 - lat1) * Math.PI / 180;
+        var deltaLambda = (lon2 - lon1) * Math.PI / 180;
 
-        var user = await _dbContext.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        var a = Math.Sin(deltaPhi / 2) * Math.Sin(deltaPhi / 2) +
+                Math.Cos(phi1) * Math.Cos(phi2) *
+                Math.Sin(deltaLambda / 2) * Math.Sin(deltaLambda / 2);
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 
-        if (user?.RiderId is null) return;
-
-        var rider = await _dbContext.Riders.FindAsync(user.RiderId);
-        if (rider is null) return;
-
-        rider.Status = status.ToUpperInvariant();
-        rider.LastUpdated = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync();
-
-        // แจ้ง Admin
-        await Clients.Group(AdminGroup).SendAsync("RiderStatusChanged", new
-        {
-            RiderId = user.RiderId,
-            RiderName = rider.Name,
-            Status = rider.Status,
-            Timestamp = rider.LastUpdated
-        });
-
-        _logger.LogInformation("Rider {RiderId} status changed to {Status}", user.RiderId, rider.Status);
+        return r * c;
     }
 }

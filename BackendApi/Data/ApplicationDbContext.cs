@@ -14,10 +14,15 @@ namespace BackendApi.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<User> Users { get; set; }
 
+        public DbSet<RiderLocationHistory> RiderLocationHistories { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // บังคับให้สร้าง Extension PostGIS ในฐานข้อมูล
             modelBuilder.HasPostgresExtension("postgis");
+
+            modelBuilder.Entity<RiderLocationHistory>()
+                .HasIndex(h => new { h.RiderId, h.RecordedAt });
 
             // Unique index on Email — ป้องกันอีเมลซ้ำที่ระดับ DB
             modelBuilder.Entity<User>(entity =>

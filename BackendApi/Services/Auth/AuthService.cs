@@ -135,7 +135,7 @@ public sealed class AuthService : IAuthService
             var rider = new Rider
             {
                 Name = user.FullName,
-                Status = "OFFLINE"
+                State = BackendApi.Core.StateMachines.RiderState.OFFLINE
             };
 
             user.RiderId = rider.Id;

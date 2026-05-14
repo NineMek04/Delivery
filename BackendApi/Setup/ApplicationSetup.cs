@@ -6,6 +6,8 @@ public static class ApplicationSetup
 {
     public static WebApplication UseBackendApiPipeline(this WebApplication app)
     {
+        app.UseCors(ServiceSetup.ClientCorsPolicy);
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -23,7 +25,6 @@ public static class ApplicationSetup
 
         app.UseRouting();
         app.UseSerilogRequestLogging();
-        app.UseCors(ServiceSetup.ClientCorsPolicy);
 
         if (app.Configuration.GetValue("SecurityHeaders:Enabled", true))
         {

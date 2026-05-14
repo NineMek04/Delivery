@@ -2,12 +2,16 @@ using BackendApi.Data;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Core.Filters;
 using BackendApi.Core.Mappings;
+using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Auth;
+using BackendApi.Services.BackgroundWorkers;
+using BackendApi.Services.Dispatch;
 using FluentValidation;
 using Mapster;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using StackExchange.Redis;
 
 namespace BackendApi.Setup;
 
@@ -35,6 +39,23 @@ public static class ServiceSetup
         var mapsterConfig = MappingConfig.Configure();
         services.AddSingleton(mapsterConfig);
         services.AddScoped<IMapper, ServiceMapper>();
+
+        // --- Redis ---
+        var redisConnection = configuration.GetConnectionString("Redis") ?? "localhost:6379";
+        services.AddSingleton<IConnectionMultiplexer>(
+            ConnectionMultiplexer.Connect(redisConnection));
+
+        // --- Dispatch Services ---
+        services.AddSingleton<GpsSyncBuffer>();
+        services.AddScoped<RedisLockService>();
+        services.AddScoped<RiderPresenceService>();
+        services.AddScoped<StateMachineService>();
+        services.AddScoped<DispatchService>();
+
+        // --- Background Workers (The System Janitors) ---
+        services.AddHostedService<DispatchTimeoutWorker>();
+        services.AddHostedService<HeartbeatMonitor>();
+        services.AddHostedService<GpsSyncWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);
@@ -141,7 +162,7 @@ public static class ServiceSetup
 
         if (string.IsNullOrWhiteSpace(rawOrigins))
         {
-            return ["http://localhost:4200"];
+            return ["http://localhost:4200", "http://localhost:3000", "http://localhost:5173", "http://localhost:80"];
         }
 
         return rawOrigins

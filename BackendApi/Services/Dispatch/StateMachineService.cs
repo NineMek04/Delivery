@@ -1,0 +1,122 @@
+using BackendApi.Core.StateMachines;
+using BackendApi.Data;
+using BackendApi.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace BackendApi.Services.Dispatch;
+
+/// <summary>
+/// State Machine Service — Validate และดำเนินการเปลี่ยนสถานะ Order/Rider
+/// ป้องกัน Illegal State Transition ทุกกรณี
+/// 
+/// Reservation ≠ Assignment:
+///   MATCHING → RESERVED → OFFERING → ACCEPTED → ASSIGNED
+///   ระหว่าง RESERVED/OFFERING ยัง "ไม่ใช่งานจริง"
+/// </summary>
+public class StateMachineService
+{
+    private readonly ApplicationDbContext _dbContext;
+    private readonly ILogger<StateMachineService> _logger;
+
+    public StateMachineService(ApplicationDbContext dbContext, ILogger<StateMachineService> logger)
+    {
+        _dbContext = dbContext;
+        _logger = logger;
+    }
+
+    // ── Order State Transitions ────────────────────────────────────
+
+    /// <summary>
+    /// เปลี่ยนสถานะ Order พร้อม validate transition
+    /// </summary>
+    public async Task<bool> TransitionOrderAsync(string orderId, OrderState newState)
+    {
+        var order = await _dbContext.Orders.FindAsync(orderId);
+        if (order is null)
+        {
+            _logger.LogWarning("Order {OrderId} not found for state transition", orderId);
+            return false;
+        }
+
+        return await TransitionOrderAsync(order, newState);
+    }
+
+    /// <summary>
+    /// เปลี่ยนสถานะ Order (overload ที่รับ entity ตรง)
+    /// </summary>
+    public async Task<bool> TransitionOrderAsync(Order order, OrderState newState)
+    {
+        if (!OrderStateRules.IsValidTransition(order.State, newState))
+        {
+            _logger.LogWarning(
+                "Invalid order transition: {OrderId} from {From} → {To}",
+                order.Id, order.State, newState);
+            return false;
+        }
+
+        var oldState = order.State;
+        order.State = newState;
+
+        // Auto-set timestamps
+        switch (newState)
+        {
+            case OrderState.ASSIGNED:
+                order.AssignedAt = DateTime.UtcNow;
+                break;
+            case OrderState.COMPLETED:
+                order.CompletedAt = DateTime.UtcNow;
+                break;
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Order {OrderId} transitioned: {From} → {To}",
+            order.Id, oldState, newState);
+
+        return true;
+    }
+
+    // ── Rider State Transitions ────────────────────────────────────
+
+    /// <summary>
+    /// เปลี่ยนสถานะ Rider พร้อม validate transition
+    /// </summary>
+    public async Task<bool> TransitionRiderAsync(string riderId, RiderState newState)
+    {
+        var rider = await _dbContext.Riders.FindAsync(riderId);
+        if (rider is null)
+        {
+            _logger.LogWarning("Rider {RiderId} not found for state transition", riderId);
+            return false;
+        }
+
+        return await TransitionRiderAsync(rider, newState);
+    }
+
+    /// <summary>
+    /// เปลี่ยนสถานะ Rider (overload ที่รับ entity ตรง)
+    /// </summary>
+    public async Task<bool> TransitionRiderAsync(Rider rider, RiderState newState)
+    {
+        if (!RiderStateRules.IsValidTransition(rider.State, newState))
+        {
+            _logger.LogWarning(
+                "Invalid rider transition: {RiderId} from {From} → {To}",
+                rider.Id, rider.State, newState);
+            return false;
+        }
+
+        var oldState = rider.State;
+        rider.State = newState;
+        rider.LastUpdated = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Rider {RiderId} transitioned: {From} → {To}",
+            rider.Id, oldState, newState);
+
+        return true;
+    }
+}

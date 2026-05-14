@@ -3,7 +3,7 @@
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **Version:** 0.4.1 (Auth System Enhanced with Refresh Token & Rotation)  
+> **Version:** 0.5.0 (Phase 2: Real-time Dispatch Orchestration — Heart vs. Brain)  
 > **Last Updated:** 2026-05-14
 
 ---
@@ -35,6 +35,7 @@
 | **AI Engine**      | Python + FastAPI            | 3.11-slim         | **Ready** — VRP Solver implemented with OR-Tools |
 | **AI Algorithm**   | Google OR-Tools             | Latest            | PATH_CHEAPEST_ARC strategy                    |
 | **Database**       | PostgreSQL + PostGIS        | 15-3.3 (Docker)   | SRID 4326 / WGS84                             |
+| **Cache (Hot Data)** | Redis                      | 7-alpine (Docker) | **New** — Used for GPS, Heartbeat, and Locking |
 | **ORM**            | EF Core + NetTopologySuite  | 8.0.11            | DBHandlerCore implemented for easy CRUD       |
 | **Security**       | JWT Bearer + Refresh Token     | 8.0.11         | **Enhanced** — Refresh Token & Rotation added |
 | **Frontend**       | Angular                     | **v19.2.0**       | Fluent API & OpenAPI Generator ready          |
@@ -49,21 +50,26 @@
 ### 3.1 Microservices Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Network                           │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  delivery-db  │  │delivery-     │  │  delivery-ai     │  │
-│  │   PostGIS     │  │  backend     │  │  Python FastAPI   │  │
-│  │  15-3.3       │  │  .NET 8      │  │  + OR-Tools       │  │
-│  │  Port: 5432   │  │  Port: 5000  │  │  Port: 8000       │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │        delivery-frontend — Angular via Nginx          │   │
-│  │                    Port: 80                           │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            Docker Network                                   │
+│                                                                             │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐               │
+│  │  delivery-db  │      │  delivery-   │      │  delivery-ai  │               │
+│  │   PostGIS     │◄────►│   backend    │◄────►│Python FastAPI │               │
+│  │  15-3.3       │      │   .NET 8     │      │ + OR-Tools    │               │
+│  └──────────────┘      └──────┬───────┘      └──────────────┘               │
+│                               │                                             │
+│                        ┌──────▼──────┐                                      │
+│                        │ delivery-   │                                      │
+│                        │   redis     │ (Hot Data: GPS, Locks, Presence)     │
+│                        │   7-alpine  │                                      │
+│                        └─────────────┘                                      │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────┐                   │
+│  │        delivery-frontend — Angular via Nginx          │                   │
+│  │                    Port: 80                           │                   │
+│  └──────────────────────────────────────────────────────┘                   │
+└─────────────────────────────────────────────────────────────────────────────┘
                              │
                     ┌────────┴────────┐
                     │  Flutter App    │
@@ -128,19 +134,19 @@ Delivery/
 
 ## 5. Current State of Development
 
-### สถานะรวม: 🟢 **Phase 1 — Infrastructure & Foundation Ready**
+### สถานะรวม: 🔵 **Phase 2 — Real-time Dispatch Orchestration**
 
 | Component            | Status            | รายละเอียด                                                    |
 |----------------------|-------------------|--------------------------------------------------------------|
-| **docker-compose**   | ✅ Created         | 4 services: db, backend, ai-service, frontend                |
+| **docker-compose**   | ✅ Created         | 5 services: db, backend, ai-service, frontend, **redis**     |
 | **PostGIS DB**       | ✅ Running         | SRID 4326 standard, PostGIS extension ready                  |
-| **BackendApi**       | ✅ Ready           | Auth system (JWT/Cookie), TrackingHub (SignalR), CRUD Base Ready |
-| **ai-engine**        | ✅ Ready           | FastAPI + OR-Tools VRP solver implemented & Dockerized       |
+| **Redis Cache**      | ✅ Running         | Used for GPS speed layer, presence, and distributed locking  |
+| **BackendApi**       | ✅ Ready           | Auth, TrackingHub, **Dispatch Orchestrator**, **Redis Sync** |
+| **ai-engine**        | ✅ Ready           | FastAPI + OR-Tools VRP solver & **Phase A Heuristic Scorer** |
 | **admin-dashboard**  | 🟡 Architecture Ready | Fluent HTTP, Auth/Error Interceptors, AuthService Ready      |
 | **rider_app**        | ✅ Foundation Ready | Dio, SignalR, Riverpod, Auth/Refresh, Location ready |
-| **SignalR Hub**      | ✅ Ready           | `TrackingHub` implemented for real-time GPS tracking         |
-| **Database Migration**| ✅ Applied         | `InitialCreate` and `AddUserEntity` successfully applied     |
-| **Dockerized Services** | ✅ Ready           | รันระบบด้วย Docker Compose ครบ 4 services                   |
+| **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
+| **Database Migration**| ✅ Applied         | Added `RiderLocationHistory` and dispatch state fields       |
 | **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy                   |
 
 ---
@@ -163,7 +169,7 @@ Delivery/
 2. **พัฒนา Flutter Rider App ต่อ** — Implement UI จริงแทน placeholder และเชื่อมต่อ API/SignalR
 
 ### 🟡 Important — ต้องทำเร็วๆ นี้
-3. **Integration** — เชื่อมต่อ Backend ↔ AI Engine สำหรับ VRP logic ใน `OrdersController`
+3. **Dispatch Integration Test** — ทดสอบ Flow การส่งงานจาก Admin -> Backend -> AI -> Rider
 4. **ขยาย Business Logic** — เพิ่ม `OrdersController` สำหรับจัดการวงจรชีวิตออเดอร์
 
 ### 🟢 Nice-to-have

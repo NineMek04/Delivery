@@ -2,6 +2,7 @@ import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject, interval, Subscription } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
+import { AppComponent } from '../../app.component';
 
 @Injectable({
   providedIn: 'root'
@@ -29,7 +30,9 @@ export class AuthService implements OnDestroy {
     localStorage.removeItem(this.TOKEN_KEY);
     this.isAuthenticated$.next(false);
     this.stopTokenClocking();
-    this.router.navigate(['/']); // Update this to actual login route if available
+    // Dynamic navigation using static injector
+    const router = AppComponent.InjectorInstance.get(Router);
+    router.navigate(['/']);
   }
 
   private hasValidToken(): boolean {

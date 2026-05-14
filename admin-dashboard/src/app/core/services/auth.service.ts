@@ -1,16 +1,22 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, interval, Subscription } from 'rxjs';
+import { BehaviorSubject, interval, Subscription, Observable, of } from 'rxjs';
+import { tap, catchError, map } from 'rxjs/operators';
 import { jwtDecode } from 'jwt-decode';
 import { AppComponent } from '../../app.component';
+import { req } from '../http/delivery-http-request';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService implements OnDestroy {
   private readonly TOKEN_KEY = 'delivery_access_token';
+  private readonly REFRESH_TOKEN_KEY = 'delivery_refresh_token';
+  private readonly USER_DATA_KEY = 'delivery_user_data';
+
   private clockingSubscription?: Subscription;
   public isAuthenticated$ = new BehaviorSubject<boolean>(this.hasValidToken());
+  private isRefreshing = false;
 
   constructor(private router: Router) {
     this.startTokenClocking();
@@ -20,19 +26,105 @@ export class AuthService implements OnDestroy {
     return localStorage.getItem(this.TOKEN_KEY);
   }
 
+  public getRefreshToken(): string | null {
+    return localStorage.getItem(this.REFRESH_TOKEN_KEY);
+  }
+
+  public getUserData(): any | null {
+    const data = localStorage.getItem(this.USER_DATA_KEY);
+    return data ? JSON.parse(data) : null;
+  }
+
+  public setTokens(accessToken: string, refreshToken: string, userData?: any): void {
+    localStorage.setItem(this.TOKEN_KEY, accessToken);
+    localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
+    if (userData) {
+      localStorage.setItem(this.USER_DATA_KEY, JSON.stringify(userData));
+    }
+    this.isAuthenticated$.next(true);
+    this.startTokenClocking();
+  }
+
+  // public getToken(): string | null {
+  //   return localStorage.getItem(this.TOKEN_KEY);
+  // }
+
   public setToken(token: string): void {
     localStorage.setItem(this.TOKEN_KEY, token);
     this.isAuthenticated$.next(true);
     this.startTokenClocking();
   }
 
+  public login(credentials: any): Observable<any> {
+    return req<any>('/auth/login').body(credentials).post().pipe(
+      tap((res: any) => {
+        const data = res.Value || res.value || res;
+        if (data && data.AccessToken) {
+          this.setTokens(data.AccessToken, data.RefreshToken, data.User);
+        }
+      })
+    );
+  }
+
+  public register(data: any): Observable<any> {
+    return req<any>('/auth/register').body(data).post().pipe(
+      tap((res: any) => {
+        const d = res.Value || res.value || res;
+        if (d && d.AccessToken) {
+          this.setTokens(d.AccessToken, d.RefreshToken, d.User);
+        }
+      })
+    );
+  }
+
+  public refreshAccessToken(): Observable<boolean> {
+    if (this.isRefreshing) {
+      return of(false);
+    }
+
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      this.forceLogout();
+      return of(false);
+    }
+
+    this.isRefreshing = true;
+    return req<any>('/auth/refresh')
+      .body({ RefreshToken: refreshToken })
+      .post()
+      .pipe(
+        map((res: any) => {
+          this.isRefreshing = false;
+          const data = res.Value || res.value || res;
+          if (data && data.AccessToken) {
+            this.setTokens(data.AccessToken, data.RefreshToken, data.User);
+            return true;
+          } else {
+            this.forceLogout();
+            return false;
+          }
+        }),
+        catchError((err) => {
+          this.isRefreshing = false;
+          this.forceLogout();
+          return of(false);
+        })
+      );
+  }
+
   public logout(): void {
+    // Optional: could call backend logout API if needed
+    this.forceLogout();
+  }
+
+  private forceLogout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.REFRESH_TOKEN_KEY);
+    localStorage.removeItem(this.USER_DATA_KEY);
     this.isAuthenticated$.next(false);
     this.stopTokenClocking();
-    // Dynamic navigation using static injector
     const router = AppComponent.InjectorInstance.get(Router);
-    router.navigate(['/']);
+    router.navigate(['/login']);
   }
 
   private hasValidToken(): boolean {
@@ -49,11 +141,27 @@ export class AuthService implements OnDestroy {
 
   private startTokenClocking(): void {
     this.stopTokenClocking();
-    // Check every 5 seconds if token expired (Token Clocking)
-    this.clockingSubscription = interval(5000).subscribe(() => {
-      if (!this.hasValidToken() && this.isAuthenticated$.value) {
-        // Token expired, trigger logout
-        this.logout();
+    // Check every 30 seconds if token expired (Token Clocking)
+    this.clockingSubscription = interval(30000).subscribe(() => {
+      const token = this.getToken();
+      if (!token || !this.isAuthenticated$.value) return;
+
+      try {
+        const decoded: any = jwtDecode(token);
+        const currentTime = Math.floor(Date.now() / 1000);
+        const timeRemaining = decoded.exp - currentTime;
+
+        // Proactive refresh if expiring in < 2 mins (120 seconds)
+        if (timeRemaining < 120) {
+          this.refreshAccessToken().subscribe();
+        } else if (timeRemaining <= 0) {
+          // Token is already expired, force refresh or logout
+          this.refreshAccessToken().subscribe(success => {
+            if (!success) this.forceLogout();
+          });
+        }
+      } catch (err) {
+        this.forceLogout();
       }
     });
   }

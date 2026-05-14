@@ -2,7 +2,7 @@
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.4.0 (AI Engine + API Contract + Frontend Architecture Ready)  
+> **Version:** 0.4.1 (Auth System Enhanced with Refresh Token & Rotation)  
 > **Last Updated:** 2026-05-14  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
@@ -27,9 +27,9 @@
 | AI Route Optimization | คำนวณเส้นทางด้วย VRP algorithm ผ่าน Google OR-Tools | **Foundation Ready** |
 | Real-time GPS Tracking | ระบบจับตำแหน่งและส่งพิกัด Rider ผ่าน SignalR/WebSocket | Foundation Ready |
 | Admin Dashboard | Dashboard สำหรับดู order/rider/map แบบ real-time | **Core Architecture Ready** |
-| Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | **Initialized** |
+| Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | **Foundation Ready** |
 | Dockerized Services | รันระบบด้วย Docker Compose ครบ 4 services | **Ready** |
-| Backend Security | JWT, role policy, rate limit, security headers | Ready |
+| Backend Security | JWT, Refresh Token, Rotation, Role policy | **Enhanced** |
 
 ---
 
@@ -200,6 +200,7 @@ Delivery/
 ## 6. Backend Security Baseline
 
 - **JWT Auth:** รองรับทั้ง `Authorization: Bearer` และ HttpOnly Cookie `access_token`
+- **Refresh Token:** ระบบ Token Rotation (Access + Refresh) เพื่อความปลอดภัยสูงสุด
 - **Role Policies:** `AdminOnly`, `Operations`, `Rider`
 - **Rate Limiting:** มี `auth` policy สำหรับป้องกัน Brute-force
 - **Security Headers:** ตั้งค่า `Referrer-Policy`, `X-Frame-Options`, ฯลฯ ผ่าน Middleware

@@ -1,0 +1,12 @@
+2026-05-14 15:36:40.376 +07:00 [INF] User profile is available. Using 'C:\Users\pirak\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2026-05-14 15:36:40.662 +07:00 [INF] Request starting HTTP/2 GET https://localhost:44357/swagger/index.html - null null
+2026-05-14 15:36:40.825 +07:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-05-14 15:36:40.826 +07:00 [INF] Hosting environment: Development
+2026-05-14 15:36:40.826 +07:00 [INF] Content root path: D:\Delivery\BackendApi
+2026-05-14 15:36:41.056 +07:00 [INF] Request finished HTTP/2 GET https://localhost:44357/swagger/index.html - 200 null text/html;charset=utf-8 409.0021ms
+2026-05-14 15:36:41.101 +07:00 [INF] Request starting HTTP/2 GET https://localhost:44357/_vs/browserLink - null null
+2026-05-14 15:36:41.101 +07:00 [INF] Request starting HTTP/2 GET https://localhost:44357/_framework/aspnetcore-browser-refresh.js - null null
+2026-05-14 15:36:41.112 +07:00 [INF] Request finished HTTP/2 GET https://localhost:44357/_framework/aspnetcore-browser-refresh.js - 200 16505 application/javascript; charset=utf-8 9.328ms
+2026-05-14 15:36:41.174 +07:00 [INF] Request finished HTTP/2 GET https://localhost:44357/_vs/browserLink - 200 null text/javascript; charset=UTF-8 74.3793ms
+2026-05-14 15:36:41.226 +07:00 [INF] Request starting HTTP/2 GET https://localhost:44357/swagger/v1/swagger.json - null null
+2026-05-14 15:36:41.268 +07:00 [INF] Request finished HTTP/2 GET https://localhost:44357/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 41.4973ms

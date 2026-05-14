@@ -1,24 +1,48 @@
 using BackendApi.Setup;
+using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-var dotEnvValues = DotEnvLoader.Load(builder.Environment.ContentRootPath)
-    .ToDictionary(pair => pair.Key.Replace("__", ":"), pair => pair.Value);
-
-if (dotEnvValues.Count > 0)
+try
 {
-    builder.Configuration.AddInMemoryCollection(dotEnvValues);
+    var builder = WebApplication.CreateBuilder(args);
+
+    var dotEnvValues = DotEnvLoader.Load(builder.Environment.ContentRootPath)
+        .ToDictionary(pair => pair.Key.Replace("__", ":"), pair => pair.Value);
+
+    if (dotEnvValues.Count > 0)
+    {
+        builder.Configuration.AddInMemoryCollection(dotEnvValues);
+    }
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day));
+
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.AddServerHeader = false;
+    });
+
+    builder.Services.AddBackendApiServices(builder.Configuration);
+
+    var app = builder.Build();
+
+    app.UseBackendApiPipeline();
+
+    app.Run();
 }
-
-builder.WebHost.ConfigureKestrel(options =>
+catch (Exception ex)
 {
-    options.AddServerHeader = false;
-});
-
-builder.Services.AddBackendApiServices(builder.Configuration);
-
-var app = builder.Build();
-
-app.UseBackendApiPipeline();
-
-app.Run();
+    Log.Fatal(ex, "Application start-up failed");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

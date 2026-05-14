@@ -3,7 +3,7 @@
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **สถาบัน:** มหาวิทยาลัยราชภัฏอุดรธานี — วิศวกรรมคอมพิวเตอร์และการสื่อสาร  
+> **Version:** 0.4.1 (Auth System Enhanced with Refresh Token & Rotation)  
 > **Last Updated:** 2026-05-14
 
 ---
@@ -36,9 +36,9 @@
 | **AI Algorithm**   | Google OR-Tools             | Latest            | PATH_CHEAPEST_ARC strategy                    |
 | **Database**       | PostgreSQL + PostGIS        | 15-3.3 (Docker)   | SRID 4326 / WGS84                             |
 | **ORM**            | EF Core + NetTopologySuite  | 8.0.11            | DBHandlerCore implemented for easy CRUD       |
-| **Security**       | JWT Bearer + ASP.NET Core Auth | 8.0.11         | **Ready** — Auth system (Login/Register/Lockout) |
+| **Security**       | JWT Bearer + Refresh Token     | 8.0.11         | **Enhanced** — Refresh Token & Rotation added |
 | **Frontend**       | Angular                     | **v19.2.0**       | Fluent API & OpenAPI Generator ready          |
-| **Mobile App**     | Flutter (Dart)              | **^3.9.0**        | **Foundation Ready** (rider_app)              |
+| **Mobile App**     | Flutter (Dart)              | **^3.9.0**        | **Foundation Ready** (Auth & Refresh implemented) |
 | **Container**      | Docker + Docker Compose     | v3.8              | ✅ All services have Dockerfiles              |
 | **Web Server**     | Nginx                       | —                 | สำหรับ serve Angular ใน container               |
 
@@ -137,9 +137,11 @@ Delivery/
 | **BackendApi**       | ✅ Ready           | Auth system (JWT/Cookie), TrackingHub (SignalR), CRUD Base Ready |
 | **ai-engine**        | ✅ Ready           | FastAPI + OR-Tools VRP solver implemented & Dockerized       |
 | **admin-dashboard**  | 🟡 Architecture Ready | Fluent HTTP, Auth/Error Interceptors, AuthService Ready      |
-| **rider_app**        | 🟡 Foundation Ready | Dio, SignalR, Riverpod, Location services & models ready     |
+| **rider_app**        | ✅ Foundation Ready | Dio, SignalR, Riverpod, Auth/Refresh, Location ready |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` implemented for real-time GPS tracking         |
 | **Database Migration**| ✅ Applied         | `InitialCreate` and `AddUserEntity` successfully applied     |
+| **Dockerized Services** | ✅ Ready           | รันระบบด้วย Docker Compose ครบ 4 services                   |
+| **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy                   |
 
 ---
 
@@ -174,7 +176,11 @@ Delivery/
 
 ### ⚠️ สิ่งที่ต้องระวัง
 - **Security:** JWT config ต้องตั้งผ่าน environment variable/user secrets (`Jwt__Key` >= 32 chars)
-- **CORS:** SignalR ต้อง config CORS ให้ Flutter + Angular เชื่อมต่อได้
+- **JWT Auth:** รองรับทั้ง `Authorization: Bearer` และ HttpOnly Cookie `access_token`
+- **Refresh Token:** ระบบ Token Rotation (Access + Refresh) เพื่อความปลอดภัยสูงสุด
+- **Role Policies:** `AdminOnly`, `Operations`, `Rider`
+- **Rate Limiting:** มี `auth` policy สำหรับป้องกัน Brute-force
+- **Security Headers:** ตั้งค่า `Referrer-Policy`, `X-Frame-Options`, ฯลฯ ผ่าน Middleware เพื่อให้ DTO ตรงกับ Backend
 - **Spatial:** ใช้ `NetTopologySuite` ใน .NET และ `geometry(Point, 4326)` ใน DB
 - **API Contract:** ใช้ OpenAPI Generator ใน Angular เพื่อให้ DTO ตรงกับ Backend
 

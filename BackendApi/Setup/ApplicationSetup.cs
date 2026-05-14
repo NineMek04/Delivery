@@ -1,5 +1,5 @@
 using BackendApi.Hubs;
-
+using Serilog;
 namespace BackendApi.Setup;
 
 public static class ApplicationSetup
@@ -18,11 +18,12 @@ public static class ApplicationSetup
         if (!app.Environment.IsDevelopment())
         {
             app.UseHsts();
+            app.UseHttpsRedirection();
         }
 
         app.UseRouting();
+        app.UseSerilogRequestLogging();
         app.UseCors(ServiceSetup.ClientCorsPolicy);
-        app.UseHttpsRedirection();
 
         if (app.Configuration.GetValue("SecurityHeaders:Enabled", true))
         {

@@ -1,4 +1,7 @@
-import { Component, Injector } from '@angular/core';
+import { Component, Injector, OnInit, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { AuthService } from './core/services/auth.service';
 
 type PageId = 'dashboard' | 'map' | 'orders' | 'analytics';
 
@@ -10,17 +13,32 @@ interface NavItem {
 
 @Component({
   selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet, CommonModule],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   static InjectorInstance: Injector;
+  private authService = inject(AuthService);
+  
+  isAuthenticated = false;
 
   title = 'FleetControl AI';
   activePage: PageId = 'dashboard';
 
   constructor(private injector: Injector) {
     AppComponent.InjectorInstance = this.injector;
+  }
+
+  ngOnInit() {
+    this.authService.isAuthenticated$.subscribe(isAuth => {
+      this.isAuthenticated = isAuth;
+    });
+  }
+
+  logout() {
+    this.authService.logout();
   }
 
   readonly navItems: NavItem[] = [

@@ -183,16 +183,17 @@
 }
 
 .search-box {
-  display: none; // Hidden on small screens
-  @media (min-width: 768px) {
-    display: flex;
-  }
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  display: none; // Hidden on small screens
+
+  @media (min-width: 768px) {
+    display: flex;
+  }
 
   .search-command {
     color: var(--color-brand-primary);

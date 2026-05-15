@@ -1,38 +1,91 @@
 <div class="shell">
-  <aside class="sidebar">
+  <!-- Sidebar -->
+  <aside class="sidebar" [class.collapsed]="!isSidebarOpen">
     <div class="brand">
-      <strong>Dispatch Center</strong>
-      <span>Operational Hub</span>
+      <div class="brand-icon">
+        <lucide-icon [img]="navItems[1].icon" size="20"></lucide-icon>
+      </div>
+      @if (isSidebarOpen) {
+        <div class="brand-text">
+          <h1>SFWI_PLATFORM</h1>
+          <span>Operational</span>
+        </div>
+      }
     </div>
 
-    <nav class="nav" aria-label="Main navigation">
-      @for (item of navItems; track item.path) {
-        <button type="button" [routerLink]="item.path" routerLinkActive="active">
-          <span class="material-symbol">{{ item.icon }}</span>
-          {{ item.label }}
-        </button>
+    <div class="sidebar-content">
+      @if (isSidebarOpen) {
+        <span class="nav-label">Navigation</span>
       }
-    </nav>
-
-    <button type="button" class="dispatch-button">
-      <span>+</span>
-      New Dispatch
-    </button>
+      <nav class="nav" aria-label="Main navigation">
+        @for (item of navItems; track item.path) {
+          <button type="button" [routerLink]="item.path" routerLinkActive="active" [title]="item.label">
+            <lucide-icon [img]="item.icon" size="18" [strokeWidth]="2"></lucide-icon>
+            @if (isSidebarOpen) {
+              <span class="nav-text">{{ item.label }}</span>
+            }
+          </button>
+        }
+      </nav>
+    </div>
 
     <div class="sidebar-footer">
-      <button type="button"><span class="material-symbol">⚙</span>Settings</button>
-      <button type="button" (click)="logout()"><span class="material-symbol">↪</span>Logout</button>
-      <div class="profile">
-        <div class="avatar">AR</div>
-        <div>
-          <strong>Alex Rivera</strong>
-          <span>Fleet Manager</span>
-        </div>
-      </div>
+      <button type="button" [title]="'Settings'">
+        <lucide-icon [img]="icons.Settings" size="18"></lucide-icon>
+        @if (isSidebarOpen) {
+          <span class="nav-text">Settings</span>
+        }
+      </button>
+      <button type="button" (click)="logout()" [title]="'Logout'">
+        <lucide-icon [img]="icons.User" size="18"></lucide-icon>
+        @if (isSidebarOpen) {
+          <span class="nav-text">Logout</span>
+        }
+      </button>
     </div>
   </aside>
 
-  <main class="workspace">
-    <router-outlet></router-outlet>
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="technical-grid-bg technical-grid opacity-30"></div>
+    
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <button class="icon-btn" (click)="toggleSidebar()">
+          <lucide-icon [img]="icons.Menu" size="18"></lucide-icon>
+        </button>
+        <div class="search-box">
+          <span class="search-command">COMMAND</span>
+          <span class="search-slash">/</span>
+          <div class="search-input-wrapper">
+            <lucide-icon [img]="icons.Search" size="14"></lucide-icon>
+            <input type="text" placeholder="search_payload_id..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="icon-btn notification-btn">
+          <lucide-icon [img]="icons.Bell" size="18"></lucide-icon>
+          <span class="notification-dot"></span>
+        </button>
+        <div class="divider"></div>
+        <div class="profile-group">
+          <div class="profile-info">
+            <p class="profile-name">Suphachai K.</p>
+            <p class="profile-role">SYSTEM_ADMIN</p>
+          </div>
+          <div class="profile-avatar">
+            <lucide-icon [img]="icons.User" size="16"></lucide-icon>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Workspace -->
+    <div class="workspace custom-scrollbar">
+      <router-outlet></router-outlet>
+    </div>
   </main>
 </div>

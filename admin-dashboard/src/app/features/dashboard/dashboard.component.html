@@ -1,92 +1,156 @@
-<header class="topbar">
-  <h1>{{ title }}</h1>
-  <label class="search">
-    <span class="material-symbol">⌕</span>
-    <input type="search" placeholder="Search orders, routes, or riders..." />
-  </label>
-  <div class="top-actions">
-    <button type="button" class="icon-button" aria-label="Notifications">
-      <span class="material-symbol">!</span>
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <div>
+      <h2 class="title">{{ title }}</h2>
+      <p class="subtitle">Real-time platform telemetry & kernel metrics</p>
+    </div>
+    <button class="primary-btn">
+      <lucide-icon [img]="icons.Plus" size="16"></lucide-icon>
+      New_Shipment_Thread
     </button>
-    <button type="button" class="icon-button" aria-label="Refresh">
-      <span class="material-symbol">↻</span>
-    </button>
-    <button type="button" class="soft-action blue"><span class="material-symbol">ϟ</span>Run AI Optimization</button>
   </div>
-</header>
 
-<section class="dashboard-layout">
-  <aside class="orders-queue">
-    <div class="queue-head">
-      <strong>Pending Orders (12)</strong>
-      <span></span>
+  <div class="stats-grid">
+    <!-- StatCard 1 -->
+    <div class="stat-card group">
+      <div class="stat-header">
+        <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.Truck" size="18"></lucide-icon></div>
+        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> +12.0%</div>
+      </div>
+      <div class="stat-body">
+        <p class="stat-title">Transit Assets</p>
+        <p class="stat-value">482</p>
+      </div>
     </div>
-    @for (order of pendingOrders; track order.id) {
-      <article class="queue-card" [class.dimmed]="order.dimmed">
-        <div class="row-between">
-          <a>{{ order.id }}</a>
-          <span class="tag">{{ order.tag }}</span>
+    <!-- StatCard 2 -->
+    <div class="stat-card group">
+      <div class="stat-header">
+        <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.AlertTriangle" size="18"></lucide-icon></div>
+        <div class="stat-change negative"><lucide-icon [img]="icons.ArrowDownRight" size="12"></lucide-icon> Critical</div>
+      </div>
+      <div class="stat-body">
+        <p class="stat-title">System Alerts</p>
+        <p class="stat-value">04</p>
+      </div>
+    </div>
+    <!-- StatCard 3 -->
+    <div class="stat-card group">
+      <div class="stat-header">
+        <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.Warehouse" size="18"></lucide-icon></div>
+        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> +2.1%</div>
+      </div>
+      <div class="stat-body">
+        <p class="stat-title">Warehouse Cap.</p>
+        <p class="stat-value">84.2%</p>
+      </div>
+    </div>
+    <!-- StatCard 4 -->
+    <div class="stat-card group">
+      <div class="stat-header">
+        <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.User" size="18"></lucide-icon></div>
+        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> +0.8%</div>
+      </div>
+      <div class="stat-body">
+        <p class="stat-title">Driver Eff.</p>
+        <p class="stat-value">98.1%</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <div class="table-title">
+      <div class="accent-line"></div>
+      <h3>Transit_Flux_Capacity</h3>
+    </div>
+    <div class="chart-wrapper">
+      <canvas baseChart
+              [data]="chartData"
+              [options]="chartOptions"
+              [type]="'line'">
+      </canvas>
+    </div>
+  </div>
+
+  <div class="content-grid">
+    <!-- Real-time Transit Status -->
+    <div class="table-container">
+      <div class="table-header">
+        <div class="table-title">
+          <div class="accent-line"></div>
+          <h3>Real-time_Transit_Status</h3>
         </div>
-        <h3>{{ order.name }}</h3>
-        <p><span class="material-symbol">⌖</span>{{ order.distance }}</p>
-        <div class="queue-note" [class.priority]="order.note === 'Priority Handling'">{{ order.note || 'Placed: 18m ago' }}</div>
-      </article>
-    }
-  </aside>
-
-  <section class="content-area">
-    <div class="section-heading">
-      <div>
-        <h2>AI Proposed Routes</h2>
-        <p>Machine-learning optimized clusters for maximum efficiency</p>
+        <button class="link-btn">Query_Logs <lucide-icon [img]="icons.ChevronRight" size="14"></lucide-icon></button>
       </div>
-      <div class="button-row">
-        <button type="button" class="outline-button"><span class="material-symbol">≡</span>Filter</button>
-        <button type="button" class="outline-button"><span class="material-symbol">⇅</span>Sort</button>
-      </div>
-    </div>
-
-    <div class="route-grid">
-      @for (route of routeCards; track route.title) {
-        <article class="route-card" [class.featured]="route.featured">
-          <div class="route-head">
-            <div class="route-icon"><span class="material-symbol">{{ route.featured ? '✦' : '⤴' }}</span></div>
-            <div>
-              <h3>{{ route.title }}</h3>
-              <strong>{{ route.rider }}</strong>
-              <span>({{ route.state }})</span>
-            </div>
-            <span class="match">{{ route.match }}</span>
-          </div>
-          <div class="metric-pair">
-            <div class="metric-box"><span>Savings</span><strong>{{ route.savings }}</strong><small>{{ route.savingsSub }}</small></div>
-            <div class="metric-box"><span>Time Saved</span><strong>{{ route.time }}</strong><small>{{ route.timeSub }}</small></div>
-          </div>
-          <h4>Grouped Orders ({{ route.orders.length }})</h4>
-          <div class="order-stack">
-            @for (item of route.orders; track item) {
-              <div>{{ item }}<span class="material-symbol">✓</span></div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>HUB_TRAJECTORY</th>
+              <th>ASSET_OPERATOR</th>
+              <th>PHASE</th>
+              <th>EST_TIME</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (shp of routeCards; track shp.id) {
+              <tr class="group">
+                <td class="col-pid">{{ shp.id }}</td>
+                <td class="col-trajectory group-hover-slide">{{ shp.destination }}</td>
+                <td class="col-operator">
+                  <span class="vehicle">{{ shp.vehicle }}</span>
+                  <span class="driver">{{ shp.driver }}</span>
+                </td>
+                <td class="col-phase">
+                  <span class="status-badge" [class]="shp.status">{{ shp.status }}</span>
+                </td>
+                <td class="col-time group-hover-text">{{ shp.eta }}</td>
+              </tr>
             }
-          </div>
-          <footer>
-            <button type="button" class="outline-button">Reject</button>
-            <button type="button" class="primary-action"><span class="material-symbol">▷</span>{{ route.action }}</button>
-          </footer>
-        </article>
-      }
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <div class="insight-row">
-      <article class="efficiency-card">
-        <h3>Fleet Efficiency +22%</h3>
-        <p>AI optimization has successfully reduced empty miles across your last 50 dispatches. Maintain this pace to hit monthly sustainability targets.</p>
-        <div><span>412 kg<small>CO2 Saved</small></span><span>$1,240<small>Fuel Savings</small></span></div>
-      </article>
-      <article class="peak-card">
-        <span class="material-symbol">ϟ</span>
-        <h3>Peak Performance</h3>
-        <p>Current average delivery time is 8 minutes faster than yesterday's morning shift.</p>
-      </article>
+    <!-- System Health -->
+    <div class="health-container">
+      <div class="table-title mb-24">
+        <div class="accent-line negative"></div>
+        <h3>Critical_Segments</h3>
+      </div>
+      <div class="health-items flex-1">
+        @for (item of pendingOrders; track item.id) {
+          <div class="health-item group">
+            <div class="health-icon warning group-hover-glow"><lucide-icon [img]="icons.AlertTriangle" size="24"></lucide-icon></div>
+            <div class="health-info">
+              <div class="health-item-header">
+                <p class="item-name group-hover-text">{{ item.name }}</p>
+                <span class="status-badge warning">{{ item.tag }}</span>
+              </div>
+              <p class="item-desc">{{ item.id }} // {{ item.distance }}</p>
+              <div class="item-load">
+                <span class="load-label">LOAD:</span>
+                <div class="progress-bar"><div class="progress-fill warning" [style.width]="'75%'"></div></div>
+                <span class="load-value">75%</span>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="health-footer">
+        <div class="util-header">
+          <span>CORE_UTILIZATION</span>
+          <span class="util-value">65%_LOAD</span>
+        </div>
+        <div class="progress-bar-lg">
+          <div class="progress-fill-lg" style="width: 65%;"></div>
+        </div>
+        <div class="util-stats">
+          <span>TEMP: 34°C</span>
+          <span>VOLT: 1.2V</span>
+        </div>
+        <button class="outline-btn-primary">Execute_Restock_Protocol</button>
+      </div>
     </div>
-  </section>
-</section>
+  </div>
+</div>

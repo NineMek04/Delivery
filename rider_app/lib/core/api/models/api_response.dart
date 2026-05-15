@@ -58,8 +58,7 @@ abstract class ApiResponse with _$ApiResponse {
 ///   (obj) => RiderDto.fromJson(obj as Map<String, dynamic>),
 /// );
 /// ```
-@freezed
-@JsonSerializable(genericArgumentFactories: true)
+@Freezed(genericArgumentFactories: true)
 abstract class ApiResponseValue<T> with _$ApiResponseValue<T> {
   const factory ApiResponseValue({
     @JsonKey(name: 'Success') required bool success,
@@ -79,7 +78,7 @@ abstract class ApiResponseValue<T> with _$ApiResponseValue<T> {
 /// Paginated result wrapper.
 ///
 /// ตรงกับ: `BackendApi/Core/Models/PaginatedResult.cs`
-@freezed
+@Freezed(genericArgumentFactories: true)
 abstract class PaginatedResult<T> with _$PaginatedResult<T> {
   const factory PaginatedResult({
     @JsonKey(name: 'Items') required List<T> items,

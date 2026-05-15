@@ -38,7 +38,7 @@ export class OrdersComponent implements OnInit {
     });
   }
 
-  getStatusTone(status?: string): string {
+  getStatusTone(status?: string | null): string {
     switch (status) {
       case 'PENDING': return 'gray';
       case 'ASSIGNED': return 'blue';
@@ -51,7 +51,7 @@ export class OrdersComponent implements OnInit {
     }
   }
 
-  cancelOrder(id?: string): void {
+  cancelOrder(id?: string | null): void {
     if (!id) return;
     
     Swal.fire({
@@ -72,7 +72,7 @@ export class OrdersComponent implements OnInit {
     });
   }
 
-  retryDispatch(id?: string): void {
+  retryDispatch(id?: string | null): void {
     if (!id) return;
     this.orderService.retryDispatch(id).subscribe(() => {
       Swal.fire('Dispatched!', 'The system is looking for a new rider.', 'success');

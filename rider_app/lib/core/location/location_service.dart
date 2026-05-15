@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
@@ -90,11 +91,38 @@ class LocationService extends _$LocationService {
     }
 
     // ── 4. เริ่ม stream ตำแหน่ง ─────────────────────────────────────
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: LocationSettings(
+    LocationSettings locationSettings;
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: Environment.gpsDistanceFilter,
-      ),
+        forceLocationManager: true,
+        intervalDuration: const Duration(seconds: 10),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationText: "แอปกำลังติดตามตำแหน่งของคุณเบื้องหลัง (สามารถกดยกเลิกการติดตามได้ในแอป)",
+          notificationTitle: "Rider App เปิดใช้งาน GPS",
+          enableWakeLock: true,
+        ),
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.high,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: Environment.gpsDistanceFilter,
+        pauseLocationUpdatesAutomatically: true,
+        showBackgroundLocationIndicator: true,
+        allowBackgroundLocationUpdates: true,
+      );
+    } else {
+      locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: Environment.gpsDistanceFilter,
+      );
+    }
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
     ).listen(
       _onPositionUpdate,
       onError: (error) {
@@ -117,6 +145,12 @@ class LocationService extends _$LocationService {
 
   /// Handler สำหรับ position update.
   void _onPositionUpdate(Position position) {
+    // ── 5. ตัวกรองพิกัด (Noise Filtering) ────────────────────────
+    if (position.accuracy > 50.0) {
+      _logger.d('🛑 GPS Noise filtered: accuracy ${position.accuracy}m is > 50m');
+      return;
+    }
+
     state = state.copyWith(
       latitude: position.latitude,
       longitude: position.longitude,

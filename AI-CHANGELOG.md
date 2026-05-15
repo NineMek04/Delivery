@@ -243,3 +243,17 @@
 - **Action:** ปรับปรุงโมเดล `Order`, `User`, `Rider` ให้รองรับระบบใหม่ และปรับ `RiderLocationHistory` ให้เป็น Lightweight Insert-only
 - **Verification:** รัน Migration `AddEnterpriseAuditing` และอัปเดตฐานข้อมูล PostGIS สำเร็จ
 - **Status:** ระบบฐานข้อมูลมีมาตรฐานความปลอดภัยและตรวจสอบย้อนหลัง (Audit Trail) ระดับ Enterprise พร้อมใช้งาน
+
+---
+
+## [Log Date: 2026-05-15 (5)] | By: AI Agent
+
+### Component: Rider App — GPS & Background Tracking
+- **Action:** แก้ไข `AndroidManifest.xml` เพิ่มสิทธิ์ `ACCESS_BACKGROUND_LOCATION` และ `FOREGROUND_SERVICE` เพื่อรองรับการติดตามพิกัดเบื้องหลัง
+- **Action:** แก้ไข `Info.plist` เพิ่มคำอธิบายการขอสิทธิ์ Location และเปิด `UIBackgroundModes` สำหรับ iOS
+- **Action:** อัปเดต `LocationService` (Flutter) ให้รองรับการทำงานเบื้องหลัง:
+  - **Android:** เปิด Persistent Notification (Foreground Service) พร้อมแจ้งเตือนผู้ใช้ว่าสามารถปิดการติดตามได้ในแอป
+  - **iOS:** เปิด `showBackgroundLocationIndicator` และ `allowBackgroundLocationUpdates`
+  - **Noise Filtering:** เพิ่มระบบกรองพิกัดขยะ (Accuracy > 50m) เพื่อป้องกันปัญหาพิกัดกระโดด (GPS Drift)
+- **Status:** ระบบติดตามพิกัดสำหรับ Rider พร้อมใช้งานทั้งแบบ Foreground และ Background ตามแผนงาน Phase 2
+

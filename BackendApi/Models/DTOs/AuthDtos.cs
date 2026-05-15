@@ -58,6 +58,7 @@ public class RefreshTokenRequest
 public class AuthResponse
 {
     /// <summary>JWT Access Token</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("accessToken")]
     public string AccessToken { get; set; } = string.Empty;
 
     /// <summary>Refresh Token — ใช้ขอ Access Token ใหม่เมื่อหมดอายุ</summary>

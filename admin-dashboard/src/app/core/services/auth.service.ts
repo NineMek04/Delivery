@@ -124,9 +124,10 @@ export class AuthService implements OnDestroy {
       );
   }
 
-  public logout(): void {
+  public logout(): Observable<any> {
     // Optional: could call backend logout API if needed
     this.forceLogout();
+    return req<any>('/Auth/logout').post();
   }
 
   private forceLogout(): void {

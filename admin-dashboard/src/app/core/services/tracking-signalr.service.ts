@@ -39,16 +39,11 @@ export class TrackingSignalRService {
     }
 
     const token = this.authService.getToken();
-    if (!token) {
-      console.warn('No token found. Cannot start SignalR connection.');
-      return;
-    }
-
     const hubUrl = environment.config.baseConfig.apiUrl.replace('/api/v1', '/hubs/tracking');
 
     this.hubConnection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
-        accessTokenFactory: () => token,
+        accessTokenFactory: token ? () => token : undefined,
         transport: signalR.HttpTransportType.WebSockets,
         skipNegotiation: true // Important for pure WebSockets
       })

@@ -37,13 +37,9 @@ export class LoginComponent {
     this.loading = true;
     this.authService.login(this.loginForm.value).subscribe({
       next: () => {
-        // Navigate to dashboard only if token was successfully set
-        if (this.authService.getToken()) {
-          this.router.navigate(['/']);
-        } else {
-          this.loading = false;
-          Swal.fire('Error', 'ไม่สามารถเข้าสู่ระบบได้ โปรดตรวจสอบข้อมูล', 'error');
-        }
+        // Navigation to dashboard. Even if token isn't in localStorage, 
+        // the backend might be relying entirely on the HttpOnly cookie.
+        this.router.navigate(['/']);
       },
       error: (err) => {
         this.loading = false;

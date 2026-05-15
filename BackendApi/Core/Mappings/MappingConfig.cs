@@ -51,6 +51,7 @@ public static class MappingConfig
     /// </summary>
     private static Point CreatePoint(double lng, double lat)
     {
-        return new Point(lng, lat) { SRID = 4326 };
+        var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+        return factory.CreatePoint(new Coordinate(lng, lat));
     }
 }

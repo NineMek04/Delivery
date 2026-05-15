@@ -26,7 +26,7 @@ public class DispatchService
     private readonly RedisLockService _lockService;
     private readonly RiderPresenceService _presenceService;
     private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly BackendApi.Services.Ai.IAiService _aiService;
     private readonly IConfiguration _config;
     private readonly ILogger<DispatchService> _logger;
 
@@ -36,7 +36,7 @@ public class DispatchService
         RedisLockService lockService,
         RiderPresenceService presenceService,
         IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
-        IHttpClientFactory httpClientFactory,
+        BackendApi.Services.Ai.IAiService aiService,
         IConfiguration config,
         ILogger<DispatchService> logger)
     {
@@ -45,7 +45,7 @@ public class DispatchService
         _lockService = lockService;
         _presenceService = presenceService;
         _hubContext = hubContext;
-        _httpClientFactory = httpClientFactory;
+        _aiService = aiService;
         _config = config;
         _logger = logger;
     }
@@ -281,52 +281,49 @@ public class DispatchService
     {
         try
         {
-            var aiEngineUrl = _config.GetValue("AIEngine:Url", "http://ai-engine:8000");
-            var client = _httpClientFactory.CreateClient();
-
-            var payload = new
+            var request = new BackendApi.Models.DTOs.DispatchRankRequestDto
             {
-                context = new { timestamp = DateTime.UtcNow.ToString("O"), city = "Bangkok" },
-                order = new
+                Context = new BackendApi.Models.DTOs.DispatchContextDto
                 {
-                    id = order.Id,
-                    pickup = new[] { order.PickupLocation?.Y ?? 0, order.PickupLocation?.X ?? 0 },
-                    dropoff = new[] { order.DropoffLocation?.Y ?? 0, order.DropoffLocation?.X ?? 0 },
-                    sla_limit_minutes = order.SlaLimitMinutes
+                    Timestamp = DateTime.UtcNow.ToString("O"),
+                    City = "Bangkok"
                 },
-                candidates = candidates.Select(c => new
+                Order = new BackendApi.Models.DTOs.DispatchOrderDto
                 {
-                    rider_id = c.RiderId,
-                    lat = _dbContext.Riders.Find(c.RiderId)?.CurrentLocation?.Y ?? 0,
-                    lng = _dbContext.Riders.Find(c.RiderId)?.CurrentLocation?.X ?? 0,
-                    current_tasks = new object[] { } // TODO: ดึงงานที่กำลังทำอยู่ของ Rider แต่ละคน
+                    Id = order.Id,
+                    Pickup = new List<double> { order.PickupLocation?.Y ?? 0, order.PickupLocation?.X ?? 0 },
+                    Dropoff = new List<double> { order.DropoffLocation?.Y ?? 0, order.DropoffLocation?.X ?? 0 },
+                    SlaLimitMinutes = order.SlaLimitMinutes
+                },
+                Candidates = candidates.Select(c =>
+                {
+                    var rider = _dbContext.Riders.Find(c.RiderId);
+                    return new BackendApi.Models.DTOs.DispatchCandidateDto
+                    {
+                        RiderId = c.RiderId,
+                        Lat = rider?.CurrentLocation?.Y ?? 0,
+                        Lng = rider?.CurrentLocation?.X ?? 0,
+                        CurrentTasks = new List<Dictionary<string, object>>() // TODO: ดึงงานที่กำลังทำอยู่
+                    };
                 }).ToList()
             };
 
-            var response = await client.PostAsJsonAsync($"{aiEngineUrl}/api/v1/dispatch/rank", payload);
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-                var rankedList = new List<(string RiderId, double DistanceKm)>();
+            var aiResponse = await _aiService.RankDispatchCandidatesAsync(request);
 
-                if (result.TryGetProperty("ranked_candidates", out var rankedArray))
-                {
-                    foreach (var item in rankedArray.EnumerateArray())
-                    {
-                        var riderId = item.GetProperty("rider_id").GetString();
-                        var distance = item.GetProperty("distance_km").GetDouble();
-                        if (riderId is not null)
-                        {
-                            rankedList.Add((riderId, distance));
-                        }
-                    }
-                    return rankedList;
-                }
-            }
-            else
+            if (aiResponse is not null && aiResponse.RankedCandidates.Any())
             {
-                _logger.LogWarning("AI Engine returned {StatusCode}. Falling back to distance-based ranking.", response.StatusCode);
+                var rankedList = new List<(string RiderId, double DistanceKm)>();
+                foreach (var item in aiResponse.RankedCandidates)
+                {
+                    if (!string.IsNullOrEmpty(item.RiderId))
+                    {
+                        rankedList.Add((item.RiderId, item.DistanceToPickupKm));
+                    }
+                }
+                return rankedList;
             }
+            
+            _logger.LogWarning("AI Engine returned null or empty. Falling back to distance-based ranking.");
         }
         catch (Exception ex)
         {

@@ -249,9 +249,9 @@ Delivery/
 - [x] Add User/Auth domain model, JWT, and Serilog logging.
 - [x] Add AuthController (Login/Logout/Refresh Token).
 - [x] Implement `TrackingHub` logic, Dispatch Orchestrator, and Redis integration.
-- [ ] **Run Database Migrations** (`dotnet ef database update`).
-- [ ] Add `OrdersController` (Business logic for multi-drop).
-- [ ] Add `AiService` HttpClient to communicate with AI Engine.
+- [x] **Run Database Migrations** (`dotnet ef database update`).
+- [x] Add `OrdersController` (Business logic for multi-drop).
+- [x] Add `AiService` HttpClient to communicate with AI Engine.
 
 ### Frontend / Mobile
 - [ ] Run `npm run generate:api` in Angular to sync DTOs.
@@ -263,10 +263,10 @@ Delivery/
 ### AI Engine
 - [x] Implement FastAPI service.
 - [x] Add OR-Tools VRP solver and Phase A Heuristic Scorer.
-- [ ] Wait for BackendApi to integrate and call its endpoints.
+- [x] Wait for BackendApi to integrate and call its endpoints (`AiService` added).
 
 ### Integration
-- [ ] End-to-end flow: create order → optimize route → assign rider → broadcast tracking.
+- [x] End-to-end flow: create order → optimize route → assign rider → broadcast tracking.
 - [ ] Docker Compose full dispatch smoke test.
 - [ ] Add CI build workflow.
 

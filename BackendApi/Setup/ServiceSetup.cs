@@ -6,6 +6,7 @@ using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Auth;
 using BackendApi.Services.BackgroundWorkers;
 using BackendApi.Services.Dispatch;
+using BackendApi.Services.Ai;
 using FluentValidation;
 using Mapster;
 using MapsterMapper;
@@ -90,7 +91,7 @@ public static class ServiceSetup
         services.AddSignalR();
 
         // --- AI Service HttpClient ---
-        services.AddHttpClient("AiService", client =>
+        services.AddHttpClient<IAiService, AiService>(client =>
         {
             var aiServiceUrl = configuration["AI_SERVICE_URL"]
                 ?? configuration["Services:AiService:BaseUrl"];

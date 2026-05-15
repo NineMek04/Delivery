@@ -59,8 +59,12 @@ export class AuthService implements OnDestroy {
     return req<any>('/Auth/login').body(credentials).post().pipe(
       tap((res: any) => {
         const data = res.Value || res.value || res;
-        if (data && data.AccessToken) {
-          this.setTokens(data.AccessToken, data.RefreshToken, data.User);
+        const accessToken = data?.AccessToken || data?.accessToken;
+        const refreshToken = data?.RefreshToken || data?.refreshToken;
+        const user = data?.User || data?.user;
+
+        if (accessToken) {
+          this.setTokens(accessToken, refreshToken, user);
         }
       })
     );
@@ -70,8 +74,12 @@ export class AuthService implements OnDestroy {
     return req<any>('/Auth/register').body(data).post().pipe(
       tap((res: any) => {
         const d = res.Value || res.value || res;
-        if (d && d.AccessToken) {
-          this.setTokens(d.AccessToken, d.RefreshToken, d.User);
+        const accessToken = d?.AccessToken || d?.accessToken;
+        const refreshToken = d?.RefreshToken || d?.refreshToken;
+        const user = d?.User || d?.user;
+
+        if (accessToken) {
+          this.setTokens(accessToken, refreshToken, user);
         }
       })
     );
@@ -96,8 +104,12 @@ export class AuthService implements OnDestroy {
         map((res: any) => {
           this.isRefreshing = false;
           const data = res.Value || res.value || res;
-          if (data && data.AccessToken) {
-            this.setTokens(data.AccessToken, data.RefreshToken, data.User);
+          const newAccessToken = data?.AccessToken || data?.accessToken;
+          const newRefreshToken = data?.RefreshToken || data?.refreshToken;
+          const user = data?.User || data?.user;
+
+          if (newAccessToken) {
+            this.setTokens(newAccessToken, newRefreshToken, user);
             return true;
           } else {
             this.forceLogout();

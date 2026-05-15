@@ -1,6 +1,7 @@
-import { HttpClient, HttpHeaders, HttpRequest, HttpParams, HttpProgressEvent } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpRequest, HttpParams, HttpProgressEvent, HttpEventType, HttpResponse } from '@angular/common/http';
 import { HttpStatusResult, HttpStatusResultValue } from '../../models/common.model';
 import { Observable } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { pathCombine } from '../../core/utils/helper';
 import { AppComponent } from '../../app.component';
@@ -138,7 +139,16 @@ class DeliveryHttpRequest<T> implements IRequestBuilder<T> {
         request.displayCriticalError = this._criticalErrorDialog;
         request.useCacheInvalidate = this._useCacheInvalidate;
         request.useCache = this._useCache;
-        return this.http.request(request) as any;
+        
+        const reqObs = this.http.request(request);
+        if (this._reportProgress) {
+            return reqObs as any;
+        }
+
+        return reqObs.pipe(
+            filter(event => event.type === HttpEventType.Response),
+            map((event: any) => event.body)
+        ) as any;
     }
 }
 

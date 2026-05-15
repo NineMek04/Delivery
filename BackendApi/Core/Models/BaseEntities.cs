@@ -7,7 +7,15 @@ namespace BackendApi.Core.Models
     {
         [Key]
         public TKey Id { get; set; } = default!;
-
+        // เพิ่ม Constructor นี้เข้าไป
+        protected BaseEntity()
+        {
+            // ถ้า TKey เป็น string ให้สร้าง New Guid เป็นค่าเริ่มต้น
+            if (typeof(TKey) == typeof(string))
+            {
+                Id = (TKey)(object)Guid.NewGuid().ToString();
+            }
+        }
         [Timestamp]
         public byte[] RowVersion { get; set; } = null!;
     }

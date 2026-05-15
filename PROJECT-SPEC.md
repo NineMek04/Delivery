@@ -43,6 +43,7 @@
 | Backend ORM | EF Core + Npgsql + NetTopologySuite | 8.0.11 |
 | Backend API Docs | Swagger / Swashbuckle | 6.6.2 (Enhanced with XML Comments) |
 | Backend Security | JWT Bearer Authentication | 8.0.11 + Security Baseline |
+| Backend Logging | Serilog | 10.0.0 (File Sink) |
 | Real-time | SignalR | ASP.NET Core built-in |
 | Database | PostgreSQL + PostGIS | `postgis/postgis:15-3.3` |
 | Cache (Hot Data) | Redis | `redis:7-alpine` |
@@ -245,25 +246,28 @@ Delivery/
 ## 10. Next Tasks (Updated)
 
 ### Backend
-- [x] Add User/Auth domain model and migration.
-- [x] Add AuthController (Login/Logout).
-- [x] Implement `TrackingHub` logic for real-time broadcast.
+- [x] Add User/Auth domain model, JWT, and Serilog logging.
+- [x] Add AuthController (Login/Logout/Refresh Token).
+- [x] Implement `TrackingHub` logic, Dispatch Orchestrator, and Redis integration.
+- [ ] **Run Database Migrations** (`dotnet ef database update`).
 - [ ] Add `OrdersController` (Business logic for multi-drop).
+- [ ] Add `AiService` HttpClient to communicate with AI Engine.
 
 ### Frontend / Mobile
-- [ ] Run `npm run generate:api` to sync DTOs.
-- [ ] Build Angular Dashboard Map View (Leaflet or Google Maps).
-- [x] Initialize **Flutter Rider App** project.
-- [ ] Implement Phase 2: GPS & Background Service in Rider App.
+- [ ] Run `npm run generate:api` in Angular to sync DTOs.
+- [ ] Build Angular Dashboard Map View (Leaflet/Google Maps) + real-time SignalR UI.
+- [x] Initialize **Flutter Rider App** project and AuthService.
+- [ ] Build real UI for Rider App and run `build_runner`.
+- [ ] Implement Phase 2: Background GPS Service and end-to-end dispatch receiving in Rider App.
 
 ### AI Engine
 - [x] Implement FastAPI service.
-- [x] Add OR-Tools VRP solver.
-- [ ] Integrate with BackendApi via `AiService` HttpClient.
+- [x] Add OR-Tools VRP solver and Phase A Heuristic Scorer.
+- [ ] Wait for BackendApi to integrate and call its endpoints.
 
 ### Integration
 - [ ] End-to-end flow: create order → optimize route → assign rider → broadcast tracking.
-- [ ] Docker Compose smoke test.
+- [ ] Docker Compose full dispatch smoke test.
 - [ ] Add CI build workflow.
 
 ---

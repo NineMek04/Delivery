@@ -87,6 +87,18 @@ services:
       backend:
         condition: service_started
 
+  # 6. ระบบแอปพลิเคชันสำหรับไรเดอร์ (Flutter Web)
+  rider-app:
+    build:
+      context: ./rider_app
+      dockerfile: Dockerfile
+    container_name: delivery-rider-app
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:

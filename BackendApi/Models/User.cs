@@ -1,15 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using BackendApi.Core.Models;
 
 namespace BackendApi.Models;
 
 /// <summary>
 /// ผู้ใช้ระบบ — รองรับ Admin, Dispatcher และ Rider
 /// </summary>
-public class User
+public class User : BaseSoftDeleteEntity<string>
 {
-    [Key]
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-
     [Required, MaxLength(100)]
     public string Email { get; set; } = string.Empty;
 
@@ -29,7 +27,6 @@ public class User
     /// </summary>
     public string? RiderId { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 
     /// <summary>

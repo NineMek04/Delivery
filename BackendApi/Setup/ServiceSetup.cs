@@ -6,6 +6,7 @@ using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Auth;
 using BackendApi.Services.BackgroundWorkers;
 using BackendApi.Services.Dispatch;
+using BackendApi.Services;
 using BackendApi.Services.Ai;
 using FluentValidation;
 using Mapster;
@@ -25,6 +26,7 @@ public static class ServiceSetup
         IConfiguration configuration)
     {
         services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddBackendSecurity(configuration);
 
         // --- Database ---

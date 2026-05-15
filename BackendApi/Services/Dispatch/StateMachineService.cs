@@ -109,7 +109,6 @@ public class StateMachineService
 
         var oldState = rider.State;
         rider.State = newState;
-        rider.LastUpdated = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
 

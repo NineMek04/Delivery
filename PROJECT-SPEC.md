@@ -2,8 +2,8 @@
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.5.0 (Phase 2: Real-time Dispatch Orchestration — Heart vs. Brain)  
-> **Last Updated:** 2026-05-14  
+> **Version:** 0.6.0 (Phase 2: Enterprise Auditing & Soft Delete Architecture)  
+> **Last Updated:** 2026-05-15  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
 ---
@@ -178,6 +178,32 @@ Delivery/
 - **Spatial Mapping:** ใช้ `Mapster` จัดการแปลงพิกัด `NetTopologySuite.Geometries.Point` เป็น `Lat/Lng` ใน DTO
 - **Generic CRUD:** `CrudControllerBase` รองรับการทำ Master Data API อย่างรวดเร็ว พร้อม Pagination ในตัว
 - **Enhanced Swagger:** รองรับ XML Comments และ Response Types ครบถ้วน เพื่อใช้กับ OpenAPI Generator
+- **Enterprise Auditing:** ระบบบันทึกข้อมูลผู้สร้าง/แก้ไข/ลบ และ IP Address อัตโนมัติในระดับ DbContext
+
+### Data Management & Auditing (Enterprise Standard)
+
+ระบบมีการจัดการข้อมูลด้วย Layered Base Entities เพื่อให้รองรับการตรวจสอบย้อนหลัง (Audit Trail) และการทำงานแบบ Concurrency ในระบบ Real-time
+
+#### 1. Layered Base Entities
+| Class | Capabilities |
+|---|---|
+| `BaseEntity<T>` | มี **RowVersion** (Concurrency Token) ป้องกันการบันทึกทับกัน |
+| `BaseAuditableEntity<T>` | เพิ่มฟิลด์ `CreatedAt`, `UpdatedAt`, `CreatedBy`, `UpdatedBy` (Hybrid ID/Name) และ IP |
+| `BaseSoftDeleteEntity<T>` | เพิ่มระบบ **Soft Delete** (`IsDeleted`, `DeletedAt`, `DeletedBy`, `DeletedFromIp`) |
+
+#### 2. กรณีการดึงข้อมูล (Data Retrieval Cases)
+เพื่อให้ทีมงานและ Admin เข้าใจพฤติกรรมของข้อมูลในระบบ:
+
+| Case | Behavior (พฤติกรรม) | Note สำหรับ Admin |
+|---|---|---|
+| **การดึงข้อมูลปกติ (Standard Fetch)** | ระบบจะซ่อนข้อมูลที่ `IsDeleted = true` ให้อัตโนมัติ | ข้อมูลที่ลบไปแล้วจะไม่โผล่ในหน้า Dashboard ปกติ |
+| **การลบข้อมูล (Deletion)** | ข้อมูลจะไม่ถูกลบออกจาก DB แต่จะถูก Mark `IsDeleted = true` | ข้อมูลยังอยู่ครบถ้วนเพื่อใช้ตรวจสอบย้อนหลังได้ |
+| **การกู้คืนข้อมูล (Recovery)** | Admin สามารถเปลี่ยน `IsDeleted` กลับเป็น `false` เพื่อกู้คืนได้ | ต้องทำผ่าน DB หรือหน้า Admin พิเศษ |
+| **การตรวจสอบคนทำ (Audit)** | ดูฟิลด์ `CreatedBy...` หรือ `UpdatedBy...` เพื่อหาตัวคนทำ | ระบบเก็บทั้ง User ID, ชื่อ, และ IP ของเครื่องที่ทำ |
+| **การสมัครซ้ำ (Re-registration)** | สามารถสมัครด้วย Email เดิมที่เคยถูก Soft Delete ไปแล้วได้ | ระบบแก้ปัญหา Unique Index ให้เช็คเฉพาะที่ยังไม่ลบ |
+| **ความขัดแย้งของข้อมูล (Concurrency)** | หากมีคนแก้ข้อมูลพร้อมกัน ระบบจะแจ้งเตือนผ่าน `RowVersion` | ป้องกันการกด Save ทับข้อมูลที่เพื่อนร่วมงานเพิ่งแก้ |
+
+---
 
 ### Backend Data Handler Core
 

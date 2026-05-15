@@ -1,16 +1,13 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using BackendApi.Core.Models;
 using BackendApi.Core.StateMachines;
 using NetTopologySuite.Geometries;
 
 namespace BackendApi.Models
 {
-    public class Rider
+    public class Rider : BaseSoftDeleteEntity<string>
     {
-        [Key]
-        public string Id { get; set; } = Guid.NewGuid().ToString();
-
         [Required]
         public string Name { get; set; } = string.Empty;
 
@@ -33,7 +30,5 @@ namespace BackendApi.Models
 
         /// <summary>เวลาล่าสุดที่ GPS อัปเดต (ตำแหน่งยังนิ่งไหม)</summary>
         public DateTime? LastGpsUpdate { get; set; }
-
-        public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
     }
 }

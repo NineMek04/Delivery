@@ -1,13 +1,21 @@
 using BackendApi.Models;
+using BackendApi.Core.Models;
+using BackendApi.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 
 namespace BackendApi.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        private readonly ICurrentUserService _currentUserService;
+
+        public ApplicationDbContext(
+            DbContextOptions<ApplicationDbContext> options,
+            ICurrentUserService currentUserService)
             : base(options)
         {
+            _currentUserService = currentUserService;
         }
 
         public DbSet<Rider> Riders { get; set; }
@@ -15,6 +23,68 @@ namespace BackendApi.Data
         public DbSet<User> Users { get; set; }
 
         public DbSet<RiderLocationHistory> RiderLocationHistories { get; set; }
+
+        public override int SaveChanges()
+        {
+            ApplyAuditFields();
+            ApplySoftDelete();
+            return base.SaveChanges();
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            ApplyAuditFields();
+            ApplySoftDelete();
+            return base.SaveChangesAsync(cancellationToken);
+        }
+
+        private void ApplyAuditFields()
+        {
+            var userId = _currentUserService.UserId;
+            var userName = _currentUserService.UserName;
+            var ipAddress = _currentUserService.IpAddress;
+            var now = DateTime.UtcNow;
+
+            foreach (var entry in ChangeTracker.Entries<IAuditableEntity>())
+            {
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        entry.Entity.CreatedAt = now;
+                        entry.Entity.CreatedByUserId = userId;
+                        entry.Entity.CreatedByName = userName;
+                        entry.Entity.CreatedFromIp = ipAddress;
+                        break;
+                    case EntityState.Modified:
+                        entry.Entity.UpdatedAt = now;
+                        entry.Entity.UpdatedByUserId = userId;
+                        entry.Entity.UpdatedByName = userName;
+                        entry.Entity.UpdatedFromIp = ipAddress;
+                        break;
+                }
+            }
+        }
+
+        private void ApplySoftDelete()
+        {
+            var userId = _currentUserService.UserId;
+            var userName = _currentUserService.UserName;
+            var ipAddress = _currentUserService.IpAddress;
+            var now = DateTime.UtcNow;
+
+            foreach (var entry in ChangeTracker.Entries<ISoftDeletableEntity>())
+            {
+                if (entry.State == EntityState.Deleted)
+                {
+                    entry.State = EntityState.Modified;
+                    entry.Entity.IsDeleted = true;
+                    entry.Entity.DeletedAt = now;
+                    entry.Entity.DeletedByUserId = userId;
+                    entry.Entity.DeletedByName = userName;
+                    entry.Entity.DeletedFromIp = ipAddress;
+                }
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -24,16 +94,38 @@ namespace BackendApi.Data
             modelBuilder.Entity<RiderLocationHistory>()
                 .HasIndex(h => new { h.RiderId, h.RecordedAt });
 
-            // Unique index on Email — ป้องกันอีเมลซ้ำที่ระดับ DB
+            // Apply Global Query Filter for Soft Delete
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                if (typeof(ISoftDeletableEntity).IsAssignableFrom(entityType.ClrType))
+                {
+                    modelBuilder.Entity(entityType.ClrType).HasQueryFilter(CreateSoftDeleteFilter(entityType.ClrType));
+                }
+            }
+
+            // Unique index on Email — ป้องกันอีเมลซ้ำที่ระดับ DB (เฉพาะที่ยังไม่ลบ)
             modelBuilder.Entity<User>(entity =>
             {
-                entity.HasIndex(u => u.Email).IsUnique();
+                entity.HasIndex(u => u.Email)
+                    .IsUnique()
+                    .HasFilter("\"IsDeleted\" = false");
+                
                 entity.Property(u => u.Email).HasMaxLength(100);
                 entity.Property(u => u.FullName).HasMaxLength(100);
                 entity.Property(u => u.Role).HasMaxLength(20);
             });
 
             base.OnModelCreating(modelBuilder);
+        }
+
+        private static System.Linq.Expressions.LambdaExpression CreateSoftDeleteFilter(Type entityType)
+        {
+            var parameter = System.Linq.Expressions.Expression.Parameter(entityType, "e");
+            var propertyMethod = typeof(EF).GetMethod(nameof(EF.Property), BindingFlags.Static | BindingFlags.Public)
+                ?.MakeGenericMethod(typeof(bool));
+            var isDeletedProperty = System.Linq.Expressions.Expression.Call(propertyMethod!, parameter, System.Linq.Expressions.Expression.Constant("IsDeleted"));
+            var compareExpression = System.Linq.Expressions.Expression.Equal(isDeletedProperty, System.Linq.Expressions.Expression.Constant(false));
+            return System.Linq.Expressions.Expression.Lambda(compareExpression, parameter);
         }
     }
 }

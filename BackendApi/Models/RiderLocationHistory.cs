@@ -22,6 +22,8 @@ namespace BackendApi.Models
 
         public DateTime RecordedAt { get; set; }
 
+        public string? RecordedFromIp { get; set; }
+
         // สามารถเพิ่ม OrderId ด้วยถ้ารู้ว่าพิกัดนี้อยู่ในช่วงที่กำลังวิ่งงานไหน
         public string? OrderId { get; set; }
     }

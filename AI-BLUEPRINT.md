@@ -3,8 +3,8 @@
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **Version:** 0.5.0 (Phase 2: Real-time Dispatch Orchestration — Heart vs. Brain)  
-> **Last Updated:** 2026-05-14
+> **Version:** 0.6.0 (Phase 2: Enterprise Auditing & Soft Delete Architecture)  
+> **Last Updated:** 2026-05-15
 
 ---
 
@@ -148,6 +148,7 @@ Delivery/
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
 | **Database Migration**| ✅ Applied         | Run `dotnet ef database update` successfully for new dispatch & auth fields. |
 | **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
+| **Enterprise Audit** | ✅ Ready           | Layered Base Entities, Soft Delete, IP Tracking, Concurrency Tokens (RowVersion) |
 
 ---
 

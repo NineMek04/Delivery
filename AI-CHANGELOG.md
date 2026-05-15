@@ -226,3 +226,20 @@
 - **Action:** Implemented `OrdersComponent` to display live `OrderDto` data, distance (km), pricing, and added action buttons for `Retry Dispatch` and `Cancel Order`.
 - **Action:** Updated `angular.json` to correctly bundle Leaflet CSS styles globally.
 - **Status:** Dashboard is now fully operational with live DB data and Real-time SignalR broadcasts.
+
+---
+
+## [Log Date: 2026-05-15 (4)] | By: AI Agent
+
+### Component: BackendApi — Enterprise Auditing & Soft Delete
+- **Action:** ออกแบบและวางโครงสร้าง Base Entity แบบ Layered (`IEntity`, `IAuditableEntity`, `ISoftDeletableEntity`) เพื่อความยืดหยุ่นในการใช้งาน
+- **Action:** เพิ่ม **Concurrency Token (`RowVersion`)** ใน `BaseEntity` เพื่อป้องกัน Overwrite Conflict ในระบบ Real-time
+- **Action:** พัฒนา `CurrentUserService` พร้อมระบบ **IP Normalization** (รองรับ `X-Forwarded-For` ป้องกัน Proxy Spoofing)
+- **Action:** อัปเดต `ApplicationDbContext` ให้รองรับระบบอัตโนมัติ:
+  - `ApplyAuditFields()`: บันทึกวันเวลา/ผู้ใช้/IP อัตโนมัติเมื่อสร้างหรือแก้ไข
+  - `ApplySoftDelete()`: เปลี่ยนคำสั่งลบเป็นการ Mark `IsDeleted = true` พร้อมบันทึกหลักฐานการลบ
+  - **Global Query Filter**: ซ่อนข้อมูลที่ถูกลบจากการ Query ปกติอัตโนมัติ
+  - **Filtered Unique Index**: ปรับแก้ Unique Index ของ Email ให้เช็คเฉพาะข้อมูลที่ยังไม่ลบ เพื่อให้สมัครซ้ำได้
+- **Action:** ปรับปรุงโมเดล `Order`, `User`, `Rider` ให้รองรับระบบใหม่ และปรับ `RiderLocationHistory` ให้เป็น Lightweight Insert-only
+- **Verification:** รัน Migration `AddEnterpriseAuditing` และอัปเดตฐานข้อมูล PostGIS สำเร็จ
+- **Status:** ระบบฐานข้อมูลมีมาตรฐานความปลอดภัยและตรวจสอบย้อนหลัง (Audit Trail) ระดับ Enterprise พร้อมใช้งาน

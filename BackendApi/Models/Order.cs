@@ -1,16 +1,12 @@
-using System;
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using BackendApi.Core.Models;
 using BackendApi.Core.StateMachines;
 using NetTopologySuite.Geometries;
 
 namespace BackendApi.Models
 {
-    public class Order
+    public class Order : BaseSoftDeleteEntity<string>
     {
-        [Key]
-        public string Id { get; set; } = Guid.NewGuid().ToString();
-
         /// <summary>สถานะปัจจุบันของ Order (State Machine)</summary>
         public OrderState State { get; set; } = OrderState.CREATED;
 
@@ -50,10 +46,9 @@ namespace BackendApi.Models
         /// <summary>ระยะเวลาที่ลูกค้ายอมรับได้ (SLA) หน่วยนาที</summary>
         public int SlaLimitMinutes { get; set; } = 30;
 
-        // ── Timestamps ─────────────────────────────────────────────
+        // ── Timestamps (Additional to Auditable) ───────────────────
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? AssignedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
     }
-}
+}

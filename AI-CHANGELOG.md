@@ -178,3 +178,17 @@
 - **Action:** เพิ่ม endpoint `POST /api/v1/orders/{id}/cancel` ให้ผู้ควบคุมระบบกดยกเลิก
 - **Action:** เพิ่ม endpoint `POST /api/v1/orders/{id}/dispatch` บังคับรัน Dispatch ซ้ำเมื่อไม่มี Rider ว่างรับงาน
 - **Status:** นำไป Deploy ลง Docker สำเร็จ ระบบพร้อมรองรับ Front-end เต็มตัว
+
+## [Log Date: 2026-05-15] | By: AI Agent
+
+### Component: BackendApi — Automated Migrations
+- **Action:** เพิ่ม `DatabaseMigrationSetup.cs` และปรับปรุง `Program.cs` เพื่อรัน `context.Database.MigrateAsync()` อัตโนมัติขณะ Startup
+- **Status:** สำเร็จ (Zero-Manual Setup สำหรับ DB schema)
+
+### Component: Rider App — Dockerization (Flutter Web)
+- **Action:** สร้าง Multi-stage Dockerfile และเพิ่ม Service `rider-app` เข้าไปใน `docker-compose.yml` บน Port 8080
+- **Status:** พร้อมสำหรับการตรวจสอบ UI ผ่าน Browser โดยไม่ต้องลง Flutter SDK
+
+### Component: AI Engine — Code Refactoring
+- **Action:** ปรับโครงสร้างโค้ดเป็น Modular แยก VRP Logic ออกจาก API Endpoint (core/ vs api/)
+- **Status:** Refactored สำเร็จตามแผนงาน

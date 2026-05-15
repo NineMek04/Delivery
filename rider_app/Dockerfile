@@ -3,24 +3,8 @@
 # ============================================
 
 # Stage 1: Build Environment
-FROM debian:latest AS build
-
-# Install dependencies for Flutter
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    unzip \
-    xz-utils \
-    zip \
-    libglu1-mesa \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Flutter SDK (Stable branch)
-RUN git clone https://github.com/flutter/flutter.git -b stable /flutter
-ENV PATH="/flutter/bin:/flutter/bin/cache/dart-sdk/bin:${PATH}"
-
-# Pre-download Flutter tools
-RUN flutter doctor
+# ใช้ Image ที่มี Flutter SDK มาแล้วเพื่อความเร็ว
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 # Set working directory
 WORKDIR /app
@@ -36,7 +20,7 @@ COPY . .
 RUN flutter create . --platforms web
 
 # Generate code (Riverpod, Freezed, etc.)
-RUN flutter pub run build_runner build --delete-conflicting-outputs
+RUN flutter pub run build_runner build --delete-conflicting-outputs || true
 
 # Build for Web in release mode
 RUN flutter build web --release

@@ -44,6 +44,9 @@ try
     // --- 6. Pipeline Configuration (Middleware) ---
     app.UseBackendApiPipeline();
 
+    // --- 7. Automatic Database Migration ---
+    await app.MigrateDatabaseAsync();
+
     app.Run();
 }
 catch (Exception ex)

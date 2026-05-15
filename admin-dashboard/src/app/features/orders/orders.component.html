@@ -33,17 +33,21 @@
     <div class="table-card">
       <table>
         <thead>
-          <tr><th>Order ID</th><th>Order Time</th><th>Pickup Point</th><th>Dropoff Point</th><th>Status</th><th>Assigned Rider</th></tr>
+          <tr><th>Order ID</th><th>Distance</th><th>Pickup Point</th><th>Dropoff Point</th><th>Status</th><th>Assigned Rider</th><th>Actions</th></tr>
         </thead>
         <tbody>
           @for (order of orders; track order.id) {
             <tr>
-              <td><a>{{ order.id }}</a></td>
-              <td>{{ order.time }}</td>
-              <td>{{ order.pickup }}</td>
-              <td>{{ order.dropoff }}</td>
-              <td><span class="status" [class]="order.statusTone">{{ order.status }}</span></td>
-              <td>{{ order.rider }}</td>
+              <td><a style="cursor:pointer">{{ order.id | slice:0:8 }}...</a></td>
+              <td>{{ order.distanceKm | number:'1.2-2' }} km</td>
+              <td>Lat: {{ order.pickupLat }}, Lng: {{ order.pickupLng }}</td>
+              <td>Lat: {{ order.dropoffLat }}, Lng: {{ order.dropoffLng }}</td>
+              <td><span class="status" [class]="getStatusTone(order.orderStatus)">{{ order.orderStatus }}</span></td>
+              <td>{{ order.assignedRiderId ? (order.assignedRiderId | slice:0:8) + '...' : 'Unassigned' }}</td>
+              <td>
+                <button *ngIf="order.orderStatus === 'PENDING'" (click)="retryDispatch(order.id)" class="outline-button" style="padding: 4px 8px; font-size: 12px; border-radius: 4px;">Retry Dispatch</button>
+                <button *ngIf="order.orderStatus !== 'COMPLETED' && order.orderStatus !== 'CANCELLED'" (click)="cancelOrder(order.id)" class="outline-button" style="padding: 4px 8px; font-size: 12px; border-radius: 4px; margin-left: 4px; border-color: red; color: red;">Cancel</button>
+              </td>
             </tr>
           }
         </tbody>

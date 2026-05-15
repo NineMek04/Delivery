@@ -1,5 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { OrderService } from '../../core/services/order.service';
+import { OrderDto } from '../../api/generated/model/order-dto';
+import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-orders',
@@ -8,14 +11,72 @@ import { CommonModule } from '@angular/common';
   templateUrl: './orders.component.html',
   styleUrl: './orders.component.scss'
 })
-export class OrdersComponent {
+export class OrdersComponent implements OnInit {
   readonly title = 'FleetControl AI';
   
-  readonly orders = [
-    { id: '#ORD-5502', time: '10:24 AM', pickup: 'Hub Central B', dropoff: '82nd Ave, North Park', status: 'ASSIGNED', rider: 'Marco P.', statusTone: 'blue' },
-    { id: '#ORD-5501', time: '10:22 AM', pickup: 'Main Distribution Center', dropoff: 'Queens Square 12', status: 'PICKED UP', rider: 'Sarah J.', statusTone: 'amber' },
-    { id: '#ORD-5499', time: '10:15 AM', pickup: 'West End Hub', dropoff: 'Riverdale Dr 404', status: 'DELIVERED', rider: 'Derek M.', statusTone: 'green' },
-    { id: '#ORD-5498', time: '10:10 AM', pickup: 'South Side Port', dropoff: 'Industrial Way B2', status: 'PENDING', rider: 'Not Assigned', statusTone: 'gray' },
-    { id: '#ORD-5497', time: '09:55 AM', pickup: 'Main Distribution Center', dropoff: 'Sunset Blvd 99', status: 'DELIVERED', rider: 'Lina O.', statusTone: 'green' },
-  ];
+  private orderService = inject(OrderService);
+  public orders: OrderDto[] = [];
+  public isLoading = false;
+
+  ngOnInit(): void {
+    this.loadOrders();
+  }
+
+  loadOrders(): void {
+    this.isLoading = true;
+    this.orderService.getAll().subscribe({
+      next: (res: any) => {
+        // Backend returns PaginatedResult in value, or just a list. 
+        // Need to check structure. Assume it's PaginatedResult wrapped in ApiResponse.
+        this.orders = res.value?.items || res.value || [];
+        this.isLoading = false;
+      },
+      error: () => {
+        this.isLoading = false;
+        // ErrorInterceptor will handle the SweetAlert
+      }
+    });
+  }
+
+  getStatusTone(status?: string): string {
+    switch (status) {
+      case 'PENDING': return 'gray';
+      case 'ASSIGNED': return 'blue';
+      case 'PICKING_UP': return 'amber';
+      case 'DELIVERING': return 'blue';
+      case 'DELIVERED': return 'green';
+      case 'COMPLETED': return 'green';
+      case 'CANCELLED': return 'red';
+      default: return 'gray';
+    }
+  }
+
+  cancelOrder(id?: string): void {
+    if (!id) return;
+    
+    Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, cancel it!'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        this.orderService.cancelOrder(id).subscribe(() => {
+          Swal.fire('Cancelled!', 'The order has been cancelled.', 'success');
+          this.loadOrders();
+        });
+      }
+    });
+  }
+
+  retryDispatch(id?: string): void {
+    if (!id) return;
+    this.orderService.retryDispatch(id).subscribe(() => {
+      Swal.fire('Dispatched!', 'The system is looking for a new rider.', 'success');
+      this.loadOrders();
+    });
+  }
 }

@@ -209,3 +209,20 @@
 - **Action:** Renamed all `.css` files to `.scss` and updated `angular.json` build configurations.
 - **Action:** Updated all component `styleUrl` references to point to the new `.scss` files.
 - **Status:** Standardized & SCSS-Ready.
+
+---
+
+## [Log Date: 2026-05-15 (3)] | By: AI Agent
+
+### Component: Admin Dashboard — Real-Time Infrastructure (SignalR)
+- **Action:** Generated OpenAPI models from Backend using `openapi-generator-cli` via Docker container (`src/app/api/generated/`).
+- **Action:** Installed `leaflet` and `@microsoft/signalr` to support interactive maps and real-time WebSocket communication.
+- **Action:** Created `TrackingSignalRService` to handle WebSocket connection with `TrackingHub` and subscribe to `RiderLocationUpdated`, `OfferSent`, and `OrderStatusChanged`.
+- **Status:** Real-time foundation established, complying with `DeliveryHttpRequest` and `BaseApiService<T>` architectural patterns.
+
+### Component: Admin Dashboard — Features Implementation
+- **Action:** Developed `OrderService` and `RiderService` inheriting from `BaseApiService<T>` to fetch and manage data dynamically from the Backend API.
+- **Action:** Implemented `MapComponent` with real-time `Leaflet` integration, successfully rendering moving rider markers with varying colors based on live status (IDLE vs DELIVERING).
+- **Action:** Implemented `OrdersComponent` to display live `OrderDto` data, distance (km), pricing, and added action buttons for `Retry Dispatch` and `Cancel Order`.
+- **Action:** Updated `angular.json` to correctly bundle Leaflet CSS styles globally.
+- **Status:** Dashboard is now fully operational with live DB data and Real-time SignalR broadcasts.

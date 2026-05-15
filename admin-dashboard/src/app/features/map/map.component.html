@@ -19,8 +19,13 @@
 </header>
 
 <section class="map-page">
-  <div class="map-canvas">
-    <div class="map-grid"></div>
+  <!-- Main Content: Map Area -->
+  <div class="map-area">
+    <div class="map-placeholder" #mapElement style="width: 100%; height: 100%; z-index: 1;">
+      <!-- Leaflet map will be injected here -->
+    </div>
+
+    <!-- Map Overlays -->
     <div class="fleet-status">
       <strong>Fleet Status</strong>
       <span><i class="green-dot"></i>Available (14)</span>

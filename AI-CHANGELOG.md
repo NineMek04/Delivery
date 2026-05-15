@@ -192,3 +192,20 @@
 ### Component: AI Engine — Code Refactoring
 - **Action:** ปรับโครงสร้างโค้ดเป็น Modular แยก VRP Logic ออกจาก API Endpoint (core/ vs api/)
 - **Status:** Refactored สำเร็จตามแผนงาน
+
+---
+
+## [Log Date: 2026-05-15 (2)] | By: AI Agent
+
+### Component: Admin Dashboard — Modularization & Standard Refactoring
+- **Action:** Refactored `AppComponent` by separating monolithic logic into modular feature components: `Dashboard`, `Map`, `Orders`, and `Analytics`.
+- **Action:** Implemented `MainLayoutComponent` to handle shared navigation, sidebar, and topbar across all protected routes.
+- **Action:** Standardized `LoginComponent` and `RegisterComponent` by separating inline templates and styles into external `.html` and `.scss` files.
+- **Action:** Configured nested routing in `app.routes.ts` with Lazy Loading support for all feature modules.
+- **Fix:** Restored `static InjectorInstance` in `AppComponent` to maintain compatibility with core infrastructure and fluent API patterns.
+
+### Component: Admin Dashboard — Style System Upgrade (SCSS)
+- **Action:** Migrated the entire CSS stack to SCSS for better maintainability and nesting support.
+- **Action:** Renamed all `.css` files to `.scss` and updated `angular.json` build configurations.
+- **Action:** Updated all component `styleUrl` references to point to the new `.scss` files.
+- **Status:** Standardized & SCSS-Ready.

@@ -1,0 +1,76 @@
+<header class="topbar">
+  <h1>{{ title }}</h1>
+  <label class="search">
+    <span class="material-symbol">⌕</span>
+    <input type="search" placeholder="Search orders..." />
+  </label>
+  <div class="top-actions">
+    <button type="button" class="icon-button" aria-label="Notifications">
+      <span class="material-symbol">!</span>
+    </button>
+    <button type="button" class="icon-button" aria-label="Refresh">
+      <span class="material-symbol">↻</span>
+    </button>
+    <button type="button" class="soft-action"><span class="material-symbol">✦</span>Generate AI Batches</button>
+    <button type="button" class="primary-action"><span>+</span>Create New Order</button>
+  </div>
+</header>
+
+<section class="orders-page">
+  <div class="orders-main">
+    <div class="stat-grid">
+      <article><span>Active Orders</span><strong>1,284</strong><small class="green-text">↑ 12.5% vs yesterday</small></article>
+      <article><span>Pending Assignment</span><strong class="orange">42</strong><small class="orange">! Critical Action Needed</small></article>
+      <article><span>Rider Utilization</span><strong>94%</strong><div class="bar"></div></article>
+    </div>
+    <div class="filter-card">
+      <label>Order ID<input placeholder="e.g. #ORD-9921" /></label>
+      <label>Date Range<input placeholder="mm/dd/yyyy" /></label>
+      <div class="chips">
+        <span>Pending</span><span>Assigned</span><span>Picked up</span><span>Delivered</span>
+      </div>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr><th>Order ID</th><th>Order Time</th><th>Pickup Point</th><th>Dropoff Point</th><th>Status</th><th>Assigned Rider</th></tr>
+        </thead>
+        <tbody>
+          @for (order of orders; track order.id) {
+            <tr>
+              <td><a>{{ order.id }}</a></td>
+              <td>{{ order.time }}</td>
+              <td>{{ order.pickup }}</td>
+              <td>{{ order.dropoff }}</td>
+              <td><span class="status" [class]="order.statusTone">{{ order.status }}</span></td>
+              <td>{{ order.rider }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <footer>Showing 1 to 5 of 1,284 orders</footer>
+    </div>
+  </div>
+  <aside class="order-detail">
+    <button type="button" class="close-button">×</button>
+    <h2>Order Details</h2>
+    <a>#ORD-5501</a>
+    <div class="detail-map"><span>Multi-drop Sequence Active</span></div>
+    <h3>Sequence Progress</h3>
+    <ol class="timeline">
+      <li class="done"><strong>Main Distribution Center</strong><span>Picked up at 10:45 AM</span></li>
+      <li class="current"><strong>Queens Square 12 (Drop A)</strong><span>In Transit - Est 10:55 AM</span></li>
+      <li><strong>Harbor View Condos (Drop B)</strong><span>Scheduled for 11:20 AM</span></li>
+    </ol>
+    <div class="detail-grid">
+      <div><span>Customer</span><strong>Urban Logistics Group</strong></div>
+      <div><span>Weight</span><strong>12.4 kg</strong></div>
+      <div><span>Priority</span><strong class="badge red">High</strong></div>
+      <div><span>Rider Contact</span><strong class="link">Send Message</strong></div>
+    </div>
+    <footer>
+      <button type="button" class="outline-button">Cancel Order</button>
+      <button type="button" class="primary-action">Re-route Rider</button>
+    </footer>
+  </aside>
+</section>

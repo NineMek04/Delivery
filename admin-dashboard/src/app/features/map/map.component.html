@@ -1,0 +1,66 @@
+<header class="topbar">
+  <h1>{{ title }}</h1>
+  <label class="search">
+    <span class="material-symbol">⌕</span>
+    <input type="search" placeholder="Search fleet, riders, or orders..." />
+  </label>
+  <div class="top-actions">
+    <button type="button" class="icon-button" aria-label="Notifications">
+      <span class="material-symbol">!</span>
+    </button>
+    <button type="button" class="icon-button" aria-label="Refresh">
+      <span class="material-symbol">↻</span>
+    </button>
+    <div class="mini-profile">
+      <span>Alex Rivera</span>
+      <div class="avatar small">AR</div>
+    </div>
+  </div>
+</header>
+
+<section class="map-page">
+  <div class="map-canvas">
+    <div class="map-grid"></div>
+    <div class="fleet-status">
+      <strong>Fleet Status</strong>
+      <span><i class="green-dot"></i>Available (14)</span>
+      <span><i class="blue-dot"></i>Delivering (28)</span>
+      <span><i class="gray-dot"></i>Offline (5)</span>
+    </div>
+    <div class="pin green" style="left: 52%; top: 37%"><strong>ID: 8829 (AV)</strong></div>
+    <div class="pin blue" style="left: 64%; top: 62%"><strong>ID: 4102 (DEL)</strong></div>
+    <div class="map-controls">
+      <button type="button">+</button>
+      <button type="button">−</button>
+      <button type="button"><span class="material-symbol">◎</span></button>
+    </div>
+  </div>
+  <aside class="fleet-panel">
+    <section class="panel-block">
+      <div class="row-between"><h3>System Alerts</h3><span class="badge red">4 Active</span></div>
+      @for (alert of alerts; track alert.title) {
+        <article class="alert" [class]="alert.tone">
+          <div class="row-between"><strong>{{ alert.title }}</strong><span>{{ alert.time }}</span></div>
+          <p>{{ alert.text }}</p>
+          @if (alert.tone === 'danger') {
+            <div class="alert-actions">RE-ROUTE&nbsp;&nbsp;DISMISS</div>
+          }
+        </article>
+      }
+    </section>
+    <section class="panel-block riders">
+      <div class="row-between"><h3>Active Riders List</h3><span class="material-symbol">≡</span></div>
+      @for (rider of riders; track rider.name) {
+        <div class="rider-row">
+          <div class="avatar">{{ rider.avatar }}</div>
+          <div><strong>{{ rider.name }}</strong><span [class]="rider.tone">{{ rider.battery }} &nbsp; {{ rider.signal }}</span></div>
+          <em>{{ rider.status }}</em>
+        </div>
+      }
+    </section>
+    <div class="signal-grid">
+      <div><span>Avg Signal</span><strong>94%</strong></div>
+      <div><span>Avg Battery</span><strong class="orange">68%</strong></div>
+    </div>
+  </aside>
+</section>

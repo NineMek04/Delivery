@@ -1,0 +1,92 @@
+<header class="topbar">
+  <h1>{{ title }}</h1>
+  <label class="search">
+    <span class="material-symbol">⌕</span>
+    <input type="search" placeholder="Search orders, routes, or riders..." />
+  </label>
+  <div class="top-actions">
+    <button type="button" class="icon-button" aria-label="Notifications">
+      <span class="material-symbol">!</span>
+    </button>
+    <button type="button" class="icon-button" aria-label="Refresh">
+      <span class="material-symbol">↻</span>
+    </button>
+    <button type="button" class="soft-action blue"><span class="material-symbol">ϟ</span>Run AI Optimization</button>
+  </div>
+</header>
+
+<section class="dashboard-layout">
+  <aside class="orders-queue">
+    <div class="queue-head">
+      <strong>Pending Orders (12)</strong>
+      <span></span>
+    </div>
+    @for (order of pendingOrders; track order.id) {
+      <article class="queue-card" [class.dimmed]="order.dimmed">
+        <div class="row-between">
+          <a>{{ order.id }}</a>
+          <span class="tag">{{ order.tag }}</span>
+        </div>
+        <h3>{{ order.name }}</h3>
+        <p><span class="material-symbol">⌖</span>{{ order.distance }}</p>
+        <div class="queue-note" [class.priority]="order.note === 'Priority Handling'">{{ order.note || 'Placed: 18m ago' }}</div>
+      </article>
+    }
+  </aside>
+
+  <section class="content-area">
+    <div class="section-heading">
+      <div>
+        <h2>AI Proposed Routes</h2>
+        <p>Machine-learning optimized clusters for maximum efficiency</p>
+      </div>
+      <div class="button-row">
+        <button type="button" class="outline-button"><span class="material-symbol">≡</span>Filter</button>
+        <button type="button" class="outline-button"><span class="material-symbol">⇅</span>Sort</button>
+      </div>
+    </div>
+
+    <div class="route-grid">
+      @for (route of routeCards; track route.title) {
+        <article class="route-card" [class.featured]="route.featured">
+          <div class="route-head">
+            <div class="route-icon"><span class="material-symbol">{{ route.featured ? '✦' : '⤴' }}</span></div>
+            <div>
+              <h3>{{ route.title }}</h3>
+              <strong>{{ route.rider }}</strong>
+              <span>({{ route.state }})</span>
+            </div>
+            <span class="match">{{ route.match }}</span>
+          </div>
+          <div class="metric-pair">
+            <div class="metric-box"><span>Savings</span><strong>{{ route.savings }}</strong><small>{{ route.savingsSub }}</small></div>
+            <div class="metric-box"><span>Time Saved</span><strong>{{ route.time }}</strong><small>{{ route.timeSub }}</small></div>
+          </div>
+          <h4>Grouped Orders ({{ route.orders.length }})</h4>
+          <div class="order-stack">
+            @for (item of route.orders; track item) {
+              <div>{{ item }}<span class="material-symbol">✓</span></div>
+            }
+          </div>
+          <footer>
+            <button type="button" class="outline-button">Reject</button>
+            <button type="button" class="primary-action"><span class="material-symbol">▷</span>{{ route.action }}</button>
+          </footer>
+        </article>
+      }
+    </div>
+
+    <div class="insight-row">
+      <article class="efficiency-card">
+        <h3>Fleet Efficiency +22%</h3>
+        <p>AI optimization has successfully reduced empty miles across your last 50 dispatches. Maintain this pace to hit monthly sustainability targets.</p>
+        <div><span>412 kg<small>CO2 Saved</small></span><span>$1,240<small>Fuel Savings</small></span></div>
+      </article>
+      <article class="peak-card">
+        <span class="material-symbol">ϟ</span>
+        <h3>Peak Performance</h3>
+        <p>Current average delivery time is 8 minutes faster than yesterday's morning shift.</p>
+      </article>
+    </div>
+  </section>
+</section>

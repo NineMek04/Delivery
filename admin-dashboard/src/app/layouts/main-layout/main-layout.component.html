@@ -1,0 +1,38 @@
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <strong>Dispatch Center</strong>
+      <span>Operational Hub</span>
+    </div>
+
+    <nav class="nav" aria-label="Main navigation">
+      @for (item of navItems; track item.path) {
+        <button type="button" [routerLink]="item.path" routerLinkActive="active">
+          <span class="material-symbol">{{ item.icon }}</span>
+          {{ item.label }}
+        </button>
+      }
+    </nav>
+
+    <button type="button" class="dispatch-button">
+      <span>+</span>
+      New Dispatch
+    </button>
+
+    <div class="sidebar-footer">
+      <button type="button"><span class="material-symbol">⚙</span>Settings</button>
+      <button type="button" (click)="logout()"><span class="material-symbol">↪</span>Logout</button>
+      <div class="profile">
+        <div class="avatar">AR</div>
+        <div>
+          <strong>Alex Rivera</strong>
+          <span>Fleet Manager</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <router-outlet></router-outlet>
+  </main>
+</div>

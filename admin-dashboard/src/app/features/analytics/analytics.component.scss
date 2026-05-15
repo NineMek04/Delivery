@@ -1,0 +1,131 @@
+.topbar {
+  height: 64px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: auto minmax(260px, 420px) 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.search {
+  height: 36px;
+  background: #f3f3f7;
+  border: 1px solid #e0e3ef;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #667085;
+}
+
+.search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.icon-button {
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 3px;
+  padding: 0;
+  width: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.mini-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #10313a;
+  color: #dffcff;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.avatar.small { width: 30px; height: 30px; }
+
+.content-area { padding: 24px; }
+
+.analytics-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.analytics-cards article, .table-card, .line-chart-card, .donut-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 24px;
+}
+
+.analytics-cards strong {
+  display: block;
+  margin: 10px 0;
+  font-size: 34px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.line-chart {
+  height: 200px;
+  margin-top: 20px;
+  position: relative;
+}
+
+.days {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.status {
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.status.blue { background: #eef2ff; color: var(--blue); }
+.status.amber { background: #fffbeb; color: var(--orange); }
+.status.red { background: #fef2f2; color: var(--red); }

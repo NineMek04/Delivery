@@ -1,0 +1,63 @@
+<header class="topbar">
+  <h1>{{ title }}</h1>
+  <label class="search">
+    <span class="material-symbol">⌕</span>
+    <input type="search" placeholder="Search analytics..." />
+  </label>
+  <div class="top-actions">
+    <button type="button" class="icon-button" aria-label="Notifications">
+      <span class="material-symbol">!</span>
+    </button>
+    <button type="button" class="icon-button" aria-label="Refresh">
+      <span class="material-symbol">↻</span>
+    </button>
+    <div class="mini-profile">
+      <span>Alex Rivera</span>
+      <div class="avatar small">AR</div>
+    </div>
+  </div>
+</header>
+
+<section class="content-area analytics-page">
+  <div class="section-heading">
+    <div>
+      <h2>Analytics & Performance</h2>
+      <p>Real-time optimization insights and AI-driven efficiency metrics.</p>
+    </div>
+  </div>
+  <div class="analytics-cards">
+    <article><span>Total AI Routes Generated</span><strong>12,482 <small>+12.4%</small></strong><div class="progress blue"></div></article>
+    <article><span>Kilometers Saved by AI</span><strong>48,291 <small>↑ 8.2%</small></strong><div class="progress violet"></div></article>
+    <article><span>Avg Incentive Points per Rider</span><strong>452 <small class="orange">New High</small></strong><p>⌁ Exceeding monthly target</p></article>
+  </div>
+  <div class="chart-row">
+    <article class="line-chart-card">
+      <div class="row-between"><h3>Average Delivery Time</h3><span><i class="blue-dot"></i> Current Week&nbsp;&nbsp;<i class="gray-dot"></i> Previous Week</span></div>
+      <div class="line-chart">
+        <svg viewBox="0 0 700 280" preserveAspectRatio="none" aria-label="Average delivery time chart">
+          <path d="M0 210 C110 140 210 170 300 180 C420 200 500 120 620 45 C675 10 705 60 700 120" fill="none" stroke="#075fc4" stroke-width="10" stroke-linecap="round" />
+          <path d="M0 210 C110 140 210 170 300 180 C420 200 500 120 620 45 C675 10 705 60 700 120 L700 280 L0 280 Z" fill="#eef4fb" />
+        </svg>
+        <div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+      </div>
+    </article>
+    <article class="donut-card">
+      <h3>Order Success Rate</h3>
+      <div class="donut"><strong>94%</strong><span>Success</span></div>
+      <p><span><i class="blue-dot"></i>Delivered On-Time</span><b>94.2%</b></p>
+      <p><span><i class="violet-dot"></i>Delayed</span><b>4.1%</b></p>
+      <p><span><i class="red-dot"></i>Failed/Cancelled</span><b>1.7%</b></p>
+    </article>
+  </div>
+  <article class="table-card hub-table">
+    <div class="row-between"><h3>Hub Performance Breakdown</h3><button type="button">Export CSV ↓</button></div>
+    <table>
+      <thead><tr><th>Distribution Hub</th><th>Active Fleet</th><th>Success Rate</th><th>Avg Duration</th><th>Status</th></tr></thead>
+      <tbody>
+        @for (hub of hubs; track hub.name) {
+          <tr><td><strong>{{ hub.name }}</strong></td><td>{{ hub.fleet }}</td><td>{{ hub.rate }}</td><td>{{ hub.duration }}</td><td><span class="status" [class]="hub.tone">{{ hub.status }}</span></td></tr>
+        }
+      </tbody>
+    </table>
+  </article>
+</section>

@@ -60,4 +60,4 @@ desktop.ini
 *.swo
 *~
 
-.BackendApi/logs/*
+.BackendApi/logs/*.txt

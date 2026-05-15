@@ -141,13 +141,13 @@ Delivery/
 | **docker-compose**   | ✅ Created         | 5 services: db, backend, ai-service, frontend, **redis**     |
 | **PostGIS DB**       | ✅ Running         | SRID 4326 standard, PostGIS extension ready                  |
 | **Redis Cache**      | ✅ Running         | Used for GPS speed layer, presence, and distributed locking  |
-| **BackendApi**       | ✅ Ready           | Auth, TrackingHub, **Dispatch Orchestrator**, **Redis Sync** |
-| **ai-engine**        | ✅ Ready           | FastAPI + OR-Tools VRP solver & **Phase A Heuristic Scorer** |
-| **admin-dashboard**  | 🟡 Architecture Ready | Fluent HTTP, Auth/Error Interceptors, AuthService Ready      |
-| **rider_app**        | ✅ Foundation Ready | Dio, SignalR, Riverpod, Auth/Refresh, Location ready |
+| **BackendApi**       | 🟢 80% Ready       | Auth, Serilog, TrackingHub, Dispatch Orchestrator. Missing `OrdersController` & `AiService` client. |
+| **ai-engine**        | 🟢 95% Ready       | FastAPI + OR-Tools VRP solver & Phase A Scorer. Waiting for Backend to call. |
+| **admin-dashboard**  | 🟡 40% Ready       | Architecture ready. Missing Map UI and OpenAPI generation.   |
+| **rider_app**        | 🟡 30% Ready       | Foundation ready. Needs real UI, build_runner, and Background GPS logic. |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
-| **Database Migration**| ✅ Applied         | Added `RiderLocationHistory` and dispatch state fields       |
-| **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy                   |
+| **Database Migration**| 🔴 Pending         | Needs `dotnet ef database update` for new dispatch & auth fields. |
+| **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
 
 ---
 
@@ -165,16 +165,18 @@ Delivery/
 ## 7. Next Tasks (Priority Order)
 
 ### 🔴 Critical — ขาดและ block การทำงาน
-1. **พัฒนา Angular Dashboard** — Map view (Leaflet/Google Maps) + real-time tracking UI
-2. **พัฒนา Flutter Rider App ต่อ** — Implement UI จริงแทน placeholder และเชื่อมต่อ API/SignalR
+1. **Database Migration** — ต้องรัน `dotnet ef database update`
+2. **พัฒนา Angular Dashboard** — Map view (Leaflet/Google Maps) + real-time tracking UI + รัน OpenAPI Generator
+3. **พัฒนา Flutter Rider App ต่อ** — Implement UI จริง, รัน `build_runner`, และทำระบบส่ง GPS พื้นหลัง (Background Service)
 
 ### 🟡 Important — ต้องทำเร็วๆ นี้
-3. **Dispatch Integration Test** — ทดสอบ Flow การส่งงานจาก Admin -> Backend -> AI -> Rider
-4. **ขยาย Business Logic** — เพิ่ม `OrdersController` สำหรับจัดการวงจรชีวิตออเดอร์
+4. **Backend ↔ AI Integration** — สร้าง `AiService` (HttpClient) ใน .NET เพื่อเรียกใช้ VRP จาก Python
+5. **ขยาย Business Logic** — เพิ่ม `OrdersController` สำหรับจัดการวงจรชีวิตออเดอร์ (Multi-drop)
+6. **Dispatch Integration Test** — ทดสอบ End-to-End Flow: Admin -> Backend -> AI -> Rider
 
 ### 🟢 Nice-to-have
-5. **CI/CD Workflows** — GitHub Actions
-6. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
+7. **CI/CD Workflows** — GitHub Actions
+8. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
 
 ---
 

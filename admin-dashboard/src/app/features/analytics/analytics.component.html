@@ -1,58 +1,60 @@
-<header class="topbar">
-  <h1>{{ title }}</h1>
-  <label class="search">
-    <span class="material-symbol">⌕</span>
-    <input type="search" placeholder="Search analytics..." />
-  </label>
-  <div class="top-actions">
-    <button type="button" class="icon-button" aria-label="Notifications">
-      <span class="material-symbol">!</span>
-    </button>
-    <button type="button" class="icon-button" aria-label="Refresh">
-      <span class="material-symbol">↻</span>
-    </button>
-    <div class="mini-profile">
-      <span>Alex Rivera</span>
-      <div class="avatar small">AR</div>
-    </div>
-  </div>
-</header>
-
-<section class="content-area analytics-page">
+<section class="analytics-page">
   <div class="section-heading">
     <div>
-      <h2>Analytics & Performance</h2>
-      <p>Real-time optimization insights and AI-driven efficiency metrics.</p>
+      <h2>{{ title }}</h2>
+      <p>Optimization metrics calculated from current backend order and rider data.</p>
     </div>
+    <button type="button" (click)="loadAnalytics()">Refresh_Telemetry</button>
   </div>
+
   <div class="analytics-cards">
-    <article><span>Total AI Routes Generated</span><strong>12,482 <small>+12.4%</small></strong><div class="progress blue"></div></article>
-    <article><span>Kilometers Saved by AI</span><strong>48,291 <small>↑ 8.2%</small></strong><div class="progress violet"></div></article>
-    <article><span>Avg Incentive Points per Rider</span><strong>452 <small class="orange">New High</small></strong><p>⌁ Exceeding monthly target</p></article>
+    <article>
+      <span>Total AI Routes Generated</span>
+      <strong>{{ generatedRoutes }} <small>API</small></strong>
+      <div class="progress green" [style.width.%]="orders.length ? 100 : 0"></div>
+    </article>
+    <article>
+      <span>Kilometers Planned</span>
+      <strong>{{ kilometersOptimized | number:'1.0-1' }} <small>km</small></strong>
+      <div class="progress blue" [style.width.%]="kilometersOptimized ? 78 : 0"></div>
+    </article>
+    <article>
+      <span>Active Fleet</span>
+      <strong>{{ activeFleet }} <small>riders</small></strong>
+      <p>Live capacity from RiderService</p>
+    </article>
   </div>
+
   <div class="chart-row">
     <article class="line-chart-card">
-      <div class="row-between"><h3>Average Delivery Time</h3><span><i class="blue-dot"></i> Current Week&nbsp;&nbsp;<i class="gray-dot"></i> Previous Week</span></div>
+      <div class="row-between">
+        <h3>Order_State_Flow</h3>
+        <span><i class="green-dot"></i>Success&nbsp;&nbsp;<i class="red-dot"></i>Cancelled</span>
+      </div>
       <div class="line-chart">
-        <svg viewBox="0 0 700 280" preserveAspectRatio="none" aria-label="Average delivery time chart">
-          <path d="M0 210 C110 140 210 170 300 180 C420 200 500 120 620 45 C675 10 705 60 700 120" fill="none" stroke="#075fc4" stroke-width="10" stroke-linecap="round" />
-          <path d="M0 210 C110 140 210 170 300 180 C420 200 500 120 620 45 C675 10 705 60 700 120 L700 280 L0 280 Z" fill="#eef4fb" />
+        <svg viewBox="0 0 700 280" preserveAspectRatio="none" aria-label="Order state flow chart">
+          <path d="M0 220 C90 160 190 170 280 190 C410 220 520 115 640 70 C680 55 700 80 700 120" fill="none" stroke="#00ff66" stroke-width="8" stroke-linecap="round" />
+          <path d="M0 220 C90 160 190 170 280 190 C410 220 520 115 640 70 C680 55 700 80 700 120 L700 280 L0 280 Z" fill="rgba(0,255,102,0.08)" />
         </svg>
-        <div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+        <div class="days"><span>Pending</span><span>Assigned</span><span>Pickup</span><span>Delivering</span><span>Done</span></div>
       </div>
     </article>
     <article class="donut-card">
       <h3>Order Success Rate</h3>
-      <div class="donut"><strong>94%</strong><span>Success</span></div>
-      <p><span><i class="blue-dot"></i>Delivered On-Time</span><b>94.2%</b></p>
-      <p><span><i class="violet-dot"></i>Delayed</span><b>4.1%</b></p>
-      <p><span><i class="red-dot"></i>Failed/Cancelled</span><b>1.7%</b></p>
+      <div class="donut" [style.--success]="successRate + '%'"><strong>{{ successRate }}%</strong><span>Success</span></div>
+      <p><span><i class="green-dot"></i>Delivered/Completed</span><b>{{ successRate }}%</b></p>
+      <p><span><i class="red-dot"></i>Cancelled</span><b>{{ cancelledRate }}%</b></p>
+      <p><span><i class="gray-dot"></i>In Progress</span><b>{{ 100 - successRate - cancelledRate | number:'1.0-1' }}%</b></p>
     </article>
   </div>
+
   <article class="table-card hub-table">
-    <div class="row-between"><h3>Hub Performance Breakdown</h3><button type="button">Export CSV ↓</button></div>
+    <div class="row-between">
+      <h3>Backend_State_Breakdown</h3>
+      <button type="button" (click)="loadAnalytics()">Sync</button>
+    </div>
     <table>
-      <thead><tr><th>Distribution Hub</th><th>Active Fleet</th><th>Success Rate</th><th>Avg Duration</th><th>Status</th></tr></thead>
+      <thead><tr><th>Distribution State</th><th>Active Fleet</th><th>Share</th><th>Volume</th><th>Status</th></tr></thead>
       <tbody>
         @for (hub of hubs; track hub.name) {
           <tr><td><strong>{{ hub.name }}</strong></td><td>{{ hub.fleet }}</td><td>{{ hub.rate }}</td><td>{{ hub.duration }}</td><td><span class="status" [class]="hub.tone">{{ hub.status }}</span></td></tr>

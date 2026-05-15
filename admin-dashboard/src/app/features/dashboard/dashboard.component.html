@@ -2,57 +2,56 @@
   <div class="dashboard-header">
     <div>
       <h2 class="title">{{ title }}</h2>
-      <p class="subtitle">Real-time platform telemetry & kernel metrics</p>
+      <p class="subtitle">Live delivery telemetry from backend services</p>
     </div>
-    <button class="primary-btn">
+    <button class="primary-btn" type="button" (click)="loadDashboardData()">
       <lucide-icon [img]="icons.Plus" size="16"></lucide-icon>
-      New_Shipment_Thread
+      Refresh_Data_Stream
     </button>
   </div>
 
   <div class="stats-grid">
-    <!-- StatCard 1 -->
     <div class="stat-card group">
       <div class="stat-header">
         <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.Truck" size="18"></lucide-icon></div>
-        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> +12.0%</div>
+        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> API</div>
       </div>
       <div class="stat-body">
-        <p class="stat-title">Transit Assets</p>
-        <p class="stat-value">482</p>
+        <p class="stat-title">Active Orders</p>
+        <p class="stat-value">{{ activeOrders.length }}</p>
       </div>
     </div>
-    <!-- StatCard 2 -->
+
     <div class="stat-card group">
       <div class="stat-header">
         <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.AlertTriangle" size="18"></lucide-icon></div>
-        <div class="stat-change negative"><lucide-icon [img]="icons.ArrowDownRight" size="12"></lucide-icon> Critical</div>
+        <div class="stat-change negative"><lucide-icon [img]="icons.ArrowDownRight" size="12"></lucide-icon> Live</div>
       </div>
       <div class="stat-body">
-        <p class="stat-title">System Alerts</p>
-        <p class="stat-value">04</p>
+        <p class="stat-title">Pending Queue</p>
+        <p class="stat-value">{{ pendingOrders.length }}</p>
       </div>
     </div>
-    <!-- StatCard 3 -->
+
     <div class="stat-card group">
       <div class="stat-header">
         <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.Warehouse" size="18"></lucide-icon></div>
-        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> +2.1%</div>
+        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> KM</div>
       </div>
       <div class="stat-body">
-        <p class="stat-title">Warehouse Cap.</p>
-        <p class="stat-value">84.2%</p>
+        <p class="stat-title">Distance Km</p>
+        <p class="stat-value">{{ totalDistanceKm | number:'1.0-1' }}</p>
       </div>
     </div>
-    <!-- StatCard 4 -->
+
     <div class="stat-card group">
       <div class="stat-header">
         <div class="stat-icon group-hover-scale"><lucide-icon [img]="icons.User" size="18"></lucide-icon></div>
-        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> +0.8%</div>
+        <div class="stat-change positive"><lucide-icon [img]="icons.ArrowUpRight" size="12"></lucide-icon> Riders</div>
       </div>
       <div class="stat-body">
-        <p class="stat-title">Driver Eff.</p>
-        <p class="stat-value">98.1%</p>
+        <p class="stat-title">Rider Util.</p>
+        <p class="stat-value">{{ riderUtilization }}%</p>
       </div>
     </div>
   </div>
@@ -60,26 +59,21 @@
   <div class="chart-container">
     <div class="table-title">
       <div class="accent-line"></div>
-      <h3>Transit_Flux_Capacity</h3>
+      <h3>Order_State_Telemetry</h3>
     </div>
     <div class="chart-wrapper">
-      <canvas baseChart
-              [data]="chartData"
-              [options]="chartOptions"
-              [type]="'line'">
-      </canvas>
+      <canvas baseChart [data]="chartData" [options]="chartOptions" [type]="'line'"></canvas>
     </div>
   </div>
 
   <div class="content-grid">
-    <!-- Real-time Transit Status -->
     <div class="table-container">
       <div class="table-header">
         <div class="table-title">
           <div class="accent-line"></div>
           <h3>Real-time_Transit_Status</h3>
         </div>
-        <button class="link-btn">Query_Logs <lucide-icon [img]="icons.ChevronRight" size="14"></lucide-icon></button>
+        <button class="link-btn" type="button" (click)="loadDashboardData()">Query_Logs <lucide-icon [img]="icons.ChevronRight" size="14"></lucide-icon></button>
       </div>
       <div class="table-responsive">
         <table>
@@ -95,16 +89,24 @@
           <tbody>
             @for (shp of routeCards; track shp.id) {
               <tr class="group">
-                <td class="col-pid">{{ shp.id }}</td>
-                <td class="col-trajectory group-hover-slide">{{ shp.destination }}</td>
+                <td class="col-pid">{{ shortId(shp.id) }}</td>
+                <td class="col-trajectory group-hover-slide">
+                  {{ shp.pickupLat | number:'1.4-4' }}, {{ shp.pickupLng | number:'1.4-4' }}
+                  <span class="driver">TO {{ shp.dropoffLat | number:'1.4-4' }}, {{ shp.dropoffLng | number:'1.4-4' }}</span>
+                </td>
                 <td class="col-operator">
-                  <span class="vehicle">{{ shp.vehicle }}</span>
-                  <span class="driver">{{ shp.driver }}</span>
+                  <span class="vehicle">{{ shortId(shp.assignedRiderId) }}</span>
+                  <span class="driver">{{ shp.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }} // {{ shp.distanceKm | number:'1.1-1' }} KM</span>
                 </td>
                 <td class="col-phase">
-                  <span class="status-badge" [class]="shp.status">{{ shp.status }}</span>
+                  <span class="status-badge" [class]="statusClass(shp.status)">{{ shp.status || 'PENDING' }}</span>
                 </td>
-                <td class="col-time group-hover-text">{{ shp.eta }}</td>
+                <td class="col-time group-hover-text">{{ shp.expectedDeliveryTime | date:'HH:mm' }}</td>
+              </tr>
+            }
+            @if (!routeCards.length && !isLoading) {
+              <tr>
+                <td colspan="5" class="empty-cell">NO_ORDER_PAYLOADS_FROM_API</td>
               </tr>
             }
           </tbody>
@@ -112,7 +114,6 @@
       </div>
     </div>
 
-    <!-- System Health -->
     <div class="health-container">
       <div class="table-title mb-24">
         <div class="accent-line negative"></div>
@@ -124,32 +125,35 @@
             <div class="health-icon warning group-hover-glow"><lucide-icon [img]="icons.AlertTriangle" size="24"></lucide-icon></div>
             <div class="health-info">
               <div class="health-item-header">
-                <p class="item-name group-hover-text">{{ item.name }}</p>
-                <span class="status-badge warning">{{ item.tag }}</span>
+                <p class="item-name group-hover-text">{{ shortId(item.id) }}</p>
+                <span class="status-badge warning">{{ item.status || 'PENDING' }}</span>
               </div>
-              <p class="item-desc">{{ item.id }} // {{ item.distance }}</p>
+              <p class="item-desc">{{ item.distanceKm | number:'1.1-1' }} KM // {{ item.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }}</p>
               <div class="item-load">
                 <span class="load-label">LOAD:</span>
-                <div class="progress-bar"><div class="progress-fill warning" [style.width]="'75%'"></div></div>
-                <span class="load-value">75%</span>
+                <div class="progress-bar"><div class="progress-fill warning" [style.width]="item.assignedRiderId ? '75%' : '25%'"></div></div>
+                <span class="load-value">{{ item.assignedRiderId ? '75%' : '25%' }}</span>
               </div>
             </div>
           </div>
         }
+        @if (!pendingOrders.length && !isLoading) {
+          <div class="empty-panel">NO_CRITICAL_SEGMENTS_FROM_API</div>
+        }
       </div>
       <div class="health-footer">
         <div class="util-header">
-          <span>CORE_UTILIZATION</span>
-          <span class="util-value">65%_LOAD</span>
+          <span>REVENUE_STREAM</span>
+          <span class="util-value">{{ totalFees | currency:'THB':'symbol-narrow':'1.0-0' }}</span>
         </div>
         <div class="progress-bar-lg">
-          <div class="progress-fill-lg" style="width: 65%;"></div>
+          <div class="progress-fill-lg" [style.width]="riderUtilization + '%'"></div>
         </div>
         <div class="util-stats">
-          <span>TEMP: 34°C</span>
-          <span>VOLT: 1.2V</span>
+          <span>RIDERS: {{ riders.length }}</span>
+          <span>LIVE: {{ liveRiders.length }}</span>
         </div>
-        <button class="outline-btn-primary">Execute_Restock_Protocol</button>
+        <button class="outline-btn-primary" type="button" (click)="loadDashboardData()">Sync_Service_Data</button>
       </div>
     </div>
   </div>

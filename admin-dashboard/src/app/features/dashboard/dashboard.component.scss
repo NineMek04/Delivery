@@ -273,6 +273,14 @@
     text-transform: uppercase;
     color: var(--color-text-primary);
     transition: transform 0.2s;
+
+    .driver {
+      display: block;
+      margin-top: 4px;
+      color: var(--color-text-muted);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+    }
   }
 
   .group:hover .group-hover-slide {
@@ -336,11 +344,25 @@
     border-color: rgba(0, 255, 102, 0.5);
     background-color: rgba(0, 255, 102, 0.05);
   }
+  &.cancelled {
+    color: var(--color-status-error);
+    border-color: rgba(255, 51, 51, 0.5);
+    background-color: rgba(255, 51, 51, 0.05);
+  }
   &.warning {
     color: var(--color-status-warning);
     border-color: rgba(245, 158, 11, 0.5);
     background-color: rgba(245, 158, 11, 0.05);
   }
+}
+
+.empty-cell,
+.empty-panel {
+  padding: 28px;
+  color: var(--color-text-muted);
+  text-align: center;
+  font: 800 11px var(--font-mono);
+  letter-spacing: 0.2em;
 }
 
 /* System Health Section */

@@ -40,6 +40,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   public alerts: any[] = [];
   public riders: any[] = [];
 
+  get availableCount(): number {
+    return this.riders.filter(rider => ['IDLE', 'AVAILABLE'].includes(rider.status)).length;
+  }
+
+  get deliveringCount(): number {
+    return this.riders.filter(rider => ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(rider.status)).length;
+  }
+
+  get offlineCount(): number {
+    return this.riders.filter(rider => ['OFFLINE', 'LOW'].includes(rider.status)).length;
+  }
+
   ngOnInit(): void {
     this.trackingService.startConnection();
     
@@ -78,6 +90,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       subdomains: 'abcd',
       maxZoom: 20
     }).addTo(this.map);
+  }
+
+  zoomIn(): void {
+    this.map?.zoomIn();
+  }
+
+  zoomOut(): void {
+    this.map?.zoomOut();
+  }
+
+  recenter(): void {
+    this.map?.setView([13.7563, 100.5018], 12);
   }
 
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {

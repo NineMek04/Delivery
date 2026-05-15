@@ -1,80 +1,102 @@
-<header class="topbar">
-  <h1>{{ title }}</h1>
-  <label class="search">
-    <span class="material-symbol">⌕</span>
-    <input type="search" placeholder="Search orders..." />
-  </label>
-  <div class="top-actions">
-    <button type="button" class="icon-button" aria-label="Notifications">
-      <span class="material-symbol">!</span>
-    </button>
-    <button type="button" class="icon-button" aria-label="Refresh">
-      <span class="material-symbol">↻</span>
-    </button>
-    <button type="button" class="soft-action"><span class="material-symbol">✦</span>Generate AI Batches</button>
-    <button type="button" class="primary-action"><span>+</span>Create New Order</button>
-  </div>
-</header>
-
 <section class="orders-page">
-  <div class="orders-main">
-    <div class="stat-grid">
-      <article><span>Active Orders</span><strong>1,284</strong><small class="green-text">↑ 12.5% vs yesterday</small></article>
-      <article><span>Pending Assignment</span><strong class="orange">42</strong><small class="orange">! Critical Action Needed</small></article>
-      <article><span>Rider Utilization</span><strong>94%</strong><div class="bar"></div></article>
+  <div class="section-header">
+    <div>
+      <h2>{{ title }}</h2>
+      <p>Backend order stream, dispatch controls, and lifecycle state</p>
     </div>
-    <div class="filter-card">
-      <label>Order ID<input placeholder="e.g. #ORD-9921" /></label>
-      <label>Date Range<input placeholder="mm/dd/yyyy" /></label>
-      <div class="chips">
-        <span>Pending</span><span>Assigned</span><span>Picked up</span><span>Delivered</span>
-      </div>
+    <button type="button" class="primary-action" (click)="loadOrders()">
+      <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
+      Refresh_Orders
+    </button>
+  </div>
+
+  <div class="stat-grid">
+    <article>
+      <span>Active Orders</span>
+      <strong>{{ activeCount }}</strong>
+      <small>loaded from OrderService</small>
+    </article>
+    <article>
+      <span>Pending Assignment</span>
+      <strong class="warning">{{ pendingCount }}</strong>
+      <small class="warning">dispatch queue</small>
+    </article>
+    <article>
+      <span>Completed Flow</span>
+      <strong>{{ completedCount }}</strong>
+      <small>delivered or completed</small>
+    </article>
+    <article>
+      <span>Delivery Fees</span>
+      <strong>{{ totalFees | currency:'THB':'symbol-narrow':'1.0-0' }}</strong>
+      <small>current result set</small>
+    </article>
+  </div>
+
+  <div class="filter-strip">
+    <label class="search">
+      <lucide-icon [img]="icons.Search" size="16"></lucide-icon>
+      <input type="search" placeholder="search_order_payload..." [(ngModel)]="query" />
+    </label>
+    <div class="chips">
+      <span>PENDING</span>
+      <span>ASSIGNED</span>
+      <span>DELIVERING</span>
+      <span>COMPLETED</span>
     </div>
-    <div class="table-card">
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">
+      <div class="accent-line"></div>
+      <h3>Order_Manifest</h3>
+    </div>
+    <div class="table-responsive">
       <table>
         <thead>
-          <tr><th>Order ID</th><th>Distance</th><th>Pickup Point</th><th>Dropoff Point</th><th>Status</th><th>Assigned Rider</th><th>Actions</th></tr>
+          <tr>
+            <th>ORDER_ID</th>
+            <th>DISTANCE</th>
+            <th>PICKUP_POINT</th>
+            <th>DROPOFF_POINT</th>
+            <th>STATUS</th>
+            <th>RIDER</th>
+            <th>ACTIONS</th>
+          </tr>
         </thead>
         <tbody>
-          @for (order of orders; track order.id) {
+          @for (order of filteredOrders; track order.id) {
             <tr>
-              <td><a style="cursor:pointer">{{ order.id | slice:0:8 }}...</a></td>
+              <td class="mono primary">{{ shortId(order.id) }}</td>
               <td>{{ order.distanceKm | number:'1.2-2' }} km</td>
-              <td>Lat: {{ order.pickupLat }}, Lng: {{ order.pickupLng }}</td>
-              <td>Lat: {{ order.dropoffLat }}, Lng: {{ order.dropoffLng }}</td>
-              <td><span class="status" [class]="getStatusTone(order.status)">{{ order.status }}</span></td>
-              <td>{{ order.assignedRiderId ? (order.assignedRiderId | slice:0:8) + '...' : 'Unassigned' }}</td>
-              <td>
-                <button *ngIf="order.status === 'PENDING'" (click)="retryDispatch(order.id)" class="outline-button" style="padding: 4px 8px; font-size: 12px; border-radius: 4px;">Retry Dispatch</button>
-                <button *ngIf="order.status !== 'COMPLETED' && order.status !== 'CANCELLED'" (click)="cancelOrder(order.id)" class="outline-button" style="padding: 4px 8px; font-size: 12px; border-radius: 4px; margin-left: 4px; border-color: red; color: red;">Cancel</button>
+              <td class="mono">{{ order.pickupLat | number:'1.4-4' }}, {{ order.pickupLng | number:'1.4-4' }}</td>
+              <td class="mono">{{ order.dropoffLat | number:'1.4-4' }}, {{ order.dropoffLng | number:'1.4-4' }}</td>
+              <td><span class="status" [class]="getStatusTone(order.status)">{{ order.status || 'PENDING' }}</span></td>
+              <td class="mono">{{ shortId(order.assignedRiderId) }}</td>
+              <td class="actions">
+                @if (order.status === 'PENDING') {
+                  <button type="button" class="ghost-action" (click)="retryDispatch(order.id)">
+                    <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
+                    Dispatch
+                  </button>
+                }
+                @if (order.status !== 'COMPLETED' && order.status !== 'DELIVERED' && order.status !== 'CANCELLED') {
+                  <button type="button" class="danger-action" (click)="cancelOrder(order.id)">
+                    <lucide-icon [img]="icons.XCircle" size="14"></lucide-icon>
+                    Cancel
+                  </button>
+                }
               </td>
+            </tr>
+          }
+          @if (!filteredOrders.length && !isLoading) {
+            <tr>
+              <td colspan="7" class="empty-cell">NO_ORDER_PAYLOADS_FROM_API</td>
             </tr>
           }
         </tbody>
       </table>
-      <footer>Showing 1 to 5 of 1,284 orders</footer>
     </div>
+    <footer>Showing {{ filteredOrders.length }} of {{ orders.length }} backend orders</footer>
   </div>
-  <aside class="order-detail">
-    <button type="button" class="close-button">×</button>
-    <h2>Order Details</h2>
-    <a>#ORD-5501</a>
-    <div class="detail-map"><span>Multi-drop Sequence Active</span></div>
-    <h3>Sequence Progress</h3>
-    <ol class="timeline">
-      <li class="done"><strong>Main Distribution Center</strong><span>Picked up at 10:45 AM</span></li>
-      <li class="current"><strong>Queens Square 12 (Drop A)</strong><span>In Transit - Est 10:55 AM</span></li>
-      <li><strong>Harbor View Condos (Drop B)</strong><span>Scheduled for 11:20 AM</span></li>
-    </ol>
-    <div class="detail-grid">
-      <div><span>Customer</span><strong>Urban Logistics Group</strong></div>
-      <div><span>Weight</span><strong>12.4 kg</strong></div>
-      <div><span>Priority</span><strong class="badge red">High</strong></div>
-      <div><span>Rider Contact</span><strong class="link">Send Message</strong></div>
-    </div>
-    <footer>
-      <button type="button" class="outline-button">Cancel Order</button>
-      <button type="button" class="primary-action">Re-route Rider</button>
-    </footer>
-  </aside>
 </section>

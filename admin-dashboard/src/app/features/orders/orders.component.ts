@@ -1,22 +1,26 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { OrderService } from '../../core/services/order.service';
 import { OrderDto } from '../../api/generated/model/order-dto';
 import Swal from 'sweetalert2';
+import { LucideAngularModule, RefreshCcw, Search, Plus, XCircle, RotateCcw } from 'lucide-angular';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './orders.component.html',
   styleUrl: './orders.component.scss'
 })
 export class OrdersComponent implements OnInit {
-  readonly title = 'FleetControl AI';
+  readonly title = 'Order_Operations';
+  readonly icons = { RefreshCcw, Search, Plus, XCircle, RotateCcw };
   
   private orderService = inject(OrderService);
   public orders: OrderDto[] = [];
   public isLoading = false;
+  public query = '';
 
   ngOnInit(): void {
     this.loadOrders();
@@ -49,6 +53,36 @@ export class OrdersComponent implements OnInit {
       case 'CANCELLED': return 'red';
       default: return 'gray';
     }
+  }
+
+  get filteredOrders(): OrderDto[] {
+    const q = this.query.trim().toLowerCase();
+    if (!q) return this.orders;
+    return this.orders.filter(order =>
+      (order.id || '').toLowerCase().includes(q) ||
+      (order.status || '').toLowerCase().includes(q) ||
+      (order.assignedRiderId || '').toLowerCase().includes(q)
+    );
+  }
+
+  get activeCount(): number {
+    return this.orders.filter(order => !['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(order.status || '')).length;
+  }
+
+  get pendingCount(): number {
+    return this.orders.filter(order => order.status === 'PENDING').length;
+  }
+
+  get completedCount(): number {
+    return this.orders.filter(order => ['COMPLETED', 'DELIVERED'].includes(order.status || '')).length;
+  }
+
+  get totalFees(): number {
+    return this.orders.reduce((sum, order) => sum + (order.deliveryFee || 0), 0);
+  }
+
+  shortId(id?: string | null): string {
+    return id ? `${id.slice(0, 8).toUpperCase()}...` : 'UNASSIGNED';
   }
 
   cancelOrder(id?: string | null): void {

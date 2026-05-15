@@ -1,8 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, Plus, Truck, AlertTriangle, Warehouse, User, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-angular';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
+import { Subscription, forkJoin } from 'rxjs';
+import { OrderService } from '../../core/services/order.service';
+import { RiderService } from '../../core/services/rider.service';
+import { TrackingSignalRService, RiderLocationUpdate } from '../../core/services/tracking-signalr.service';
+import { OrderDto } from '../../api/generated/model/order-dto';
+import { RiderDto } from '../../api/generated/model/rider-dto';
 
 @Component({
   selector: 'app-dashboard',
@@ -11,15 +17,25 @@ import { ChartConfiguration } from 'chart.js';
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit, OnDestroy {
   icons = { Plus, Truck, AlertTriangle, Warehouse, User, ChevronRight, ArrowUpRight, ArrowDownRight };
   readonly title = 'Operational_Status';
+
+  private readonly orderService = inject(OrderService);
+  private readonly riderService = inject(RiderService);
+  private readonly trackingService = inject(TrackingSignalRService);
+  private readonly subscription = new Subscription();
+
+  orders: OrderDto[] = [];
+  riders: RiderDto[] = [];
+  liveRiders: RiderLocationUpdate[] = [];
+  isLoading = false;
 
   public chartData: ChartConfiguration<'line'>['data'] = {
     labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '23:59'],
     datasets: [
       {
-        data: [30, 25, 45, 65, 55, 80, 40],
+        data: [0, 0, 0, 0, 0, 0, 0],
         label: 'Flux_Value',
         fill: true,
         tension: 0.4,
@@ -62,41 +78,92 @@ export class DashboardComponent {
       }
     }
   };
-  
-  readonly pendingOrders = [
-    { id: '#ORD-8821', name: 'Northside Medical Supplies', distance: '2.4 km from hub', tag: 'STANDARD', note: 'Placed: 4m ago', dimmed: false },
-    { id: '#ORD-8825', name: 'Downtown Gourmet Cafe', distance: '0.8 km from hub', tag: 'EXPRESS', note: 'Priority Handling', dimmed: false },
-    { id: '#ORD-8829', name: 'Central Tech Park B4', distance: '5.2 km from hub', tag: 'STANDARD', note: 'Placed: 12m ago', dimmed: false },
-    { id: '#ORD-8830', name: 'Warehouse 77 Logistics', distance: 'Scheduled for 14:00', tag: 'BULK', note: '', dimmed: true },
-  ];
+  ngOnInit(): void {
+    this.loadDashboardData();
+    this.trackingService.startConnection();
+    this.subscription.add(
+      this.trackingService.riderLocations$.subscribe(locations => {
+        this.liveRiders = Array.from(locations.values());
+      })
+    );
+  }
 
-  readonly routeCards = [
-    {
-      featured: true,
-      id: 'SHP-928',
-      destination: 'Distribution Center West',
-      vehicle: 'Volvo FH16',
-      driver: 'Somsak R.',
-      status: 'in-transit',
-      eta: '14:30'
-    },
-    {
-      featured: false,
-      id: 'SHP-929',
-      destination: 'City Port Terminal',
-      vehicle: 'Scania R500',
-      driver: 'Vichai P.',
-      status: 'pending',
-      eta: '16:45'
-    },
-    {
-      featured: false,
-      id: 'SHP-930',
-      destination: 'Northern Hub',
-      vehicle: 'Isuzu Giga',
-      driver: 'Anan K.',
-      status: 'delivered',
-      eta: '11:15'
-    }
-  ];
+  ngOnDestroy(): void {
+    this.subscription.unsubscribe();
+  }
+
+  loadDashboardData(): void {
+    this.isLoading = true;
+    forkJoin({
+      orders: this.orderService.getAll(),
+      riders: this.riderService.getAll()
+    }).subscribe({
+      next: ({ orders, riders }: any) => {
+        this.orders = this.unwrapList<OrderDto>(orders);
+        this.riders = this.unwrapList<RiderDto>(riders);
+        this.syncChart();
+        this.isLoading = false;
+      },
+      error: () => {
+        this.isLoading = false;
+      }
+    });
+  }
+
+  get activeOrders(): OrderDto[] {
+    return this.orders.filter(order => !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(order.status || ''));
+  }
+
+  get pendingOrders(): OrderDto[] {
+    return this.orders.filter(order => ['PENDING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING'].includes(order.status || '')).slice(0, 4);
+  }
+
+  get routeCards(): OrderDto[] {
+    return this.orders.slice(0, 5);
+  }
+
+  get riderUtilization(): number {
+    if (!this.riders.length) return this.liveRiders.length ? 100 : 0;
+    const busy = this.riders.filter(rider => ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(rider.status || '')).length;
+    return Math.round((busy / this.riders.length) * 100);
+  }
+
+  get totalDistanceKm(): number {
+    return this.orders.reduce((sum, order) => sum + (order.distanceKm || 0), 0);
+  }
+
+  get totalFees(): number {
+    return this.orders.reduce((sum, order) => sum + (order.deliveryFee || 0), 0);
+  }
+
+  statusClass(status?: string | null): string {
+    const normalized = (status || 'PENDING').toLowerCase().replaceAll('_', '-');
+    if (['delivered', 'completed'].includes(normalized)) return 'delivered';
+    if (['delivering', 'picking-up', 'assigned'].includes(normalized)) return 'in-transit';
+    if (normalized === 'cancelled') return 'cancelled';
+    return 'pending';
+  }
+
+  shortId(id?: string | null): string {
+    return id ? id.slice(0, 8).toUpperCase() : 'UNASSIGNED';
+  }
+
+  private syncChart(): void {
+    const buckets = ['PENDING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
+    this.chartData = {
+      ...this.chartData,
+      labels: ['Pending', 'Assigned', 'Pickup', 'Delivering', 'Delivered', 'Complete', 'Cancel'],
+      datasets: [{
+        ...this.chartData.datasets[0],
+        data: buckets.map(status => this.orders.filter(order => order.status === status).length)
+      }]
+    };
+  }
+
+  private unwrapList<T>(res: any): T[] {
+    const value = res?.value ?? res;
+    if (Array.isArray(value)) return value;
+    if (Array.isArray(value?.items)) return value.items;
+    return [];
+  }
 }

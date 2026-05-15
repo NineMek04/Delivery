@@ -158,3 +158,23 @@
 - **Backend:** `http://localhost:5000/swagger` เข้าใช้งานได้ปกติทั้งในและนอก Docker
 - **Frontend Integration:** ปัญหา CORS (ERR_FAILED) ถูกแก้ไขแล้ว หน้า Login สามารถสื่อสารกับ API ได้
 - **Infrastructure:** `delivery-db` และ `delivery-redis` รันในสถานะ Healthy และรับการเชื่อมต่อได้
+
+---
+
+## [Log Date: 2026-05-15] | By: AI Agent
+
+### Component: BackendApi — AI Integration & Dispatch Flow
+- **Action:** สร้าง `AiService` (Typed HttpClient) สำหรับเชื่อมต่อ .NET Backend กับ Python AI Engine อย่างสมบูรณ์
+- **Action:** สร้าง `OrdersController` (Business Logic) สำหรับรองรับการจัดการและตั้งเวลาหา Rider อัตโนมัติ 
+- **Action:** สร้าง E2E Node.js Test Script เพื่อจำลองการทำงานจริง (Admin สร้างงาน -> AI จัดเรียงและ Dispatch -> SignalR ส่ง Offer ไปยัง Rider) และผ่านสำเร็จ 100%
+
+### Component: BackendApi — Pricing & Spatial Fixes
+- **Action:** แก้ไขปัญหา `PostgresException: Geometry has Z dimension` โดยปรับ `MappingConfig.cs` (Mapster) และแก้ไปใช้ Manual Mapping เมื่อจัดการข้อมูล `Point`
+- **Action:** สร้าง Business Logic สำหรับคำนวณราคาจัดส่งผ่าน `DistanceKm` และ `DeliveryFee` โดยใช้ระยะทาง Haversine Equation พื้นฐาน
+- **Action:** รัน `dotnet ef migrations add AddPricingToOrder` และอัปเดต Database
+
+### Component: BackendApi — Order Lifecycle Management
+- **Action:** เพิ่ม endpoint `PATCH /api/v1/orders/{id}/status` รองรับการทำงานของ Rider
+- **Action:** เพิ่ม endpoint `POST /api/v1/orders/{id}/cancel` ให้ผู้ควบคุมระบบกดยกเลิก
+- **Action:** เพิ่ม endpoint `POST /api/v1/orders/{id}/dispatch` บังคับรัน Dispatch ซ้ำเมื่อไม่มี Rider ว่างรับงาน
+- **Status:** นำไป Deploy ลง Docker สำเร็จ ระบบพร้อมรองรับ Front-end เต็มตัว

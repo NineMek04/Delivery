@@ -26,6 +26,12 @@ namespace BackendApi.Models
         [Column(TypeName = "geometry(Point, 4326)")]
         public Point? DropoffLocation { get; set; }
 
+        /// <summary>ระยะทางโดยประมาณ (กิโลเมตร)</summary>
+        public double DistanceKm { get; set; }
+
+        /// <summary>ราคาค่าจัดส่ง</summary>
+        public decimal DeliveryFee { get; set; }
+
         public DateTime ExpectedDeliveryTime { get; set; }
 
         public string? AssignedRiderId { get; set; }

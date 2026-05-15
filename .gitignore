@@ -41,9 +41,22 @@ yarn-error.log*
 .angular/
 
 # ============================================
+# Flutter / Dart (rider_app)
+# ============================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+rider_app/build/
+rider_app/.dart_tool/
+
+# ============================================
 # Docker
 # ============================================
 postgres-data/
+redis_data/
 
 # ============================================
 # OS Files
@@ -60,4 +73,11 @@ desktop.ini
 *.swo
 *~
 
-.BackendApi/logs/*.txt
+# ============================================
+# Secrets & Environment
+# ============================================
+.env
+*.env.*
+!*.env.example
+
+BackendApi/logs/*.txt

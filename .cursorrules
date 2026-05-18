@@ -11,6 +11,9 @@
 - Frontend: use Angular for admin and Flutter for rider flows.
 - Security: use JWT Bearer auth, role policies, rate limiting, and safe CORS configuration.
 - Secrets: never commit real secrets; use environment variables or user secrets.
+- **อย่าให้ Redis กลายเป็น source of truth (สำคัญมาก)**:
+  - **Redis**: ทำหน้าที่เป็น *operational realtime state* (เช่น GPS buffer, presence, live locks)
+  - **PostgreSQL**: ทำหน้าที่เป็น *persistent truth* (ข้อมูลสถานะ Orders, Riders, Transactions) เสมอ
 
 ## 3. Workflow & Logging Rules
 - Read `AI-BLUEPRINT.md`, `AI-CHANGELOG.md`, and `docker-compose.yml` before starting a new task.

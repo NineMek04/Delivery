@@ -57,6 +57,12 @@ Use the actual codebase as the source of truth when it differs from documentatio
 - Every service should be represented in `docker-compose.yml`.
 - Keep Docker and service configuration consistent with the microservices architecture.
 
+### Redis & Database Architecture
+
+- **อย่าให้ Redis กลายเป็น source of truth (สำคัญมาก)**
+  - **Redis**: ทำหน้าที่เป็น *operational realtime state* (GPS buffer, active presence, live locks)
+  - **PostgreSQL**: ทำหน้าที่เป็น *persistent truth* (สถานะถาวรของข้อมูล เช่น Orders, Riders, Transactions) เสมอ
+
 ## Current Project State
 
 - Backend API foundation already includes auth, SignalR, EF Core/PostGIS, and base controller infrastructure.

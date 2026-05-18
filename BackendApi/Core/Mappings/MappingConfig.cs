@@ -65,15 +65,14 @@ public static class MappingConfig
 
     /// <summary>
     /// สร้าง PostGIS Point จาก lng/lat (SRID 4326)
-    /// ใช้ CoordinateSequence แบบ 2D เท่านั้น (XY) เพื่อป้องกันปัญหา
-    /// "Geometry has Z dimension but column does not" ใน PostGIS
+    /// Force 2D โดยใช้ GeometryFactory เพื่อป้องกัน Z dimension
+    /// ที่ทำให้เกิด "Geometry has Z dimension but column does not" ใน PostGIS
     /// </summary>
     private static Point CreatePoint(double lng, double lat)
     {
+        // ใช้ GeometryFactory กำหนด SRID และ force 2D (ไม่มี Z)
+        // new Point(lng, lat) อาจมี Z=NaN ขึ้นอยู่กับ NTS version
         var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
-        var seq = factory.CoordinateSequenceFactory.Create(1, 2, 0); // 1 จุด, 2 มิติ (XY), 0 measures
-        seq.SetX(0, lng);
-        seq.SetY(0, lat);
-        return factory.CreatePoint(seq);
+        return factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(lng, lat));
     }
 }

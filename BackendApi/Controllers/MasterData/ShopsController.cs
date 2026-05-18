@@ -47,10 +47,10 @@ namespace BackendApi.Controllers.MasterData
 
             var entity = new Shop
             {
-                Name      = dto.Name,
-                MenuName  = dto.MenuName,
+                Name = dto.Name,
+                MenuName = dto.MenuName,
                 MenuPrice = dto.MenuPrice,
-                Location  = factory.CreatePoint(
+                Location = factory.CreatePoint(
                     new NetTopologySuite.Geometries.Coordinate(dto.Lng, dto.Lat))
             };
 
@@ -59,12 +59,12 @@ namespace BackendApi.Controllers.MasterData
 
             var result = new ShopDto
             {
-                Id        = entity.Id,
-                Name      = entity.Name,
-                MenuName  = entity.MenuName,
+                Id = entity.Id,
+                Name = entity.Name,
+                MenuName = entity.MenuName,
                 MenuPrice = entity.MenuPrice,
-                Lat       = entity.Location?.Y,
-                Lng       = entity.Location?.X,
+                Lat = entity.Location?.Y,
+                Lng = entity.Location?.X,
                 CreatedAt = entity.CreatedAt
             };
 

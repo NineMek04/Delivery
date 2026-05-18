@@ -13,6 +13,7 @@ using Mapster;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using NetTopologySuite.Geometries;
 using StackExchange.Redis;
 
 namespace BackendApi.Setup;
@@ -33,7 +34,7 @@ public static class ServiceSetup
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
-                npgsql => npgsql.UseNetTopologySuite()));
+                npgsql => npgsql.UseNetTopologySuite(handleOrdinates: Ordinates.XY)));
                 
         services.AddHealthChecks()
             .AddNpgSql(

@@ -35,6 +35,12 @@ public static class ApplicationSetup
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.MapHealthChecks("/health");
+        app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("ready")
+        });
+
         app.MapControllers();
 
         // --- SignalR Hub ---

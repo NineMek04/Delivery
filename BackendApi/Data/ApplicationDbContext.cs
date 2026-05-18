@@ -91,8 +91,32 @@ namespace BackendApi.Data
             // บังคับให้สร้าง Extension PostGIS ในฐานข้อมูล
             modelBuilder.HasPostgresExtension("postgis");
 
-            modelBuilder.Entity<RiderLocationHistory>()
-                .HasIndex(h => new { h.RiderId, h.RecordedAt });
+            // RiderLocationHistories — ไม่ลงทะเบียน Index ผ่าน EF Core Fluent API
+            // เพราะตารางนี้เป็น Partitioned Table หลัง Migration Phase3EnterpriseSpatialScaling
+            // Index ทั้งหมด (GiST + Composite B-tree) ถูกสร้างผ่าน Raw SQL ใน Migration แล้ว
+            // การลงทะเบียนซ้ำที่นี่จะทำให้ EF Core พยายาม Drop/Recreate Index ในการ migrate ครั้งถัดไป
+
+            // Riders — ใช้สำหรับ ST_DWithin (หา Rider ใกล้ Pickup)
+            modelBuilder.Entity<Rider>()
+                .HasIndex(r => r.CurrentLocation)
+                .HasMethod("gist")
+                .HasDatabaseName("IX_Riders_CurrentLocation_Gist");
+
+            // Orders — ใช้สำหรับ Analytics และ Spatial Queries
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.PickupLocation)
+                .HasMethod("gist")
+                .HasDatabaseName("IX_Orders_PickupLocation_Gist");
+
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.DropoffLocation)
+                .HasMethod("gist")
+                .HasDatabaseName("IX_Orders_DropoffLocation_Gist");
+
+            // Orders — B-tree สำหรับ GetMyOrders query (WHERE AssignedRiderId = ?)
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.AssignedRiderId)
+                .HasDatabaseName("IX_Orders_AssignedRiderId");
 
             // Apply Global Query Filter for Soft Delete
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())

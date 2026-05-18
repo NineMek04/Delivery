@@ -100,13 +100,20 @@ public class DispatchService
 
         // 2. กรองเฉพาะ Rider ที่ IDLE (ไม่ถูกจอง/ไม่มีงาน)
         var candidates = new List<(string RiderId, double DistanceKm)>();
+        
+        var riderIds = nearbyRiders.Select(r => r.Member.ToString()).ToList();
+        var ridersDict = await _dbContext.Riders
+            .Where(r => riderIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id);
 
         foreach (var result in nearbyRiders)
         {
             var riderId = result.Member.ToString();
-            var rider = await _dbContext.Riders.FindAsync(riderId);
+            
+            if (!ridersDict.TryGetValue(riderId, out var rider))
+                continue;
 
-            if (rider is null || rider.State != RiderState.IDLE)
+            if (rider.State != RiderState.IDLE)
                 continue;
 
             if (await _lockService.IsLockedAsync(riderId))
@@ -122,7 +129,7 @@ public class DispatchService
         }
 
         // 3. ส่ง Candidates ไป AI Engine สำหรับ Scoring (Phase A)
-        var rankedCandidates = await RankCandidatesWithAiAsync(order, candidates);
+        var rankedCandidates = await RankCandidatesWithAiAsync(order, candidates, ridersDict);
 
         // 4. ลองจอง Rider ทีละคนตามลำดับ
         foreach (var candidate in rankedCandidates)
@@ -277,7 +284,7 @@ public class DispatchService
     /// ส่งรายชื่อ Candidates ไปให้ AI Engine เพื่อให้คะแนนและจัดอันดับ (Phase A Heuristic)
     /// </summary>
     private async Task<List<(string RiderId, double DistanceKm)>> RankCandidatesWithAiAsync(
-        Order order, List<(string RiderId, double DistanceKm)> candidates)
+        Order order, List<(string RiderId, double DistanceKm)> candidates, Dictionary<string, Rider> ridersDict)
     {
         try
         {
@@ -297,7 +304,7 @@ public class DispatchService
                 },
                 Candidates = candidates.Select(c =>
                 {
-                    var rider = _dbContext.Riders.Find(c.RiderId);
+                    ridersDict.TryGetValue(c.RiderId, out var rider);
                     return new BackendApi.Models.DTOs.DispatchCandidateDto
                     {
                         RiderId = c.RiderId,

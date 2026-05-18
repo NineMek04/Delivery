@@ -30,10 +30,17 @@ L.Marker.prototype.options.icon = iconDefault;
 export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('mapElement', { static: true }) mapElement!: ElementRef;
   readonly title = 'Live Fleet Map';
-  
+
   private map!: L.Map;
   private markers: Map<string, L.Marker> = new Map();
-  
+
+  // ── ขอบเขตแผนที่ประเทศไทย (Thailand Bounding Box) ──
+  private readonly THAILAND_CENTER: L.LatLngTuple = [13.7563, 100.5018]; // กรุงเทพฯ
+  private readonly THAILAND_BOUNDS: L.LatLngBoundsExpression = [
+    [5.5, 97.3],   // Southwest — ทิศตะวันตกเฉียงใต้ (สตูล/นราธิวาส)
+    [20.5, 105.7]  // Northeast — ทิศตะวันออกเฉียงเหนือ (เชียงราย/อุบลราชธานี)
+  ];
+
   private trackingService = inject(TrackingSignalRService);
   private subscriptions: Subscription = new Subscription();
 
@@ -54,7 +61,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit(): void {
     this.trackingService.startConnection();
-    
+
     this.subscriptions.add(
       this.trackingService.alerts$.subscribe(newAlerts => {
         this.alerts = newAlerts;
@@ -82,13 +89,20 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private initMap(): void {
-    // Center map on Bangkok (13.7563, 100.5018)
-    this.map = L.map(this.mapElement.nativeElement).setView([13.7563, 100.5018], 12);
+    // สร้างแผนที่พร้อมจำกัดขอบเขตเฉพาะประเทศไทย
+    this.map = L.map(this.mapElement.nativeElement, {
+      center: this.THAILAND_CENTER,
+      zoom: 12,
+      minZoom: 6,                        // ไม่ให้ซูมออกจนเห็นทั้งโลก
+      maxZoom: 18,
+      maxBounds: this.THAILAND_BOUNDS,    // จำกัดขอบเขตแผนที่
+      maxBoundsViscosity: 1.0             // ป้องกันลากแผนที่หลุดนอกประเทศไทย
+    });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
       subdomains: 'abcd',
-      maxZoom: 20
+      maxZoom: 18
     }).addTo(this.map);
   }
 
@@ -101,7 +115,13 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   recenter(): void {
-    this.map?.setView([13.7563, 100.5018], 12);
+    // กลับไปศูนย์กลาง กรุงเทพฯ พร้อม Zoom ระดับเมือง
+    this.map?.setView(this.THAILAND_CENTER, 12);
+  }
+
+  /** กดเพื่อซูมให้เห็นทั้งประเทศไทย */
+  showFullThailand(): void {
+    this.map?.fitBounds(this.THAILAND_BOUNDS);
   }
 
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {
@@ -109,7 +129,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
     locationMap.forEach((loc, riderId) => {
       let marker = this.markers.get(riderId);
-      
+
       const popupContent = `
         <div style="font-family: 'Inter', sans-serif;">
           <strong>Rider: ${riderId.substring(0, 8)}...</strong><br>
@@ -132,7 +152,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         marker = L.marker([loc.latitude, loc.longitude], { icon: customIcon })
           .bindPopup(popupContent)
           .addTo(this.map);
-          
+
         this.markers.set(riderId, marker);
       }
     });
@@ -144,10 +164,10 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       list.push({
         name: `Rider ${riderId.substring(0, 5)}`,
         id: riderId,
-        battery: 'N/A', 
-        signal: 'Strong', 
-        status: loc.status, 
-        avatar: loc.status.charAt(0), 
+        battery: 'N/A',
+        signal: 'Strong',
+        status: loc.status,
+        avatar: loc.status.charAt(0),
         tone: loc.status === 'IDLE' ? 'online' : (loc.status === 'DELIVERING' || loc.status === 'PICKING_UP' ? 'busy' : 'low')
       });
     });

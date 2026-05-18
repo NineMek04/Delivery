@@ -108,8 +108,11 @@ async function createOrder() {
     headers: { Authorization: `Bearer ${adminToken}` }
   });
   orderId = res.data?.value?.id;
+  const distance = res.data?.value?.distanceKm;
+  const fee = res.data?.value?.deliveryFee;
   if (!orderId) throw new Error('Order creation failed — no ID returned');
   log('📦', 'Admin', `Order created → ID: ${orderId}`);
+  log('📏', 'System', `Calculated Distance: ${distance?.toFixed(2)} km | Fee: ${fee?.toFixed(2)} THB`);
   log('🤖', 'AI',    'Dispatch started — searching for nearest IDLE rider...');
 }
 
@@ -200,6 +203,9 @@ async function connectSignalR() {
 
     log('🔔', 'Rider', `Offer received! OfferId=${offer.offerId} v${offer.version}`);
     log('📋', 'Rider', `Order: ${offer.order?.id} | Pickup: ${offer.order?.pickupLat?.toFixed(4)}, ${offer.order?.pickupLng?.toFixed(4)}`);
+    if (offer.order?.distanceKm) {
+      log('📏', 'Rider', `Order Details — Distance: ${offer.order.distanceKm.toFixed(2)} km | Fee: ${offer.order.deliveryFee?.toFixed(2)} THB`);
+    }
 
     // อัปเดต orderId จาก offer (กรณี script สร้าง order ใหม่)
     if (offer.order?.id) orderId = offer.order.id;

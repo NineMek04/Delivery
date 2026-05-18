@@ -174,7 +174,6 @@ public class DispatchService
             return false;
         }
 
-        // ยิง Offer ผ่าน SignalR ไปที่ Rider
         var offerPayload = new
         {
             OfferId = offerId,
@@ -187,7 +186,9 @@ public class DispatchService
                 PickupLng = order.PickupLocation?.X,
                 DropoffLat = order.DropoffLocation?.Y,
                 DropoffLng = order.DropoffLocation?.X,
-                order.SlaLimitMinutes
+                order.SlaLimitMinutes,
+                DistanceKm = order.DistanceKm,
+                DeliveryFee = order.DeliveryFee
             }
         };
 

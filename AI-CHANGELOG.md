@@ -257,3 +257,17 @@
   - **Noise Filtering:** เพิ่มระบบกรองพิกัดขยะ (Accuracy > 50m) เพื่อป้องกันปัญหาพิกัดกระโดด (GPS Drift)
 - **Status:** ระบบติดตามพิกัดสำหรับ Rider พร้อมใช้งานทั้งแบบ Foreground และ Background ตามแผนงาน Phase 2
 
+---
+
+## [Log Date: 2026-05-18] | By: AI Agent
+
+### Component: BackendApi — Database Seeding (Mock Data)
+- **Action:** ออกแบบและเขียนทับ `DataSeeder.cs` เพื่อรองรับการใส่ข้อมูลจำลอง (Mock Data) ที่สมบูรณ์แบบ
+  - **ผู้ใช้งาน (Users):** Seed บัญชีผู้ใช้ของทุกฝั่ง (Admin, Dispatcher, Rider, Customer) พร้อมรหัสผ่านเริ่มต้น `Password123!` ที่ผ่านการ Hash ด้วย PBKDF2 อย่างถูกต้อง
+  - **ผู้จัดส่ง (Riders) & ออเดอร์ (Orders):** กำหนดตำแหน่งพิกัดจำลองจริงด้วย NetTopologySuite Geometry (SRID 4326) ในบริเวณใจกลางกรุงเทพมหานครเพื่อให้พร้อมสำหรับการคำนวณและ dispatch
+  - **ประวัติพิกัด (RiderLocationHistories):** สร้างพิกัดย้อนหลังเพื่อให้แดชบอร์ดทดสอบฟีเจอร์แสดงผลเส้นทางการเดินทาง
+- **Action:** ปรับปรุง `DatabaseMigrationSetup.cs` เพื่อเรียกใช้ `DataSeeder.SeedAsync` หลังการเช็ค Migration สำเร็จ เพื่อทำการ Seed ข้อมูลอัตโนมัติหากพบว่าตารางว่างอยู่
+- **Verification:** ตรวจสอบความถูกต้องผ่าน `dotnet build` สำเร็จ 100% ไม่มี Error
+- **Status:** ข้อมูล Mock สำหรับการทดสอบร่วมกันระหว่าง Admin Dashboard, Rider Mobile App และ AI Engine พร้อมใช้งานเรียบร้อยแล้ว
+
+

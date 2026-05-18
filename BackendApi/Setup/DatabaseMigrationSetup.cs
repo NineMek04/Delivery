@@ -36,6 +36,11 @@ public static class DatabaseMigrationSetup
             {
                 Log.Information("Healthy: Database is up to date. No pending migrations.");
             }
+
+            // Seed mock data if tables are empty
+            Log.Information("🌱 Seeding mock data if database is empty...");
+            await DataSeeder.SeedAsync(context);
+            Log.Information("✅ Database seeding process complete.");
         }
         catch (Exception ex)
         {

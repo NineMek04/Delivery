@@ -257,3 +257,237 @@ i {
     border-top: 1px solid var(--color-surface-line);
   }
 }
+
+// ── ระบบร้านค้าเชิงพื้นที่สไตล์พรีเมียม (Shop Spatial Styling) ──
+
+.shop-mode-selector {
+  position: absolute;
+  z-index: 450;
+  left: 18px;
+  top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .btn-shop-mode {
+    background: rgba(20, 20, 20, 0.92);
+    border: 1px solid var(--color-surface-line);
+    color: var(--color-text-primary);
+    padding: 10px 18px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      border-color: var(--color-brand-primary);
+      color: var(--color-brand-primary);
+      box-shadow: 0 0 16px rgba(0, 255, 102, 0.25);
+    }
+
+    &.active {
+      background: var(--color-status-error);
+      color: white;
+      border-color: var(--color-status-error);
+
+      &:hover {
+        background: #dc2626;
+        border-color: #dc2626;
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+      }
+    }
+  }
+
+  .shop-mode-hint {
+    background: rgba(245, 158, 11, 0.95);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #000;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.shop-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.shop-modal-container {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(22, 22, 22, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  padding: 26px;
+  color: var(--color-text-primary);
+  border-radius: 8px;
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+
+    h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: var(--color-brand-primary);
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: 26px;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.15s ease;
+
+      &:hover {
+        color: var(--color-status-error);
+      }
+    }
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+
+    label {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--color-surface-line);
+      padding: 10px 14px;
+      border-radius: 4px;
+      color: var(--color-text-primary);
+      font-size: 13px;
+      transition: all 0.2s ease;
+
+      &:focus {
+        border-color: var(--color-brand-primary);
+        outline: none;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: 0 0 8px rgba(0, 255, 102, 0.15);
+      }
+
+      &.readonly-input {
+        background: rgba(255, 255, 255, 0.01);
+        color: var(--color-text-muted);
+        border-style: dashed;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 18px;
+
+    .btn {
+      padding: 10px 20px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+
+      &.btn-secondary {
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--color-text-primary);
+        border-color: var(--color-surface-line);
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: var(--color-text-muted);
+        }
+      }
+
+      &.btn-primary {
+        background: var(--color-brand-primary);
+        color: #000;
+
+        &:hover {
+          background: #00dd55;
+          box-shadow: 0 0 15px rgba(0, 255, 102, 0.35);
+        }
+      }
+    }
+  }
+}
+
+// ── Leaflet Shop Marker Tooltip Customization ──
+
+.custom-shop-tooltip {
+  background: rgba(20, 20, 20, 0.95) !important;
+  border: 1px solid rgba(234, 88, 12, 0.4) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  font-family: 'Inter', sans-serif !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
+}
+
+// ── หมุดกระดอนจำลองเชิงพื้นที่ (Bounce Keyframes) ──
+
+@keyframes bounce {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .6;
+  }
+}
+

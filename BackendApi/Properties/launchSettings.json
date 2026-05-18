@@ -6,7 +6,7 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Jwt__Key": "YOUR_SUPER_SECRET_KEY_THAT_IS_AT_LEAST_32_CHARS_LONG"
+        "Jwt__Key": "DeliverySmartRoutingSystem_SuperSecretKey_2024"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5000"
@@ -17,7 +17,7 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Jwt__Key": "YOUR_SUPER_SECRET_KEY_THAT_IS_AT_LEAST_32_CHARS_LONG"
+        "Jwt__Key": "DeliverySmartRoutingSystem_SuperSecretKey_2024"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "https://localhost:5001;http://localhost:5000"

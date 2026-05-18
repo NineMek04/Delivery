@@ -44,15 +44,36 @@ public static class MappingConfig
                 : null)
             .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
 
+        // ================================================
+        // Shop Entity ↔ ShopDto
+        // ================================================
+        config.NewConfig<Shop, ShopDto>()
+            .Map(dest => dest.Lat, src => src.Location != null ? src.Location.Y : (double?)null)
+            .Map(dest => dest.Lng, src => src.Location != null ? src.Location.X : (double?)null);
+
+        config.NewConfig<ShopDto, Shop>()
+            .Map(dest => dest.Location, src => src.Lat.HasValue && src.Lng.HasValue
+                ? CreatePoint(src.Lng.Value, src.Lat.Value)
+                : null);
+
+        config.NewConfig<CreateShopDto, Shop>()
+            .Map(dest => dest.Location, src => CreatePoint(src.Lng, src.Lat))
+            .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
+
         return config;
     }
 
     /// <summary>
     /// สร้าง PostGIS Point จาก lng/lat (SRID 4326)
+    /// ใช้ CoordinateSequence แบบ 2D เท่านั้น (XY) เพื่อป้องกันปัญหา
+    /// "Geometry has Z dimension but column does not" ใน PostGIS
     /// </summary>
     private static Point CreatePoint(double lng, double lat)
     {
         var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
-        return factory.CreatePoint(new Coordinate(lng, lat));
+        var seq = factory.CoordinateSequenceFactory.Create(1, 2, 0); // 1 จุด, 2 มิติ (XY), 0 measures
+        seq.SetX(0, lng);
+        seq.SetY(0, lat);
+        return factory.CreatePoint(seq);
     }
 }

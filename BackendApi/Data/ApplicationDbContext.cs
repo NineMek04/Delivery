@@ -21,6 +21,7 @@ namespace BackendApi.Data
         public DbSet<Rider> Riders { get; set; }
         public DbSet<Order> Orders { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<Shop> Shops { get; set; }
 
         public DbSet<RiderLocationHistory> RiderLocationHistories { get; set; }
 
@@ -112,6 +113,12 @@ namespace BackendApi.Data
                 .HasIndex(o => o.DropoffLocation)
                 .HasMethod("gist")
                 .HasDatabaseName("IX_Orders_DropoffLocation_Gist");
+
+            // Shops — ใช้สำหรับสืบค้นพิกัดร้านค้าเชิงพื้นที่ (GiST Index)
+            modelBuilder.Entity<Shop>()
+                .HasIndex(s => s.Location)
+                .HasMethod("gist")
+                .HasDatabaseName("IX_Shops_Location_Gist");
 
             // Orders — B-tree สำหรับ GetMyOrders query (WHERE AssignedRiderId = ?)
             modelBuilder.Entity<Order>()

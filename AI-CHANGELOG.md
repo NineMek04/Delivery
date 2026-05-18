@@ -401,3 +401,34 @@
 - **BackendApi Build:** `dotnet build BackendApi.csproj` → **0 errors, 0 warnings** ✅
 - **IntegrationTests Build:** `dotnet build BackendApi.IntegrationTests.csproj` → **0 errors** ✅
 - **Solution Build:** `dotnet build Delivery.sln` → **0 errors, 0 warnings** ✅
+
+---
+
+## [Log Date: 2026-05-18 (5)] | By: AI Agent
+
+### 📱 Component: Flutter Feature Simulation (Rider/Shop Spatial Sandbox)
+- **⚠️ หมายเหตุสำคัญสำหรับการพัฒนาในอนาคต (Flutter Real-Feature Target):** 
+  - ฟีเจอร์การลงทะเบียนพิกัดร้านค้า (Shop Registration) และการปักหมุดตำแหน่งเชิงพื้นที่ร่วมกับแผนที่นี้ **เป็นฟีเจอร์จริงที่ต้องการใช้งานบนแอปพลิเคชันมือถือ Flutter (สำหรับร้านค้า/ไรเดอร์)** ในเฟสถัดไป
+  - การพัฒนารูปแบบ Sandbox / Sandbox Prototype ในรอบนี้กระทำบนหน้าเว็บ Admin Dashboard (Angular 19) และ Backend API (.NET 8) เพื่อเป็นกระดานทดสอบจำลองกระบวนการสืบค้นคำสั่งเชิงพื้นที่ร่วมกับระบบประมวลผลเส้นทาง VRP (Vehicle Routing Problem) และเป็นการทดสอบประสิทธิภาพของ PostGIS Spatial Index ข้อมูลร้านค้าล่วงหน้า
+
+### Component: BackendApi — Shop Spatial Database & CRUD Services
+- **Action:** สร้างโมเดล Entity `Shop.cs` (`Models/Shop.cs`) สืบทอดจาก `BaseSoftDeleteEntity<string>` สำหรับบันทึกชื่อร้านค้า, เมนูยอดนิยม, ราคา, และพิกัดภูมิศาสตร์ `Point` (SRID 4326 WGS84) เชิงพื้นที่
+- **Action:** ลงทะเบียน `DbSet<Shop> Shops` ใน `ApplicationDbContext.cs` พร้อมจัดทำดัชนีเชิงพื้นที่ความเร็วสูง **GiST Spatial Index** (`IX_Shops_Location_Gist`) บนคอลัมน์ `Location`
+- **Action:** อัปเดต `MappingConfig.cs` ลงทะเบียน Mapster configurations ให้แปลงพิกัดละติจูด/ลองจิจูดเชิงทศนิยม (Lat/Lng) ไป-กลับเป็น PostGIS `Point` โดยอัตมัติทั้งตอนสร้างและอัปเดตออบเจกต์
+- **Action:** จัดทำและรันชุดคำสั่ง EF Core Migration `AddShopEntity` และคำสั่ง `dotnet ef database update` บันทึกตารางร้านค้าและสเปเชียลอินเดกซ์จริงเข้าสู่ PostgreSQL + PostGIS สำเร็จ
+- **Action:** สร้าง DTOs ปลอดภัยใน `ShopDto.cs` พร้อมกำหนด Range Validation สำหรับพิกัดแผนที่ และสร้าง `ShopsController.cs` สืบทอดจาก `CrudControllerBase<Shop, ShopDto>` ควบคุมสิทธิ์ด้วย `[Authorize]` ครบถ้วนตามสถาปัตยกรรม Clean Code
+
+### Component: Admin Dashboard — Real-time Interactive Map & Pin-Drop Sandbox
+- **Action:** สร้าง `shop.service.ts` ในฝั่งหน้าบ้าน สืบทอดความสามารถของ `BaseApiService<ShopDto>` สื่อสารกับ API ปลายทางอัตโนมัติ
+- **Action:** พัฒนาฟังก์ชันใน `map.component.ts` เพิ่มการปักหมุดร้านค้าจำลอง:
+  - **Shop Registration Mode:** เพิ่มปุ่มเปิด/ปิดโหมดสร้างร้านค้า บนปุ่มควบคุมแผนที่
+  - **Interactive Pin-Drop:** ดักฟัง event คลิกบน Leaflet Map เพื่อแสดงหมุดสีเหลืองชั่วคราวที่มีลูกเล่นกระดอน (`📍`) และดึงพิกัดแบบทศนิยมเพื่อเปิดหน้าต่างกรอกข้อมูล
+  - **Dynamic Save:** บันทึกข้อมูลผ่าน `ShopService` หากบันทึกสำเร็จจะลบหมุดชั่วคราวและแสดง **หมุดร้านค้าสีส้มถาวร (🏪)** ทันที
+  - **Tooltips & Popups:** แสดง Tooltip ระบุชื่อร้านแบบนุ่มนวลเวลานำเมาส์ไปชี้ (Hover) และกล่อง Popup แสดงเมนูแนะนำและราคาเมื่อคลิก
+  - **Spatial Data Sync:** สั่งโหลดข้อมูลพิกัดร้านค้าทั้งหมดจากฐานข้อมูล PostGIS มาแสดงผลบนแผนที่โดยอัตมัติทุกครั้งเมื่อบูตหน้าจอแผนที่สำเร็จ
+- **Action:** อัปเดตไฟล์โครงสร้างของแผนที่ `map.component.html` และ `map.component.scss` ออกแบบ Modal กรอกข้อมูลร้านค้าสไตล์ premium/glassmorphic (กระจกฝ้าโปร่งแสง) พร้อมจัดกลุ่มปุ่มควบคุมโหมดสร้างร้านค้าอย่างหรูหราพรีเมียม
+
+### Verification
+- **Backend Build:** `dotnet build` → **0 errors, 0 warnings** ✅
+- **Database Update:** ตาราง `Shops` และ GiST Index เชิงพื้นที่ถูกสร้างขึ้นสำเร็จในฐานข้อมูล PostgreSQL + PostGIS ปลายทางจริงเรียบร้อย ✅
+- **Frontend Build:** `npx ng build --configuration=development` → **0 errors, 0 warnings** (คอมไพล์ Angular Assets สมบูรณ์แบบ 100%) ✅

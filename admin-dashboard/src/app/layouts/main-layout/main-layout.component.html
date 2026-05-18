@@ -6,25 +6,25 @@
         <lucide-icon [img]="navItems[1].icon" size="20"></lucide-icon>
       </div>
       @if (isSidebarOpen) {
-        <div class="brand-text">
-          <h1>SFWI_PLATFORM</h1>
-          <span>Operational</span>
-        </div>
+      <div class="brand-text">
+        <h1>SFWI_PLATFORM</h1>
+        <span>Operational</span>
+      </div>
       }
     </div>
 
     <div class="sidebar-content">
       @if (isSidebarOpen) {
-        <span class="nav-label">Navigation</span>
+      <span class="nav-label">Navigation</span>
       }
       <nav class="nav" aria-label="Main navigation">
         @for (item of navItems; track item.path) {
-          <button type="button" [routerLink]="item.path" routerLinkActive="active" [title]="item.label">
-            <lucide-icon [img]="item.icon" size="18" [strokeWidth]="2"></lucide-icon>
-            @if (isSidebarOpen) {
-              <span class="nav-text">{{ item.label }}</span>
-            }
-          </button>
+        <button type="button" [routerLink]="item.path" routerLinkActive="active" [title]="item.label">
+          <lucide-icon [img]="item.icon" size="18" [strokeWidth]="2"></lucide-icon>
+          @if (isSidebarOpen) {
+          <span class="nav-text">{{ item.label }}</span>
+          }
+        </button>
         }
       </nav>
     </div>
@@ -33,13 +33,13 @@
       <button type="button" [title]="'Settings'">
         <lucide-icon [img]="icons.Settings" size="18"></lucide-icon>
         @if (isSidebarOpen) {
-          <span class="nav-text">Settings</span>
+        <span class="nav-text">Settings</span>
         }
       </button>
       <button type="button" (click)="logout()" [title]="'Logout'">
         <lucide-icon [img]="icons.User" size="18"></lucide-icon>
         @if (isSidebarOpen) {
-          <span class="nav-text">Logout</span>
+        <span class="nav-text">Logout</span>
         }
       </button>
     </div>
@@ -48,7 +48,7 @@
   <!-- Main Content -->
   <main class="main-content">
     <div class="technical-grid-bg technical-grid opacity-30"></div>
-    
+
     <!-- Header -->
     <header class="header">
       <div class="header-left">
@@ -82,6 +82,14 @@
         </div>
       </div>
     </header>
+
+    <!-- Welcome -->
+    <div class="text-orange-500 text-center justify-center items-center ">
+      <h3 class="font-semibold">Click on Map to choose restarant location</h3>
+    </div>
+
+
+
 
     <!-- Workspace -->
     <div class="workspace custom-scrollbar">

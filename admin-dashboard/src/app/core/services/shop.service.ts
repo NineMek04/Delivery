@@ -1,0 +1,21 @@
+import { Injectable } from '@angular/core';
+import { BaseApiService } from './base-api.service';
+
+export interface ShopDto {
+  id?: string;
+  name: string;
+  menuName: string;
+  menuPrice: number;
+  lat?: number;
+  lng?: number;
+  createdAt?: string;
+}
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ShopService extends BaseApiService<ShopDto> {
+  protected get endpoint(): string {
+    return '/shops';
+  }
+}

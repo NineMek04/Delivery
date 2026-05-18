@@ -2,6 +2,17 @@
   <div class="map-area">
     <div class="map-placeholder" #mapElement></div>
 
+    <!-- แผงควบคุมโหมดสร้างร้านค้าเชิงพื้นที่ -->
+    <div class="shop-mode-selector">
+      <button type="button" class="btn-shop-mode" [class.active]="isAddShopMode" (click)="toggleAddShopMode()">
+        {{ isAddShopMode ? '🛑 ปิดโหมดสร้างร้าน' : '🏪 สร้างร้านค้าใหม่' }}
+      </button>
+      @if (isAddShopMode) {
+        <span class="shop-mode-hint animate-pulse">💡 คลิกพิกัดบนแผนที่เพื่อระบุตำแหน่งร้านค้า</span>
+      }
+    </div>
+
+    <!-- แผงสถานะ Fleet ของไรเดอร์ -->
     <div class="fleet-status">
       <strong>Fleet_Status</strong>
       <span><i class="green-dot"></i>Available ({{ availableCount }})</span>
@@ -14,6 +25,46 @@
       <button type="button" (click)="zoomOut()">-</button>
       <button type="button" (click)="recenter()">◎</button>
     </div>
+
+    <!-- Modal Form ลงทะเบียนร้านค้าสไตล์กระจกโปร่งแสง (Glassmorphic Modal Popup) -->
+    @if (showShopModal) {
+      <div class="shop-modal-backdrop">
+        <div class="shop-modal-container">
+          <div class="modal-header">
+            <h3>🏪 ลงทะเบียนร้านค้าใหม่ (PostGIS Store)</h3>
+            <button type="button" class="close-btn" (click)="cancelShopCreation()">&times;</button>
+          </div>
+          <form (submit)="saveShop($event)">
+            <div class="form-group">
+              <label>ชื่อร้านค้า</label>
+              <input type="text" [(ngModel)]="newShop.name" name="name" required placeholder="เช่น ร้านข้าวมันไก่เฮียเจตน์" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label>เมนูแนะนำ</label>
+              <input type="text" [(ngModel)]="newShop.menuName" name="menuName" required placeholder="เช่น ข้าวมันไก่ผสมพิเศษ" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label>ราคาเมนูเด่น (บาท)</label>
+              <input type="number" [(ngModel)]="newShop.menuPrice" name="menuPrice" required min="1" placeholder="เช่น 60" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>พิกัด Latitude</label>
+                <input type="number" [value]="newShop.lat" readonly class="readonly-input" />
+              </div>
+              <div class="form-group">
+                <label>พิกัด Longitude</label>
+                <input type="number" [value]="newShop.lng" readonly class="readonly-input" />
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" (click)="cancelShopCreation()">ยกเลิก</button>
+              <button type="submit" class="btn btn-primary">💾 บันทึกเข้าระบบ</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
   </div>
 
   <aside class="fleet-panel">

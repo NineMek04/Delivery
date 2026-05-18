@@ -1,5 +1,6 @@
 using BackendApi.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace BackendApi.Services.BackgroundWorkers;
 
@@ -78,14 +79,16 @@ public class PartitionMaintenanceWorker : BackgroundService
                     await dbContext.Database.ExecuteSqlRawAsync(sql, ct);
                     _logger.LogInformation("Ensured partition exists: {PartitionName}", partitionName);
                 }
-                catch (Exception ex) when (ex.Message.Contains("is not partitioned") || ex.Message.Contains("does not exist"))
+                catch (PostgresException pgEx) when (
+                    pgEx.SqlState == "42809" || // wrong_object_type — table is not partitioned
+                    pgEx.SqlState == "42P01")   // undefined_table — parent table does not exist
                 {
-                    // Parent table ยังไม่ถูก Partition (Migration ยังไม่รัน) — ข้ามไปก่อน
+                    // Parent table ยังไม่ถูก Partition (Migration ยังไม่รัน) — ข้ามทั้งหมด
                     _logger.LogWarning(
-                        "Skipping partition creation for {PartitionName} — parent table is not partitioned yet. " +
+                        "Skipping partition creation — parent table is not partitioned yet (SqlState={SqlState}). " +
                         "Run 'dotnet ef database update' to apply Phase3EnterpriseSpatialScaling migration first.",
-                        partitionName);
-                    return; // ออกจาก loop ทั้งหมด ไม่ต้องลองเดือนถัดไป
+                        pgEx.SqlState);
+                    return;
                 }
                 catch (Exception ex)
                 {

@@ -324,7 +324,31 @@ Delivery/
 - **DB Connection Error:** ตรวจสอบว่า `delivery-db` พร้อมใช้งานก่อนที่ `delivery-backend` จะเริ่มทำงาน (หากพลาดให้สั่ง `docker-compose restart backend`)
 - **Logs:** ดู Error เพิ่มเติมได้ด้วยคำสั่ง `docker-compose logs -f [service_name]`
 
-### 11.2 URLs & Ports
+### 11.4 Running the E2E Dispatch & Delivery Simulator (Node.js)
+ระบบมีชุด Script สำหรับทดลองวิ่งจำลองทราฟฟิกจริง (End-to-End Simulation) เพื่อจำลอง flow การจองคิวและการเดินทางเชิงพื้นที่ของ Rider ใน จ.อุดรธานี โดยไม่ต้องเปิดหน้าต่างแอปพลิเคชันจริง:
+
+1. **เตรียมความพร้อม:**
+   - ติดตั้ง [Node.js](https://nodejs.org) (v18 ขึ้นไป) บนเครื่องโฮสต์
+   - มั่นใจว่าคอนเทนเนอร์ระบบหลัก (`delivery-db`, `delivery-redis`, `delivery-backend`, `delivery-ai`) ทำงานอยู่อย่างครบถ้วนและ Healthy
+2. **ติดตั้ง Dependencies:**
+   เปิด Terminal และเข้าไปยังโฟลเดอร์ของ Simulator แล้วติดตั้ง library ที่ใช้รัน:
+   ```bash
+   cd scripts/e2e-simulator
+   npm install
+   ```
+3. **เริ่มรันการจำลอง (Simulation):**
+   รันคำสั่งด้านล่างเพื่อเริ่มกระบวนการจัดส่งแบบ real-time:
+   ```bash
+   node simulate-e2e.js
+   ```
+4. **กระบวนการที่ Simulator ทำการจำลองอัตโนมัติ:**
+   - **Step 0-1:** ตรวจสอบความแข็งแรงของระบบ (Health Check) และเข้าสู่ระบบในชื่อ Admin และ Rider 1
+   - **Step 2:** สร้างร้านค้าจำลอง (Shop) ใน จ.อุดรธานี
+   - **Step 3:** เชื่อมต่อ Rider เข้าสู่ WebSocket (`TrackingHub` SignalR) และยิงพิกัด GPS จำลองเข้าสู่ Redis
+   - **Step 4:** สร้างออเดอร์ใหม่ -> ส่งพิกัดเข้า AI Engine -> รับ Offer ข้อเสนอบน Rider Hub -> ตอบตกลงรับงาน
+   - **Step 5:** จำลองการเดินทางของ Rider ทีละพิกัด (12 จุดแรกเข้าหาพิกัดร้านค้าอุดร, อัปเดตสถานะเป็น `PICKING_UP`, และเดินทางอีก 15 จุดมุ่งหน้าหาที่อยู่ผู้รับปลายทาง, อัปเดตสถานะเป็น `DELIVERING` และ `COMPLETED` เพื่อล้างสถานะ Rider ให้กลับมาว่างอีกครั้ง)
+
+### 11.5 URLs & Ports
 
 | Service | Local URL | Docker URL |
 |---|---|---|

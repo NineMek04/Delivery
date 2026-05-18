@@ -460,3 +460,22 @@
 - **Spatial Indexing & Partitioning Workflows**: ทำงานได้ถูกต้อง รันพาร์ทิชันล่วงหน้าตามแผนได้อย่างสมบูรณ์
 
 ---
+
+## [Log Date: 2026-05-18 (6)] | By: AI Agent
+
+### Component: BackendApi — Database RowVersion Fix & Shops Seeder Stabilization
+- **Action:** แก้ไขวิกฤต PostgreSQL `RowVersion` ในการสร้าง `Shop` ผ่าน `AddShopRowVersionDefault` Migration โดยเพิ่มคอลัมน์ `DEFAULT '\x'::bytea` ในระดับ Database Schema ทำให้การจับคู่และบันทึกข้อมูล Master Data ผ่าน EF Core ไร้จุดขัดข้อง
+- **Action:** ปิดช่องโหว่ความเสี่ยงใน PostgreSQL Partitioned tables โดยคงดัชนีเดิมในโค้ด EF Core Snapshot และ Migration
+
+### Component: BackendApi — Rider Authorization & Lifecycle Scope Overhaul
+- **Action:** แก้ไขปัญหาสิทธิ์อัปเดตสถานะออเดอร์ขัดข้อง (Rider Status Update 403) ใน `OrdersController.UpdateOrderStatus` โดยใช้ `IServiceScopeFactory` สร้าง Database Query Scope แบบ Explicit ในการแมป User ID ➡️ Rider ID อย่างแม่นยำ
+- **Action:** นำการดักจับตรวจสอบและโค้ดควบคุม Debug กลับสู่สภาพโปรดักชันปกติ (Pristine Production Code) เพื่อประสิทธิภาพและความปลอดภัย
+
+### Component: Integration & Simulation (Quality Assurance)
+- **Action:** รันการทดสอบ E2E Full Dispatch & Delivery Lifecycle Simulation (`simulate-e2e.js`) ผ่านฉลุย 100% (ตั้งแต่ Auth -> Shop Creation -> AI VRP Dispatch -> SignalR Offer Connection -> GPS Live Tracking -> Order Status Transition -> Rider State Auto-release)
+- **Action:** เขียนขั้นตอนวิธีการเตรียมการและสั่งรันระบบ E2E Simulator ลงในคู่มือพัฒนา [PROJECT-SPEC.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/PROJECT-SPEC.md) อย่างเป็นทางการ
+
+### Verification
+- **Solution Build:** `dotnet build` ผ่านเรียบร้อย (0 errors, 0 warnings)
+- **E2E Simulator:** รันสำเร็จครบถ้วนสมบูรณ์ ปราศจาก Error ตลอดทั้งเส้นทางขนส่งจำลองพิกัดเมืองอุดรธานี
+

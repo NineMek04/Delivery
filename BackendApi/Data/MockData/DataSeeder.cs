@@ -258,6 +258,46 @@ public static class DataSeeder
                 await context.RiderLocationHistories.AddRangeAsync(histories);
             }
 
+            // 5. Seed Shops (ข้อมูลร้านค้าสำหรับทดสอบ)
+            if (await context.Shops.CountAsync() < 3)
+            {
+                var shops = new List<Shop>
+                {
+                    new Shop
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = "ร้านกาแฟ ป้านงค์ (UD)",
+                        MenuName = "ลาเต้เย็น",
+                        MenuPrice = 65.00m,
+                        Location = new Point(102.8050, 17.4020) { SRID = 4326 }, // แถว UD Town
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    },
+                    new Shop
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = "ก๋วยเตี๋ยวเนื้อ ตุ๋นยาจีน",
+                        MenuName = "ก๋วยเตี๋ยวเนื้อเปื่อย",
+                        MenuPrice = 80.00m,
+                        Location = new Point(102.7910, 17.4100) { SRID = 4326 }, // กลางเมืองอุดร
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    },
+                    new Shop
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = "VT แหนมเนือง (สาขาใหญ่)",
+                        MenuName = "ชุดแหนมเนือง ชุดใหญ่",
+                        MenuPrice = 350.00m,
+                        Location = new Point(102.7750, 17.4200) { SRID = 4326 }, // ใกล้หนองประจักษ์
+                        CreatedAt = DateTime.UtcNow,
+                        IsDeleted = false
+                    }
+                };
+                
+                await context.Shops.AddRangeAsync(shops);
+            }
+
             // บันทึกข้อมูลและยืนยัน Transaction
             await context.SaveChangesAsync();
             await transaction.CommitAsync();

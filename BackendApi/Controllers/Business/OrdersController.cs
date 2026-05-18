@@ -20,11 +20,13 @@ public class OrdersController : DeliveryControllerBase
 {
     private readonly IMapper _mapper;
     private readonly StateMachineService _stateMachine;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public OrdersController(IMapper mapper, StateMachineService stateMachine)
+    public OrdersController(IMapper mapper, StateMachineService stateMachine, IServiceScopeFactory scopeFactory)
     {
         _mapper = mapper;
         _stateMachine = stateMachine;
+        _scopeFactory = scopeFactory;
     }
 
     /// <summary>
@@ -36,9 +38,11 @@ public class OrdersController : DeliveryControllerBase
         [FromBody] CreateOrderDto dto,
         CancellationToken cancellationToken)
     {
-        var pickup = new Point(dto.PickupLng, dto.PickupLat) { SRID = 4326 };
-        var dropoff = new Point(dto.DropoffLng, dto.DropoffLat) { SRID = 4326 };
-        
+        // ใช้ GeometryFactory force 2D เพื่อป้องกัน "Geometry has Z dimension but column does not"
+        var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+        var pickup = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.PickupLng, dto.PickupLat));
+        var dropoff = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.DropoffLng, dto.DropoffLat));
+
         // ให้ PostGIS คำนวณ (แม่นยำกว่า, ลด CPU Backend)
         var distanceMeters = pickup.Distance(dropoff);
         var distanceKm = distanceMeters / 1000.0;
@@ -64,7 +68,7 @@ public class OrdersController : DeliveryControllerBase
         {
             try
             {
-                using var scope = HttpContext.RequestServices.CreateScope();
+                using var scope = _scopeFactory.CreateScope();
                 var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
                 await dispatchSvc.StartDispatchAsync(savedOrder.Id);
             }
@@ -164,7 +168,8 @@ public class OrdersController : DeliveryControllerBase
         var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
         if (role != AuthConstants.AdminRole && role != AuthConstants.DispatcherRole)
         {
-            if (order.AssignedRiderId != CurrentUserId)
+            var user = await DB.GetObjectByKeyAsync<BackendApi.Models.User>(CurrentUserId ?? string.Empty, cancellationToken);
+            if (user == null || order.AssignedRiderId != user.RiderId)
             {
                 return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้รับมอบหมายให้ทำออเดอร์นี้"));
             }
@@ -259,7 +264,7 @@ public class OrdersController : DeliveryControllerBase
         {
             try
             {
-                using var scope = HttpContext.RequestServices.CreateScope();
+                using var scope = _scopeFactory.CreateScope();
                 var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
                 await dispatchSvc.StartDispatchAsync(order.Id);
             }

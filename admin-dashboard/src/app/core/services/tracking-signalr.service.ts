@@ -83,18 +83,23 @@ export class TrackingSignalRService {
     this.hubConnection.on('RiderLocationUpdated', (data: RiderLocationUpdate) => {
       const currentMap = this._riderLocations.getValue();
       currentMap.set(data.riderId, data);
-      
-      // Emit a new map to trigger change detection
       this._riderLocations.next(new Map(currentMap));
     });
 
-    // Listen to dispatch events
-    this.hubConnection.on('OfferSent', (riderId: string, offer: DispatchOffer) => {
-      this.addAlert('AI Dispatcher', `Sent an offer to Rider ${riderId} (Order ${offer.order?.id || 'Unknown'})`, 'info');
+    // OfferReceived — Backend ยิงไปหา Rider โดยตรง (group rider:{id})
+    // Admin Dashboard รับได้ถ้า join group admins หรือ listen broadcast
+    this.hubConnection.on('OfferReceived', (offer: DispatchOffer) => {
+      this.addAlert('AI Dispatcher', `Offer sent to rider (Order ${offer.order?.id || 'Unknown'})`, 'info');
     });
-    
+
+    // OrderAssigned — Backend broadcast ไปหา group admins เมื่อ Rider รับงาน
+    this.hubConnection.on('OrderAssigned', (data: { id: string; riderId: string; assignedAt: string }) => {
+      this.addAlert('Dispatch', `Order ${data.id?.slice(0, 8)} assigned to Rider ${data.riderId?.slice(0, 8)}`, 'success');
+    });
+
+    // OrderStatusChanged — broadcast สถานะ Order เปลี่ยน
     this.hubConnection.on('OrderStatusChanged', (orderId: string, newStatus: string) => {
-      this.addAlert('Order Update', `Order ${orderId} is now ${newStatus}`, 'info');
+      this.addAlert('Order Update', `Order ${orderId?.slice(0, 8)} → ${newStatus}`, 'info');
     });
   }
 

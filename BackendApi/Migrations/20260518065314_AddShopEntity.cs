@@ -12,13 +12,9 @@ namespace BackendApi.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_RiderLocationHistories_Location_Gist",
-                table: "RiderLocationHistories");
-
-            migrationBuilder.DropIndex(
-                name: "IX_RiderLocationHistories_RiderId_RecordedAt",
-                table: "RiderLocationHistories");
+            // หมายเหตุ: ไม่ Drop Index ของ RiderLocationHistories ที่นี่
+            // Index เหล่านั้นถูกสร้างผ่าน Raw SQL ใน Phase3EnterpriseSpatialScaling บน Partitioned Table
+            // EF Core ไม่ track Index บน Partitioned Table จึงไม่ควรแตะ
 
             migrationBuilder.CreateTable(
                 name: "Shops",
@@ -62,16 +58,8 @@ namespace BackendApi.Migrations
             migrationBuilder.DropTable(
                 name: "Shops");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_RiderLocationHistories_Location_Gist",
-                table: "RiderLocationHistories",
-                column: "Location")
-                .Annotation("Npgsql:IndexMethod", "gist");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_RiderLocationHistories_RiderId_RecordedAt",
-                table: "RiderLocationHistories",
-                columns: new[] { "RiderId", "RecordedAt" });
+            // หมายเหตุ: ไม่ recreate Index ของ RiderLocationHistories ที่นี่
+            // Index เหล่านั้นอยู่บน Partitioned Table และถูกจัดการโดย Phase3EnterpriseSpatialScaling
         }
     }
 }

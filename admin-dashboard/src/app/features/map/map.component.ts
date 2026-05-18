@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
 import { TrackingSignalRService, RiderLocationUpdate } from '../../core/services/tracking-signalr.service';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
+import { RiderService } from '../../core/services/rider.service';
 import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 
@@ -46,6 +47,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private trackingService = inject(TrackingSignalRService);
   private shopService = inject(ShopService);
+  private riderService = inject(RiderService);
   private subscriptions: Subscription = new Subscription();
 
   public alerts: any[] = [];
@@ -96,6 +98,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   ngAfterViewInit(): void {
     this.initMap();
     this.loadExistingShops();
+    this.loadExistingRiders();
   }
 
   ngOnDestroy(): void {
@@ -264,6 +267,37 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       },
       error: (err) => {
         console.error('Failed to load existing shops:', err);
+      }
+    });
+  }
+
+  /** โหลดข้อมูล Rider ทั้งหมดจากฐานข้อมูล (Mock Data) มาแสดงบนแผนที่ก่อนที่สัญญาณ Real-time จะเข้า */
+  private loadExistingRiders(): void {
+    this.riderService.getAll(1, 150).subscribe({
+      next: (riders) => {
+        const initialMap = new Map<string, RiderLocationUpdate>();
+        
+        riders.forEach(rider => {
+          // ดึงพิกัดที่มีอยู่ (ถ้ามี) จาก Mock Data มาแสดงเลย
+          if (rider.lat != null && rider.lng != null && rider.id) {
+            initialMap.set(rider.id, {
+              riderId: rider.id,
+              latitude: rider.lat,
+              longitude: rider.lng,
+              status: rider.status || 'OFFLINE',
+              timestamp: rider.lastUpdated || new Date().toISOString()
+            });
+          }
+        });
+        
+        // วาดหมุด Rider บนแผนที่เบื้องต้น
+        this.updateMapMarkers(initialMap);
+        
+        // อัปเดตรายการ Rider ด้านข้าง
+        this.updateRiderList(initialMap);
+      },
+      error: (err) => {
+        console.error('Failed to load existing mock riders:', err);
       }
     });
   }

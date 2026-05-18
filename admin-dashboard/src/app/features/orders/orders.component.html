@@ -74,13 +74,13 @@
               <td><span class="status" [class]="getStatusTone(order.status)">{{ order.status || 'PENDING' }}</span></td>
               <td class="mono">{{ shortId(order.assignedRiderId) }}</td>
               <td class="actions">
-                @if (order.status === 'PENDING') {
+                @if (order.status === 'CREATED' || order.status === 'MATCHING') {
                   <button type="button" class="ghost-action" (click)="retryDispatch(order.id)">
                     <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
                     Dispatch
                   </button>
                 }
-                @if (order.status !== 'COMPLETED' && order.status !== 'DELIVERED' && order.status !== 'CANCELLED') {
+                @if (order.status !== 'COMPLETED' && order.status !== 'CANCELLED') {
                   <button type="button" class="danger-action" (click)="cancelOrder(order.id)">
                     <lucide-icon [img]="icons.XCircle" size="14"></lucide-icon>
                     Cancel

@@ -40,13 +40,35 @@ namespace BackendApi.Controllers.MasterData
             [FromBody] CreateShopDto dto,
             CancellationToken cancellationToken = default)
         {
-            var entity = dto.Adapt<Shop>();
+            // สร้าง Point ด้วย GeometryFactory โดยตรง (force 2D)
+            // ไม่ใช้ dto.Adapt<Shop>() เพราะ Mapster อาจสร้าง Point ที่มี Z dimension
+            var factory = NetTopologySuite.NtsGeometryServices.Instance
+                .CreateGeometryFactory(srid: 4326);
+
+            var entity = new Shop
+            {
+                Name      = dto.Name,
+                MenuName  = dto.MenuName,
+                MenuPrice = dto.MenuPrice,
+                Location  = factory.CreatePoint(
+                    new NetTopologySuite.Geometries.Coordinate(dto.Lng, dto.Lat))
+            };
+
             DB.InsertObject(entity);
             await DB.CommitChangesAsync(cancellationToken);
 
-            return CreatedAtAction(nameof(GetById),
-                new { id = entity.Id },
-                entity.Adapt<ShopDto>());
+            var result = new ShopDto
+            {
+                Id        = entity.Id,
+                Name      = entity.Name,
+                MenuName  = entity.MenuName,
+                MenuPrice = entity.MenuPrice,
+                Lat       = entity.Location?.Y,
+                Lng       = entity.Location?.X,
+                CreatedAt = entity.CreatedAt
+            };
+
+            return CreatedAtAction(nameof(GetById), new { id = entity.Id }, result);
         }
     }
 }

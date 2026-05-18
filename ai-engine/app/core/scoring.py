@@ -55,7 +55,7 @@ def rank_candidates(order: Dict[str, Any], candidates: List[Dict[str, Any]], max
         ranked.append({
             "rider_id": candidate["rider_id"],
             "score": total_score,
-            "distance_km": round(distance_to_pickup, 2),
+            "distance_to_pickup_km": round(distance_to_pickup, 2),  # ชื่อ field ต้องตรงกับ RankedCandidateDto ใน Backend
             "eta_minutes": eta_minutes,
             "breakdown": {
                 "distance_score": round(distance_score, 2),

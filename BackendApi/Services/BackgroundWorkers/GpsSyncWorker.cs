@@ -88,10 +88,13 @@ public class GpsSyncWorker : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // ใช้ GeometryFactory force 2D เพื่อป้องกัน "Geometry has Z dimension but column does not"
+        var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+
         var entities = points.Select(p => new RiderLocationHistory
         {
             RiderId = p.RiderId,
-            Location = new Point(p.Lng, p.Lat) { SRID = 4326 },
+            Location = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(p.Lng, p.Lat)),
             RecordedAt = p.Timestamp
         });
 

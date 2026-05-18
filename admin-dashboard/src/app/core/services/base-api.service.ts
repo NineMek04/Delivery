@@ -1,27 +1,79 @@
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { req } from '../http/delivery-http-request';
+
+/**
+ * Unwrap ApiResponse wrapper ที่ GlobalResponseFilter ห่อให้อัตโนมัติ
+ * Backend Response format: { success: boolean, value: T, message: string }
+ */
+function unwrapValue<T>(res: any): T {
+  // ถ้า Backend ห่อด้วย ApiResponse → ดึง value ออก
+  if (res && typeof res === 'object' && 'value' in res) {
+    return res.value as T;
+  }
+  return res as T;
+}
+
+/**
+ * Unwrap ApiResponse + PaginatedResult → ดึงเฉพาะ items array ออกมา
+ * Backend format: { success, value: { items: T[], totalCount, page, pageSize } }
+ */
+function unwrapList<T>(res: any): T[] {
+  const value = unwrapValue<any>(res);
+  if (Array.isArray(value)) return value;
+  if (value && Array.isArray(value.items)) return value.items;
+  return [];
+}
 
 export abstract class BaseApiService<T> {
   protected abstract get endpoint(): string;
 
-  public getAll(): Observable<T[]> {
-    return req<T[]>(`${this.endpoint}`).get();
+  /**
+   * ดึงข้อมูลทั้งหมด (แบบแบ่งหน้า) — คืนเฉพาะ items array
+   */
+  public getAll(page = 1, pageSize = 50): Observable<T[]> {
+    return req<any>(`${this.endpoint}`)
+      .queryString({ page, pageSize })
+      .get()
+      .pipe(map(res => unwrapList<T>(res)));
+  }
+
+  /**
+   * ดึงข้อมูลแบบ raw PaginatedResult (สำหรับ Component ที่ต้องการ totalCount)
+   */
+  public getAllPaginated(page = 1, pageSize = 20): Observable<{ items: T[]; totalCount: number; page: number; pageSize: number }> {
+    return req<any>(`${this.endpoint}`)
+      .queryString({ page, pageSize })
+      .get()
+      .pipe(map(res => {
+        const value = unwrapValue<any>(res);
+        return {
+          items: Array.isArray(value?.items) ? value.items : (Array.isArray(value) ? value : []),
+          totalCount: value?.totalCount ?? 0,
+          page: value?.page ?? page,
+          pageSize: value?.pageSize ?? pageSize
+        };
+      }));
   }
 
   public getById(id: string | number): Observable<T> {
-    return req<T>(`${this.endpoint}/${id}`).get();
+    return req<any>(`${this.endpoint}/${id}`)
+      .get()
+      .pipe(map(res => unwrapValue<T>(res)));
   }
 
   public create(data: Partial<T>): Observable<T> {
-    return req<T>(`${this.endpoint}`)
+    return req<any>(`${this.endpoint}`)
       .body(data)
-      .post();
+      .post()
+      .pipe(map(res => unwrapValue<T>(res)));
   }
 
   public update(id: string | number, data: Partial<T>): Observable<T> {
-    return req<T>(`${this.endpoint}/${id}`)
+    return req<any>(`${this.endpoint}/${id}`)
       .body(data)
-      .put();
+      .put()
+      .pipe(map(res => unwrapValue<T>(res)));
   }
 
   public delete(id: string | number): Observable<any> {

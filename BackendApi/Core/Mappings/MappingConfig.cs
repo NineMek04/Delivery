@@ -35,7 +35,8 @@ public static class MappingConfig
         // ================================================
         config.NewConfig<Rider, RiderDto>()
             .Map(dest => dest.Lat, src => src.CurrentLocation != null ? src.CurrentLocation.Y : (double?)null)
-            .Map(dest => dest.Lng, src => src.CurrentLocation != null ? src.CurrentLocation.X : (double?)null);
+            .Map(dest => dest.Lng, src => src.CurrentLocation != null ? src.CurrentLocation.X : (double?)null)
+            .Map(dest => dest.LastUpdated, src => src.LastGpsUpdate ?? src.UpdatedAt);
 
         config.NewConfig<CreateRiderDto, Rider>()
             .Map(dest => dest.CurrentLocation, src => src.Lat.HasValue && src.Lng.HasValue

@@ -270,4 +270,23 @@
 - **Verification:** ตรวจสอบความถูกต้องผ่าน `dotnet build` สำเร็จ 100% ไม่มี Error
 - **Status:** ข้อมูล Mock สำหรับการทดสอบร่วมกันระหว่าง Admin Dashboard, Rider Mobile App และ AI Engine พร้อมใช้งานเรียบร้อยแล้ว
 
+---
+
+## [Log Date: 2026-05-18 (2)] | By: AI Agent
+
+### Component: BackendApi — Data Mapping & DTO Extensions
+- **Action:** แก้ไข Bug ใน `MappingConfig.cs` โดยเพิ่มการแมพฟิลด์ `LastUpdated` ของ `RiderDto` ให้ดึงมาจาก `LastGpsUpdate ?? src.UpdatedAt` (ป้องกันปัญหาฟิลด์นี้มีค่าเริ่มต้นเป็น `DateTime.MinValue` เสมอ)
+- **Action:** เพิ่มฟิลด์ `CreatedAt`, `AssignedAt`, และ `CompletedAt` ใน `OrderDto` (และอัปเดตไฟล์ `order-dto.ts` ฝั่ง Frontend แมนนวล) เพื่อรองรับการแสดงผล Timeline ของออเดอร์และการคำนวณ SLA ในฝั่งแดชบอร์ด
+
+### Component: Admin Dashboard — API Service Layer Standardization
+- **Action:** เขียนโครงสร้าง `BaseApiService.ts` ใหม่ทั้งหมด เพื่อให้แกะ Wrapper (`ApiResponse` และ `PaginatedResult`) ที่ส่งมาจาก `GlobalResponseFilter` ของ Backend อัตโนมัติ ช่วยรักษา Type Safety และรองรับ parameter pagination อย่างสมบูรณ์ รวมถึงเพิ่มฟังก์ชัน `getAllPaginated()`
+- **Action:** แก้ไขบั๊ก Race Condition ในระบบ Logout ของ `AuthService` โดยปรับลำดับให้ส่ง Request ไปยัง API `/Auth/logout` เพื่อลบ HttpOnly Cookie ก่อนเคลียร์ Token ใน LocalStorage ป้องกันปัญหา 401 Unauthorized
+- **Action:** ปรับเปลี่ยนการตรวจสถานะออเดอร์ใน `OrdersComponent`, `DashboardComponent`, และ `AnalyticsComponent` จากคำเดิมที่ไม่มีจริง (`PENDING`, `DELIVERED`) มาใช้ค่าจริงตาม State Machine ของ Backend (`CREATED`, `MATCHING`, `OFFERING`, `ASSIGNED`, `PICKING_UP`, `DELIVERING`, `COMPLETED`, `CANCELLED`)
+- **Action:** ทำความสะอาดโค้ดดึงข้อมูลในทุก Component โดยถอดฟังก์ชัน manual unwrap ออกทั้งหมด เนื่องจากเปลี่ยนไปใช้ความสามารถของ `BaseApiService` ตัวใหม่ที่จัดการข้อมูลให้อัตโนมัติแล้ว
+
+### Verification
+- **Backend Build:** `dotnet build` ผ่านสำเร็จ 100% ไม่มีข้อผิดพลาด (0 errors)
+- **Frontend Build:** `ng build` ผ่านสำเร็จ 100% (0 errors, build bundle asset สมบูรณ์)
+
+
 

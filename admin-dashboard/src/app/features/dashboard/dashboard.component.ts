@@ -78,6 +78,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }
     }
   };
+
   ngOnInit(): void {
     this.loadDashboardData();
     this.trackingService.startConnection();
@@ -94,13 +95,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   loadDashboardData(): void {
     this.isLoading = true;
+    // BaseApiService.getAll() ทำการ unwrap ApiResponse + PaginatedResult ให้อัตโนมัติแล้ว
     forkJoin({
       orders: this.orderService.getAll(),
       riders: this.riderService.getAll()
     }).subscribe({
-      next: ({ orders, riders }: any) => {
-        this.orders = this.unwrapList<OrderDto>(orders);
-        this.riders = this.unwrapList<RiderDto>(riders);
+      next: ({ orders, riders }) => {
+        this.orders = orders;
+        this.riders = riders;
         this.syncChart();
         this.isLoading = false;
       },
@@ -111,11 +113,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get activeOrders(): OrderDto[] {
-    return this.orders.filter(order => !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(order.status || ''));
+    return this.orders.filter(order => !['COMPLETED', 'CANCELLED'].includes(order.status || ''));
   }
 
   get pendingOrders(): OrderDto[] {
-    return this.orders.filter(order => ['PENDING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING'].includes(order.status || '')).slice(0, 4);
+    // สถานะจริงของ Backend: CREATED, MATCHING, OFFERING, ASSIGNED, PICKING_UP, DELIVERING
+    return this.orders.filter(order =>
+      ['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING'].includes(order.status || '')
+    ).slice(0, 4);
   }
 
   get routeCards(): OrderDto[] {
@@ -137,11 +142,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   statusClass(status?: string | null): string {
-    const normalized = (status || 'PENDING').toLowerCase().replaceAll('_', '-');
-    if (['delivered', 'completed'].includes(normalized)) return 'delivered';
-    if (['delivering', 'picking-up', 'assigned'].includes(normalized)) return 'in-transit';
-    if (normalized === 'cancelled') return 'cancelled';
-    return 'pending';
+    const normalized = (status || 'CREATED').toUpperCase();
+    if (['COMPLETED'].includes(normalized)) return 'delivered';
+    if (['DELIVERING', 'PICKING_UP', 'ASSIGNED'].includes(normalized)) return 'in-transit';
+    if (normalized === 'CANCELLED') return 'cancelled';
+    if (['MATCHING', 'OFFERING'].includes(normalized)) return 'matching';
+    return 'pending'; // CREATED
   }
 
   shortId(id?: string | null): string {
@@ -149,21 +155,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private syncChart(): void {
-    const buckets = ['PENDING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
+    // ใช้สถานะตรงตาม Backend State Machine
+    const buckets = ['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING', 'COMPLETED', 'CANCELLED'];
     this.chartData = {
       ...this.chartData,
-      labels: ['Pending', 'Assigned', 'Pickup', 'Delivering', 'Delivered', 'Complete', 'Cancel'],
+      labels: ['Created', 'Matching', 'Offering', 'Assigned', 'Pickup', 'Delivering', 'Complete', 'Cancel'],
       datasets: [{
         ...this.chartData.datasets[0],
         data: buckets.map(status => this.orders.filter(order => order.status === status).length)
       }]
     };
-  }
-
-  private unwrapList<T>(res: any): T[] {
-    const value = res?.value ?? res;
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value?.items)) return value.items;
-    return [];
   }
 }

@@ -125,9 +125,12 @@ export class AuthService implements OnDestroy {
   }
 
   public logout(): Observable<any> {
-    // Optional: could call backend logout API if needed
-    this.forceLogout();
-    return req<any>('/Auth/logout').post();
+    // เรียก API ก่อน (token ยังอยู่ใน localStorage ตอนนี้)
+    // แล้วค่อยลบ token หลังจาก API ตอบกลับ (สำเร็จหรือไม่สำเร็จก็ logout)
+    return req<any>('/Auth/logout').post().pipe(
+      catchError(() => of(null)), // ถ้า API พัง ก็ logout ฝั่ง client อยู่ดี
+      tap(() => this.forceLogout())
+    );
   }
 
   private forceLogout(): void {

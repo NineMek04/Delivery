@@ -15,6 +15,15 @@ public class OrderDto
     public decimal DeliveryFee { get; set; }
     public DateTime ExpectedDeliveryTime { get; set; }
     public string? AssignedRiderId { get; set; }
+
+    /// <summary>เวลาที่สร้างออเดอร์</summary>
+    public DateTime? CreatedAt { get; set; }
+
+    /// <summary>เวลาที่มอบหมายให้ Rider</summary>
+    public DateTime? AssignedAt { get; set; }
+
+    /// <summary>เวลาที่ส่งเสร็จสิ้น</summary>
+    public DateTime? CompletedAt { get; set; }
 }
 
 /// <summary>

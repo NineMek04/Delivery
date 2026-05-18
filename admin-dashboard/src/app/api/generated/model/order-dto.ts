@@ -23,5 +23,16 @@ export interface OrderDto {
     deliveryFee?: number;
     expectedDeliveryTime?: string;
     assignedRiderId?: string | null;
+    /**
+     * เวลาที่สร้างออเดอร์
+     */
+    createdAt?: string | null;
+    /**
+     * เวลาที่มอบหมายให้ Rider
+     */
+    assignedAt?: string | null;
+    /**
+     * เวลาที่ส่งเสร็จสิ้น
+     */
+    completedAt?: string | null;
 }
-

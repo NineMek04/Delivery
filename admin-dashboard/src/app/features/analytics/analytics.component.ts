@@ -29,13 +29,14 @@ export class AnalyticsComponent implements OnInit {
 
   loadAnalytics(): void {
     this.isLoading = true;
+    // BaseApiService.getAll() ทำการ unwrap ApiResponse + PaginatedResult ให้อัตโนมัติแล้ว
     forkJoin({
       orders: this.orderService.getAll(),
       riders: this.riderService.getAll()
     }).subscribe({
-      next: ({ orders, riders }: any) => {
-        this.orders = this.unwrapList<OrderDto>(orders);
-        this.riders = this.unwrapList<RiderDto>(riders);
+      next: ({ orders, riders }) => {
+        this.orders = orders;
+        this.riders = riders;
         this.isLoading = false;
       },
       error: () => {
@@ -54,7 +55,7 @@ export class AnalyticsComponent implements OnInit {
 
   get successRate(): number {
     if (!this.orders.length) return 0;
-    const successful = this.orders.filter(order => ['DELIVERED', 'COMPLETED'].includes(order.status || '')).length;
+    const successful = this.orders.filter(order => order.status === 'COMPLETED').length;
     return Math.round((successful / this.orders.length) * 1000) / 10;
   }
 
@@ -69,7 +70,8 @@ export class AnalyticsComponent implements OnInit {
   }
 
   get hubs() {
-    const buckets = ['PENDING', 'ASSIGNED', 'DELIVERING', 'COMPLETED', 'CANCELLED'];
+    // ใช้สถานะตรงตาม Backend State Machine
+    const buckets = ['CREATED', 'ASSIGNED', 'DELIVERING', 'COMPLETED', 'CANCELLED'];
     return buckets.map(status => {
       const count = this.orders.filter(order => order.status === status).length;
       return {
@@ -78,15 +80,8 @@ export class AnalyticsComponent implements OnInit {
         rate: this.orders.length ? `${Math.round((count / this.orders.length) * 100)}%` : '0%',
         duration: `${count} Orders`,
         status: count ? 'ACTIVE' : 'CLEAR',
-        tone: status === 'CANCELLED' ? 'red' : status === 'PENDING' ? 'amber' : 'blue'
+        tone: status === 'CANCELLED' ? 'red' : status === 'CREATED' ? 'amber' : 'blue'
       };
     });
-  }
-
-  private unwrapList<T>(res: any): T[] {
-    const value = res?.value ?? res;
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value?.items)) return value.items;
-    return [];
   }
 }

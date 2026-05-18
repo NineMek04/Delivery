@@ -28,11 +28,10 @@ export class OrdersComponent implements OnInit {
 
   loadOrders(): void {
     this.isLoading = true;
+    // BaseApiService.getAll() ทำการ unwrap ApiResponse + PaginatedResult ให้อัตโนมัติแล้ว
     this.orderService.getAll().subscribe({
-      next: (res: any) => {
-        // Backend returns PaginatedResult in value, or just a list. 
-        // Need to check structure. Assume it's PaginatedResult wrapped in ApiResponse.
-        this.orders = res.value?.items || res.value || [];
+      next: (orders) => {
+        this.orders = orders;
         this.isLoading = false;
       },
       error: () => {
@@ -44,11 +43,12 @@ export class OrdersComponent implements OnInit {
 
   getStatusTone(status?: string | null): string {
     switch (status) {
-      case 'PENDING': return 'gray';
+      case 'CREATED': return 'gray';
+      case 'MATCHING': return 'purple';
+      case 'OFFERING': return 'amber';
       case 'ASSIGNED': return 'blue';
       case 'PICKING_UP': return 'amber';
       case 'DELIVERING': return 'blue';
-      case 'DELIVERED': return 'green';
       case 'COMPLETED': return 'green';
       case 'CANCELLED': return 'red';
       default: return 'gray';
@@ -66,15 +66,15 @@ export class OrdersComponent implements OnInit {
   }
 
   get activeCount(): number {
-    return this.orders.filter(order => !['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(order.status || '')).length;
+    return this.orders.filter(order => !['COMPLETED', 'CANCELLED'].includes(order.status || '')).length;
   }
 
   get pendingCount(): number {
-    return this.orders.filter(order => order.status === 'PENDING').length;
+    return this.orders.filter(order => ['CREATED', 'MATCHING', 'OFFERING'].includes(order.status || '')).length;
   }
 
   get completedCount(): number {
-    return this.orders.filter(order => ['COMPLETED', 'DELIVERED'].includes(order.status || '')).length;
+    return this.orders.filter(order => order.status === 'COMPLETED').length;
   }
 
   get totalFees(): number {

@@ -432,3 +432,31 @@
 - **Backend Build:** `dotnet build` → **0 errors, 0 warnings** ✅
 - **Database Update:** ตาราง `Shops` และ GiST Index เชิงพื้นที่ถูกสร้างขึ้นสำเร็จในฐานข้อมูล PostgreSQL + PostGIS ปลายทางจริงเรียบร้อย ✅
 - **Frontend Build:** `npx ng build --configuration=development` → **0 errors, 0 warnings** (คอมไพล์ Angular Assets สมบูรณ์แบบ 100%) ✅
+### Component: BackendApi & Admin Dashboard — Mock Location Update & E2E Validation
+
+#### 🟢 Completed Actions
+
+- **[Update #1] Mock Data Coordinates ➡️ Udon Thani (UDN)**
+  - แก้ไขพิกัด Mock Data ของ Riders, Orders, และ Rider Location Histories ทั้งหมดใน [DataSeeder.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Data/MockData/DataSeeder.cs) ให้ย้ายจากกรุงเทพฯ ไปอยู่ในพื้นที่ **จ.อุดรธานี** เช่น ศาลหลักเมือง, UD Town, สวนสาธารณะหนองประจักษ์, และมหาวิทยาลัยราชภัฏอุดรธานี
+  - เพื่อรองรับการจำลองพิกัดเขตภูมิภาค (Regional Spatial Simulation) และการจับคู่ระยะทางที่สมจริงยิ่งขึ้น
+
+- **[Update #2] Angular Admin Dashboard Map Centering**
+  - แก้ไขพิกัดเริ่มต้น (Default Focus Center) ของแผนที่และเมนู Recenter ใน [map.component.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/map/map.component.ts) ให้โฟกัสตรง **จ.อุดรธานี (`17.4138, 102.7872`)** ซูม 13
+  - อัปเดตไฟล์ [map.component.html](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/map/map.component.html) ให้เปลี่ยนป้ายบอกสถานะแผนที่จาก `BKK` ➡️ `UDN` เพื่อความสมบูรณ์และสอดคล้องกัน
+
+- **[Fix #3] Integration Tests DbContext ObjectDisposedException**
+  - แก้ไข `SpatialQueryTests.cs` โดยการสร้างตัวแปรเก็บ `DbContextOptions<ApplicationDbContext>` แยกเป็น private field (`_options`)
+  - ลงทะเบียน `ApplicationDbContext` ใน ServiceCollection ผ่าน Scoped factory โดยแยกอ้างอิง options อย่างถูกต้อง หลีกเลี่ยงปัญหา DI scope ทำการ dispose context ระหว่างรัน Worker test
+  - ผลลัพธ์: แก้ไขข้อผิดพลาด `ObjectDisposedException` สำเร็จ 100%
+
+- **[Action #4] Database Volume Reset & Re-seeding**
+  - ทำการรีเซ็ต PostgreSQL Volume เพื่อเคลียร์ข้อมูลเดิมออกผ่าน `docker-compose down -v`
+  - ทำการ Rebuild Backend Container และเริ่มการทำงานบริการทั้งหมดใหม่ผ่าน `docker-compose up -d --build backend` และ `docker-compose up -d`
+  - ทุกบริการกลับมาทำงานเป็น **Healthy** และ Seed พิกัดเมืองอุดรธานีชุดใหม่ลงฐานข้อมูลอย่างสมบูรณ์แบบ
+
+#### 🏆 Verification & Test Results
+- **Backend & Integration Tests Build**: ผ่านฉลุย 0 errors 
+- **Integration Tests Result**: รัน `dotnet test BackendApi.IntegrationTests` และผ่านการทดสอบทั้งหมด **5/5 เคส (Passed: 5, Failed: 0)** เรียบร้อย 100%
+- **Spatial Indexing & Partitioning Workflows**: ทำงานได้ถูกต้อง รันพาร์ทิชันล่วงหน้าตามแผนได้อย่างสมบูรณ์
+
+---

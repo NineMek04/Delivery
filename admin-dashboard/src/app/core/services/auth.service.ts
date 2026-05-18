@@ -223,6 +223,7 @@ export class AuthService implements OnDestroy {
   }
 
   public logout(): Observable<any> {
+
     // เรียก API ก่อน (token ยังอยู่ใน localStorage ตอนนี้)
     // แล้วค่อยลบ token หลังจาก API ตอบกลับ (สำเร็จหรือไม่สำเร็จก็ logout)
     return req<any>('/Auth/logout').post().pipe(

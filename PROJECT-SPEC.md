@@ -2,8 +2,8 @@
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.6.0 (Phase 2: Enterprise Auditing & Soft Delete Architecture)  
-> **Last Updated:** 2026-05-15  
+> **Version:** 0.7.0 (Phase 3: PostGIS Spatial Performance & Enterprise Database Scale)  
+> **Last Updated:** 2026-05-18  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
 ---
@@ -32,6 +32,7 @@
 | Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | **Foundation Ready** |
 | Dockerized Services | รันระบบด้วย Docker Compose ครบ 5 services | **Ready** |
 | Backend Security | JWT, Refresh Token, Rotation, Role policy | **Enhanced** |
+| PostGIS Spatial Tuning & Scaling | GiST Indexes, Range Partitioning รายเดือน, Database Clustering & Health Checks | **Completed (Phase 3)** |
 
 ---
 

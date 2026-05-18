@@ -288,5 +288,43 @@
 - **Backend Build:** `dotnet build` ผ่านสำเร็จ 100% ไม่มีข้อผิดพลาด (0 errors)
 - **Frontend Build:** `ng build` ผ่านสำเร็จ 100% (0 errors, build bundle asset สมบูรณ์)
 
+---
+
+## [Log Date: 2026-05-18 (3)] | By: AI Agent
+
+### Component: Admin Dashboard — Security & Access Control (Guards)
+- **Action:** สร้างระบบป้องกันสิทธิ์การเข้าใช้งาน (Guards) และการแจ้งเตือนแบบครบวงจร:
+  - `authGuard` (`auth.guard.ts`): ตรวจสอบการเข้าสู่ระบบ หาก Token หมดอายุจะทำการ Refresh Token ให้แบบโปรแอคทีฟ หากไม่สำเร็จจะแสดง SweetAlert2 แจ้งเตือนแล้วส่งกลับหน้า Login
+  - `roleGuard` & `adminOnlyGuard` (`role.guard.ts`): กรองสิทธิ์การเข้าใช้งานระบบ Dashboard อย่างเข้มงวด เฉพาะสิทธิ์ `Admin` และ `Dispatcher` เท่านั้น หากไม่ใช่ (เช่น `Rider` หรือ `Customer`) จะปฏิเสธการเข้าถึงพร้อมแสดงป๊อปอัป SweetAlert2 และให้ปุ่มออกจากระบบ
+  - `guestGuard` (`guest.guard.ts`): ป้องกันผู้ใช้ที่เข้าสู่ระบบสำเร็จแล้วไม่ให้เข้าถึงหน้า Login หรือ Register อีกครั้ง โดยจะแสดงข้อความต้อนรับผ่าน SweetAlert2 Toast และพาไปยังหน้าหลักโดยอัตโนมัติ
+- **Action:** อัปเดต `app.routes.ts` เพื่อคุ้มครอง Route ทั้งหมดในระบบด้วย Guard แต่ละรูปแบบอย่างรัดกุม พร้อมส่งผ่าน metadata ของ Role ที่ได้รับสิทธิ์ในแต่ละเส้นทาง
+- **Action:** อัปเดต `AuthService` เพื่อเพิ่มเมธอดอำนวยความสะดวกในระบบความปลอดภัย:
+  - `getUserRole()`, `hasRole()`, `canAccessDashboard()`, และ `getDecodedToken()` ดึงค่าจาก claims ใน JWT token (ทั้งแบบ custom และ standard Microsoft schema) หรือ fallback ไปที่ `userData`
+  - `verifySession()`: เช็คเซสชันปัจจุบันกับ Backend API `/Auth/session` เพื่อยืนยันว่า token ยังไม่ถูกเพิกถอน (Revoked) ในฝั่งเซิร์ฟเวอร์
+- **Action:** ปรับปรุง `app.config.ts` ให้เรียกใช้ `APP_INITIALIZER` (`initializeAuth`) เพื่อเช็ค Session ความถูกต้องของโทเค็นก่อนแอปพลิเคชันจะเรนเดอร์เนื้อหาหน้าจอ ป้องกันปัญหาการแสดงผลแผงควบคุมแวบหนึ่งก่อนถูกเด้งออกเมื่อโทเค็นมีปัญหา
+- **Action:** ปรับปรุง `LoginComponent` ให้รองรับการทำงานของ `returnUrl` (ส่งผู้ใช้กลับไปยังหน้าที่พยายามจะเข้าถึงตอนแรกหลังจาก Login สำเร็จ) และเพิ่มการเช็คสิทธิ์แบบ fail-fast ทันทีหลังล็อกอิน หากไม่ใช่ Admin/Dispatcher จะแสดงสิทธิ์ที่ไม่ถูกต้องและออกจากระบบทันที
+
+### Verification
+- **Frontend Build:** `ng build` สำหรับ Dashboard ผ่านสำเร็จ 100% (0 errors, build bundles complete)
+
+---
+
+## [Log Date: 2026-05-18 (4)] | By: AI Agent
+
+### Component: Admin Dashboard — Route Initialization & Bug Fixes
+- **Action:** แก้ไขโครงสร้าง Routing ใน `app.routes.ts` ให้มีระบบการเปิดเว็บที่เป็นมิตรยิ่งขึ้น:
+  - กำหนดให้ Root Path (`''`) ทำการ `redirectTo: 'login'` ด้วย `pathMatch: 'full'` ทำให้ทุกครั้งที่เปิด URL หลักของเว็บ (เช่น `http://localhost:4200/`) จะได้หน้าจอ Login ทันทีแบบเงียบๆ
+  - ปรับเปลี่ยนตำแหน่งของ Route โดยเอา Guest Routes (`login`, `register`) มาไว้ด้านบน Protected Routes เพื่อให้ Angular แมตช์หน้าล็อกอิน/ลงทะเบียนก่อนโดยไม่ต้องผ่าน Guard ของฝั่งหลังบ้าน
+  - ปรับปรุงให้ Wildcard Route (`**`) ย้ายมา Redirect ไปยังหน้า `login` แทน `/dashboard` เพื่อป้องกันปัญหาการเข้าหน้าที่ไม่มีอยู่จริงแล้วเด้งกลับหน้าว่างเปล่า
+- **Action:** แก้ไขบั๊กหน้าจอค้างไม่แสดงอะไรเลย (App Blocking) ที่มีสาเหตุมาจาก `APP_INITIALIZER`:
+  - ปรับปรุง `app.config.ts` ให้เพิ่ม **Timeout ป้องกันแอปค้างเป็นเวลา 5 วินาที** และใช้ระบบ **Always Resolve Promise** ทำให้ไม่มีกรณีใดที่ระบบโหลดตั้งต้นจะทำการบล็อกแอปพลิเคชันจากการเรนเดอร์เนื้อหาหน้าจอ
+  - ปรับปรุงเมธอด `verifySession()` ใน `AuthService` ให้เป็นกระบวนการตรวจความถูกต้องของ Token แบบ **Local (JWT Expiration Verification)** เท่านั้น โดยไม่ทำการยิง API ไปเช็คกับ Backend ในช่วงเริ่มต้นบูตแอป เพื่อตัดปัญหาการชนกันของ `errorInterceptor` 401 Refresh Cascade Loop และป้องกันปัญหาในกรณีที่ Backend ดับอยู่
+- **Action:** ปรับเปลี่ยนเงื่อนไขใน `authGuard` ให้ตรวจสอบเป้าหมายของ URL ปัจจุบัน หากผู้ใช้ที่ยังไม่ล็อกอินกำลังจะเข้าสู่หน้าแรกสุด (Root Path) ระบบจะทำการเปลี่ยนเส้นทางไปเงียบๆ แต่หากเจาะจงเข้าหน้าภายใน (เช่น `/orders`) จะแสดงป๊อปอัป SweetAlert2 และเสนอหน้าล็อกอินตามปกติ
+
+### Verification
+- **Frontend Build:** `ng build --configuration=development` ตรวจสอบแล้วผ่าน 100% ไม่มี Error หรือ Warning ใดๆ ในโครงสร้างใหม่
+
+
+
 
 

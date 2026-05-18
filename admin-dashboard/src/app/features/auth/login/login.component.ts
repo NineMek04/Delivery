@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { AuthService } from '../../../core/services/auth.service';
 import { CommonModule } from '@angular/common';
@@ -16,6 +16,7 @@ export class LoginComponent {
   private formBuilder = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   loginForm = this.formBuilder.group({
     email: ['', [Validators.required, Validators.email]],
@@ -37,15 +38,60 @@ export class LoginComponent {
     this.loading = true;
     this.authService.login(this.loginForm.value).subscribe({
       next: () => {
-        // Navigation to dashboard. Even if token isn't in localStorage, 
-        // the backend might be relying entirely on the HttpOnly cookie.
-        this.router.navigate(['/']);
+        // ตรวจสอบสิทธิ์ Role ก่อน Navigate
+        if (!this.authService.canAccessDashboard()) {
+          this.loading = false;
+          const role = this.authService.getUserRole() || 'Unknown';
+          Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์เข้าถึง',
+            html: `
+              <p>บัญชีนี้มีบทบาท <strong>${role}</strong></p>
+              <p style="color: #f87171;">Admin Dashboard สงวนสิทธิ์เฉพาะ Admin และ Dispatcher เท่านั้น</p>
+            `,
+            confirmButtonText: 'รับทราบ',
+            confirmButtonColor: '#d33'
+          }).then(() => {
+            this.authService.logout().subscribe();
+          });
+          return;
+        }
+
+        // ดึง returnUrl ที่ Guard ส่งมา (ถ้ามี) → redirect กลับไปหน้าที่ต้องการเข้าถึง
+        const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/dashboard';
+
+        // แสดง Toast ยินดีต้อนรับ
+        const userData = this.authService.getUserData();
+        const displayName = userData?.FullName || userData?.fullName || userData?.Email || userData?.email || '';
+
+        const Toast = Swal.mixin({
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+        });
+
+        Toast.fire({
+          icon: 'success',
+          title: `เข้าสู่ระบบสำเร็จ`,
+          text: displayName ? `ยินดีต้อนรับ ${displayName}` : undefined
+        });
+
+        this.router.navigateByUrl(returnUrl);
       },
       error: (err) => {
         this.loading = false;
         let msg = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-        if (err.error?.Message) msg = err.error.Message;
-        Swal.fire('Login Failed', msg, 'error');
+        if (err.error?.Message || err.error?.message) {
+          msg = err.error.Message || err.error.message;
+        }
+        Swal.fire({
+          icon: 'error',
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          text: msg,
+          confirmButtonColor: '#3b82f6'
+        });
       }
     });
   }

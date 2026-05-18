@@ -93,6 +93,7 @@ namespace BackendApi.Migrations
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
+                        .HasDefaultValue(new byte[0])
                         .HasColumnType("bytea");
 
                     b.Property<int>("SlaLimitMinutes")
@@ -180,6 +181,7 @@ namespace BackendApi.Migrations
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
+                        .HasDefaultValue(new byte[0])
                         .HasColumnType("bytea");
 
                     b.Property<int>("State")
@@ -286,6 +288,7 @@ namespace BackendApi.Migrations
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
+                        .HasDefaultValue(new byte[0])
                         .HasColumnType("bytea");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -380,6 +383,7 @@ namespace BackendApi.Migrations
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
+                        .HasDefaultValue(new byte[0])
                         .HasColumnType("bytea");
 
                     b.Property<DateTime?>("UpdatedAt")

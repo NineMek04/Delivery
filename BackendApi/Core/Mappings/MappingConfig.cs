@@ -68,11 +68,15 @@ public static class MappingConfig
     /// Force 2D โดยใช้ GeometryFactory เพื่อป้องกัน Z dimension
     /// ที่ทำให้เกิด "Geometry has Z dimension but column does not" ใน PostGIS
     /// </summary>
-    private static Point CreatePoint(double lng, double lat)
+    public static Point CreatePoint(double lng, double lat)
     {
-        // ใช้ GeometryFactory กำหนด SRID และ force 2D (ไม่มี Z)
-        // new Point(lng, lat) อาจมี Z=NaN ขึ้นอยู่กับ NTS version
-        var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
-        return factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(lng, lat));
+        var sequenceFactory = new NetTopologySuite.Geometries.Implementation.PackedCoordinateSequenceFactory(
+            NetTopologySuite.Geometries.Implementation.PackedCoordinateSequenceFactory.PackedType.Double);
+        var factory = new GeometryFactory(new PrecisionModel(), srid: 4326, sequenceFactory);
+        var sequence = sequenceFactory.Create(1, Ordinates.XY);
+        sequence.SetX(0, lng);
+        sequence.SetY(0, lat);
+
+        return factory.CreatePoint(sequence);
     }
 }

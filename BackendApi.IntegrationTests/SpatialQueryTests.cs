@@ -1,7 +1,10 @@
 using BackendApi.Data;
+using BackendApi.Core.Mappings;
 using BackendApi.Models;
+using BackendApi.Models.DTOs;
 using BackendApi.Services;
 using BackendApi.Services.BackgroundWorkers;
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -55,11 +58,11 @@ public class SpatialQueryTests : IAsyncLifetime
 
         // ใช้ NpgsqlDataSource เพื่อ register NetTopologySuite type mapping
         var dataSourceBuilder = new NpgsqlDataSourceBuilder(_container.GetConnectionString());
-        dataSourceBuilder.UseNetTopologySuite();
+        dataSourceBuilder.UseNetTopologySuite(handleOrdinates: Ordinates.XY);
         var dataSource = dataSourceBuilder.Build();
 
         _options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseNpgsql(dataSource, x => x.UseNetTopologySuite())
+            .UseNpgsql(dataSource, x => x.UseNetTopologySuite(handleOrdinates: Ordinates.XY))
             .Options;
 
         _dbContext = new ApplicationDbContext(_options, new DummyCurrentUserService());
@@ -79,6 +82,40 @@ public class SpatialQueryTests : IAsyncLifetime
     // ─────────────────────────────────────────────────────────────────────────
     // Test 1: GiST Index ทำงานถูกต้องสำหรับ Nearby Riders Query
     // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateShopDto_Mapping_Should_Save_2D_Point_To_PostGis()
+    {
+        // Arrange: use the same Mapster mapping path as POST /api/v1/Shops.
+        MappingConfig.Configure();
+        var dto = new CreateShopDto
+        {
+            Name = "Thai",
+            MenuName = "string",
+            MenuPrice = 100000m,
+            Lat = 90,
+            Lng = 180
+        };
+
+        var shop = dto.Adapt<Shop>();
+        shop.Location = MappingConfig.CreatePoint(dto.Lng, dto.Lat);
+        Assert.NotNull(shop.Location);
+        Assert.False(shop.Location.CoordinateSequence.HasZ);
+        _dbContext.Shops.Add(shop);
+
+        // Act
+        await _dbContext.SaveChangesAsync();
+
+        var ndims = await _dbContext.Database
+            .SqlQuery<int>($@"SELECT ST_NDims(""Location"") AS ""Value"" FROM ""Shops"" WHERE ""Id"" = {shop.Id}")
+            .SingleAsync();
+
+        // Assert
+        Assert.Equal(2, ndims);
+        Assert.Equal(4326, shop.Location?.SRID);
+        Assert.Equal(180, shop.Location?.X);
+        Assert.Equal(90, shop.Location?.Y);
+    }
 
     [Fact]
     public async Task GiST_Index_Should_Find_Nearby_Rider_Within_Distance()

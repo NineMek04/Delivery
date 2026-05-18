@@ -128,6 +128,15 @@ namespace BackendApi.Data
             // Apply Global Query Filter for Soft Delete
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
+                if (InheritsFromGenericBase(entityType.ClrType, typeof(BaseEntity<>)) &&
+                    entityType.FindProperty(nameof(BaseEntity<string>.RowVersion)) is not null)
+                {
+                    modelBuilder.Entity(entityType.ClrType)
+                        .Property<byte[]>(nameof(BaseEntity<string>.RowVersion))
+                        .HasDefaultValue(Array.Empty<byte>())
+                        .IsRowVersion();
+                }
+
                 if (typeof(ISoftDeletableEntity).IsAssignableFrom(entityType.ClrType))
                 {
                     modelBuilder.Entity(entityType.ClrType).HasQueryFilter(CreateSoftDeleteFilter(entityType.ClrType));
@@ -147,6 +156,24 @@ namespace BackendApi.Data
             });
 
             base.OnModelCreating(modelBuilder);
+        }
+
+        private static bool InheritsFromGenericBase(Type candidateType, Type genericTypeDefinition)
+        {
+            var currentType = candidateType;
+
+            while (currentType is not null && currentType != typeof(object))
+            {
+                if (currentType.IsGenericType &&
+                    currentType.GetGenericTypeDefinition() == genericTypeDefinition)
+                {
+                    return true;
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            return false;
         }
 
         private static System.Linq.Expressions.LambdaExpression CreateSoftDeleteFilter(Type entityType)

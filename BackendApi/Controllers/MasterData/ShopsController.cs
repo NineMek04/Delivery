@@ -41,6 +41,7 @@ namespace BackendApi.Controllers.MasterData
             CancellationToken cancellationToken = default)
         {
             var entity = dto.Adapt<Shop>();
+            entity.Location = MappingConfig.CreatePoint(dto.Lng, dto.Lat);
             DB.InsertObject(entity);
             await DB.CommitChangesAsync(cancellationToken);
 

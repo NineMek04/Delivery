@@ -35,7 +35,7 @@ public static class DataSeeder
                         Id = rider1Id,
                         Name = "Somchai Rider One",
                         State = RiderState.IDLE,
-                        CurrentLocation = new Point(100.5018, 13.7563) { SRID = 4326 }, // Siam (Center)
+                        CurrentLocation = new Point(102.7872, 17.4138) { SRID = 4326 }, // Udon Thani Center
                         LastGpsUpdate = DateTime.UtcNow,
                         LastHeartbeat = DateTime.UtcNow
                     },
@@ -44,7 +44,7 @@ public static class DataSeeder
                         Id = rider2Id,
                         Name = "Somsri Rider Two",
                         State = RiderState.IDLE,
-                        CurrentLocation = new Point(100.5318, 13.7463) { SRID = 4326 }, // Sukhumvit
+                        CurrentLocation = new Point(102.8072, 17.4038) { SRID = 4326 }, // UD Town Area
                         LastGpsUpdate = DateTime.UtcNow,
                         LastHeartbeat = DateTime.UtcNow
                     },
@@ -53,7 +53,7 @@ public static class DataSeeder
                         Id = rider3Id,
                         Name = "Anan Rider Three",
                         State = RiderState.OFFLINE,
-                        CurrentLocation = new Point(100.4818, 13.7663) { SRID = 4326 }, // Pinklao
+                        CurrentLocation = new Point(102.7672, 17.4238) { SRID = 4326 }, // Nong Prajak West
                         LastGpsUpdate = DateTime.UtcNow.AddHours(-2),
                         LastHeartbeat = DateTime.UtcNow.AddHours(-2)
                     }
@@ -156,8 +156,8 @@ public static class DataSeeder
                     {
                         Id = "99999999-9999-9999-9999-000000000001",
                         State = OrderState.CREATED,
-                        PickupLocation = new Point(100.5018, 13.7563) { SRID = 4326 }, // Siam
-                        DropoffLocation = new Point(100.5318, 13.7463) { SRID = 4326 }, // Sukhumvit
+                        PickupLocation = new Point(102.7872, 17.4138) { SRID = 4326 }, // Udon Center
+                        DropoffLocation = new Point(102.8072, 17.4038) { SRID = 4326 }, // UD Town
                         DistanceKm = 4.5,
                         DeliveryFee = 75.00m,
                         ExpectedDeliveryTime = DateTime.UtcNow.AddHours(1),
@@ -168,8 +168,8 @@ public static class DataSeeder
                     {
                         Id = "99999999-9999-9999-9999-000000000002",
                         State = OrderState.MATCHING,
-                        PickupLocation = new Point(100.5218, 13.7363) { SRID = 4326 }, // Chula Area
-                        DropoffLocation = new Point(100.5118, 13.7663) { SRID = 4326 }, // Victory Monument
+                        PickupLocation = new Point(102.7918, 17.3938) { SRID = 4326 }, // Rajabhat University area
+                        DropoffLocation = new Point(102.7718, 17.4238) { SRID = 4326 }, // Nong Prajak
                         DistanceKm = 3.8,
                         DeliveryFee = 68.00m,
                         ExpectedDeliveryTime = DateTime.UtcNow.AddHours(2),
@@ -180,8 +180,8 @@ public static class DataSeeder
                     {
                         Id = "99999999-9999-9999-9999-000000000003",
                         State = OrderState.OFFERING,
-                        PickupLocation = new Point(100.5050, 13.7500) { SRID = 4326 },
-                        DropoffLocation = new Point(100.5250, 13.7600) { SRID = 4326 },
+                        PickupLocation = new Point(102.7850, 17.4100) { SRID = 4326 },
+                        DropoffLocation = new Point(102.8050, 17.4200) { SRID = 4326 },
                         DistanceKm = 2.5,
                         DeliveryFee = 55.00m,
                         ExpectedDeliveryTime = DateTime.UtcNow.AddHours(1.5),
@@ -195,8 +195,8 @@ public static class DataSeeder
                     {
                         Id = "99999999-9999-9999-9999-000000000004",
                         State = OrderState.ASSIGNED,
-                        PickupLocation = new Point(100.5300, 13.7400) { SRID = 4326 },
-                        DropoffLocation = new Point(100.5400, 13.7200) { SRID = 4326 },
+                        PickupLocation = new Point(102.8100, 17.4000) { SRID = 4326 },
+                        DropoffLocation = new Point(102.8200, 17.3800) { SRID = 4326 },
                         DistanceKm = 3.1,
                         DeliveryFee = 61.00m,
                         ExpectedDeliveryTime = DateTime.UtcNow.AddMinutes(45),
@@ -209,8 +209,8 @@ public static class DataSeeder
                     {
                         Id = "99999999-9999-9999-9999-000000000005",
                         State = OrderState.COMPLETED,
-                        PickupLocation = new Point(100.5000, 13.7550) { SRID = 4326 },
-                        DropoffLocation = new Point(100.5100, 13.7650) { SRID = 4326 },
+                        PickupLocation = new Point(102.7800, 17.4150) { SRID = 4326 },
+                        DropoffLocation = new Point(102.7900, 17.4250) { SRID = 4326 },
                         DistanceKm = 1.8,
                         DeliveryFee = 48.00m,
                         ExpectedDeliveryTime = DateTime.UtcNow.AddHours(-1),
@@ -233,7 +233,7 @@ public static class DataSeeder
                     {
                         Id = Guid.NewGuid().ToString(),
                         RiderId = rider1Id,
-                        Location = new Point(100.5018, 13.7563) { SRID = 4326 },
+                        Location = new Point(102.7872, 17.4138) { SRID = 4326 },
                         RecordedAt = DateTime.UtcNow.AddMinutes(-10),
                         RecordedFromIp = "127.0.0.1"
                     },
@@ -241,7 +241,7 @@ public static class DataSeeder
                     {
                         Id = Guid.NewGuid().ToString(),
                         RiderId = rider1Id,
-                        Location = new Point(100.5030, 13.7550) { SRID = 4326 },
+                        Location = new Point(102.7890, 17.4125) { SRID = 4326 },
                         RecordedAt = DateTime.UtcNow.AddMinutes(-5),
                         RecordedFromIp = "127.0.0.1"
                     },
@@ -249,7 +249,7 @@ public static class DataSeeder
                     {
                         Id = Guid.NewGuid().ToString(),
                         RiderId = rider2Id,
-                        Location = new Point(100.5318, 13.7463) { SRID = 4326 },
+                        Location = new Point(102.8072, 17.4038) { SRID = 4326 },
                         RecordedAt = DateTime.UtcNow.AddMinutes(-8),
                         RecordedFromIp = "127.0.0.1"
                     }

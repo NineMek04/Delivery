@@ -98,6 +98,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       maxBounds: this.THAILAND_BOUNDS,    // จำกัดขอบเขตแผนที่
       maxBoundsViscosity: 1.0             // ป้องกันลากแผนที่หลุดนอกประเทศไทย
     });
+    // Center map on Udon Thani (17.4138, 102.7872)
+    this.map = L.map(this.mapElement.nativeElement).setView([17.4138, 102.7872], 13);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
@@ -122,6 +124,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   /** กดเพื่อซูมให้เห็นทั้งประเทศไทย */
   showFullThailand(): void {
     this.map?.fitBounds(this.THAILAND_BOUNDS);
+    this.map?.setView([17.4138, 102.7872], 13);
   }
 
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {

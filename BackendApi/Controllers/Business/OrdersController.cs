@@ -36,13 +36,18 @@ public class OrdersController : DeliveryControllerBase
         [FromBody] CreateOrderDto dto,
         CancellationToken cancellationToken)
     {
-        var distanceKm = HaversineDistance(dto.PickupLat, dto.PickupLng, dto.DropoffLat, dto.DropoffLng) / 1000.0;
+        var pickup = new Point(dto.PickupLng, dto.PickupLat) { SRID = 4326 };
+        var dropoff = new Point(dto.DropoffLng, dto.DropoffLat) { SRID = 4326 };
+        
+        // ให้ PostGIS คำนวณ (แม่นยำกว่า, ลด CPU Backend)
+        var distanceMeters = pickup.Distance(dropoff);
+        var distanceKm = distanceMeters / 1000.0;
         var deliveryFee = 30 + (decimal)(distanceKm * 10.0);
 
         var order = new Order
         {
-            PickupLocation = new Point(dto.PickupLng, dto.PickupLat) { SRID = 4326 },
-            DropoffLocation = new Point(dto.DropoffLng, dto.DropoffLat) { SRID = 4326 },
+            PickupLocation = pickup,
+            DropoffLocation = dropoff,
             DistanceKm = distanceKm,
             DeliveryFee = deliveryFee,
             ExpectedDeliveryTime = dto.ExpectedDeliveryTime,
@@ -267,19 +272,4 @@ public class OrdersController : DeliveryControllerBase
         return Ok(ApiResponse.Ok("สั่ง Dispatch ใหม่เรียบร้อย ระบบกำลังค้นหาไรเดอร์ให้ใหม่..."));
     }
 
-    private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)
-    {
-        var r = 6371e3;
-        var phi1 = lat1 * Math.PI / 180;
-        var phi2 = lat2 * Math.PI / 180;
-        var deltaPhi = (lat2 - lat1) * Math.PI / 180;
-        var deltaLambda = (lon2 - lon1) * Math.PI / 180;
-
-        var a = Math.Sin(deltaPhi / 2) * Math.Sin(deltaPhi / 2) +
-                Math.Cos(phi1) * Math.Cos(phi2) *
-                Math.Sin(deltaLambda / 2) * Math.Sin(deltaLambda / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-
-        return r * c;
-    }
 }

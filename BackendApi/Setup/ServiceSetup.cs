@@ -34,6 +34,20 @@ public static class ServiceSetup
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
                 npgsql => npgsql.UseNetTopologySuite()));
+                
+        services.AddHealthChecks()
+            .AddNpgSql(
+                configuration.GetConnectionString("DefaultConnection")!,
+                name: "postgresql",
+                tags: ["db", "ready"])
+            .AddRedis(
+                configuration.GetConnectionString("Redis") ?? "localhost:6379",
+                name: "redis",
+                tags: ["cache", "ready"])
+            .AddCheck<BackendApi.HealthChecks.PostGisHealthCheck>(
+                "postgis",
+                tags: ["db", "spatial", "ready"]);
+
         services.AddScoped<ConditionContext>();
         services.AddScoped<DBHandlerCore>();
         services.AddScoped<IAuthService, AuthService>();
@@ -63,6 +77,7 @@ public static class ServiceSetup
         services.AddHostedService<DispatchTimeoutWorker>();
         services.AddHostedService<HeartbeatMonitor>();
         services.AddHostedService<GpsSyncWorker>();
+        services.AddHostedService<PartitionMaintenanceWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

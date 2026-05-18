@@ -29,6 +29,7 @@ public class DummyCurrentUserService : ICurrentUserService
 public class SpatialQueryTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container;
+    private DbContextOptions<ApplicationDbContext> _options = null!;
     private ApplicationDbContext _dbContext = null!;
 
     public SpatialQueryTests()
@@ -57,11 +58,11 @@ public class SpatialQueryTests : IAsyncLifetime
         dataSourceBuilder.UseNetTopologySuite();
         var dataSource = dataSourceBuilder.Build();
 
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+        _options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(dataSource, x => x.UseNetTopologySuite())
             .Options;
 
-        _dbContext = new ApplicationDbContext(options, new DummyCurrentUserService());
+        _dbContext = new ApplicationDbContext(_options, new DummyCurrentUserService());
 
         // รัน EF Core Migrations ทั้งหมด (รวม Phase3EnterpriseSpatialScaling)
         await _dbContext.Database.MigrateAsync();
@@ -223,8 +224,9 @@ public class SpatialQueryTests : IAsyncLifetime
     {
         // Arrange: สร้าง ServiceProvider จำลองสำหรับ Worker
         var services = new ServiceCollection();
-        services.AddSingleton(_dbContext);
-        services.AddScoped<ApplicationDbContext>(_ => _dbContext);
+        services.AddSingleton(_options);
+        services.AddScoped<ApplicationDbContext>(sp => 
+            new ApplicationDbContext(sp.GetRequiredService<DbContextOptions<ApplicationDbContext>>(), new DummyCurrentUserService()));
         var serviceProvider = services.BuildServiceProvider();
 
         var worker = new PartitionMaintenanceWorker(

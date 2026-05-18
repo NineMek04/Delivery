@@ -82,8 +82,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private initMap(): void {
-    // Center map on Bangkok (13.7563, 100.5018)
-    this.map = L.map(this.mapElement.nativeElement).setView([13.7563, 100.5018], 12);
+    // Center map on Udon Thani (17.4138, 102.7872)
+    this.map = L.map(this.mapElement.nativeElement).setView([17.4138, 102.7872], 13);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
@@ -101,7 +101,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   recenter(): void {
-    this.map?.setView([13.7563, 100.5018], 12);
+    this.map?.setView([17.4138, 102.7872], 13);
   }
 
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {

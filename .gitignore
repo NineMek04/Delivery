@@ -81,3 +81,6 @@ desktop.ini
 !*.env.example
 
 BackendApi/logs/*.txt
+
+osrm_data/
+*.osm.pbf

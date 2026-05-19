@@ -107,6 +107,7 @@ docker run --rm --user root -v "$(pwd)/osrm_data:/data" osrm/osrm-backend osrm-c
   osrm:
     image: osrm/osrm-backend
     container_name: delivery-osrm
+    user: root
     restart: always
     ports:
       - "5001:5000"

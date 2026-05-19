@@ -6,5 +6,6 @@ namespace BackendApi.Core.Constants
         public const string Rider = "RID";
         public const string Shop = "SHP";
         public const string User = "USR";
+        public const string MenuItem = "MNU";
     }
 }

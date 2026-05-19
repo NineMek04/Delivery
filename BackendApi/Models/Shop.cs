@@ -32,5 +32,7 @@ namespace BackendApi.Models
         /// </summary>
         [Column(TypeName = "geometry(Point, 4326)")]
         public Point? Location { get; set; }
+
+        public ICollection<MenuItem> MenuItems { get; set; } = new List<MenuItem>();
     }
 }

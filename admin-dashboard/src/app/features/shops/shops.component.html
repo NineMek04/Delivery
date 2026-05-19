@@ -1,0 +1,186 @@
+<section class="shops-page">
+  <div class="section-header">
+    <div>
+      <h2>{{ title }}</h2>
+      <p>Shop registry, menu details, and spatial coordinates from BackendApi</p>
+    </div>
+    <button type="button" class="primary-action" (click)="loadShops()">
+      <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
+      Refresh_Shops
+    </button>
+  </div>
+
+  <div class="stat-grid">
+    <article>
+      <span>Total Shops</span>
+      <strong>{{ shops.length }}</strong>
+      <small>registered in PostGIS</small>
+    </article>
+    <article>
+      <span>Showing</span>
+      <strong>{{ filteredShops.length }}</strong>
+      <small>matching current filter</small>
+    </article>
+  </div>
+
+  <div class="filter-strip">
+    <label class="search">
+      <lucide-icon [img]="icons.Search" size="16"></lucide-icon>
+      <input type="search" placeholder="search_shop_name_or_menu..." [(ngModel)]="query" />
+    </label>
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">
+      <div class="accent-line"></div>
+      <h3>Shop_Registry</h3>
+    </div>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>SHOP_ID</th>
+            <th>NAME</th>
+            <th>MENU</th>
+            <th>PRICE (฿)</th>
+            <th>LATITUDE</th>
+            <th>LONGITUDE</th>
+            <th>CREATED</th>
+            <th>ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (shop of filteredShops; track shop.id) {
+            <tr>
+              <td class="mono primary">{{ shortId(shop.id) }}</td>
+
+              <!-- NAME — editable -->
+              <td>
+                @if (editingId === shop.id) {
+                  <input class="inline-input" [(ngModel)]="editSnapshot.name" />
+                } @else {
+                  {{ shop.name }}
+                }
+              </td>
+
+              <!-- MENU NAME — editable -->
+              <td>
+                @if (editingId === shop.id) {
+                  <input class="inline-input" [(ngModel)]="editSnapshot.menuName" />
+                } @else {
+                  {{ shop.menuName }}
+                }
+              </td>
+
+              <!-- MENU ITEMS BUTTON -->
+              <td>
+                <button type="button" class="ghost-action" (click)="loadMenuItems(shop.id!)">
+                  <lucide-icon [img]="icons.Menu" size="14"></lucide-icon>
+                  View Menu
+                </button>
+              </td>
+
+              <!-- PRICE — editable -->
+              <td>
+                @if (editingId === shop.id) {
+                  <input class="inline-input price-input" type="number" min="1" [(ngModel)]="editSnapshot.menuPrice" />
+                } @else {
+                  {{ shop.menuPrice | number:'1.0-0' }}
+                }
+              </td>
+
+              <td class="mono">{{ formatCoord(shop.lat) }}</td>
+              <td class="mono">{{ formatCoord(shop.lng) }}</td>
+              <td class="mono">{{ formatDate(shop.createdAt) }}</td>
+
+              <!-- ACTIONS -->
+              <td class="actions">
+                @if (editingId === shop.id) {
+                  <button type="button" class="ghost-action" (click)="saveEdit(shop)">
+                    <lucide-icon [img]="icons.Check" size="14"></lucide-icon>
+                    Save
+                  </button>
+                  <button type="button" class="muted-action" (click)="cancelEdit()">
+                    <lucide-icon [img]="icons.X" size="14"></lucide-icon>
+                    Cancel
+                  </button>
+                } @else {
+                  <button type="button" class="ghost-action" (click)="startEdit(shop)">
+                    <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
+                    Edit
+                  </button>
+                  <button type="button" class="danger-action" (click)="deleteShop(shop)">
+                    <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
+                    Delete
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+          @if (!filteredShops.length && !isLoading) {
+            <tr>
+              <td colspan="8" class="empty-cell">NO_SHOP_DATA_FROM_API</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <footer>Showing {{ filteredShops.length }} of {{ shops.length }} shops — edit inline, changes saved to BackendApi</footer>
+  </div>
+
+  <!-- Menu Items Modal -->
+  @if (isMenuModalOpen && selectedShopId) {
+    <div class="modal-overlay" (click)="closeMenuModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Menu Items</h3>
+          <button type="button" class="close-btn" (click)="closeMenuModal()">
+            <lucide-icon [img]="icons.X" size="20"></lucide-icon>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="shop-info">Shop ID: {{ selectedShopId.slice(0, 8).toUpperCase() }}</p>
+          @if (menuItems.length > 0) {
+            <div class="menu-list">
+              @for (item of menuItems; track item.id) {
+                <div class="menu-item-card">
+                  <div class="menu-item-header">
+                    <h4>{{ item.name }}</h4>
+                    <span class="price">{{ item.price | number:'1.0-0' }} ฿</span>
+                  </div>
+                  @if (item.description) {
+                    <p class="description">{{ item.description }}</p>
+                  }
+                  @if (item.options && item.options.length > 0) {
+                    <div class="options-list">
+                      @for (option of item.options; track option.id) {
+                        <div class="option-group">
+                          <div class="option-header">
+                            <span>{{ option.name }}</span>
+                            @if (option.required) {
+                              <span class="required-badge">Required</span>
+                            }
+                          </div>
+                          <div class="option-items">
+                            @for (itemOption of option.items; track itemOption.name) {
+                              <span class="option-item">{{ itemOption.name }} (+{{ itemOption.price | number:'1.0-0' }} ฿)</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="empty-menu">No menu items found for this shop.</p>
+          }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="primary-btn" (click)="closeMenuModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  }
+</section>

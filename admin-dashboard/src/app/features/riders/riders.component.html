@@ -1,0 +1,94 @@
+<section class="riders-page">
+  <div class="section-header">
+    <div>
+      <h2>{{ title }}</h2>
+      <p>Rider fleet status, GPS coordinates, and last activity from BackendApi</p>
+    </div>
+    <button type="button" class="primary-action" (click)="loadRiders()">
+      <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
+      Refresh_Fleet
+    </button>
+  </div>
+
+  <div class="stat-grid">
+    <article>
+      <span>Total Riders</span>
+      <strong>{{ riders.length }}</strong>
+      <small>registered in system</small>
+    </article>
+    <article>
+      <span>Idle / Available</span>
+      <strong>{{ idleCount }}</strong>
+      <small>ready to receive dispatch</small>
+    </article>
+    <article>
+      <span>On Delivery</span>
+      <strong class="warning">{{ busyCount }}</strong>
+      <small>currently delivering</small>
+    </article>
+    <article>
+      <span>Offline</span>
+      <strong>{{ offlineCount }}</strong>
+      <small>disconnected from hub</small>
+    </article>
+  </div>
+
+  <div class="filter-strip">
+    <label class="search">
+      <lucide-icon [img]="icons.Search" size="16"></lucide-icon>
+      <input type="search" placeholder="search_rider_id_or_name..." [(ngModel)]="query" />
+    </label>
+    <div class="chips">
+      <span>IDLE</span>
+      <span>BUSY</span>
+      <span>RESERVED</span>
+      <span>OFFLINE</span>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">
+      <div class="accent-line"></div>
+      <h3>Rider_Manifest</h3>
+    </div>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>RIDER_ID</th>
+            <th>NAME</th>
+            <th>STATUS</th>
+            <th>LATITUDE</th>
+            <th>LONGITUDE</th>
+            <th>LAST_UPDATE</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (rider of filteredRiders; track rider.id) {
+            <tr>
+              <td class="mono primary">{{ shortId(rider.id) }}</td>
+              <td>{{ rider.name || '—' }}</td>
+              <td><span class="status" [class]="getStatusTone(rider.status)">{{ rider.status || 'UNKNOWN' }}</span></td>
+              <td class="mono">
+                @if (rider.lat != null) {
+                  <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
+                  {{ formatCoord(rider.lat) }}
+                } @else {
+                  —
+                }
+              </td>
+              <td class="mono">{{ formatCoord(rider.lng) }}</td>
+              <td class="mono">{{ formatTime(rider.lastUpdated) }}</td>
+            </tr>
+          }
+          @if (!filteredRiders.length && !isLoading) {
+            <tr>
+              <td colspan="6" class="empty-cell">NO_RIDER_DATA_FROM_API</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <footer>Showing {{ filteredRiders.length }} of {{ riders.length }} riders</footer>
+  </div>
+</section>

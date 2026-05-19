@@ -73,8 +73,8 @@
         <div class="divider"></div>
         <div class="profile-group">
           <div class="profile-info">
-            <p class="profile-name">Suphachai K.</p>
-            <p class="profile-role">SYSTEM_ADMIN</p>
+            <p class="profile-name">{{name}}</p>
+            <p class="profile-role">{{ authService.getUserRole()?.toUpperCase() ?? 'USER' }}</p>
           </div>
           <div class="profile-avatar">
             <lucide-icon [img]="icons.User" size="16"></lucide-icon>

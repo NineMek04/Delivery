@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../core/services/auth.service';
-import { LucideAngularModule, LayoutDashboard, Warehouse, Truck, BarChart3, Settings, Search, Bell, User, Menu, ChevronRight } from 'lucide-angular';
+import { LucideAngularModule, LayoutDashboard, Warehouse, Truck, ChartLine, Settings, Search, Bell, User, Menu, Users, Store } from 'lucide-angular';
 
 interface NavItem {
   path: string;
@@ -18,18 +18,20 @@ interface NavItem {
   styleUrl: './main-layout.component.scss'
 })
 export class MainLayoutComponent {
-  private authService = inject(AuthService);
+  public authService = inject(AuthService);
 
   isSidebarOpen = true;
-
+  name = this.authService.getUserData()?.FullName ?? 'Admin'
   // Icons used in header
   icons = { Menu, Search, Bell, User, Settings };
 
   readonly navItems: NavItem[] = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/map', label: 'Live Map', icon: Truck }, // Using Truck for Fleet/Map
-    { path: '/orders', label: 'Orders', icon: Warehouse }, // Using Warehouse for Orders
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
+    { path: '/map',       label: 'Live Map',   icon: Truck },
+    { path: '/orders',    label: 'Orders',     icon: Warehouse },
+    { path: '/riders',    label: 'Riders',     icon: Users },
+    { path: '/shops',     label: 'Shops',      icon: Store },
+    { path: '/analytics', label: 'Analytics',  icon: ChartLine },
   ];
 
   toggleSidebar() {

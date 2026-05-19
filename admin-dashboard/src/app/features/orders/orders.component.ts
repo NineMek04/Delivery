@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { OrderService } from '../../core/services/order.service';
 import { OrderDto } from '../../api/generated/model/order-dto';
 import Swal from 'sweetalert2';
-import { LucideAngularModule, RefreshCcw, Search, Plus, XCircle, RotateCcw } from 'lucide-angular';
+import { LucideAngularModule, RefreshCcw, Search, Plus, XCircle, RotateCcw, Info } from 'lucide-angular';
 
 @Component({
   selector: 'app-orders',
@@ -15,12 +15,16 @@ import { LucideAngularModule, RefreshCcw, Search, Plus, XCircle, RotateCcw } fro
 })
 export class OrdersComponent implements OnInit {
   readonly title = 'Order_Operations';
-  readonly icons = { RefreshCcw, Search, Plus, XCircle, RotateCcw };
+  readonly icons = { RefreshCcw, Search, Plus, XCircle, RotateCcw, Info };
   
   private orderService = inject(OrderService);
   public orders: OrderDto[] = [];
   public isLoading = false;
   public query = '';
+
+  // Modal state
+  selectedOrder: OrderDto | null = null;
+  showDetailModal = false;
 
   ngOnInit(): void {
     this.loadOrders();
@@ -28,7 +32,6 @@ export class OrdersComponent implements OnInit {
 
   loadOrders(): void {
     this.isLoading = true;
-    // BaseApiService.getAll() ทำการ unwrap ApiResponse + PaginatedResult ให้อัตโนมัติแล้ว
     this.orderService.getAll().subscribe({
       next: (orders) => {
         this.orders = orders;
@@ -36,7 +39,6 @@ export class OrdersComponent implements OnInit {
       },
       error: () => {
         this.isLoading = false;
-        // ErrorInterceptor will handle the SweetAlert
       }
     });
   }
@@ -83,6 +85,16 @@ export class OrdersComponent implements OnInit {
 
   shortId(id?: string | null): string {
     return id ? `${id.slice(0, 8).toUpperCase()}...` : 'UNASSIGNED';
+  }
+
+  openOrderDetail(order: OrderDto): void {
+    this.selectedOrder = order;
+    this.showDetailModal = true;
+  }
+
+  closeOrderDetail(): void {
+    this.showDetailModal = false;
+    this.selectedOrder = null;
   }
 
   cancelOrder(id?: string | null): void {

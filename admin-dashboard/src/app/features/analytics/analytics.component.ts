@@ -1,5 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { BaseChartDirective } from 'ng2-charts';
+import { ChartConfiguration } from 'chart.js';
 import { OrderService } from '../../core/services/order.service';
 import { RiderService } from '../../core/services/rider.service';
 import { forkJoin } from 'rxjs';
@@ -9,7 +11,7 @@ import { RiderDto } from '../../api/generated/model/rider-dto';
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, BaseChartDirective],
   templateUrl: './analytics.component.html',
   styleUrl: './analytics.component.scss'
 })
@@ -23,13 +25,61 @@ export class AnalyticsComponent implements OnInit {
   riders: RiderDto[] = [];
   isLoading = false;
 
+  // ── Chart config (pattern เดียวกับ DashboardComponent) ──────────
+  public chartData: ChartConfiguration<'line'>['data'] = {
+    labels: ['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKUP', 'DELIVERING', 'COMPLETED', 'CANCELLED'],
+    datasets: [
+      {
+        data: [0, 0, 0, 0, 0, 0, 0, 0],
+        label: 'Order_Volume',
+        fill: true,
+        tension: 0.4,
+        borderColor: '#00FF66',
+        backgroundColor: 'rgba(0, 255, 102, 0.1)',
+        pointBackgroundColor: '#00FF66',
+        pointBorderColor: '#000',
+        pointHoverBackgroundColor: '#fff',
+        pointHoverBorderColor: '#00FF66',
+      }
+    ]
+  };
+
+  public chartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: '#262626', drawTicks: false },
+        border: { display: false },
+        ticks: { color: '#888888', font: { family: 'JetBrains Mono', size: 10 } }
+      },
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: { color: '#888888', font: { family: 'JetBrains Mono', size: 10 } }
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#141414',
+        titleColor: '#00FF66',
+        bodyColor: '#fff',
+        borderColor: '#262626',
+        borderWidth: 1,
+        titleFont: { family: 'JetBrains Mono' },
+        bodyFont: { family: 'JetBrains Mono' }
+      }
+    }
+  };
+
   ngOnInit(): void {
     this.loadAnalytics();
   }
 
   loadAnalytics(): void {
     this.isLoading = true;
-    // BaseApiService.getAll() ทำการ unwrap ApiResponse + PaginatedResult ให้อัตโนมัติแล้ว
     forkJoin({
       orders: this.orderService.getAll(),
       riders: this.riderService.getAll()
@@ -37,12 +87,24 @@ export class AnalyticsComponent implements OnInit {
       next: ({ orders, riders }) => {
         this.orders = orders;
         this.riders = riders;
+        this.syncChart();
         this.isLoading = false;
       },
       error: () => {
         this.isLoading = false;
       }
     });
+  }
+
+  private syncChart(): void {
+    const buckets = ['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING', 'COMPLETED', 'CANCELLED'];
+    this.chartData = {
+      ...this.chartData,
+      datasets: [{
+        ...this.chartData.datasets[0],
+        data: buckets.map(status => this.orders.filter(order => order.status === status).length)
+      }]
+    };
   }
 
   get generatedRoutes(): number {

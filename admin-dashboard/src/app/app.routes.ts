@@ -47,6 +47,16 @@ export const routes: Routes = [
         path: 'analytics',
         loadComponent: () => import('./features/analytics/analytics.component').then(m => m.AnalyticsComponent),
         data: { title: 'Analytics' }
+      },
+      {
+        path: 'riders',
+        loadComponent: () => import('./features/riders/riders.component').then(m => m.RidersComponent),
+        data: { title: 'Rider Fleet' }
+      },
+      {
+        path: 'shops',
+        loadComponent: () => import('./features/shops/shops.component').then(m => m.ShopsComponent),
+        data: { title: 'Shop Management' }
       }
     ]
   },

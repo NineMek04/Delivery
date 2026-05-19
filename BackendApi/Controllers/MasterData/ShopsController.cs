@@ -59,6 +59,9 @@ namespace BackendApi.Controllers.MasterData
                 .OrderBy(s => s.Name)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
+                .Include(s => s.MenuItems)
+                    .ThenInclude(m => m.Options)
+                        .ThenInclude(o => o.Items)
                 .ToListAsync(cancellationToken);
 
             return Ok(new PaginatedResult<ShopDto>
@@ -79,7 +82,11 @@ namespace BackendApi.Controllers.MasterData
             var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Shop);
             if (parsedRef.HasValue)
             {
-                var entity = await DB.GetQuery<Shop>().FirstOrDefaultAsync(s => s.RefNumber == parsedRef.Value, cancellationToken);
+                var entity = await DB.GetQuery<Shop>()
+                    .Include(s => s.MenuItems)
+                        .ThenInclude(m => m.Options)
+                            .ThenInclude(o => o.Items)
+                    .FirstOrDefaultAsync(s => s.RefNumber == parsedRef.Value, cancellationToken);
                 if (entity is null)
                     return NotFound(ApiResponse.Fail("ไม่พบข้อมูลร้านค้า", code: "NOT_FOUND"));
                 return Ok(entity.Adapt<ShopDto>());
@@ -119,7 +126,8 @@ namespace BackendApi.Controllers.MasterData
                 MenuName = dto.MenuName,
                 MenuPrice = dto.MenuPrice,
                 Location = factory.CreatePoint(
-                    new NetTopologySuite.Geometries.Coordinate(dto.Lng, dto.Lat))
+                    new NetTopologySuite.Geometries.Coordinate(dto.Lng, dto.Lat)),
+                MenuItems = new List<MenuItem>()
             };
 
             DB.InsertObject(entity);
@@ -133,7 +141,8 @@ namespace BackendApi.Controllers.MasterData
                 MenuPrice = entity.MenuPrice,
                 Lat = entity.Location?.Y,
                 Lng = entity.Location?.X,
-                CreatedAt = entity.CreatedAt
+                CreatedAt = entity.CreatedAt,
+                MenuItems = new List<MenuItemDto>()
             };
 
             return CreatedAtAction(nameof(GetById), new { id = entity.Id }, result);

@@ -6,7 +6,7 @@ import { req } from '../http/delivery-http-request';
  * Unwrap ApiResponse wrapper ที่ GlobalResponseFilter ห่อให้อัตโนมัติ
  * Backend Response format: { success: boolean, value: T, message: string }
  */
-function unwrapValue<T>(res: any): T {
+export function unwrapValue<T>(res: any): T {
   // ถ้า Backend ห่อด้วย ApiResponse → ดึง value ออก
   if (res && typeof res === 'object' && 'value' in res) {
     return res.value as T;
@@ -18,7 +18,7 @@ function unwrapValue<T>(res: any): T {
  * Unwrap ApiResponse + PaginatedResult → ดึงเฉพาะ items array ออกมา
  * Backend format: { success, value: { items: T[], totalCount, page, pageSize } }
  */
-function unwrapList<T>(res: any): T[] {
+export function unwrapList<T>(res: any): T[] {
   const value = unwrapValue<any>(res);
   if (Array.isArray(value)) return value;
   if (value && Array.isArray(value.items)) return value.items;
@@ -78,5 +78,12 @@ export abstract class BaseApiService<T> {
 
   public delete(id: string | number): Observable<any> {
     return req<any>(`${this.endpoint}/${id}`).delete();
+  }
+
+  /**
+   * ดึงข้อมูลแบบ custom endpoint (เช่น /menu-items/shop/{shopId})
+   */
+  public getByEndpoint(endpoint: string): Observable<any> {
+    return req<any>(endpoint).get();
   }
 }

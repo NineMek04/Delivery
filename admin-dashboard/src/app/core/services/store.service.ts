@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, map } from 'rxjs';
+import { BehaviorSubject, Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { MenuItemService, MenuItemDto, MenuItemOptionDto, MenuItemOptionItemDto } from './menu-item.service';
+import { unwrapValue } from './base-api.service';
 
 export interface OptionItem {
   name: string;
@@ -38,6 +40,7 @@ export interface CartItem {
 })
 export class StoreService {
   private http = inject(HttpClient);
+  private menuItemService = inject(MenuItemService);
   private readonly STORAGE_KEY = 'ninemek_delivery_store_menus';
 
   // In-memory store of menus keyed by shopId
@@ -177,6 +180,39 @@ export class StoreService {
     this.saveToStorage();
   }
 
+  // Load menus from API for a shop
+  public loadMenusFromApi(shopId: string): Observable<MenuItem[]> {
+    return this.menuItemService.getByShop(shopId).pipe(
+      map((apiMenuItems: any[]) => apiMenuItems.map(this.mapApiMenuItemToStoreMenuItem.bind(this))),
+      tap(menus => {
+        this.menusMap[shopId] = menus;
+        this.saveToStorage();
+      })
+    );
+  }
+
+  // Map API MenuItem to Store MenuItem format
+  private mapApiMenuItemToStoreMenuItem(apiItem: any): MenuItem {
+    const unwrapped = unwrapValue<any>(apiItem);
+    return {
+      id: unwrapped.id || '',
+      name: unwrapped.name || '',
+      description: unwrapped.description || '',
+      price: unwrapped.price || 0,
+      imageUrl: unwrapped.imageUrl || '',
+      options: (unwrapped.options || []).map((opt: any) => ({
+        id: opt.id || '',
+        name: opt.name || '',
+        required: opt.required || false,
+        maxSelections: opt.maxSelections || 0,
+        items: (opt.items || []).map((item: any) => ({
+          name: item.name || '',
+          price: item.price || 0
+        }))
+      }))
+    };
+  }
+
   // Get menus for a shop (returns seeded menus or initializes a blank list)
   public getShopMenus(shopId: string): MenuItem[] {
     if (!this.menusMap[shopId]) {
@@ -226,7 +262,7 @@ export class StoreService {
   }
 
   // CRUD for menu management (Store Role)
-  public addMenuItem(shopId: string, item: Omit<MenuItem, 'id'>): MenuItem {
+  public addMenuItem(shopId: string, item: Omit<MenuItem, 'id'>): Observable<MenuItem> {
     const newItem: MenuItem = {
       ...item,
       id: 'm_' + Math.random().toString(36).substring(2, 9)
@@ -236,22 +272,31 @@ export class StoreService {
     }
     this.menusMap[shopId].push(newItem);
     this.saveToStorage();
-    return newItem;
+    return new Observable<MenuItem>(observer => {
+      observer.next(newItem);
+      observer.complete();
+    });
   }
 
-  public updateMenuItem(shopId: string, item: MenuItem): void {
+  public updateMenuItem(shopId: string, item: MenuItem): Observable<void> {
     const items = this.menusMap[shopId] || [];
     const index = items.findIndex(i => i.id === item.id);
     if (index !== -1) {
       items[index] = item;
       this.saveToStorage();
     }
+    return new Observable<void>(observer => {
+      observer.complete();
+    });
   }
 
-  public deleteMenuItem(shopId: string, itemId: string): void {
+  public deleteMenuItem(shopId: string, itemId: string): Observable<void> {
     const items = this.menusMap[shopId] || [];
     this.menusMap[shopId] = items.filter(i => i.id !== itemId);
     this.saveToStorage();
+    return new Observable<void>(observer => {
+      observer.complete();
+    });
   }
 
   // ── Cart Management ──

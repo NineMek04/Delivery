@@ -66,7 +66,7 @@
         </thead>
         <tbody>
           @for (order of filteredOrders; track order.id) {
-            <tr>
+            <tr (click)="openOrderDetail(order)" style="cursor: pointer;">
               <td class="mono primary">{{ shortId(order.id) }}</td>
               <td>{{ order.distanceKm | number:'1.2-2' }} km</td>
               <td class="mono">{{ order.pickupLat | number:'1.4-4' }}, {{ order.pickupLng | number:'1.4-4' }}</td>
@@ -99,4 +99,9 @@
     </div>
     <footer>Showing {{ filteredOrders.length }} of {{ orders.length }} backend orders</footer>
   </div>
+
+  <!-- Order Detail Modal -->
+  @if (showDetailModal && selectedOrder) {
+    <app-order-detail [order]="selectedOrder" (close)="closeOrderDetail()"></app-order-detail>
+  }
 </section>

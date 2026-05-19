@@ -21,6 +21,8 @@ namespace BackendApi.Models.DTOs
         public double? Lng { get; set; }
         
         public DateTime? CreatedAt { get; set; }
+        
+        public ICollection<MenuItemDto>? MenuItems { get; set; }
     }
 
     /// <summary>

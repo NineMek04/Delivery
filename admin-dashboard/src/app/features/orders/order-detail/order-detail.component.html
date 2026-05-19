@@ -1,0 +1,87 @@
+<div class="order-detail-overlay" (click)="close.emit()">
+  <div class="order-detail-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Order #{{ shortId(order.id) }}</h3>
+      <button type="button" class="close-btn" (click)="close.emit()">
+        <lucide-icon [img]="icons.X" size="20"></lucide-icon>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Status Badge -->
+      <div class="status-badge">
+        <span class="status" [class]="getStatusTone(order.status)">{{ order.status || 'UNKNOWN' }}</span>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline">
+        @for (step of timelineSteps; track step.status) {
+          <div class="timeline-step" [class.active]="step.status === order.status">
+            <div class="step-icon">
+              <lucide-icon [img]="getIcon(step.icon)" size="16"></lucide-icon>
+            </div>
+            <div class="step-label">{{ step.label }}</div>
+          </div>
+        }
+      </div>
+
+      <!-- Order Info -->
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Distance</div>
+          <div class="info-value">{{ order.distanceKm | number:'1.2-2' }} km</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Delivery Fee</div>
+          <div class="info-value">{{ order.deliveryFee | number:'1.0-0' }} ฿</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Pickup</div>
+          <div class="info-value">
+            <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
+            {{ formatCoord(order.pickupLat) }}, {{ formatCoord(order.pickupLng) }}
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Dropoff</div>
+          <div class="info-value">
+            <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
+            {{ formatCoord(order.dropoffLat) }}, {{ formatCoord(order.dropoffLng) }}
+          </div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Assigned Rider</div>
+          <div class="info-value">{{ shortId(order.assignedRiderId) }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Created</div>
+          <div class="info-value">{{ formatDate(order.createdAt) }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Assigned At</div>
+          <div class="info-value">{{ formatDate(order.assignedAt) }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Completed</div>
+          <div class="info-value">{{ formatDate(order.completedAt) }}</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        @if (order.status === 'CREATED' || order.status === 'MATCHING' || order.status === 'OFFERING') {
+          <button type="button" class="ghost-action" (click)="retryDispatch()">
+            <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
+            Retry Dispatch
+          </button>
+        }
+        @if (order.status !== 'COMPLETED' && order.status !== 'CANCELLED') {
+          <button type="button" class="danger-action" (click)="cancelOrder()">
+            <lucide-icon [img]="icons.X" size="14"></lucide-icon>
+            Cancel Order
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+</div>

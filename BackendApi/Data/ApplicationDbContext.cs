@@ -22,6 +22,9 @@ namespace BackendApi.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Shop> Shops { get; set; }
+        public DbSet<MenuItem> MenuItems { get; set; }
+        public DbSet<MenuItemOption> MenuItemOptions { get; set; }
+        public DbSet<MenuItemOptionItem> MenuItemOptionItems { get; set; }
 
         public DbSet<RiderLocationHistory> RiderLocationHistories { get; set; }
 
@@ -120,6 +123,17 @@ namespace BackendApi.Data
                 .HasMethod("gist")
                 .HasDatabaseName("IX_Shops_Location_Gist");
 
+            // MenuItems — ใช้สำหรับค้นหาเมนูตามร้านค้า
+            modelBuilder.Entity<MenuItem>()
+                .HasIndex(m => m.ShopId)
+                .HasDatabaseName("IX_MenuItems_ShopId");
+
+            // MenuItems — ใช้สำหรับสืบค้นพิกัดร้านค้าเชิงพื้นที่ (GiST Index)
+            modelBuilder.Entity<MenuItem>()
+                .HasIndex(m => m.ShopId)
+                .HasMethod("gist")
+                .HasDatabaseName("IX_MenuItems_ShopId_Gist");
+
             // Orders — B-tree สำหรับ GetMyOrders query (WHERE AssignedRiderId = ?)
             modelBuilder.Entity<Order>()
                 .HasIndex(o => o.AssignedRiderId)
@@ -134,6 +148,9 @@ namespace BackendApi.Data
 
             modelBuilder.Entity<Shop>().Property(s => s.RefNumber).UseIdentityByDefaultColumn();
             modelBuilder.Entity<Shop>().HasIndex(s => s.RefNumber).IsUnique().HasDatabaseName("IX_Shops_RefNumber");
+
+            modelBuilder.Entity<MenuItem>().Property(m => m.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<MenuItem>().HasIndex(m => m.RefNumber).IsUnique().HasDatabaseName("IX_MenuItems_RefNumber");
 
             modelBuilder.Entity<User>().Property(u => u.RefNumber).UseIdentityByDefaultColumn();
             modelBuilder.Entity<User>().HasIndex(u => u.RefNumber).IsUnique().HasDatabaseName("IX_Users_RefNumber");

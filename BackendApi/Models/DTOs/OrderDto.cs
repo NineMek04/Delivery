@@ -25,6 +25,15 @@ public class OrderDto
 
     /// <summary>เวลาที่ส่งเสร็จสิ้น</summary>
     public DateTime? CompletedAt { get; set; }
+
+    /// <summary>เส้นทางที่ผ่านถนนจริงเข้ารหัสแบบ Google Polyline</summary>
+    public string? EncodedPolyline { get; set; }
+
+    /// <summary>ระยะทางจริงของถนนจัดส่ง (เมตร)</summary>
+    public double RouteDistanceMeters { get; set; }
+
+    /// <summary>ระยะเวลาเดินทางจริงโดยประมาณ (วินาที)</summary>
+    public double RouteDurationSeconds { get; set; }
 }
 
 /// <summary>

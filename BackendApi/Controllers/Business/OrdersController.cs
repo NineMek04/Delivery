@@ -5,6 +5,7 @@ using BackendApi.Hubs;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
+using BackendApi.Services.Ai;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Tracking;
 using MapsterMapper;
@@ -26,6 +27,7 @@ public class OrdersController : DeliveryControllerBase
     private readonly StateMachineService _stateMachine;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ITrackingSearchService _searchService;
+    private readonly OsrmRoutingService _routingService;
     private readonly IHubContext<TrackingHub> _hubContext;
 
     public OrdersController(
@@ -33,12 +35,14 @@ public class OrdersController : DeliveryControllerBase
         StateMachineService stateMachine,
         IServiceScopeFactory scopeFactory,
         ITrackingSearchService searchService,
+        OsrmRoutingService routingService,
         IHubContext<TrackingHub> hubContext)
     {
         _mapper = mapper;
         _stateMachine = stateMachine;
         _scopeFactory = scopeFactory;
         _searchService = searchService;
+        _routingService = routingService;
         _hubContext = hubContext;
     }
 
@@ -56,9 +60,29 @@ public class OrdersController : DeliveryControllerBase
         var pickup = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.PickupLng, dto.PickupLat));
         var dropoff = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.DropoffLng, dto.DropoffLat));
 
-        // คำนวณระยะทางจริงโดยอ้อมด้วย Haversine ในหน่วยกิโลเมตร
-        var distanceKm = HaversineDistance(dto.PickupLat, dto.PickupLng, dto.DropoffLat, dto.DropoffLng) / 1000.0;
-        var deliveryFee = 30 + (decimal)(distanceKm * 10.0);
+        // ค้นหาเส้นทางจริงบนโครงข่ายถนนด้วย Dijkstra (OSRM)
+        string encodedPolyline;
+        double routeDistanceMeters;
+        double routeDurationSeconds;
+        double distanceKm;
+        decimal deliveryFee;
+
+        try
+        {
+            var route = await _routingService.GetRouteDetailsAsync(dto.PickupLat, dto.PickupLng, dto.DropoffLat, dto.DropoffLng);
+            encodedPolyline = route.Polyline;
+            routeDistanceMeters = route.DistanceMeters;
+            routeDurationSeconds = route.DurationSeconds;
+
+            // ใช้ระยะทางจริงของโครงข่ายถนน Dijkstra แทนการประมาณการแนวเส้นตรงแบบ Haversine เพื่อความโปร่งใสสูงสุด
+            distanceKm = routeDistanceMeters / 1000.0;
+            deliveryFee = 30 + (decimal)(distanceKm * 10.0);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to calculate actual Dijkstra/OSRM road route for new order. Pickup: ({PickupLat}, {PickupLng}), Dropoff: ({DropoffLat}, {DropoffLng})", dto.PickupLat, dto.PickupLng, dto.DropoffLat, dto.DropoffLng);
+            return BadRequest(ApiResponse<OrderDto>.Fail("ไม่สามารถคำนวณเส้นทางจัดส่งบนถนนจริงได้ เนื่องจากระบบ Dijkstra/OSRM และโครงข่ายอินเทอร์เน็ตล้มเหลว"));
+        }
 
         var order = new Order
         {
@@ -67,7 +91,10 @@ public class OrdersController : DeliveryControllerBase
             DistanceKm = distanceKm,
             DeliveryFee = deliveryFee,
             ExpectedDeliveryTime = dto.ExpectedDeliveryTime,
-            State = Core.StateMachines.OrderState.CREATED
+            State = Core.StateMachines.OrderState.CREATED,
+            EncodedPolyline = encodedPolyline,
+            RouteDistanceMeters = routeDistanceMeters,
+            RouteDurationSeconds = routeDurationSeconds
         };
 
         var savedOrder = DB.InsertObject(order);

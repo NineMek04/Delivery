@@ -188,7 +188,8 @@ public class DispatchService
                 DropoffLng = order.DropoffLocation?.X,
                 order.SlaLimitMinutes,
                 DistanceKm = order.DistanceKm,
-                DeliveryFee = order.DeliveryFee
+                DeliveryFee = order.DeliveryFee,
+                EncodedPolyline = order.EncodedPolyline
             }
         };
 

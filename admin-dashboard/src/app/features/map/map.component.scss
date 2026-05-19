@@ -79,6 +79,21 @@ i {
       color: var(--color-brand-primary);
       border-color: rgba(0, 255, 102, 0.35);
     }
+
+    &.btn-sim-follow {
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+      &.active {
+        background: var(--color-brand-primary) !important;
+        color: #000 !important;
+        border-color: var(--color-brand-primary) !important;
+        box-shadow: 0 0 12px rgba(0, 255, 102, 0.6) !important;
+      }
+    }
   }
 }
 

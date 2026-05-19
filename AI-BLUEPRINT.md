@@ -519,3 +519,5 @@ Overall Project       ████████████░░░░░░░�
 ```
 
 **Next Immediate Action:** เริ่มจาก Backend Tier 1 (#1 Customer Real-time Events) → จากนั้น Rider App Step 1 (Login Screen UI)
+4. `OSRM-SETUP.md` — คู่มือการดาวน์โหลด ติดตั้ง และกำหนดค่า OSRM ออฟไลน์
+5. `.cursorrules` — กฎและ workflow ของ AI

@@ -1,13 +1,14 @@
 using BackendApi.Core;
+using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
 using BackendApi.Services.Dispatch;
+using BackendApi.Services.Tracking;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 
@@ -22,25 +23,25 @@ public class OrdersController : DeliveryControllerBase
     private readonly IMapper _mapper;
     private readonly StateMachineService _stateMachine;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly Microsoft.AspNetCore.SignalR.IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
+    private readonly ITrackingSearchService _searchService;
 
     public OrdersController(
-        IMapper mapper, 
-        StateMachineService stateMachine, 
+        IMapper mapper,
+        StateMachineService stateMachine,
         IServiceScopeFactory scopeFactory,
-        Microsoft.AspNetCore.SignalR.IHubContext<BackendApi.Hubs.TrackingHub> hubContext)
+        ITrackingSearchService searchService)
     {
         _mapper = mapper;
         _stateMachine = stateMachine;
         _scopeFactory = scopeFactory;
-        _hubContext = hubContext;
+        _searchService = searchService;
     }
 
     /// <summary>
     /// สร้างออเดอร์ใหม่ และสั่งให้ AI เริ่มหา Rider อัตโนมัติ (Dispatch)
     /// </summary>
     [HttpPost]
-    [Authorize]
+    [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<OrderDto>>> CreateOrder(
         [FromBody] CreateOrderDto dto,
         CancellationToken cancellationToken)
@@ -73,7 +74,7 @@ public class OrdersController : DeliveryControllerBase
         _ = Task.Run(async () =>
         {
             try
-             {
+            {
                 using var scope = _scopeFactory.CreateScope();
                 var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
                 await dispatchSvc.StartDispatchAsync(savedOrder.Id);
@@ -84,9 +85,6 @@ public class OrdersController : DeliveryControllerBase
             }
         });
 
-        // Broadcast to store partners in real-time
-        await _hubContext.Clients.Group("stores").SendAsync("OrderCreated", responseDto);
-
         return Ok(ApiResponse<OrderDto>.Ok(responseDto, "Order created and dispatch process started."));
     }
 
@@ -96,14 +94,37 @@ public class OrdersController : DeliveryControllerBase
     [HttpGet]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<OrderDto>>>> GetOrders(
+        [FromQuery] string? search = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
         var query = DB.GetQuery<Order>(asNoTracking: true);
-        
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var parsedRef = _searchService.ParseSearchQuery(search, TrackingPrefixes.Order);
+            if (parsedRef.HasValue)
+            {
+                // 1. ถ้าระบุรหัสเป๊ะ ยิงตรงเข้าระบบ Index ทันที (เร็วที่สุด)
+                query = query.Where(o => o.RefNumber == parsedRef.Value);
+            }
+            else
+            {
+                // 2. Fallback: ค้นหาด้วยสถานะออเดอร์ หรือ ID ของไรเดอร์ที่ได้รับมอบหมาย
+                if (Enum.TryParse<BackendApi.Core.StateMachines.OrderState>(search, true, out var searchState))
+                {
+                    query = query.Where(o => o.State == searchState);
+                }
+                else
+                {
+                    query = query.Where(o => o.AssignedRiderId == search);
+                }
+            }
+        }
+
         var total = await query.CountAsync(cancellationToken);
-        
+
         var orders = await query
             .OrderByDescending(o => o.CreatedAt)
             .Skip((page - 1) * pageSize)
@@ -124,15 +145,32 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
-    /// ดูออเดอร์เดียวตาม ID
+    /// ดูออเดอร์เดียวตาม ID หรือ Tracking Code
     /// </summary>
     [HttpGet("{id}")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<OrderDto>>> GetOrderById(
-        string id, 
+        string id,
         CancellationToken cancellationToken)
     {
-        var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+        Order? order = null;
+
+        var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Order);
+        Console.WriteLine($"[DEBUG] GetOrderById called with id: '{id}', parsedRef: {parsedRef}");
+
+        if (parsedRef.HasValue)
+        {
+            // ค้นหาด้วย Tracking Code (RefNumber Index)
+            order = await DB.GetQuery<Order>().FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
+            Console.WriteLine($"[DEBUG] Searched by RefNumber {parsedRef.Value}, result is null? {order == null}");
+        }
+        else
+        {
+            // ค้นหาด้วย UUID เดิม
+            order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+            Console.WriteLine($"[DEBUG] Searched by UUID, result is null? {order == null}");
+        }
+
         if (order is null)
             return NotFound(ApiResponse<OrderDto>.Fail("Order not found."));
 
@@ -221,7 +259,7 @@ public class OrdersController : DeliveryControllerBase
     [HttpPost("{id}/cancel")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<OrderDto>>> CancelOrder(
-        string id, 
+        string id,
         CancellationToken cancellationToken)
     {
         var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
@@ -251,7 +289,7 @@ public class OrdersController : DeliveryControllerBase
     [HttpPost("{id}/dispatch")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse>> RetryDispatch(
-        string id, 
+        string id,
         CancellationToken cancellationToken)
     {
         var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
@@ -262,7 +300,7 @@ public class OrdersController : DeliveryControllerBase
         {
             return BadRequest(ApiResponse.Fail($"ไม่สามารถสั่ง Dispatch ซ้ำในสถานะ {order.State} ได้"));
         }
-        
+
         // ถ้ายกเลิกไปแล้ว หรือเสร็จไปแล้ว เราจะไม่ Dispatch
 
         // ให้เปลี่ยนสถานะกลับไป CREATED ก่อน เพื่อให้ StartDispatchAsync ทำงานได้
@@ -284,33 +322,6 @@ public class OrdersController : DeliveryControllerBase
         });
 
         return Ok(ApiResponse.Ok("สั่ง Dispatch ใหม่เรียบร้อย ระบบกำลังค้นหาไรเดอร์ให้ใหม่..."));
-    }
-
-    /// <summary>
-    /// ร้านค้ากดยอมรับออเดอร์
-    /// </summary>
-    [HttpPost("{id}/accept-by-store")]
-    [Authorize]
-    public async Task<ActionResult<ApiResponse<OrderDto>>> AcceptOrderByStore(
-        string id,
-        [FromQuery] string customerId,
-        CancellationToken cancellationToken)
-    {
-        var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
-        if (order is null)
-            return NotFound(ApiResponse<OrderDto>.Fail("Order not found."));
-
-        // Broadcast to customer and admin real-time via SignalR group
-        await _hubContext.Clients.Group($"customer:{customerId}").SendAsync("OrderAcceptedByStore", new
-        {
-            orderId = order.Id,
-            status = "ACCEPTED_BY_STORE"
-        });
-
-        // Broadcast to admins too
-        await _hubContext.Clients.Group("admins").SendAsync("OrderStatusChanged", order.Id, "ACCEPTED_BY_STORE");
-
-        return Ok(ApiResponse<OrderDto>.Ok(_mapper.Map<OrderDto>(order), "Store accepted order and customer was notified."));
     }
 
     private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)

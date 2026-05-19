@@ -9,6 +9,7 @@ namespace BackendApi.Models.DTOs
     public class ShopDto
     {
         public string Id { get; set; } = string.Empty;
+        public string TrackingCode { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string MenuName { get; set; } = string.Empty;
         public decimal MenuPrice { get; set; }

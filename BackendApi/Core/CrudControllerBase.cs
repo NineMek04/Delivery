@@ -26,6 +26,7 @@ public abstract class CrudControllerBase<TEntity, TDto> : DeliveryControllerBase
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public virtual async Task<ActionResult<PaginatedResult<TDto>>> GetAll(
+        [FromQuery] string? search = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)

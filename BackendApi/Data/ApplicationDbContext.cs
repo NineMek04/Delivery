@@ -125,7 +125,19 @@ namespace BackendApi.Data
                 .HasIndex(o => o.AssignedRiderId)
                 .HasDatabaseName("IX_Orders_AssignedRiderId");
 
-            // Apply Global Query Filter for Soft Delete
+            // --- Universal Tracking & Reference Numbers (RefNumber) ---
+            modelBuilder.Entity<Order>().Property(o => o.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<Order>().HasIndex(o => o.RefNumber).IsUnique().HasDatabaseName("IX_Orders_RefNumber");
+
+            modelBuilder.Entity<Rider>().Property(r => r.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<Rider>().HasIndex(r => r.RefNumber).IsUnique().HasDatabaseName("IX_Riders_RefNumber");
+
+            modelBuilder.Entity<Shop>().Property(s => s.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<Shop>().HasIndex(s => s.RefNumber).IsUnique().HasDatabaseName("IX_Shops_RefNumber");
+
+            modelBuilder.Entity<User>().Property(u => u.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<User>().HasIndex(u => u.RefNumber).IsUnique().HasDatabaseName("IX_Users_RefNumber");
+
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 if (InheritsFromGenericBase(entityType.ClrType, typeof(BaseEntity<>)) &&

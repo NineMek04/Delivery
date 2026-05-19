@@ -1,6 +1,12 @@
 using BackendApi.Core;
+using BackendApi.Core.Constants;
+using BackendApi.Core.Models;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Services.Tracking;
+using Mapster;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Controllers.MasterData;
 
@@ -9,10 +15,73 @@ namespace BackendApi.Controllers.MasterData;
 /// </summary>
 public class RidersController : CrudControllerBase<Rider, RiderDto>
 {
-    // CRUD ทั้งหมดสืบทอดมาจาก CrudControllerBase:
-    //   GET    /api/v1/riders         → GetAll (แบ่งหน้า)
-    //   GET    /api/v1/riders/{id}    → GetById
-    //   POST   /api/v1/riders         → Create
-    //   PUT    /api/v1/riders/{id}    → Update
-    //   DELETE /api/v1/riders/{id}    → Delete
+    private readonly ITrackingSearchService _searchService;
+
+    public RidersController(ITrackingSearchService searchService)
+    {
+        _searchService = searchService;
+    }
+
+    /// <summary>
+    /// ดึงข้อมูลทั้งหมด (แบบแบ่งหน้า และรองรับการค้นหา)
+    /// </summary>
+    [HttpGet]
+    public override async Task<ActionResult<PaginatedResult<RiderDto>>> GetAll(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var query = DB.GetQuery<Rider>(asNoTracking: true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var parsedRef = _searchService.ParseSearchQuery(search, TrackingPrefixes.Rider);
+            if (parsedRef.HasValue)
+            {
+                // 1. ถ้าระบุรหัสเป๊ะ ยิงตรงเข้าระบบ Index ทันที (เร็วที่สุด)
+                query = query.Where(r => r.RefNumber == parsedRef.Value);
+            }
+            else
+            {
+                // 2. Fallback: ค้นหาด้วยชื่อไรเดอร์ (Case-insensitive)
+                var term = search.Trim().ToLower();
+                query = query.Where(r => r.Name.ToLower().Contains(term));
+            }
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        
+        var riders = await query
+            .OrderBy(r => r.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new PaginatedResult<RiderDto>
+        {
+            Items = riders.Adapt<List<RiderDto>>(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
+    }
+
+    /// <summary>
+    /// ดึงข้อมูลไรเดอร์เดี่ยว (รองรับทั้ง UUID และ Tracking Code)
+    /// </summary>
+    [HttpGet("{id}")]
+    public override async Task<ActionResult<RiderDto>> GetById(string id, CancellationToken cancellationToken = default)
+    {
+        var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Rider);
+        if (parsedRef.HasValue)
+        {
+            var entity = await DB.GetQuery<Rider>().FirstOrDefaultAsync(r => r.RefNumber == parsedRef.Value, cancellationToken);
+            if (entity is null)
+                return NotFound(ApiResponse.Fail("ไม่พบข้อมูลไรเดอร์", code: "NOT_FOUND"));
+            return Ok(entity.Adapt<RiderDto>());
+        }
+
+        return await base.GetById(id, cancellationToken);
+    }
 }

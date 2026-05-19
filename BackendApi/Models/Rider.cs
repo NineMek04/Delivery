@@ -1,13 +1,19 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using BackendApi.Core.Constants;
+using BackendApi.Core.Helpers;
 using BackendApi.Core.Models;
 using BackendApi.Core.StateMachines;
 using NetTopologySuite.Geometries;
 
 namespace BackendApi.Models
 {
-    public class Rider : BaseSoftDeleteEntity<string>
+    public class Rider : BaseSoftDeleteEntity<string>, ITrackableEntity
     {
+        public long RefNumber { get; init; }
+
+        [NotMapped]
+        public string TrackingCode => TrackingCodeFormatter.Format(TrackingPrefixes.Rider, RefNumber);
         [Required]
         public string Name { get; set; } = string.Empty;
 

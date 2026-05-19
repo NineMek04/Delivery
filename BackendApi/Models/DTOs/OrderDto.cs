@@ -6,6 +6,7 @@ namespace BackendApi.Models.DTOs;
 public class OrderDto
 {
     public string Id { get; set; } = string.Empty;
+    public string TrackingCode { get; set; } = string.Empty;
     public string Status { get; set; } = "PENDING";
     public double? PickupLat { get; set; }
     public double? PickupLng { get; set; }

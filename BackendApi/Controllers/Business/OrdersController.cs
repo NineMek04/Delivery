@@ -35,7 +35,7 @@ public class OrdersController : DeliveryControllerBase
         StateMachineService stateMachine,
         IServiceScopeFactory scopeFactory,
         ITrackingSearchService searchService,
-        OsrmRoutingService routingService)
+        OsrmRoutingService routingService,
         IHubContext<TrackingHub> hubContext)
     {
         _mapper = mapper;

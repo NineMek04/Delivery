@@ -1,6 +1,7 @@
 using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
+using BackendApi.Hubs;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
@@ -10,6 +11,7 @@ using BackendApi.Services.Tracking;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 
@@ -26,6 +28,7 @@ public class OrdersController : DeliveryControllerBase
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ITrackingSearchService _searchService;
     private readonly OsrmRoutingService _routingService;
+    private readonly IHubContext<TrackingHub> _hubContext;
 
     public OrdersController(
         IMapper mapper,
@@ -33,19 +36,21 @@ public class OrdersController : DeliveryControllerBase
         IServiceScopeFactory scopeFactory,
         ITrackingSearchService searchService,
         OsrmRoutingService routingService)
+        IHubContext<TrackingHub> hubContext)
     {
         _mapper = mapper;
         _stateMachine = stateMachine;
         _scopeFactory = scopeFactory;
         _searchService = searchService;
         _routingService = routingService;
+        _hubContext = hubContext;
     }
 
     /// <summary>
     /// สร้างออเดอร์ใหม่ และสั่งให้ AI เริ่มหา Rider อัตโนมัติ (Dispatch)
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = AuthConstants.OperationsPolicy)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<OrderDto>>> CreateOrder(
         [FromBody] CreateOrderDto dto,
         CancellationToken cancellationToken)
@@ -96,6 +101,10 @@ public class OrdersController : DeliveryControllerBase
         await DB.CommitChangesAsync(cancellationToken);
 
         var responseDto = _mapper.Map<OrderDto>(savedOrder);
+
+        // Broadcast to store partners group via SignalR
+        await _hubContext.Clients.Group("stores").SendAsync(
+            "OrderCreated", responseDto, cancellationToken);
 
         // รัน Dispatch แบบ Background Task เพื่อไม่ให้รอ API ค้าง
         _ = Task.Run(async () =>
@@ -278,6 +287,45 @@ public class OrdersController : DeliveryControllerBase
 
         var resultDto = _mapper.Map<OrderDto>(order);
         return Ok(ApiResponse<OrderDto>.Ok(resultDto, "สถานะออเดอร์อัปเดตเรียบร้อยแล้ว"));
+    }
+
+    /// <summary>
+    /// ร้านค้าพันธมิตรยอมรับออเดอร์จากลูกค้า
+    /// </summary>
+    [HttpPost("{id}/accept-by-store")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<OrderDto>>> AcceptOrderByStore(
+        string id,
+        [FromQuery] string? customerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+        if (order is null)
+            return NotFound(ApiResponse<OrderDto>.Fail("Order not found."));
+
+        if (order.State != Core.StateMachines.OrderState.CREATED)
+        {
+            return BadRequest(ApiResponse<OrderDto>.Fail(
+                $"ไม่สามารถยอมรับออเดอร์ในสถานะ {order.State} ได้ (ต้องอยู่ในสถานะ CREATED)"));
+        }
+
+        // Update to MATCHING state (store accepted, now looking for rider)
+        var success = await _stateMachine.TransitionOrderAsync(order, Core.StateMachines.OrderState.MATCHING);
+        if (!success)
+            return BadRequest(ApiResponse<OrderDto>.Fail("ไม่สามารถเปลี่ยนสถานะออเดอร์ได้"));
+
+        var resultDto = _mapper.Map<OrderDto>(order);
+
+        // Notify the customer via SignalR
+        if (!string.IsNullOrEmpty(customerId))
+        {
+            await _hubContext.Clients.Group($"customer:{customerId}").SendAsync(
+                "OrderAcceptedByStore",
+                new { orderId = order.Id, status = order.State.ToString() },
+                cancellationToken);
+        }
+
+        return Ok(ApiResponse<OrderDto>.Ok(resultDto, "ร้านค้ายอมรับออเดอร์สำเร็จ"));
     }
 
     /// <summary>

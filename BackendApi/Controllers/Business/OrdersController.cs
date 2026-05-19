@@ -26,8 +26,8 @@ public class OrdersController : DeliveryControllerBase
     private readonly ITrackingSearchService _searchService;
 
     public OrdersController(
-        IMapper mapper, 
-        StateMachineService stateMachine, 
+        IMapper mapper,
+        StateMachineService stateMachine,
         IServiceScopeFactory scopeFactory,
         ITrackingSearchService searchService)
     {
@@ -122,9 +122,9 @@ public class OrdersController : DeliveryControllerBase
                 }
             }
         }
-        
+
         var total = await query.CountAsync(cancellationToken);
-        
+
         var orders = await query
             .OrderByDescending(o => o.CreatedAt)
             .Skip((page - 1) * pageSize)
@@ -150,7 +150,7 @@ public class OrdersController : DeliveryControllerBase
     [HttpGet("{id}")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<OrderDto>>> GetOrderById(
-        string id, 
+        string id,
         CancellationToken cancellationToken)
     {
         Order? order = null;
@@ -255,7 +255,7 @@ public class OrdersController : DeliveryControllerBase
     [HttpPost("{id}/cancel")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<OrderDto>>> CancelOrder(
-        string id, 
+        string id,
         CancellationToken cancellationToken)
     {
         var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
@@ -285,7 +285,7 @@ public class OrdersController : DeliveryControllerBase
     [HttpPost("{id}/dispatch")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse>> RetryDispatch(
-        string id, 
+        string id,
         CancellationToken cancellationToken)
     {
         var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
@@ -296,7 +296,7 @@ public class OrdersController : DeliveryControllerBase
         {
             return BadRequest(ApiResponse.Fail($"ไม่สามารถสั่ง Dispatch ซ้ำในสถานะ {order.State} ได้"));
         }
-        
+
         // ถ้ายกเลิกไปแล้ว หรือเสร็จไปแล้ว เราจะไม่ Dispatch
 
         // ให้เปลี่ยนสถานะกลับไป CREATED ก่อน เพื่อให้ StartDispatchAsync ทำงานได้

@@ -14,7 +14,9 @@ public sealed class AuthService : IAuthService
     [
         AuthConstants.AdminRole,
         AuthConstants.DispatcherRole,
-        AuthConstants.RiderRole
+        AuthConstants.RiderRole,
+        AuthConstants.CustomerRole,
+        AuthConstants.StorePartnerRole
     ];
 
     private readonly ApplicationDbContext _dbContext;

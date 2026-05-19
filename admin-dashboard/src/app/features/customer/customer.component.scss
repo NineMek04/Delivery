@@ -1,0 +1,128 @@
+.customer-portal-theme {
+  background: radial-gradient(circle at 50% 0%, hsl(160, 40%, 12%) 0%, hsl(220, 30%, 6%) 100%);
+  font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+/* Glassmorphism layouts */
+.glass-navbar {
+  background: rgba(13, 20, 18, 0.7);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Hero card design */
+.hero-banner-card {
+  background: radial-gradient(circle at 100% 50%, hsl(160, 45%, 15%) 0%, hsl(220, 25%, 8%) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.03);
+}
+
+/* Active Order Tracking */
+.tracking-panel-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(6, 78, 59, 0.15) 100%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(16, 185, 129, 0.05);
+}
+
+/* Overlays */
+.modal-overlay,
+.cart-drawer-overlay {
+  background: rgba(3, 7, 18, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  background: hsl(220, 25%, 9%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: modalScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Cart side-out drawer panel */
+.drawer-panel {
+  background: hsl(220, 25%, 9%);
+}
+
+/* Custom pills */
+.action-pill,
+.cart-pill,
+.user-pill {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cart-badge {
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+/* Input styles focus */
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+/* Spinner */
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  border-top-color: #ffffff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.3);
+}
+
+/* Choice row item */
+.choice-row {
+  transition: all 0.2s ease-in-out;
+}
+.choice-row:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.05);
+}
+
+/* Menu and shop cards */
+.shop-card,
+.menu-item-card {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}

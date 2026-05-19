@@ -10,7 +10,7 @@ import { req } from '../http/delivery-http-request';
 export type DashboardRole = 'Admin' | 'Dispatcher';
 
 /** Role ทั้งหมดในระบบ */
-export type AppRole = DashboardRole | 'Rider' | 'Customer';
+export type AppRole = DashboardRole | 'Rider' | 'Customer' | 'StorePartner';
 
 /** Interface สำหรับ decoded JWT token claims */
 interface JwtClaims {

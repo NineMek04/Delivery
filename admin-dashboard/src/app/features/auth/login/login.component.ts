@@ -38,16 +38,22 @@ export class LoginComponent {
     this.loading = true;
     this.authService.login(this.loginForm.value).subscribe({
       next: () => {
-        // ตรวจสอบสิทธิ์ Role ก่อน Navigate
-        if (!this.authService.canAccessDashboard()) {
+        const role = this.authService.getUserRole() || '';
+        const roleLower = role.toLowerCase();
+
+        let defaultUrl = '/dashboard';
+        if (roleLower === 'customer') {
+          defaultUrl = '/customer';
+        } else if (roleLower === 'storepartner') {
+          defaultUrl = '/store-partner';
+        } else if (roleLower === 'rider') {
           this.loading = false;
-          const role = this.authService.getUserRole() || 'Unknown';
           Swal.fire({
             icon: 'error',
             title: 'ไม่มีสิทธิ์เข้าถึง',
             html: `
-              <p>บัญชีนี้มีบทบาท <strong>${role}</strong></p>
-              <p style="color: #f87171;">Admin Dashboard สงวนสิทธิ์เฉพาะ Admin และ Dispatcher เท่านั้น</p>
+              <p>บัญชีนี้มีบทบาท <strong>ไรเดอร์ (Rider)</strong></p>
+              <p style="color: #f87171;">กรุณาเข้าสู่ระบบผ่านแอปพลิเคชันมือถือ (Rider App)</p>
             `,
             confirmButtonText: 'รับทราบ',
             confirmButtonColor: '#d33'
@@ -58,7 +64,7 @@ export class LoginComponent {
         }
 
         // ดึง returnUrl ที่ Guard ส่งมา (ถ้ามี) → redirect กลับไปหน้าที่ต้องการเข้าถึง
-        const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/dashboard';
+        const returnUrl = this.route.snapshot.queryParams['returnUrl'] || defaultUrl;
 
         // แสดง Toast ยินดีต้อนรับ
         const userData = this.authService.getUserData();

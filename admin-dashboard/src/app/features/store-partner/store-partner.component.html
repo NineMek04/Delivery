@@ -1,0 +1,443 @@
+<div class="store-portal-theme min-h-screen text-slate-100 flex flex-col pb-12">
+
+  <!-- ── Top Glass Navigation Bar ── -->
+  <header class="glass-navbar sticky top-0 z-40 backdrop-blur-md border-b border-white/10 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="logo-orb flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-500 shadow-lg shadow-cyan-500/30">
+        <lucide-angular [img]="icons.Warehouse" class="w-5 h-5 text-white"></lucide-angular>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-300">
+          SMART STORE
+        </h1>
+        <p class="text-xs text-slate-400 font-medium">Partner Dashboard</p>
+      </div>
+    </div>
+
+    <!-- Represented Shop Selector & Profile Actions -->
+    <div class="flex items-center gap-4">
+      <!-- Active Represented Business selector -->
+      <div *ngIf="myShops.length > 0" class="flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-full px-4 py-1.5">
+        <lucide-angular [img]="icons.Utensils" class="w-4 h-4 text-cyan-400"></lucide-angular>
+        <select 
+          [ngModel]="selectedShop" 
+          (ngModelChange)="selectShop($event)"
+          class="bg-transparent text-xs text-slate-200 border-none font-bold outline-none focus:ring-0 cursor-pointer">
+          <option *ngFor="let s of myShops" [ngValue]="s">{{ s.name }}</option>
+        </select>
+      </div>
+
+      <button 
+        *ngIf="currentUser?.Role === 'Admin' || currentUser?.Role === 'Dispatcher' || currentUser?.role === 'Admin' || currentUser?.role === 'Dispatcher'" 
+        (click)="navigateToDashboard()"
+        class="action-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-all duration-300">
+        <lucide-angular [img]="icons.Compass" class="w-3.5 h-3.5"></lucide-angular>
+        Admin Console
+      </button>
+
+      <!-- User Profile -->
+      <div class="user-pill flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-full pl-3.5 pr-2 py-1">
+        <div class="flex flex-col items-end">
+          <span class="text-xs font-bold text-slate-200">{{ currentUser?.FullName || currentUser?.fullName || 'Partner' }}</span>
+          <span class="text-[9px] uppercase tracking-widest text-cyan-400 font-black">Store Partner</span>
+        </div>
+        <button 
+          (click)="logout()" 
+          class="flex items-center justify-center w-7 h-7 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 transition-all duration-300"
+          title="Sign Out">
+          <lucide-angular [img]="icons.X" class="w-3.5 h-3.5"></lucide-angular>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Main Dashboard Cockpit Container ── -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-6 py-8">
+
+    <!-- Active representada header summary -->
+    <div *ngIf="selectedShop" class="represented-hero-card p-6 md:p-8 rounded-3xl border border-white/10 bg-white/5 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div class="flex items-center gap-4">
+        <div class="shop-avatar w-14 h-14 rounded-2xl overflow-hidden bg-slate-800 border border-white/10 flex-shrink-0">
+          <img 
+            [src]="selectedShop.name.includes('Burger') ? 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80' : 
+                  (selectedShop.name.includes('Sushi') ? 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop&q=80' : 
+                  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80')" 
+            alt="represented avatar" 
+            class="w-full h-full object-cover" />
+        </div>
+        <div>
+          <span class="text-[9px] uppercase tracking-widest text-cyan-400 font-black">Active Represented Outlet</span>
+          <h2 class="text-xl md:text-2xl font-black text-white mt-0.5">{{ selectedShop.name }}</h2>
+          <p class="text-xs text-slate-400 mt-0.5">พิกัด GIS โลเคชั่น: {{ selectedShop.lat }}, {{ selectedShop.lng }}</p>
+        </div>
+      </div>
+
+      <!-- Action Tab Pills -->
+      <div class="flex bg-white/5 p-1 rounded-full border border-white/5">
+        <button 
+          (click)="activeTab = 'menus'"
+          [ngClass]="activeTab === 'menus' ? 'bg-cyan-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-5 py-2 rounded-full text-xs font-semibold flex items-center gap-2 transition duration-300">
+          <lucide-angular [img]="icons.Utensils" class="w-3.5 h-3.5"></lucide-angular>
+          เมนูอาหาร ({{ menus.length }})
+        </button>
+        <button 
+          (click)="activeTab = 'orders'"
+          [ngClass]="activeTab === 'orders' ? 'bg-cyan-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-5 py-2 rounded-full text-xs font-semibold flex items-center gap-2 relative transition duration-300">
+          <lucide-angular [img]="icons.BellRing" class="w-3.5 h-3.5"></lucide-angular>
+          ออเดอร์ใหม่ ({{ incomingOrders.length }})
+          <span 
+            *ngIf="incomingOrders.length > 0"
+            class="absolute top-1.5 -right-1 flex h-4 min-w-4 px-1 items-center justify-center text-[9px] font-black bg-red-500 rounded-full text-white animate-pulse">
+            {{ incomingOrders.length }}
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── TAB 1: Menu Management & Options Builder CRUD ── -->
+    <div *ngIf="activeTab === 'menus'" class="menu-management-tab">
+      <div class="flex items-center justify-between gap-4 mb-6">
+        <div>
+          <h3 class="text-lg font-black text-slate-100 flex items-center gap-2">
+            <lucide-angular [img]="icons.Utensils" class="w-5 h-5 text-cyan-400"></lucide-angular>
+            จัดการรายการอาหาร & โครงสร้างตัวเลือก (Options Builder)
+          </h3>
+          <p class="text-xs text-slate-400">สร้างและแก้ไขรายการอาหารพร้อมสร้างตัวเลือกเสริมได้สูงสุดแบบไดนามิก</p>
+        </div>
+        <button 
+          (click)="openAddMenu()"
+          class="flex items-center gap-1.5 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-white rounded-full text-xs font-black shadow-lg shadow-cyan-500/20 transition-all duration-300">
+          <lucide-angular [img]="icons.Plus" class="w-4 h-4"></lucide-angular>
+          เพิ่มเมนูใหม่
+        </button>
+      </div>
+
+      <!-- Menus Grid -->
+      <div *ngIf="menus.length === 0" class="flex flex-col items-center justify-center py-20 text-center bg-white/5 border border-white/5 rounded-3xl">
+        <lucide-angular [img]="icons.Utensils" class="w-12 h-12 text-slate-700 mb-3"></lucide-angular>
+        <span class="text-slate-300 font-bold text-sm">ยังไม่มีรายการเมนูอาหาร</span>
+        <p class="text-xs text-slate-500 mt-1">กรุณากดปุ่ม "เพิ่มเมนูใหม่" เพื่อเพิ่มจานเด่นของร้านค้า</p>
+      </div>
+
+      <div *ngIf="menus.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div 
+          *ngFor="let item of menus" 
+          class="menu-item-row glass-panel flex flex-col md:flex-row gap-5 p-5 rounded-2xl border border-white/10 bg-white/5 overflow-hidden hover:border-cyan-500/30 transition-all duration-300">
+          
+          <div class="w-full md:w-32 h-32 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0">
+            <img [src]="item.imageUrl" alt="Dish photo" class="w-full h-full object-cover" />
+          </div>
+
+          <div class="flex-grow flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start gap-4">
+                <h5 class="text-base font-bold text-slate-100">{{ item.name }}</h5>
+                <!-- CRUD actions -->
+                <div class="flex gap-1.5 flex-shrink-0">
+                  <button 
+                    (click)="openEditMenu(item)" 
+                    class="w-7 h-7 rounded-full flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 transition"
+                    title="Edit Menu">
+                    <lucide-angular [img]="icons.Edit3" class="w-3.5 h-3.5"></lucide-angular>
+                  </button>
+                  <button 
+                    (click)="deleteMenuItem(item.id)" 
+                    class="w-7 h-7 rounded-full flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition"
+                    title="Delete Menu">
+                    <lucide-angular [img]="icons.Trash2" class="w-3.5 h-3.5"></lucide-angular>
+                  </button>
+                </div>
+              </div>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">{{ item.description }}</p>
+
+              <!-- Option Preview tags -->
+              <div *ngIf="item.options && item.options.length > 0" class="flex flex-wrap gap-1.5 mt-3">
+                <span 
+                  *ngFor="let opt of item.options" 
+                  class="flex items-center gap-1 text-[9px] font-bold bg-white/5 border border-white/5 text-cyan-400 px-2 py-0.5 rounded-full">
+                  <lucide-angular [img]="icons.Tag" class="w-2.5 h-2.5"></lucide-angular>
+                  {{ opt.name }} ({{ opt.items.length }})
+                </span>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center mt-4">
+              <span class="text-lg font-black text-cyan-400">฿{{ item.price }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB 2: Incoming Orders Queue (SignalR Realtime) ── -->
+    <div *ngIf="activeTab === 'orders'" class="incoming-orders-tab">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h3 class="text-lg font-black text-slate-100 flex items-center gap-2">
+            <lucide-angular [img]="icons.BellRing" class="w-5 h-5 text-cyan-400"></lucide-angular>
+            คิวคำสั่งซื้อที่เข้ามาในแบบเรียลไทม์ (Live Order Queue)
+          </h3>
+          <p class="text-xs text-slate-400">รับคำสั่งซื้อจากลูกค้าทันทีด้วย SignalR WebSockets และดำเนินการยอมรับออเดอร์</p>
+        </div>
+      </div>
+
+      <div *ngIf="incomingOrders.length === 0" class="flex flex-col items-center justify-center py-20 text-center bg-white/5 border border-white/5 rounded-3xl">
+        <div class="flex items-center justify-center w-16 h-16 rounded-full bg-white/5 mb-4 animate-pulse">
+          <lucide-angular [img]="icons.BellRing" class="w-7 h-7 text-slate-600"></lucide-angular>
+        </div>
+        <span class="text-slate-300 font-bold text-sm">ยังไม่มีคำสั่งซื้อที่เข้ามา</span>
+        <p class="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+          ระบบพร้อมรับคำสั่งซื้อแบบเรียลไทม์เรียบร้อย เมื่อมีลูกค้าสร้างคำสั่งซื้อ ระบบจะส่งสัญญาณพุชเข้ามาที่หน้านี้พร้อมเสียงแจ้งเตือนอัตโนมัติ!
+        </p>
+      </div>
+
+      <div *ngIf="incomingOrders.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div 
+          *ngFor="let order of incomingOrders" 
+          [ngClass]="order.state === 'CREATED' ? 'border-cyan-500/40 bg-cyan-950/5' : 'border-white/10 bg-white/5'"
+          class="order-card p-5 rounded-2xl border flex flex-col justify-between gap-5 transition-all duration-300">
+          
+          <div>
+            <div class="flex justify-between items-start mb-3">
+              <div>
+                <span 
+                  [ngClass]="order.state === 'CREATED' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-400'"
+                  class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                  {{ order.state === 'CREATED' ? 'ลูกค้าเพิ่งสร้างออเดอร์' : 'ยอมรับโดยร้านค้าแล้ว' }}
+                </span>
+                <h5 class="text-sm font-black text-slate-100 mt-1.5 flex items-center gap-1.5">
+                  คำสั่งซื้อ #{{ order.id.slice(0, 8) }}
+                  <span *ngIf="order.state === 'CREATED'" class="animate-ping w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                </h5>
+              </div>
+              <span class="text-[10px] text-slate-500 font-mono font-medium">
+                {{ order.createdAt | date:'shortTime' }}
+              </span>
+            </div>
+
+            <!-- Order GIS Specifications -->
+            <div class="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-medium text-slate-300">
+              <div class="flex flex-col">
+                <span class="text-slate-500 font-bold uppercase text-[9px] mb-0.5">Pickup GIS</span>
+                <span class="font-mono">{{ order.pickupLat | number:'1.4-4' }}, {{ order.pickupLng | number:'1.4-4' }}</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-slate-500 font-bold uppercase text-[9px] mb-0.5">Dropoff GIS</span>
+                <span class="font-mono">{{ order.dropoffLat | number:'1.4-4' }}, {{ order.dropoffLng | number:'1.4-4' }}</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-slate-500 font-bold uppercase text-[9px] mb-0.5">Distance</span>
+                <span>{{ order.distanceKm }} km</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-slate-500 font-bold uppercase text-[9px] mb-0.5">Customer</span>
+                <span class="truncate">{{ order.customerName }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Proceed action -->
+          <div class="flex items-center justify-between border-t border-white/5 pt-4">
+            <span class="text-base font-black text-cyan-400">฿{{ order.deliveryFee }}</span>
+            <button 
+              *ngIf="order.state === 'CREATED'"
+              (click)="acceptIncomingOrder(order)"
+              [disabled]="loading"
+              class="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white rounded-full text-xs font-black shadow-lg shadow-emerald-500/20 transition-all duration-300 flex items-center gap-1.5">
+              <lucide-angular [img]="icons.Check" class="w-4 h-4"></lucide-angular>
+              กดยอมรับออเดอร์ (Accept)
+            </button>
+            <span 
+              *ngIf="order.state !== 'CREATED'"
+              class="text-xs font-bold text-emerald-400 flex items-center gap-1">
+              <lucide-angular [img]="icons.Check" class="w-4 h-4"></lucide-angular>
+              ยอมรับแล้ว กำลังหาไรเดอร์ AI...
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── 3. Add/Edit Menu Item Modal (Options Builder Panel) ── -->
+  <div *ngIf="showMenuModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="modal-card w-full max-w-3xl bg-slate-900 border border-white/10 rounded-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
+      <div class="p-6 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <lucide-angular [img]="icons.Utensils" class="w-5 h-5 text-cyan-400"></lucide-angular>
+          {{ menuForm.value.id ? 'แก้ไขข้อมูลเมนูอาหาร' : 'สร้างรายการเมนูใหม่' }}
+        </h3>
+        <button (click)="closeMenuModal()" class="text-slate-400 hover:text-slate-200">
+          <lucide-angular [img]="icons.X" class="w-5 h-5"></lucide-angular>
+        </button>
+      </div>
+
+      <!-- Form Body scrollable -->
+      <form [formGroup]="menuForm" (ngSubmit)="saveMenuItem()" class="flex-grow overflow-y-auto p-6 flex flex-col gap-5">
+        
+        <!-- Standard fields grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="name" class="text-[10px] uppercase font-bold text-slate-400">ชื่อเมนูอาหาร</label>
+            <input 
+              id="name" 
+              type="text" 
+              formControlName="name" 
+              placeholder="ตัวอย่าง: Signature Double Cheeseburger" 
+              class="bg-white/5 border border-white/5 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all duration-300" />
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="price" class="text-[10px] uppercase font-bold text-slate-400">ราคาขายเริ่มต้น (฿)</label>
+            <input 
+              id="price" 
+              type="number" 
+              formControlName="price" 
+              placeholder="ตัวอย่าง: 250" 
+              class="bg-white/5 border border-white/5 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all duration-300" />
+          </div>
+
+          <div class="flex flex-col gap-1.5 md:col-span-2">
+            <label for="imageUrl" class="text-[10px] uppercase font-bold text-slate-400">ลิงก์ภาพประกอบอาหาร (Image URL)</label>
+            <input 
+              id="imageUrl" 
+              type="text" 
+              formControlName="imageUrl" 
+              placeholder="https://images.unsplash.com/..." 
+              class="bg-white/5 border border-white/5 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all duration-300" />
+          </div>
+
+          <div class="flex flex-col gap-1.5 md:col-span-2">
+            <label for="description" class="text-[10px] uppercase font-bold text-slate-400">รายละเอียดคำอธิบายเมนู</label>
+            <textarea 
+              id="description" 
+              formControlName="description" 
+              placeholder="ตัวอย่าง: เนื้อแองกัสบดหยาบย่างไฟกำลังดี ชีสเชดด้าคู่ เบคอนกรอบ และซอสโฮมเมดสูตรพิเศษเสิร์ฟพร้อมขนมปังบริยอช..." 
+              class="bg-white/5 border border-white/5 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 h-20 resize-none transition-all duration-300"></textarea>
+          </div>
+        </div>
+
+        <!-- 🛠️ Dynamic Options Builder 🛠️ -->
+        <div class="options-builder-section border-t border-white/5 pt-5">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h5 class="text-xs font-black uppercase text-slate-300 tracking-wider">
+                ตัวสร้างโครงสร้างตัวเลือก (Add-on Options Builder)
+              </h5>
+              <p class="text-[10px] text-slate-500">สร้างกลุ่มตัวเลือกไดนามิกให้ลูกค้าสามารถเลือกติ๊กได้ (เช่น ขนาดเครื่องดื่ม, ความสุก, ท็อปปิ้งเสริม)</p>
+            </div>
+            <button 
+              type="button" 
+              (click)="addOptionGroup()"
+              class="flex items-center gap-1.5 px-3.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-full text-[10px] font-black transition-all">
+              <lucide-angular [img]="icons.Plus" class="w-3 h-3"></lucide-angular>
+              เพิ่มกลุ่มตัวเลือกใหม่
+            </button>
+          </div>
+
+          <!-- Group lists -->
+          <div class="flex flex-col gap-6" formArrayName="options">
+            <div 
+              *ngFor="let group of optionsArray.controls; let gIndex = index" 
+              [formGroupName]="gIndex"
+              class="group-builder-card p-5 rounded-2xl border border-white/5 bg-white/5 flex flex-col gap-4">
+              
+              <!-- Group settings header -->
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
+                <div class="sm:col-span-2 flex flex-col gap-1.5">
+                  <label class="text-[9px] uppercase font-bold text-slate-400">ชื่อกลุ่มตัวเลือก (เช่น ท็อปปิ้งเพิ่มเติม)</label>
+                  <input 
+                    type="text" 
+                    formControlName="name" 
+                    placeholder="ระบุชื่อกลุ่มตัวเลือก..." 
+                    class="bg-white/5 border border-white/5 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all" />
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-[9px] uppercase font-bold text-slate-400">เลือกสูงสุด (ชิ้น)</label>
+                  <input 
+                    type="number" 
+                    formControlName="maxSelections" 
+                    class="bg-white/5 border border-white/5 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all" />
+                </div>
+
+                <!-- Delete group action -->
+                <div class="flex justify-between items-center sm:justify-end gap-3 mt-4 sm:mt-0 pt-2 sm:pt-0">
+                  <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-300">
+                    <input type="checkbox" formControlName="required" class="accent-cyan-500 rounded bg-slate-800" />
+                    จำเป็นต้องเลือก
+                  </label>
+                  <button 
+                    type="button" 
+                    (click)="removeOptionGroup(gIndex)"
+                    class="w-7 h-7 rounded-full flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition"
+                    title="ลบกลุ่มตัวเลือก">
+                    <lucide-angular [img]="icons.Trash2" class="w-3.5 h-3.5"></lucide-angular>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Choice lists builder -->
+              <div class="choice-builder-list flex flex-col gap-2 pl-4 border-l border-white/10" formArrayName="items">
+                <div class="flex justify-between items-center mb-1.5">
+                  <span class="text-[9px] font-black text-slate-500 uppercase tracking-wider">รายการตัวเลือกย่อยเสริมภายในกลุ่ม</span>
+                  <button 
+                    type="button" 
+                    (click)="addChoice(gIndex)"
+                    class="flex items-center gap-1 text-[9px] font-black text-cyan-400 hover:underline">
+                    <lucide-angular [img]="icons.Plus" class="w-2.5 h-2.5"></lucide-angular>
+                    เพิ่มตัวเลือกย่อย
+                  </button>
+                </div>
+
+                <!-- Choice input row -->
+                <div 
+                  *ngFor="let choice of getGroupChoices(gIndex).controls; let cIndex = index" 
+                  [formGroupName]="cIndex"
+                  class="flex items-center gap-3">
+                  <input 
+                    type="text" 
+                    formControlName="name" 
+                    placeholder="ชื่อตัวเลือกย่อย (เช่น ไข่ดาวทอดกรอบ)" 
+                    class="flex-grow bg-white/5 border border-white/5 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all" />
+                  <input 
+                    type="number" 
+                    formControlName="price" 
+                    placeholder="+ราคา (เช่น 15)" 
+                    class="w-24 bg-white/5 border border-white/5 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all" />
+                  
+                  <button 
+                    type="button" 
+                    (click)="removeChoice(gIndex, cIndex)"
+                    class="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition">
+                    <lucide-angular [img]="icons.Minus" class="w-3 h-3"></lucide-angular>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <!-- Modal Footer -->
+      <div class="p-6 border-t border-white/5 bg-slate-900/60 flex gap-4 flex-shrink-0">
+        <button 
+          type="button" 
+          (click)="closeMenuModal()"
+          class="flex-grow py-3 rounded-full text-xs font-bold border border-white/10 hover:bg-white/5 text-slate-300 transition-all">
+          ยกเลิก
+        </button>
+        <button 
+          type="button" 
+          (click)="saveMenuItem()"
+          class="flex-grow flex items-center justify-center gap-1.5 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-white rounded-full py-3 text-xs font-black shadow-lg shadow-cyan-500/20 transition-all duration-300">
+          <lucide-angular [img]="icons.Check" class="w-4 h-4"></lucide-angular>
+          บันทึกข้อมูลเมนูอาหาร
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

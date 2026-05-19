@@ -3,8 +3,8 @@
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **Version:** 0.7.0 (Phase 3: PostGIS Spatial Performance & Enterprise Database Scale)  
-> **Last Updated:** 2026-05-18
+> **Version:** 0.8.0 (Phase 4: Universal Tracking & Sequential Reference Numbers)  
+> **Last Updated:** 2026-05-19
 
 ---
 
@@ -134,19 +134,20 @@ Delivery/
 
 ## 5. Current State of Development
 
-### สถานะรวม: 🔵 **Phase 3 — PostGIS Spatial Performance & Enterprise Database Scale** (สำเร็จ 100%)
+### สถานะรวม: 🔵 **Phase 4 — Universal Tracking & Sequential Reference Numbers** (สำเร็จ 100%)
 
 | Component            | Status            | รายละเอียด                                                    |
 |----------------------|-------------------|--------------------------------------------------------------|
 | **docker-compose**   | ✅ Created         | 5 services: db, backend, ai-service, frontend, **redis** (ปรับจูน RAM & DB Connections สำหรับ PostGIS) |
 | **PostGIS DB**       | ✅ Optimized       | GiST Indexes บนพิกัด Geometry, ตาราง Location History แบบ Range Partitioning รายเดือน, Clustering จูน Disk IO |
 | **Redis Cache**      | ✅ Running         | Used for GPS speed layer, presence, and distributed locking  |
-| **BackendApi**       | 🟢 95% Ready       | ขจัดปัญหา N+1 Query, ย้าย Haversine Math ไปหา PostGIS Engine, เพิ่มระบบ Provision Partition อัตโนมัติ |
+| **BackendApi**       | ✅ 100% Ready      | ขจัดปัญหา N+1 Query, ย้าย Haversine Math ไปหา PostGIS Engine, เพิ่มระบบ Provision Partition อัตโนมัติ |
+| **Universal Tracking**| ✅ 100% Ready      | ติดตั้งรหัสอ้างอิงสวยงาม ORD-, RID-, SHP-, USR- คิวรี O(1)/O(log N) ผนวกการค้นหาแบบผสมผสาน |
 | **ai-engine**        | 🟢 95% Ready       | FastAPI + OR-Tools VRP solver & Phase A Scorer. Waiting for Backend to call. |
-| **admin-dashboard**  | 🟡 45% Ready       | อัปเดต Map Component โฟกัสพิกัดอุดรธานี (UDN Center) รองรับ Mock Data ปลายทาง |
+| **admin-dashboard**  | 🟢 65% Ready       | อัปเดต Map Component พิกัดอุดรธานี เพิ่ม Cockpit/Portal ฝั่งผู้ซื้อและร้านค้าคู่ค้าแบบ Real-time |
 | **rider_app**        | 🟡 30% Ready       | Foundation ready. Needs real UI, build_runner, and Background GPS logic. |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
-| **Database Migration**| ✅ Applied         | Run `dotnet ef database update` สำหรับ Spatial Index และ Partitioning ล่าสุด |
+| **Database Migration**| ✅ Applied         | Run `dotnet ef database update` สำหรับ Spatial Index, Partitioning, และ RefNumber ล่าสุด |
 | **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
 | **Enterprise Audit** | ✅ Ready           | Layered Base Entities, Soft Delete, IP Tracking, Concurrency Tokens (RowVersion) |
 | **E2E Testcontainers**| ✅ 100% Passed     | รัน integration tests แบบ End-to-End บน Testcontainers PostGIS Docker จริง ผ่านฉลุย 5/5 เคส |

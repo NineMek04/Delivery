@@ -156,15 +156,19 @@ public class OrdersController : DeliveryControllerBase
         Order? order = null;
 
         var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Order);
+        Console.WriteLine($"[DEBUG] GetOrderById called with id: '{id}', parsedRef: {parsedRef}");
+
         if (parsedRef.HasValue)
         {
             // ค้นหาด้วย Tracking Code (RefNumber Index)
             order = await DB.GetQuery<Order>().FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
+            Console.WriteLine($"[DEBUG] Searched by RefNumber {parsedRef.Value}, result is null? {order == null}");
         }
         else
         {
             // ค้นหาด้วย UUID เดิม
             order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+            Console.WriteLine($"[DEBUG] Searched by UUID, result is null? {order == null}");
         }
 
         if (order is null)

@@ -479,3 +479,42 @@
 - **Solution Build:** `dotnet build` ผ่านเรียบร้อย (0 errors, 0 warnings)
 - **E2E Simulator:** รันสำเร็จครบถ้วนสมบูรณ์ ปราศจาก Error ตลอดทั้งเส้นทางขนส่งจำลองพิกัดเมืองอุดรธานี
 
+---
+
+## [Log Date: 2026-05-19] | By: AI Agent
+
+### 📱 Component: Customer & Store Partner Real-Feature Prototype (Flutter Target Specs)
+> [!IMPORTANT]
+> **เวอร์ชันทดลองตัวจริงที่จะนำไปใช้งานกับแอปพลิเคชันมือถือ Flutter (สำหรับผู้ใช้งานทั่วไป Customer App และร้านค้าคู่ค้า Store Partner App)**
+> ฟีเจอร์ แผนผังการทำงาน (Cockpits/Portals) และโครงสร้างข้อมูลเชิงรหัสที่สร้างขึ้นในรอบนี้ ถือเป็นต้นแบบสมบูรณ์และเป็นมาตรฐานข้อกำหนดขั้นต่ำ (Target Specs) ที่แอป Flutter ของทั้งสองฝั่งต้องรองรับและนำไปใช้งานต่อจริง
+
+### Component: BackendApi — Multi-Role Authentication & Dispatch Broadcast Extensions
+- **Action:** เพิ่มบทบาท `Customer` และ `StorePartner` เข้าสู่ระบบอย่างเป็นทางการ:
+  - **`AuthConstants.cs`**: เพิ่มคำจำกัดความคงที่สำหรับบทบาทใหม่ทั้งคู่
+  - **`AuthService.cs`**: ลงทะเบียนบทบาทลงใน `AllowedRoles` ทำให้จุดบริการ Register (ลงทะเบียน) และ Login (เข้าสู่ระบบ) รองรับการใช้งานและผ่านการตรวจสอบสิทธิ์
+- **Action:** ออกแบบการจัดกลุ่มเชื่อมต่อเรียลไทม์บน SignalR (`Hubs/TrackingHub.cs`):
+  - บัญชี `Customer` จะเข้าร่วมกลุ่มเฉพาะตัว `"customer:{userId}"` เพื่อดักรับสิทธิ์อัปเดตและติดตามพิกัดออเดอร์ของตนเอง
+  - บัญชี `StorePartner` จะเข้าร่วมกลุ่มส่วนกลาง `"stores"` สำหรับดักรับการกระจายสัญญาณลูกค้าสร้างออเดอร์ใหม่
+- **Action:** พัฒนาสถาปัตยกรรมออเดอร์แบบร้านค้าผ่าน `OrdersController.cs`:
+  - ปลดล็อก `POST /api/v1/orders` (สร้างออเดอร์) จากเดิมที่จำกัดเฉพาะ Dispatcher ให้รองรับผู้ใช้งานทั่วไป (`[Authorize]`) พร้อมเชื่อมต่อ SignalR ให้ยิงแจ้งเตือนแจ้งร้านค้าทั้งหมดในกลุ่ม `"stores"` เมื่อมีคำสั่งซื้อใหม่เกิดขึ้นจริงแบบทันที
+  - เพิ่มเมธอด `POST /api/v1/orders/{id}/accept-by-store` เพื่ออนุญาตให้ร้านค้ากดรับสั่งซื้อ และส่งกระจายสัญญาณการยอมรับ (`OrderAcceptedByStore`) กลับไปยังลูกค้าผู้สั่งซื้อแบบ Real-time ทันที
+
+### Component: Admin Dashboard — Customer App Simulation & Live Map Tracking
+- **Action:** พัฒนา `CustomerComponent` แผงควบคุมสเปซจำลองแอปพลิเคชันฝั่งผู้ซื้อสินค้า:
+  - **Store Explorer Layout**: หน้าจอดิจิทัลสไตล์แก้วหรูหรา (Glassmorphic Interface) แสดงลิสต์ร้านอาหารที่ลงทะเบียน ดาว คะแนน และระยะห่างจากที่อยู่จัดส่ง
+  - **Pre-configured Option Menu**: รองรับการเปิดหน้าจอตัวเลือกเมนูแบบยืดหยุ่น โดยดักประเมินตามโครงสร้าง Option Groups & Choices ที่ร้านค้าสร้างขึ้นจริง (อ่านอย่างเดียวและส่งเข้าตะกร้าสินค้า)
+  - **Dynamic Cart Sidebar**: คำนวณราคา ราคากลุ่มตัวเลือก ค่าบริการ และค่าจัดส่งอิงจากพิกัด PostGIS อัตโนมัติ พร้อมรองรับการสั่งซื้อจำลอง
+  - **E2E SignalR Timeline Tracking**: หน้าจอติดตามออเดอร์แบบเรียลไทม์ตามสถานะจริงของ State Machine พร้อมแผนที่แสดงหมุดไรเดอร์และระยะทางที่ขยับเข้าใกล้จุดหมายแบบเรียลไทม์
+
+### Component: Admin Dashboard — Store Cockpit & Interactive Options Builder
+- **Action:** พัฒนา `StorePartnerComponent` แผงควบคุมและฟีเจอร์สำหรับร้านค้าคู่ค้า:
+  - **Nested Option Group Builder**: เครื่องมือลากประกอบสร้างตัวเลือกสินค้า (เช่น ขนาด, ท็อปปิ้ง, ความหวาน) กำหนดค่าราคาเพิ่มแบบซับซ้อนได้อย่างอิสระผ่าน Dynamic Reactive Forms
+  - **Store Menu Management**: ฟังก์ชันเพิ่มและบริหารรายการอาหาร พร้อมการสลับสถานะเปิด-ปิดร้านค้า
+  - **Real-time Order Alerts**: บอร์ดรับคิวคำสั่งซื้อจากลูกค้าแบบเรียลไทม์ (SignalR Broadcast Listener) มาพร้อมระบบเสียงเตือน Audio Ding และปุ่มกดรับงานเพื่อเชื่อมประสาน State Machine กับลูกค้า
+- **Action:** สร้างบริการ `store.service.ts` จัดการข้อมูล ตะกร้าสินค้า และ seeding ข้อมูลรายการอาหารตัวอย่างระดับ Premium (Burger Shop & Sushi Haven) เพื่อสร้างความประทับใจตั้งแต่แรกเห็น
+
+### Verification
+- **Backend Build:** `dotnet build` ผ่านสมบูรณ์แบบ 100% ปราศจาก Error และเสร็จสิ้นการ Rebuild/Recreate คอนเทนเนอร์บน Docker สำเร็จลุล่วง
+- **Frontend Build:** `npx ng build --configuration=development` ตรวจสอบแล้วผ่าน 100% (0 errors, 0 warnings) บล็อกโมดูลและ Lazy Loading ของ Customer/StorePartner สมบูรณ์แบบ
+
+

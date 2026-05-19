@@ -36,7 +36,14 @@ export const guestGuard: CanActivateFn = (route, state) => {
       text: `${displayName} — คุณเข้าสู่ระบบอยู่แล้ว`
     });
 
-    router.navigate(['/dashboard']);
+    const role = authService.getUserRole();
+    if (role?.toLowerCase() === 'customer') {
+      router.navigate(['/customer']);
+    } else if (role?.toLowerCase() === 'storepartner') {
+      router.navigate(['/store-partner']);
+    } else {
+      router.navigate(['/dashboard']);
+    }
     return false;
   }
 

@@ -51,6 +51,22 @@ export const routes: Routes = [
     ]
   },
 
+  // ── Customer App ──
+  {
+    path: 'customer',
+    canActivate: [authGuard, roleGuard],
+    data: { roles: ['Customer'], title: 'Smart Customer Portal' },
+    loadComponent: () => import('./features/customer/customer.component').then(m => m.CustomerComponent)
+  },
+
+  // ── Store Partner App ──
+  {
+    path: 'store-partner',
+    canActivate: [authGuard, roleGuard],
+    data: { roles: ['StorePartner'], title: 'Store Partner Portal' },
+    loadComponent: () => import('./features/store-partner/store-partner.component').then(m => m.StorePartnerComponent)
+  },
+
   // ── Fallback → redirect ไปหน้า Login (Guard จะจัดการ Redirect ต่อเอง) ──
   { path: '**', redirectTo: 'login' }
 ];

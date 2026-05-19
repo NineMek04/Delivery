@@ -7,6 +7,7 @@ using BackendApi.Services.Dispatch;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 
@@ -21,19 +22,25 @@ public class OrdersController : DeliveryControllerBase
     private readonly IMapper _mapper;
     private readonly StateMachineService _stateMachine;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly Microsoft.AspNetCore.SignalR.IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
 
-    public OrdersController(IMapper mapper, StateMachineService stateMachine, IServiceScopeFactory scopeFactory)
+    public OrdersController(
+        IMapper mapper, 
+        StateMachineService stateMachine, 
+        IServiceScopeFactory scopeFactory,
+        Microsoft.AspNetCore.SignalR.IHubContext<BackendApi.Hubs.TrackingHub> hubContext)
     {
         _mapper = mapper;
         _stateMachine = stateMachine;
         _scopeFactory = scopeFactory;
+        _hubContext = hubContext;
     }
 
     /// <summary>
     /// สร้างออเดอร์ใหม่ และสั่งให้ AI เริ่มหา Rider อัตโนมัติ (Dispatch)
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = AuthConstants.OperationsPolicy)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<OrderDto>>> CreateOrder(
         [FromBody] CreateOrderDto dto,
         CancellationToken cancellationToken)
@@ -66,7 +73,7 @@ public class OrdersController : DeliveryControllerBase
         _ = Task.Run(async () =>
         {
             try
-            {
+             {
                 using var scope = _scopeFactory.CreateScope();
                 var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
                 await dispatchSvc.StartDispatchAsync(savedOrder.Id);
@@ -76,6 +83,9 @@ public class OrdersController : DeliveryControllerBase
                 Logger.LogError(ex, "Background dispatch failed for order {OrderId}", savedOrder.Id);
             }
         });
+
+        // Broadcast to store partners in real-time
+        await _hubContext.Clients.Group("stores").SendAsync("OrderCreated", responseDto);
 
         return Ok(ApiResponse<OrderDto>.Ok(responseDto, "Order created and dispatch process started."));
     }
@@ -274,6 +284,33 @@ public class OrdersController : DeliveryControllerBase
         });
 
         return Ok(ApiResponse.Ok("สั่ง Dispatch ใหม่เรียบร้อย ระบบกำลังค้นหาไรเดอร์ให้ใหม่..."));
+    }
+
+    /// <summary>
+    /// ร้านค้ากดยอมรับออเดอร์
+    /// </summary>
+    [HttpPost("{id}/accept-by-store")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<OrderDto>>> AcceptOrderByStore(
+        string id,
+        [FromQuery] string customerId,
+        CancellationToken cancellationToken)
+    {
+        var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+        if (order is null)
+            return NotFound(ApiResponse<OrderDto>.Fail("Order not found."));
+
+        // Broadcast to customer and admin real-time via SignalR group
+        await _hubContext.Clients.Group($"customer:{customerId}").SendAsync("OrderAcceptedByStore", new
+        {
+            orderId = order.Id,
+            status = "ACCEPTED_BY_STORE"
+        });
+
+        // Broadcast to admins too
+        await _hubContext.Clients.Group("admins").SendAsync("OrderStatusChanged", order.Id, "ACCEPTED_BY_STORE");
+
+        return Ok(ApiResponse<OrderDto>.Ok(_mapper.Map<OrderDto>(order), "Store accepted order and customer was notified."));
     }
 
     private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)

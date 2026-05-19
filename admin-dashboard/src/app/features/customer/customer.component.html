@@ -1,1 +1,644 @@
-<p>customer works!</p>
+<div class="customer-portal-theme min-h-screen text-slate-100 flex flex-col pb-12">
+  
+  <!-- ── Top Glass Navigation Bar ── -->
+  <header class="glass-navbar sticky top-0 z-40 backdrop-blur-md border-b border-white/10 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="logo-orb flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/30">
+        <lucide-angular [img]="icons.Utensils" class="w-5 h-5 text-white"></lucide-angular>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-300">
+          SMART DELIVERY
+        </h1>
+        <p class="text-xs text-slate-400 font-medium">Customer Portal</p>
+      </div>
+    </div>
+
+    <!-- Active User & Operations Actions -->
+    <div class="flex items-center gap-4">
+      <button 
+        *ngIf="currentUser?.Role === 'Admin' || currentUser?.Role === 'Dispatcher' || currentUser?.role === 'Admin' || currentUser?.role === 'Dispatcher'" 
+        (click)="navigateToDashboard()"
+        class="action-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-all duration-300">
+        <lucide-angular [img]="icons.Compass" class="w-3.5 h-3.5"></lucide-angular>
+        Admin Console
+      </button>
+
+      <!-- Cart Button with Indicator -->
+      <button 
+        (click)="toggleCart()" 
+        class="cart-pill relative flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 transition-all duration-300">
+        <lucide-angular [img]="icons.ShoppingCart" class="w-4.5 h-4.5"></lucide-angular>
+        <span class="text-sm font-bold">฿{{ cartTotal }}</span>
+        <span 
+          *ngIf="cartItems.length > 0"
+          class="cart-badge absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-5 h-5 px-1.5 text-[10px] font-black text-white bg-red-500 rounded-full animate-bounce">
+          {{ cartItems.length }}
+        </span>
+      </button>
+
+      <!-- User Profile -->
+      <div class="user-pill flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-full pl-3.5 pr-2 py-1">
+        <div class="flex flex-col items-end">
+          <span class="text-xs font-bold text-slate-200">{{ currentUser?.FullName || currentUser?.fullName || 'Customer' }}</span>
+          <span class="text-[9px] uppercase tracking-widest text-emerald-400 font-black">Customer</span>
+        </div>
+        <button 
+          (click)="logout()" 
+          class="flex items-center justify-center w-7 h-7 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 transition-all duration-300"
+          title="Sign Out">
+          <lucide-angular [img]="icons.X" class="w-3.5 h-3.5"></lucide-angular>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Main Layout Container ── -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-6 py-8">
+
+    <!-- 🌟 Active Order Real-Time Tracking Panel 🌟 -->
+    <div *ngIf="showTrackingPanel && activeOrderTracking" class="mb-8 tracking-panel-card p-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-900/90 to-emerald-950/20 backdrop-blur-lg shadow-xl shadow-emerald-500/5">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full">
+            Real-time Delivery Tracking
+          </span>
+          <h3 class="text-lg font-black text-slate-100 mt-2 flex items-center gap-2">
+            คำสั่งซื้อ #{{ activeOrderTracking.orderId.slice(0, 8) }} 
+            <span class="animate-pulse w-2 h-2 rounded-full bg-emerald-400"></span>
+          </h3>
+        </div>
+        <div class="flex gap-2">
+          <button (click)="showTrackingPanel = false" class="text-slate-400 hover:text-slate-200">
+            <lucide-angular [img]="icons.X" class="w-5 h-5"></lucide-angular>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live GPS Info -->
+      <div *ngIf="activeOrderTracking.riderLat" class="gps-data-strip grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl bg-white/5 border border-white/10 mb-6">
+        <div class="flex flex-col">
+          <span class="text-[10px] uppercase text-slate-400 tracking-wider">Rider Coordinates</span>
+          <span class="text-xs font-mono font-bold text-emerald-400">
+            {{ activeOrderTracking.riderLat | number:'1.4-4' }}, {{ activeOrderTracking.riderLng | number:'1.4-4' }}
+          </span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[10px] uppercase text-slate-400 tracking-wider">Distance Remaining</span>
+          <span class="text-xs font-bold text-emerald-400">
+            ~{{ activeOrderTracking.distanceRemainingKm || '0.8' }} km
+          </span>
+        </div>
+        <div class="flex flex-col col-span-2">
+          <span class="text-[10px] uppercase text-slate-400 tracking-wider">AI Dispatch Status</span>
+          <span class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+            <lucide-angular [img]="icons.Compass" class="w-3.5 h-3.5 animate-spin"></lucide-angular>
+            Rider Live GPS Active
+          </span>
+        </div>
+      </div>
+
+      <!-- Timeline Steps -->
+      <div class="relative flex justify-between items-center max-w-4xl mx-auto py-4">
+        <!-- Connecting Track line -->
+        <div class="absolute top-1/2 left-0 w-full h-1 bg-white/10 -translate-y-1/2 rounded z-0"></div>
+        <div 
+          class="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 -translate-y-1/2 rounded z-0 transition-all duration-1000"
+          [style.width.%]="(activeOrderTracking.timelineIndex / 6) * 100">
+        </div>
+
+        <!-- Step node elements -->
+        <div class="flex flex-col items-center z-10 relative">
+          <div 
+            class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300"
+            [ngClass]="activeOrderTracking.timelineIndex >= 0 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-white/20 text-slate-400'">
+            <span class="text-[10px] font-bold">1</span>
+          </div>
+          <span class="text-[10px] mt-2 font-bold tracking-tight" [ngClass]="activeOrderTracking.timelineIndex >= 0 ? 'text-emerald-400' : 'text-slate-400'">
+            คำสั่งซื้อส่งแล้ว
+          </span>
+        </div>
+
+        <div class="flex flex-col items-center z-10 relative">
+          <div 
+            class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300"
+            [ngClass]="activeOrderTracking.timelineIndex >= 1 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-white/20 text-slate-400'">
+            <span class="text-[10px] font-bold">2</span>
+          </div>
+          <span class="text-[10px] mt-2 font-bold tracking-tight" [ngClass]="activeOrderTracking.timelineIndex >= 1 ? 'text-emerald-400' : 'text-slate-400'">
+            ร้านค้ายอมรับ
+          </span>
+        </div>
+
+        <div class="flex flex-col items-center z-10 relative">
+          <div 
+            class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300"
+            [ngClass]="activeOrderTracking.timelineIndex >= 3 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-white/20 text-slate-400'">
+            <span class="text-[10px] font-bold">3</span>
+          </div>
+          <span class="text-[10px] mt-2 font-bold tracking-tight" [ngClass]="activeOrderTracking.timelineIndex >= 3 ? 'text-emerald-400' : 'text-slate-400'">
+            จับคู่ไรเดอร์
+          </span>
+        </div>
+
+        <div class="flex flex-col items-center z-10 relative">
+          <div 
+            class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300"
+            [ngClass]="activeOrderTracking.timelineIndex >= 4 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-white/20 text-slate-400'">
+            <span class="text-[10px] font-bold">4</span>
+          </div>
+          <span class="text-[10px] mt-2 font-bold tracking-tight" [ngClass]="activeOrderTracking.timelineIndex >= 4 ? 'text-emerald-400' : 'text-slate-400'">
+            ไรเดอร์รับอาหาร
+          </span>
+        </div>
+
+        <div class="flex flex-col items-center z-10 relative">
+          <div 
+            class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300"
+            [ngClass]="activeOrderTracking.timelineIndex >= 5 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-white/20 text-slate-400'">
+            <span class="text-[10px] font-bold">5</span>
+          </div>
+          <span class="text-[10px] mt-2 font-bold tracking-tight" [ngClass]="activeOrderTracking.timelineIndex >= 5 ? 'text-emerald-400' : 'text-slate-400'">
+            กำลังจัดส่ง
+          </span>
+        </div>
+
+        <div class="flex flex-col items-center z-10 relative">
+          <div 
+            class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300"
+            [ngClass]="activeOrderTracking.timelineIndex >= 6 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-white/20 text-slate-400'">
+            <span class="text-[10px] font-bold">6</span>
+          </div>
+          <span class="text-[10px] mt-2 font-bold tracking-tight" [ngClass]="activeOrderTracking.timelineIndex >= 6 ? 'text-emerald-400' : 'text-slate-400'">
+            ส่งมอบสำเร็จ
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 1. Store Explorer View ── -->
+    <div *ngIf="!selectedShop" class="store-explorer-view">
+      <!-- Banner Card Hero -->
+      <div class="hero-banner-card relative p-8 md:p-12 rounded-3xl overflow-hidden border border-white/10 mb-8">
+        <div class="absolute inset-0 bg-gradient-to-tr from-emerald-950/40 via-teal-950/20 to-transparent pointer-events-none"></div>
+        <div class="relative z-10 max-w-xl flex flex-col gap-3">
+          <span class="badge flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-[10px] font-bold tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 uppercase">
+            <lucide-angular [img]="icons.Compass" class="w-3.5 h-3.5 animate-spin"></lucide-angular>
+            Real-Time AI Route Optimized
+          </span>
+          <h2 class="text-3xl md:text-5xl font-black text-white leading-tight">
+            ที่สุดแห่งความอร่อย <br/>
+            <span class="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-teal-300 to-teal-400">ส่งตรงถึงมือคุณ</span>
+          </h2>
+          <p class="text-sm text-slate-300 font-medium">
+            สำรวจร้านอาหารชั้นนำรอบตัวคุณ ระบบจะคำนวณและวางเส้นทางไรเดอร์ที่ประหยัดเวลาที่สุดด้วย Google OR-Tools AI Engine
+          </p>
+        </div>
+      </div>
+
+      <!-- Filters & Search Toolbar -->
+      <div class="toolbar-section flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <h3 class="text-xl font-bold tracking-tight flex items-center gap-2">
+            <lucide-angular [img]="icons.Compass" class="w-5 h-5 text-emerald-400"></lucide-angular>
+            สำรวจร้านค้าพันธมิตร
+          </h3>
+          <p class="text-xs text-slate-400">ร้านค้าทั้งหมดมีพิกัดที่แท้จริงและยืนยันในฐานข้อมูล PostGIS</p>
+        </div>
+
+        <!-- Search Bar input -->
+        <div class="search-box relative w-full md:w-80">
+          <input 
+            type="text" 
+            [(ngModel)]="searchQuery" 
+            (input)="onSearch()"
+            placeholder="ค้นหาชื่อร้านค้า เมนูอาหาร..." 
+            class="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-10 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 transition-all duration-300" />
+          <lucide-angular [img]="icons.Search" class="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2"></lucide-angular>
+        </div>
+      </div>
+
+      <!-- Shop Grid list -->
+      <div *ngIf="loading" class="flex flex-col items-center justify-center py-20 gap-3">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-400"></div>
+        <p class="text-xs text-slate-400 font-semibold">กำลังดึงข้อมูลร้านอาหารพิเศษ...</p>
+      </div>
+
+      <div *ngIf="!loading && filteredShops.length === 0" class="flex flex-col items-center justify-center py-20 text-center bg-white/5 border border-white/5 rounded-3xl">
+        <lucide-angular [img]="icons.Utensils" class="w-12 h-12 text-slate-600 mb-3"></lucide-angular>
+        <h4 class="text-base font-bold text-slate-300">ไม่พบร้านค้าที่ตรงกับการค้นหาของคุณ</h4>
+        <p class="text-xs text-slate-500 mt-1">กรุณาลองเปลี่ยนคำค้นหาใหม่อีกครั้ง</p>
+      </div>
+
+      <div *ngIf="!loading && filteredShops.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div 
+          *ngFor="let shop of filteredShops" 
+          (click)="selectShop(shop)"
+          class="shop-card glass-panel flex flex-col h-full rounded-2xl border border-white/10 bg-white/5 overflow-hidden hover:border-emerald-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/5 cursor-pointer transition-all duration-300">
+          
+          <!-- Mock premium Shop image banner based on shop name -->
+          <div class="relative h-44 overflow-hidden bg-slate-800">
+            <img 
+              [src]="shop.name.includes('Burger') ? 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80' : 
+                    (shop.name.includes('Sushi') ? 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop&q=80' : 
+                    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80')" 
+              alt="Shop Banner" 
+              class="w-full h-full object-cover transform hover:scale-105 transition duration-700" />
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none"></div>
+            
+            <div class="absolute bottom-4 left-4 flex gap-2">
+              <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500 text-white">
+                <lucide-angular [img]="icons.Star" class="w-3 h-3 text-white fill-current"></lucide-angular>
+                4.8
+              </span>
+              <span class="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/20 text-slate-200 backdrop-blur-md">
+                <lucide-angular [img]="icons.Clock" class="w-3 h-3"></lucide-angular>
+                20-30 mins
+              </span>
+            </div>
+          </div>
+
+          <!-- Shop Details body -->
+          <div class="p-5 flex flex-col flex-grow">
+            <h4 class="text-base font-bold text-slate-100 mb-1.5 hover:text-emerald-400 transition">
+              {{ shop.name }}
+            </h4>
+            <p class="text-xs text-slate-400 mb-4 flex-grow line-clamp-2">
+              ร้านอาหารพิกัด PostGIS พิเศษ เสิร์ฟเมนูอร่อยเด็ดประจำถิ่น เช่น {{ shop.menuName || 'เมนูแนะนำสุดพิเศษ' }} ในราคาสุดพิเศษ เริ่มต้นเพียง ฿{{ shop.menuPrice }}
+            </p>
+
+            <div class="border-t border-white/5 pt-3.5 mt-auto flex items-center justify-between text-[11px] text-slate-400 font-medium">
+              <span class="flex items-center gap-1">
+                <lucide-angular [img]="icons.MapPin" class="w-3.5 h-3.5 text-emerald-400"></lucide-angular>
+                {{ shop.lat | number:'1.2-2' }}, {{ shop.lng | number:'1.2-2' }}
+              </span>
+              <span class="text-emerald-400 font-bold hover:underline">
+                สั่งอาหารเลย &rarr;
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 2. Store Details View (Shop Menus) ── -->
+    <div *ngIf="selectedShop" class="store-details-view">
+      <!-- Back button -->
+      <button 
+        (click)="backToStores()" 
+        class="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 text-xs font-bold mb-6 transition-all duration-300">
+        <lucide-angular [img]="icons.ArrowLeft" class="w-4 h-4"></lucide-angular>
+        ย้อนกลับไปค้นหาร้านค้า
+      </button>
+
+      <!-- Shop Header card -->
+      <div class="shop-hero-card p-6 md:p-8 rounded-3xl border border-white/10 bg-white/5 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div class="flex items-center gap-5">
+          <div class="avatar-logo w-16 h-16 rounded-2xl overflow-hidden bg-slate-800 border border-white/10">
+            <img 
+              [src]="selectedShop.name.includes('Burger') ? 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80' : 
+                    (selectedShop.name.includes('Sushi') ? 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop&q=80' : 
+                    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80')" 
+              alt="Shop Logo" 
+              class="w-full h-full object-cover" />
+          </div>
+          <div>
+            <span class="text-[9px] uppercase tracking-widest text-emerald-400 font-black">Authorized Shop Partner</span>
+            <h3 class="text-2xl font-black text-white mt-1">{{ selectedShop.name }}</h3>
+            <p class="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+              <lucide-angular [img]="icons.MapPin" class="w-3.5 h-3.5 text-emerald-400"></lucide-angular>
+              พิกัด GIS: {{ selectedShop.lat }}, {{ selectedShop.lng }}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-4">
+          <div class="flex flex-col items-center px-4 py-2 bg-white/5 border border-white/10 rounded-2xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase">Rating</span>
+            <span class="text-base font-black text-emerald-400 flex items-center gap-1 mt-0.5">
+              <lucide-angular [img]="icons.Star" class="w-4 h-4 fill-current"></lucide-angular>
+              4.8
+            </span>
+          </div>
+          <div class="flex flex-col items-center px-4 py-2 bg-white/5 border border-white/10 rounded-2xl">
+            <span class="text-[10px] text-slate-400 font-bold uppercase">Delivery</span>
+            <span class="text-base font-black text-slate-200 flex items-center gap-1 mt-0.5">
+              <lucide-angular [img]="icons.Clock" class="w-4 h-4"></lucide-angular>
+              20m
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menus list section -->
+      <h4 class="text-lg font-bold mb-4 flex items-center gap-2">
+        <lucide-angular [img]="icons.Utensils" class="w-5 h-5 text-emerald-400"></lucide-angular>
+        เมนูอร่อยแนะนำระดับพรีเมียม
+      </h4>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div 
+          *ngFor="let menu of shopMenus" 
+          (click)="openProductDetail(menu)"
+          class="menu-item-card glass-panel flex flex-col md:flex-row gap-5 p-5 rounded-2xl border border-white/10 bg-white/5 overflow-hidden hover:border-emerald-500/30 hover:scale-[1.01] cursor-pointer transition-all duration-300">
+          
+          <div class="w-full md:w-32 h-32 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0">
+            <img [src]="menu.imageUrl" alt="Dish photo" class="w-full h-full object-cover" />
+          </div>
+
+          <div class="flex-grow flex flex-col justify-between">
+            <div>
+              <h5 class="text-base font-bold text-slate-100 hover:text-emerald-400 transition">{{ menu.name }}</h5>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-3 leading-relaxed">{{ menu.description }}</p>
+            </div>
+            <div class="flex justify-between items-center mt-4">
+              <span class="text-lg font-black text-emerald-400">฿{{ menu.price }}</span>
+              <button 
+                class="px-3.5 py-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-xs font-bold border border-emerald-500/20 hover:border-transparent transition-all duration-300">
+                สั่งเลย
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── 3. Product Details Modal (Slide Overlay) ── -->
+  <div *ngIf="selectedMenuItem" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="modal-card w-full max-w-2xl bg-slate-900 border border-white/10 rounded-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
+      <!-- Header photo -->
+      <div class="relative h-60 bg-slate-800 flex-shrink-0">
+        <img [src]="selectedMenuItem.imageUrl" alt="Dish detail" class="w-full h-full object-cover" />
+        <button 
+          (click)="closeProductDetail()" 
+          class="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full bg-slate-950/60 hover:bg-slate-950/80 text-slate-300 hover:text-white backdrop-blur-md transition">
+          <lucide-angular [img]="icons.X" class="w-4 h-4"></lucide-angular>
+        </button>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="p-6 flex-grow overflow-y-auto">
+        <h3 class="text-xl font-bold text-white">{{ selectedMenuItem.name }}</h3>
+        <p class="text-xs text-slate-400 mt-1 leading-relaxed">{{ selectedMenuItem.description }}</p>
+        <span class="text-xl font-black text-emerald-400 block mt-3">฿{{ selectedMenuItem.price }}</span>
+
+        <!-- Dynamic Add-on Option Schemas (Read-only for Customer: select only) -->
+        <div *ngIf="selectedMenuItem.options && selectedMenuItem.options.length > 0" class="options-section border-t border-white/5 mt-6 pt-5 flex flex-col gap-6">
+          <div *ngFor="let opt of selectedMenuItem.options" class="option-group">
+            <div class="flex justify-between items-center mb-3">
+              <h5 class="text-xs font-black uppercase text-slate-300 tracking-wider">
+                {{ opt.name }}
+                <span *ngIf="opt.required" class="text-red-500 font-bold ml-1">* (จำเป็น)</span>
+              </h5>
+              <span class="text-[10px] text-slate-400 font-bold bg-white/5 px-2 py-0.5 rounded">
+                เลือกสูงสุดได้ {{ opt.maxSelections }} อย่าง
+              </span>
+            </div>
+
+            <!-- Choice items -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label 
+                *ngFor="let choice of opt.items" 
+                class="choice-row flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/5 hover:border-emerald-500/30 hover:bg-white/10 cursor-pointer transition">
+                <div class="flex items-center gap-2.5">
+                  <!-- Checkbox / Radio indicator -->
+                  <input 
+                    [type]="opt.maxSelections === 1 ? 'radio' : 'checkbox'" 
+                    [name]="opt.id"
+                    [checked]="isOptionChecked(opt.name, choice.name)"
+                    (change)="toggleOptionSelection(opt, choice, $event)"
+                    class="accent-emerald-500 rounded border-white/10 w-4.5 h-4.5 bg-slate-800" />
+                  <span class="text-xs text-slate-200">{{ choice.name }}</span>
+                </div>
+                <span class="text-xs font-bold text-emerald-400 font-mono">
+                  {{ choice.price > 0 ? '+฿' + choice.price : 'ฟรี' }}
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Special Notes to Chef -->
+        <div class="notes-section border-t border-white/5 mt-6 pt-5">
+          <h5 class="text-xs font-black uppercase text-slate-300 tracking-wider mb-2">รายละเอียดเพิ่มเติม (เพิ่มเติมถึงเชฟ)</h5>
+          <textarea 
+            [(ngModel)]="menuItemNotes"
+            placeholder="ตัวอย่าง: ไม่พริก, ขอซอสเพิ่ม, ไม่ใส่หอมใหญ่..." 
+            class="w-full bg-white/5 border border-white/5 rounded-xl p-3.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 h-20 resize-none transition-all duration-300"></textarea>
+        </div>
+      </div>
+
+      <!-- Action buttons in footer -->
+      <div class="modal-footer p-6 border-t border-white/5 bg-slate-900/60 flex items-center justify-between flex-shrink-0 gap-4">
+        <!-- Quantity Adjuster -->
+        <div class="quantity-pills flex items-center bg-white/5 border border-white/5 rounded-full p-1">
+          <button 
+            (click)="adjustModalQuantity(-1)" 
+            class="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition">
+            <lucide-angular [img]="icons.Minus" class="w-3.5 h-3.5"></lucide-angular>
+          </button>
+          <span class="px-4 text-xs font-black text-slate-200 font-mono">{{ modalQuantity }}</span>
+          <button 
+            (click)="adjustModalQuantity(1)" 
+            class="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition">
+            <lucide-angular [img]="icons.Plus" class="w-3.5 h-3.5"></lucide-angular>
+          </button>
+        </div>
+
+        <!-- Submit to cart -->
+        <button 
+          (click)="addToCart()"
+          class="flex-grow flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white rounded-full py-3.5 text-xs font-black shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all duration-300">
+          <lucide-angular [img]="icons.ShoppingCart" class="w-4 h-4"></lucide-angular>
+          เพิ่มลงตะกร้าสินค้า
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. Cart Sidebar Drawer Drawer ── -->
+  <div 
+    class="cart-drawer-overlay fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-300"
+    [ngClass]="isCartOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'"
+    (click)="toggleCart()">
+    
+    <!-- Drawer Panel side-out -->
+    <div 
+      class="drawer-panel fixed top-0 right-0 h-full w-full max-w-md bg-slate-900 border-l border-white/10 shadow-2xl flex flex-col p-6 transition-transform duration-300 ease-out"
+      [ngClass]="isCartOpen ? 'translate-x-0' : 'translate-x-full'"
+      (click)="$event.stopPropagation()">
+      
+      <!-- Drawer header -->
+      <div class="flex items-center justify-between border-b border-white/5 pb-4 flex-shrink-0">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <lucide-angular [img]="icons.ShoppingCart" class="w-5 h-5 text-emerald-400"></lucide-angular>
+          ตะกร้าสินค้าของคุณ
+        </h4>
+        <button (click)="toggleCart()" class="text-slate-400 hover:text-slate-200">
+          <lucide-angular [img]="icons.X" class="w-5 h-5"></lucide-angular>
+        </button>
+      </div>
+
+      <!-- Drawer Content list of items -->
+      <div class="flex-grow overflow-y-auto py-5 flex flex-col gap-4">
+        <div *ngIf="cartItems.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
+          <lucide-angular [img]="icons.ShoppingCart" class="w-12 h-12 text-slate-700 mb-3"></lucide-angular>
+          <span class="text-slate-400 text-xs font-semibold">ไม่มีอาหารในตะกร้า</span>
+          <p class="text-[10px] text-slate-500 mt-1 max-w-[200px]">เลือกเมนูจากร้านค้าพันธมิตรเพื่อสั่งอาหารจานโปรดของคุณ</p>
+        </div>
+
+        <div 
+          *ngFor="let item of cartItems" 
+          class="cart-item-row p-3 rounded-xl border border-white/5 bg-white/5 flex gap-3">
+          <!-- Dish Thumbnail -->
+          <div class="w-16 h-16 rounded-lg overflow-hidden bg-slate-800 flex-shrink-0">
+            <img [src]="item.menuItem.imageUrl" alt="Dish" class="w-full h-full object-cover" />
+          </div>
+
+          <!-- Description info -->
+          <div class="flex-grow flex flex-col justify-between">
+            <div>
+              <h6 class="text-xs font-bold text-slate-200">{{ item.menuItem.name }}</h6>
+              <p *ngIf="getOptionText(item)" class="text-[9px] text-emerald-400 mt-0.5 line-clamp-1">
+                {{ getOptionText(item) }}
+              </p>
+              <p *ngIf="item.notes" class="text-[9px] text-amber-400 mt-0.5 line-clamp-1 italic">
+                โน้ต: "{{ item.notes }}"
+              </p>
+            </div>
+            
+            <div class="flex justify-between items-center mt-2.5">
+              <span class="text-xs font-bold text-emerald-400">฿{{ item.menuItem.price }}</span>
+              
+              <!-- Cart Pill adjust -->
+              <div class="flex items-center gap-2">
+                <div class="flex items-center bg-white/5 rounded-full p-0.5">
+                  <button 
+                    (click)="adjustCartItemQuantity(item.id, -1)" 
+                    class="w-6 h-6 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-300">
+                    <lucide-angular [img]="icons.Minus" class="w-3 h-3"></lucide-angular>
+                  </button>
+                  <span class="px-2 text-[10px] font-bold text-slate-200 font-mono">{{ item.quantity }}</span>
+                  <button 
+                    (click)="adjustCartItemQuantity(item.id, 1)" 
+                    class="w-6 h-6 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-300">
+                    <lucide-angular [img]="icons.Plus" class="w-3 h-3"></lucide-angular>
+                  </button>
+                </div>
+
+                <button 
+                  (click)="removeCartItem(item.id)" 
+                  class="text-red-400 hover:text-red-300 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-500/10 transition">
+                  <lucide-angular [img]="icons.Trash2" class="w-3.5 h-3.5"></lucide-angular>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drawer Footer invoice summary -->
+      <div *ngIf="cartItems.length > 0" class="drawer-footer border-t border-white/5 pt-4 flex-shrink-0 flex flex-col gap-4">
+        <div class="flex flex-col gap-2 text-xs">
+          <div class="flex justify-between">
+            <span class="text-slate-400 font-medium">ค่าอาหารรวม (Subtotal)</span>
+            <span class="text-slate-200 font-bold font-mono">฿{{ cartTotal }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400 font-medium">ค่าส่ง (Shipping Fee - GIS base)</span>
+            <span class="text-emerald-400 font-bold font-mono">฿35</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400 font-medium">ค่าบริการแพลตฟอร์ม</span>
+            <span class="text-slate-200 font-bold font-mono">฿10</span>
+          </div>
+          <div class="flex justify-between text-sm border-t border-white/5 pt-2.5 mt-1">
+            <span class="text-slate-100 font-black">ยอดรวมทั้งหมด (Total)</span>
+            <span class="text-emerald-400 font-black font-mono text-base">฿{{ cartTotal + 45 }}</span>
+          </div>
+        </div>
+
+        <button 
+          (click)="openCheckout()"
+          class="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white rounded-full py-3.5 text-xs font-black shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all duration-300">
+          ดำเนินการชำระเงิน (Checkout)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5. Checkout Confirmation Modal ── -->
+  <div *ngIf="showCheckoutModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="modal-card w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl">
+      <div class="p-6 border-b border-white/5 flex items-center justify-between">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <lucide-angular [img]="icons.Info" class="w-5 h-5 text-emerald-400"></lucide-angular>
+          ยืนยันการจัดส่งออเดอร์
+        </h3>
+        <button (click)="closeCheckout()" class="text-slate-400 hover:text-slate-200">
+          <lucide-angular [img]="icons.X" class="w-5 h-5"></lucide-angular>
+        </button>
+      </div>
+
+      <div class="p-6 flex flex-col gap-5">
+        <!-- GIS Map Pin address -->
+        <div class="address-box p-4 rounded-2xl bg-white/5 border border-white/5 flex gap-3">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <lucide-angular [img]="icons.MapPin" class="w-4 h-4"></lucide-angular>
+          </div>
+          <div>
+            <h6 class="text-xs font-bold text-slate-200">Dropoff Address (WGS84 Pin)</h6>
+            <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{{ dropoffAddress }}</p>
+            <span class="text-[9px] font-mono text-emerald-400 mt-1 block">GPS: {{ dropoffLat | number:'1.4-4' }}, {{ dropoffLng | number:'1.4-4' }}</span>
+          </div>
+        </div>
+
+        <!-- GIS Pickup Store -->
+        <div *ngIf="selectedShop" class="pickup-box p-4 rounded-2xl bg-white/5 border border-white/5 flex gap-3">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
+            <lucide-angular [img]="icons.Utensils" class="w-4 h-4"></lucide-angular>
+          </div>
+          <div>
+            <h6 class="text-xs font-bold text-slate-200">Pickup Partner Shop</h6>
+            <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{{ selectedShop.name }}</p>
+            <span class="text-[9px] font-mono text-blue-400 mt-1 block">GPS: {{ selectedShop.lat | number:'1.4-4' }}, {{ selectedShop.lng | number:'1.4-4' }}</span>
+          </div>
+        </div>
+
+        <!-- Invoice summary -->
+        <div class="flex flex-col gap-2 text-xs border-t border-white/5 pt-4">
+          <div class="flex justify-between">
+            <span class="text-slate-400">ค่าอาหารและเครื่องดื่ม</span>
+            <span class="text-slate-200 font-bold font-mono">฿{{ cartTotal }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">ค่าจัดส่งและบริการแพลตฟอร์ม</span>
+            <span class="text-slate-200 font-bold font-mono">฿45</span>
+          </div>
+          <div class="flex justify-between text-sm border-t border-white/5 pt-2.5 mt-1">
+            <span class="text-slate-100 font-black">ชำระเงินทั้งสิ้น</span>
+            <span class="text-emerald-400 font-black font-mono text-base">฿{{ cartTotal + 45 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="p-6 border-t border-white/5 bg-slate-900/60 flex gap-4">
+        <button 
+          (click)="closeCheckout()"
+          class="flex-grow py-3 rounded-full text-xs font-bold border border-white/10 hover:bg-white/5 text-slate-300 transition-all">
+          ยกเลิก
+        </button>
+        <button 
+          (click)="submitOrder()"
+          [disabled]="loading"
+          class="flex-grow flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white rounded-full py-3 text-xs font-black shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all duration-300">
+          <span *ngIf="loading" class="spinner"></span>
+          <span *ngIf="!loading">สั่งซื้อและชำระเงิน</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

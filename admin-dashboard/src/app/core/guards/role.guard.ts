@@ -105,7 +105,8 @@ function getRoleDisplayName(role: string): string {
     'admin': '👑 ผู้ดูแลระบบ (Admin)',
     'dispatcher': '📡 ผู้ควบคุมการจัดส่ง (Dispatcher)',
     'rider': '🏍️ ไรเดอร์ (Rider)',
-    'customer': '👤 ลูกค้า (Customer)'
+    'customer': '👤 ลูกค้า (Customer)',
+    'storepartner': '🏪 ร้านค้าพันธมิตร (Store Partner)'
   };
   return displayNames[role.toLowerCase()] || `🔹 ${role}`;
 }

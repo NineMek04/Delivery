@@ -84,6 +84,14 @@ public class TrackingHub : Hub
                 }
             }
         }
+        else if (role == AuthConstants.CustomerRole)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"customer:{userId}");
+        }
+        else if (role == AuthConstants.StorePartnerRole)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, "stores");
+        }
 
         await base.OnConnectedAsync();
     }

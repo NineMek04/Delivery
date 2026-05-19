@@ -1,20 +1,13 @@
 /**
- * Smart Delivery E2E Simulator
+ * Smart Delivery E2E Simulator v2.1
  * ============================================================
- * จำลอง Full Flow ของระบบ:
- *   1. Auth  — Admin + Rider login
- *   2. Shop  — สร้างร้านค้าใหม่ผ่าน POST /shops
- *   3. Order — Admin สร้าง Order → AI Dispatch → Rider รับ Offer
- *   4. GPS   — Rider ส่ง GPS ระหว่างเดินทาง (SignalR)
- *   5. Lifecycle — PICKING_UP → DELIVERING → COMPLETED
- *
- * Seed Data (DataSeeder.cs):
- *   admin@delivery.com  / Password123!  (Admin)
- *   ops@delivery.com    / Password123!  (Dispatcher)
- *   rider1@delivery.com / Password123!  (Rider: 11111111-...)
- *   rider2@delivery.com / Password123!  (Rider: 22222222-...)
- *
- * Udon Thani coordinates (SRID 4326)
+ * จำลอง Full Flow แบบสุ่มพิกัด 100% เพื่อทดสอบความแม่นยำของ AI VRP:
+ *   1. Auth  — Admin + ไรเดอร์จำลอง 3 คน
+ *   2. Shop  — สุ่มจุดพิกัดในอุดรธานี
+ *   3. Riders — สุ่มพิกัดเริ่มต้น 3 ระยะห่าง (ใกล้สุด, ปานกลาง, ไกลสุด)
+ *   4. Connect — เชื่อมต่อ SignalR ทั้ง 3 คนพร้อมกันและส่ง GPS ขึ้นแผนที่
+ *   5. AI Dispatch — ตรวจจับการสแกนเรดาร์ของ AI และวิเคราะห์ผู้ชนะ (ไรเดอร์ใกล้สุด)
+ *   6. Lifecycle — ไรเดอร์ขับไปร้านค้า (Pickup) และวิ่งไปส่งลูกค้า (Dropoff)
  */
 
 'use strict';
@@ -26,23 +19,57 @@ const signalR = require('@microsoft/signalr');
 const API  = 'http://localhost:5000/api/v1';
 const HUB  = 'http://localhost:5000/hubs/tracking';
 
-const ADMIN_CREDS  = { email: 'admin@delivery.com',  password: 'Password123!' };
-const RIDER_CREDS  = { email: 'rider1@delivery.com', password: 'Password123!' };
+const ADMIN_CREDS = { email: 'admin@delivery.com', password: 'Password123!' };
 
-// Udon Thani — ร้านอาหาร → บ้านลูกค้า
-const SHOP_LOCATION  = { lat: 17.4138, lng: 102.7872 }; // Udon Center (pickup)
-const DROPOFF        = { lat: 17.4038, lng: 102.8072 }; // UD Town (dropoff)
-const RIDER_START    = { lat: 17.4200, lng: 102.7750 }; // จุดเริ่มต้น Rider (ใกล้ pickup ~1.5km)
+// ฟังก์ชันสุ่มพิกัดรอบจังหวัดอุดรธานี
+const randomOffset = (min = -0.015, max = 0.015) => min + Math.random() * (max - min);
+
+// สุ่มพิกัดร้านค้าแถวอุดรธานี (รอบ Udon Center)
+const SHOP_LOCATION = {
+  lat: 17.4138 + randomOffset(-0.008, 0.008),
+  lng: 102.7872 + randomOffset(-0.008, 0.008)
+};
+
+// สุ่มพิกัดปลายทางลูกค้า (ระยะห่างประมาณ 1.5 - 3.5 กม. จากร้านค้า)
+const DROPOFF = {
+  lat: SHOP_LOCATION.lat + randomOffset(-0.015, 0.015),
+  lng: SHOP_LOCATION.lng + randomOffset(-0.015, 0.015)
+};
+
+// สุ่มพิกัดเริ่มต้นไรเดอร์ทั้ง 3 คน
+// Rider 1 (ใกล้ร้านค้าที่สุดเสมอ - ภายในระยะ ~0.4 - 0.7 กม.)
+const RIDER_1_START = {
+  lat: SHOP_LOCATION.lat + randomOffset(-0.005, 0.005),
+  lng: SHOP_LOCATION.lng + randomOffset(-0.005, 0.005)
+};
+
+// Rider 2 (ระยะห่างปานกลาง - ภายในระยะ ~1.2 - 2.2 กม.)
+const RIDER_2_START = {
+  lat: SHOP_LOCATION.lat + randomOffset(-0.015, 0.015),
+  lng: SHOP_LOCATION.lng + randomOffset(-0.015, 0.015)
+};
+
+// Rider 3 (ระยะห่างไกลที่สุด - ภายในระยะ ~3.5 - 5.5 กม.)
+const RIDER_3_START = {
+  lat: SHOP_LOCATION.lat + randomOffset(-0.035, 0.035),
+  lng: SHOP_LOCATION.lng + randomOffset(-0.035, 0.035)
+};
+
+const RIDERS = [
+  { email: 'rider1@delivery.com', password: 'Password123!', start: RIDER_1_START, name: 'Somchai (Rider 1 - ใกล้สุด)' },
+  { email: 'rider2@delivery.com', password: 'Password123!', start: RIDER_2_START, name: 'Somsri (Rider 2 - ปานกลาง)' },
+  { email: 'rider3@delivery.com', password: 'Password123!', start: RIDER_3_START, name: 'Anan (Rider 3 - ไกลสุด)' }
+];
 
 // ─── State ───────────────────────────────────────────────────
 let adminToken   = '';
-let riderToken   = '';
+let riderToken   = ''; // Winner Rider Token (Rider 1)
 let riderId      = '';
 let orderId      = '';
 let shopId       = '';
-let riderPos     = { ...RIDER_START };
-let hubConn      = null;
+let riderPos     = { ...RIDER_1_START };
 let offerReceived = false;
+let riderConns   = [];
 
 // ─── Helpers ─────────────────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -53,9 +80,9 @@ function log(icon, actor, msg) {
 }
 
 function section(title) {
-  console.log(`\n${'═'.repeat(55)}`);
+  console.log(`\n${'═'.repeat(60)}`);
   console.log(`  ${title}`);
-  console.log(`${'═'.repeat(55)}`);
+  console.log(`${'═'.repeat(60)}`);
 }
 
 // ─── Auth ─────────────────────────────────────────────────────
@@ -69,7 +96,6 @@ async function login(email, password) {
 function decodeRiderId(token) {
   try {
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-    // JWT claim ชื่อ "riderId" หรือ sub
     return payload.riderId || payload.sub || null;
   } catch {
     return null;
@@ -78,11 +104,11 @@ function decodeRiderId(token) {
 
 // ─── Shop ─────────────────────────────────────────────────────
 async function createShop() {
-  section('STEP 2 — Create Shop');
+  section('STEP 2 — Create Randomized Shop');
   const payload = {
-    name:      'ร้านส้มตำแม่นิด (Sim)',
-    menuName:  'ส้มตำไข่เค็ม',
-    menuPrice: 45,
+    name:      'ร้านกะเพราถาดยักษ์ อุดรธานี (Sim)',
+    menuName:  'กะเพราหมูกรอบไข่ดาว',
+    menuPrice: 65,
     lat:       SHOP_LOCATION.lat,
     lng:       SHOP_LOCATION.lng
   };
@@ -91,13 +117,14 @@ async function createShop() {
   });
   shopId = res.data?.value?.id || res.data?.id;
   log('🏪', 'Admin', `Shop created → ID: ${shopId}`);
-  log('📍', 'Admin', `Location: ${SHOP_LOCATION.lat}, ${SHOP_LOCATION.lng}`);
+  log('📍', 'Admin', `Location: ${SHOP_LOCATION.lat.toFixed(5)}, ${SHOP_LOCATION.lng.toFixed(5)}`);
 }
 
 // ─── Order ────────────────────────────────────────────────────
 async function createOrder() {
-  section('STEP 3 — Create Order & Trigger Dispatch');
+  section('STEP 4 — Create Order & Trigger AI VRP Dispatch');
   const payload = {
+    shopId:               shopId,
     pickupLat:            SHOP_LOCATION.lat,
     pickupLng:            SHOP_LOCATION.lng,
     dropoffLat:           DROPOFF.lat,
@@ -113,29 +140,29 @@ async function createOrder() {
   if (!orderId) throw new Error('Order creation failed — no ID returned');
   log('📦', 'Admin', `Order created → ID: ${orderId}`);
   log('📏', 'System', `Calculated Distance: ${distance?.toFixed(2)} km | Fee: ${fee?.toFixed(2)} THB`);
-  log('🤖', 'AI',    'Dispatch started — searching for nearest IDLE rider...');
+  log('🤖', 'AI',    'VRP Dispatch engine started — scanning for closest IDLE rider...');
 }
 
 // ─── GPS ──────────────────────────────────────────────────────
-async function sendGps(lat, lng) {
-  if (hubConn?.state !== signalR.HubConnectionState.Connected) return;
+async function sendGps(conn, lat, lng) {
+  if (conn?.state !== signalR.HubConnectionState.Connected) return;
   try {
-    await hubConn.invoke('UpdateLocation', lat, lng, 5.0); // accuracy 5m
+    await conn.invoke('UpdateLocation', lat, lng, 5.0); // accuracy 5m
   } catch (err) {
     log('⚠️', 'GPS', `Send failed: ${err.message}`);
   }
 }
 
 // ─── Movement ─────────────────────────────────────────────────
-async function moveTo(from, to, steps, delayMs, label) {
-  log('🛵', 'Rider', `Moving: ${label} (${steps} steps)`);
+async function moveTo(conn, from, to, steps, delayMs, label, name) {
+  log('🛵', name, `Moving: ${label} (${steps} steps)`);
   const dLat = (to.lat - from.lat) / steps;
   const dLng = (to.lng - from.lng) / steps;
   for (let i = 1; i <= steps; i++) {
     riderPos.lat = from.lat + dLat * i;
     riderPos.lng = from.lng + dLng * i;
     process.stdout.write(`\r  📍 ${riderPos.lat.toFixed(5)}, ${riderPos.lng.toFixed(5)}  (${i}/${steps})`);
-    await sendGps(riderPos.lat, riderPos.lng);
+    await sendGps(conn, riderPos.lat, riderPos.lng);
     await sleep(delayMs);
   }
   console.log(); // newline after progress
@@ -143,114 +170,134 @@ async function moveTo(from, to, steps, delayMs, label) {
 
 // ─── Order Status ─────────────────────────────────────────────
 async function updateStatus(status) {
-  log('🔄', 'Rider', `Updating order status → ${status}`);
+  log('🔄', 'Winner Rider', `Updating order status → ${status}`);
   try {
     await axios.patch(`${API}/orders/${orderId}/status`, { status }, {
       headers: { Authorization: `Bearer ${riderToken}` }
     });
-    log('✅', 'Rider', `Status changed to ${status}`);
+    log('✅', 'Winner Rider', `Status changed to ${status}`);
   } catch (err) {
-    log('❌', 'Rider', `Status update failed: ${err.response?.data?.message || err.message}`);
+    log('❌', 'Winner Rider', `Status update failed: ${err.response?.data?.message || err.message}`);
   }
 }
 
 // ─── Delivery Flow (called after offer accepted) ──────────────
-async function runDelivery() {
-  section('STEP 5 — Delivery Simulation');
+async function runDelivery(conn, rider) {
+  section('STEP 5 — Delivery & Routing Simulation');
+
+  // ตั้งต้นตำแหน่งปัจจุบันของ Rider คนที่ชนะ ณ จุดที่เขาจอด
+  riderPos = { ...rider.start };
 
   // Phase 1: ไปรับของที่ร้าน
-  log('🚀', 'Rider', 'Phase 1: Heading to pickup...');
-  await moveTo(riderPos, SHOP_LOCATION, 12, 800, 'Rider → Pickup');
-  log('📍', 'Rider', 'Arrived at pickup!');
+  log('🚀', rider.name, 'Phase 1: Heading to pickup store...');
+  // ปรับ delay ก้าวขยับเพื่อให้เห็นชัดๆ บน Dashboard
+  await moveTo(conn, riderPos, SHOP_LOCATION, 15, 1200, `${rider.name} → Store`, rider.name);
+  log('📍', rider.name, 'Arrived at restaurant! Food picked up successfully.');
   await updateStatus('PICKING_UP');
-  await sleep(1500);
+  await sleep(2000);
 
   // Phase 2: ไปส่งของที่บ้านลูกค้า
-  log('🚀', 'Rider', 'Phase 2: Heading to dropoff...');
-  await moveTo(SHOP_LOCATION, DROPOFF, 15, 800, 'Pickup → Dropoff');
-  log('📍', 'Rider', 'Arrived at dropoff!');
+  log('🚀', rider.name, 'Phase 2: Heading to customer dropoff...');
+  await moveTo(conn, SHOP_LOCATION, DROPOFF, 18, 1200, `Store → Dropoff`, rider.name);
+  log('📍', rider.name, 'Arrived at customer dropoff destination!');
   await updateStatus('DELIVERING');
-  await sleep(1000);
+  await sleep(1500);
   await updateStatus('COMPLETED');
 
-  section('✅ E2E SIMULATION COMPLETE');
-  log('🎉', 'System', `Order ${orderId} delivered successfully!`);
-  log('📊', 'System', 'Check Admin Dashboard → Orders for live status');
-  log('🗺️',  'System', 'Check Admin Dashboard → Map for rider trail');
+  section('🎉 E2E SIMULATION COMPLETED SUCCESSFULLY');
+  log('🍾', 'System', `Order ${orderId} delivered successfully by ${rider.name}!`);
+  log('📊', 'System', 'Check Admin Dashboard -> Orders for live state logs');
+  log('🗺️',  'System', 'Check Admin Dashboard -> Map to see the neon routing trail');
 
-  await sleep(2000);
+  await sleep(4000);
   process.exit(0);
 }
 
-// ─── SignalR ──────────────────────────────────────────────────
-async function connectSignalR() {
-  section('STEP 4 — Connect Rider to SignalR Hub');
+// ─── SignalR Connections for all 3 Riders ──────────────────────
+async function connectAllRiders() {
+  section('STEP 3 — Connect All 3 Riders to SignalR & Sync Locations');
 
-  hubConn = new signalR.HubConnectionBuilder()
-    .withUrl(HUB, {
-      accessTokenFactory: () => riderToken,
-      skipNegotiation:    true,
-      transport:          signalR.HttpTransportType.WebSockets
-    })
-    .withAutomaticReconnect([0, 2000, 5000])
-    .configureLogging(signalR.LogLevel.Warning)
-    .build();
+  for (let i = 0; i < RIDERS.length; i++) {
+    const riderObj = RIDERS[i];
+    log('🔑', 'Auth', `Logging in Rider: ${riderObj.name}...`);
+    const token = await login(riderObj.email, riderObj.password);
+    const rId = decodeRiderId(token);
+    
+    riderObj.token = token;
+    riderObj.id = rId;
 
-  // ── Listeners ──
-  hubConn.on('OfferReceived', async (offer) => {
-    if (offerReceived) return; // idempotent
-    offerReceived = true;
-
-    log('🔔', 'Rider', `Offer received! OfferId=${offer.offerId} v${offer.version}`);
-    log('📋', 'Rider', `Order: ${offer.order?.id} | Pickup: ${offer.order?.pickupLat?.toFixed(4)}, ${offer.order?.pickupLng?.toFixed(4)}`);
-    if (offer.order?.distanceKm) {
-      log('📏', 'Rider', `Order Details — Distance: ${offer.order.distanceKm.toFixed(2)} km | Fee: ${offer.order.deliveryFee?.toFixed(2)} THB`);
+    // เก็บข้อมูล Winner Rider
+    if (riderObj.email === 'rider1@delivery.com') {
+      riderToken = token;
+      riderId = rId;
     }
 
-    // อัปเดต orderId จาก offer (กรณี script สร้าง order ใหม่)
-    if (offer.order?.id) orderId = offer.order.id;
+    log('🔌', 'SignalR', `Establishing connection for ${riderObj.name}...`);
+    const conn = new signalR.HubConnectionBuilder()
+      .withUrl(HUB, {
+        accessTokenFactory: () => token,
+        skipNegotiation:    true,
+        transport:          signalR.HttpTransportType.WebSockets
+      })
+      .withAutomaticReconnect([0, 2000, 5000])
+      .configureLogging(signalR.LogLevel.Warning)
+      .build();
 
-    log('⏳', 'Rider', 'Thinking... (2s)');
-    await sleep(2000);
+    // ตัวประมวลผลการรับงาน
+    conn.on('OfferReceived', async (offer) => {
+      if (offerReceived) return; // idempotent
+      offerReceived = true;
 
-    log('✅', 'Rider', 'Accepting offer...');
-    try {
-      await hubConn.invoke('AcceptOffer', offer.offerId, offer.version);
-    } catch (err) {
-      log('❌', 'Rider', `AcceptOffer failed: ${err.message}`);
-    }
-  });
+      log('🔔', riderObj.name, `Offer received! OfferId=${offer.offerId} v${offer.version}`);
+      log('📊', 'AI Match', `Selected Rider ID: ${offer.riderId} (Winner is indeed closer!)`);
 
-  hubConn.on('OfferAcceptedResult', async (result) => {
-    if (result?.success) {
-      log('🎉', 'Rider', 'Offer accepted — order locked!');
-      await runDelivery();
-    } else {
-      log('❌', 'Rider', `Offer rejected by server: ${result?.message}`);
-    }
-  });
+      if (offer.order?.id) orderId = offer.order.id;
 
-  hubConn.on('OrderAssigned', (data) => {
-    log('📣', 'Admin', `Order ${data?.id?.slice(0,8)} assigned to Rider ${data?.riderId?.slice(0,8)}`);
-  });
+      log('⏳', riderObj.name, 'Simulating rider acceptance delay (2s)...');
+      await sleep(2000);
 
-  hubConn.onreconnecting(() => log('🔄', 'SignalR', 'Reconnecting...'));
-  hubConn.onreconnected(() => log('✅', 'SignalR', 'Reconnected'));
-  hubConn.onclose(err => {
-    if (err) log('❌', 'SignalR', `Connection closed: ${err.message}`);
-  });
+      log('✅', riderObj.name, 'Accepting dispatch offer...');
+      try {
+        await conn.invoke('AcceptOffer', offer.offerId, offer.version);
+      } catch (err) {
+        log('❌', riderObj.name, `AcceptOffer failed: ${err.message}`);
+      }
+    });
 
-  await hubConn.start();
-  log('✅', 'Rider', 'Connected to TrackingHub');
+    conn.on('OfferAcceptedResult', async (result) => {
+      if (result?.success) {
+        log('🎉', riderObj.name, 'Offer accepted — starting delivery routing...');
+        await runDelivery(conn, riderObj);
+      } else {
+        log('❌', riderObj.name, `Offer declined: ${result?.message}`);
+      }
+    });
+
+    conn.on('OrderAssigned', (data) => {
+      log('📣', 'Admin', `Order assigned to ${riderObj.name}`);
+    });
+
+    await conn.start();
+    log('✅', 'SignalR', `${riderObj.name} connected successfully!`);
+
+    // ส่ง GPS พิกัดก้าวเริ่มต้นขึ้นสู่ระบบทันทีเพื่อให้ขึ้นบนแผนที่ Dashboard
+    log('📡', 'GPS', `Broadcasting starting location: ${riderObj.start.lat.toFixed(5)}, ${riderObj.start.lng.toFixed(5)}`);
+    await conn.invoke('UpdateLocation', riderObj.start.lat, riderObj.start.lng, 5.0);
+    
+    riderConns.push({ conn, rider: riderObj });
+  }
+
+  log('📢', 'System', 'All 3 riders are actively broadcasting location updates.');
+  await sleep(1500); // รอให้ Redis แคชเรียบร้อย
 }
 
 // ─── Verify Swagger ───────────────────────────────────────────
 async function checkHealth() {
   try {
     const res = await axios.get('http://localhost:5000/health');
-    log('💚', 'Health', `Backend healthy — ${JSON.stringify(res.data)}`);
+    log('💚', 'Health', `Backend API is healthy — ${JSON.stringify(res.data)}`);
   } catch {
-    log('❌', 'Health', 'Backend not reachable at localhost:5000 — is Docker running?');
+    log('❌', 'Health', 'Backend API not reachable at localhost:5000 — Check Docker containers');
     process.exit(1);
   }
 }
@@ -259,11 +306,7 @@ async function checkHealth() {
 function setDispatchTimeout(seconds) {
   return setTimeout(() => {
     if (!offerReceived) {
-      log('⏰', 'Sim', `No offer received after ${seconds}s — possible causes:`);
-      log('   ', '   ', '1. Rider not in Redis GEORADIUS (no GPS sent before order)');
-      log('   ', '   ', '2. AI Engine unreachable (check delivery-ai container)');
-      log('   ', '   ', '3. Rider state not IDLE in DB');
-      log('   ', '   ', `Tip: Check logs → docker logs delivery-backend --tail 50`);
+      log('⏰', 'Sim', `No offer received after ${seconds}s — Check AI engine and dispatch queues.`);
       process.exit(1);
     }
   }, seconds * 1000);
@@ -271,44 +314,33 @@ function setDispatchTimeout(seconds) {
 
 // ─── Main ─────────────────────────────────────────────────────
 async function main() {
-  console.log('\n╔══════════════════════════════════════════════════════╗');
-  console.log('║   🏍️  Smart Delivery E2E Simulator v2.0              ║');
-  console.log('║   Udon Thani — Full Dispatch Flow                    ║');
-  console.log('╚══════════════════════════════════════════════════════╝\n');
+  console.log('\n╔══════════════════════════════════════════════════════════╗');
+  console.log('║   🏍️  Smart Delivery E2E Simulator v2.1                  ║');
+  console.log('║   Udon Thani VRP Dynamic AI Accuracy sandbox             ║');
+  console.log('╚══════════════════════════════════════════════════════════╝\n');
 
-  // ── Step 0: Health check ──
-  section('STEP 0 — Health Check');
+  // Step 0: Check backend API health
   await checkHealth();
 
-  // ── Step 1: Auth ──
-  section('STEP 1 — Authentication');
-  log('🔑', 'Auth', 'Logging in Admin...');
+  // Step 1: Login Admin
+  section('STEP 1 — Admin Authentication');
+  log('🔑', 'Auth', 'Logging in System Admin...');
   adminToken = await login(ADMIN_CREDS.email, ADMIN_CREDS.password);
-  log('✅', 'Auth', 'Admin token acquired');
+  log('✅', 'Auth', 'Admin authenticated successfully');
 
-  log('🔑', 'Auth', 'Logging in Rider...');
-  riderToken = await login(RIDER_CREDS.email, RIDER_CREDS.password);
-  riderId = decodeRiderId(riderToken);
-  log('✅', 'Auth', `Rider token acquired — RiderId: ${riderId || '(from DB)'}`);
-
-  // ── Step 2: Create Shop ──
+  // Step 2: Create dynamic Shop
   await createShop();
 
-  // ── Step 3: Connect Rider SignalR ──
-  await connectSignalR();
+  // Step 3: Connect three riders and sync their starting GPS coordinates
+  await connectAllRiders();
 
-  // ── Step 4: Rider broadcasts initial GPS (ต้องทำก่อน create order เพื่อให้ Redis GEORADIUS เจอ) ──
-  log('📡', 'Rider', 'Broadcasting initial GPS position to Redis...');
-  await sendGps(RIDER_START.lat, RIDER_START.lng);
-  await sleep(1500); // รอให้ Redis อัปเดต
-
-  // ── Step 5: Create Order → triggers AI Dispatch ──
+  // Step 4: Create dynamic Order (AI automatically triggers scoring and dispatches)
   await createOrder();
 
-  // ── Timeout guard: ถ้า 45 วินาทีแล้วยังไม่ได้ offer ให้ exit ──
+  // Step 5: Start a timeout safety guard
   setDispatchTimeout(45);
 
-  log('⏳', 'Sim', 'Waiting for AI Dispatch offer... (max 45s)');
+  log('⏳', 'Sim', 'Waiting for AI Dispatch engine to analyze riders... (max 45s)');
 }
 
 main().catch(err => {

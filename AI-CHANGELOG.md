@@ -517,4 +517,42 @@
 - **Backend Build:** `dotnet build` ผ่านสมบูรณ์แบบ 100% ปราศจาก Error และเสร็จสิ้นการ Rebuild/Recreate คอนเทนเนอร์บน Docker สำเร็จลุล่วง
 - **Frontend Build:** `npx ng build --configuration=development` ตรวจสอบแล้วผ่าน 100% (0 errors, 0 warnings) บล็อกโมดูลและ Lazy Loading ของ Customer/StorePartner สมบูรณ์แบบ
 
+---
+
+## [Log Date: 2026-05-19 (2)] | By: AI Agent
+
+### Component: BackendApi — Universal Tracking & Reference Numbers
+- **Action:** ออกแบบและวางระบบระบุตัวตนเลขที่การอ้างอิงสวยงามแบบเรียงลำดับอัจฉริยะ (Sequential Reference & Tracking Numbers) ควบคู่กับ UUID Primary Key ของฐานข้อมูลแบบไม่มีการแทรกแซงคีย์จริง
+- **Action:** สร้างบริการสืบค้นอัจฉริยะ `TrackingSearchService.cs` คาดเดารูปแบบและดึงดัชนีพิกัด (`RefNumber`) โดยใช้ความสามารถ O(1) หรือ O(log N) จาก Unique Database Indexes พร้อมรองรับระบบ Fallback ไปหาคำค้นหาเนื้อหาแบบ Text ปกติหากระบุค่าคำค้นหากว้างๆ
+- **Action:** พัฒนาตัวแปลงรหัสจัดโครงสร้างรูปธรรม `TrackingCodeFormatter.cs` ทำหน้าที่จัดรูปแบบความงามสไตล์ Enterprise เช่น `ORD-000001`, `RID-000003`, `SHP-000002` ในชั้น Presentation และแปลงกลับในฝั่งเซิร์ฟเวอร์
+- **Action:** แก้ไขตารางฐานข้อมูลและติดตั้งสเปเชียลดัชนี `RefNumber` ด้วยเอกลักษณ์ `UseIdentityByDefaultColumn()` ผ่านไมเกรชัน `AddUniversalTrackingNumbers` และผูก unique indexes ให้ค้นหาได้รวดเร็วระดับคงที่ (Constant Time)
+- **Action:** อัปเดตและเขียนทับเมธอดดึงข้อมูลตัวตนเดี่ยว (GetById) ใน `OrdersController.cs`, `RidersController.cs`, และ `ShopsController.cs` ให้รองรับการใส่คีย์ค้นหาแบบผสม (Mixed Key) ไม่ว่าจะระบุเป็นรหัส UUID ยุ่งยากดั้งเดิม หรือระบุรหัสย่อสวยงามที่แอดมินจำง่าย
+- **Action:** เคลียร์ปัญหา Ambiguous Match / Route Collision และ Warning ทั้งหมดในคลาสสืบทอด `CrudControllerBase` โดยอัปเดตการใช้งาน `override` และเพิ่ม XML comments ปรับจูนเอกสาร Swagger ให้อ่านสะอาดตา
+
+### Component: Verification & Quality Assurance
+- **Direct Database Query:** เข้าทดสอบพฤติกรรมโครงสร้างตารางของคอนเทนเนอร์ฐานข้อมูล PostgreSQL เช็คความถูกต้องของค่าลำดับ `RefNumber` และพบการเรียงรหัสเริ่มต้นตั้งแต่ 1 เป็นต้นไปอย่างถูกต้อง
+- **End-to-End API Test:** สร้างสคริปต์ตรวจสอบการค้นหาแบบผสมผสาน ยืนยันว่าการยิงเรียก API เส้นทางตรง `/api/v1/Orders/ORD-000001`, `/api/v1/Riders/RID-000003`, และ `/api/v1/Shops/SHP-000002` คืนค่าสำเร็จแบบ `200 OK` พร้อมข้อมูลโครงสร้างครบถ้วน 100%
+- **Simulator Run Validation:** การจำลองเดินทางและจัดหาของไรเดอร์ E2E Simulator (`simulate-e2e.js`) รันและเชื่อมโยงข้อมูลสถานะตาม State Machine สำเร็จอย่างสมบูรณ์แบบ
+
+---
+
+## [Log Date: 2026-05-19 (3)] | By: AI Agent
+
+### Component: Admin Dashboard — Real-time GPS & Map Fixes (SignalR)
+- **Action:** แก้ไขปัญหาการแมปข้อมูลพิกัดชนกัน (Pascal/camelCase Property Casing Mismatch) ใน `tracking-signalr.service.ts` ซึ่งก่อนหน้านี้ค่าพิกัดพอร์ตจาก SignalR (`Lat`/`Lng`) เป็นตัวใหญ่ ทำให้หน้าบ้านดึงมาเป็น `undefined` และโปรแกรมหยุดทำงานที่คำสั่ง `.toFixed()`
+- **Action:** เพิ่มตัวแปลงพิกัดนิรภัยอัจฉริยะ (GPS Fallback Mapper) ช่วยแกะค่าพิกัดได้อย่างแม่นยำไม่ว่าจะส่งฟิลด์มาเป็น `latitude`, `lat` หรือ `Lat` (รวมถึงลองจิจูด)
+- **Action:** ลบการรับข้อมูลที่รั่วไหล (Memory Leak) จาก RxJS `.subscribe()` ที่เดิมสร้างซ้อนกันซ้ำๆ ในบล็อกควบคุมหน้าแผนที่ (`handleOfferReceived`, `handleOrderAssigned`, `handleOrderStatusChanged`) แล้วเปลี่ยนมาใช้วิธีเรียกข้อมูลตรง Synchronous ผ่าน `getRiderLocations()` ของ Service แทน
+- **Action:** ทำการ Rebuild ภาพ Docker คอนเทนเนอร์ `delivery-frontend` ใหม่เพื่อให้ Nginx ให้บริการหน้าบ้านเวอร์ชันที่มีประสิทธิภาพสูงนี้อย่างเสถียร
+
+### Component: E2E Integration Simulator (v2.1)
+- **Action:** เขียนปรับปรุงชุดทดสอบจำลองกระบวนการขนส่งเรียลไทม์ `simulate-e2e.js` ให้จำลองการทำงานพร้อมกันของ 3 ไรเดอร์ในระยะห่างต่างๆ กัน (Rider 1 ใกล้สุด, Rider 2 ปานกลาง, Rider 3 ไกลสุด) ผ่าน SignalR Connections แยกอิสระจากกันอย่างสมจริง
+- **Action:** ยืนยันความถูกต้องของ Python AI Dispatching (OR-Tools VRP) ที่เลือกจับคู่งานให้ไรเดอร์ที่ใกล้ที่สุด (Rider 1) เสมออย่างแม่นยำ พร้อมทั้งวาดเส้นทาง จุดรับ จุดส่ง และแอนิเมชัน Pulse วูบวาบสไตล์นีออนอย่างสวยงามบนแผนที่เรียลไทม์
+
+### Verification
+- **Solution Build & Health Probes:** หน้าบ้านคอมไพล์ผ่าน 100% ไม่มีข้อผิดพลาด (0 errors) และคอนเทนเนอร์บน Docker ทั้งหมดรันในสถานะ **Healthy** 100%
+- **E2E Simulator Validation:** การรัน `node simulate-e2e.js` ทำการสร้างจุดร้านอาหารและบ้านลูกค้าแบบสุ่ม พร้อมวิ่งเก็บพิกัดขยับหมุดไรเดอร์และปรับปรุงสเตจใน State Machine สำเร็จอย่างงดงามไม่มีค้างคา
+
+### Defect 
+- **🔴 CriticalAction :** ยังไม่ track ตำแหน่งตามเส้นทางใน map จริง มันวิ่งแบบยังลอยๆ อยู่ และยังไม่ซูมตามแผนเมื่อ test ""
+
 

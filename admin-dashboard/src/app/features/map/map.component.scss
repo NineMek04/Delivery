@@ -491,3 +491,47 @@ i {
   }
 }
 
+// ── AI Dispatching Neon Pulsing Animations ──
+
+@keyframes radar-scan {
+  0% {
+    stroke-width: 1px;
+    opacity: 0.8;
+  }
+  100% {
+    stroke-width: 6px;
+    opacity: 0.15;
+  }
+}
+
+.ai-radar-pulse {
+  animation: radar-scan 1.6s infinite ease-out;
+  stroke: #2563eb !important;
+  fill: #2563eb !important;
+}
+
+@keyframes winner-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
+.winner-pulse-marker {
+  animation: winner-glow 1.4s infinite ease-in-out;
+  z-index: 1000 !important;
+}
+
+.custom-rider-marker-div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+

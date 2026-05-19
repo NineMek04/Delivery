@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 
 export interface RiderLocationUpdate {
   riderId: string;
@@ -31,7 +31,21 @@ export class TrackingSignalRService {
   private _alerts = new BehaviorSubject<any[]>([]);
   public alerts$ = this._alerts.asObservable();
 
+  // New Observables for Map component to track dispatch phases
+  private _offerReceived = new Subject<DispatchOffer>();
+  public offerReceived$ = this._offerReceived.asObservable();
+
+  private _orderAssigned = new Subject<{ id: string; riderId: string; assignedAt: string }>();
+  public orderAssigned$ = this._orderAssigned.asObservable();
+
+  private _orderStatusChanged = new Subject<{ orderId: string; status: string }>();
+  public orderStatusChanged$ = this._orderStatusChanged.asObservable();
+
   constructor(private authService: AuthService) {}
+
+  public getRiderLocations(): Map<string, RiderLocationUpdate> {
+    return this._riderLocations.getValue();
+  }
 
   public startConnection(): void {
     if (this.hubConnection?.state === signalR.HubConnectionState.Connected) {
@@ -79,27 +93,38 @@ export class TrackingSignalRService {
   private addListeners(): void {
     if (!this.hubConnection) return;
 
-    // Listen to rider location updates
-    this.hubConnection.on('RiderLocationUpdated', (data: RiderLocationUpdate) => {
+    // Listen to rider location updates with robust coordinate property mapping
+    this.hubConnection.on('RiderLocationUpdated', (data: any) => {
       const currentMap = this._riderLocations.getValue();
-      currentMap.set(data.riderId, data);
+      
+      const mappedData: RiderLocationUpdate = {
+        riderId: data.riderId || data.RiderId,
+        latitude: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)),
+        longitude: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        status: data.status || data.Status || 'OFFLINE',
+        timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
+      };
+
+      currentMap.set(mappedData.riderId, mappedData);
       this._riderLocations.next(new Map(currentMap));
     });
 
     // OfferReceived — Backend ยิงไปหา Rider โดยตรง (group rider:{id})
-    // Admin Dashboard รับได้ถ้า join group admins หรือ listen broadcast
     this.hubConnection.on('OfferReceived', (offer: DispatchOffer) => {
-      this.addAlert('AI Dispatcher', `Offer sent to rider (Order ${offer.order?.id || 'Unknown'})`, 'info');
+      this.addAlert('AI Dispatcher', `Offer sent to rider (Order ${offer.order?.id?.slice(0, 8) || 'Unknown'})`, 'info');
+      this._offerReceived.next(offer);
     });
 
     // OrderAssigned — Backend broadcast ไปหา group admins เมื่อ Rider รับงาน
     this.hubConnection.on('OrderAssigned', (data: { id: string; riderId: string; assignedAt: string }) => {
       this.addAlert('Dispatch', `Order ${data.id?.slice(0, 8)} assigned to Rider ${data.riderId?.slice(0, 8)}`, 'success');
+      this._orderAssigned.next(data);
     });
 
     // OrderStatusChanged — broadcast สถานะ Order เปลี่ยน
     this.hubConnection.on('OrderStatusChanged', (orderId: string, newStatus: string) => {
       this.addAlert('Order Update', `Order ${orderId?.slice(0, 8)} → ${newStatus}`, 'info');
+      this._orderStatusChanged.next({ orderId, status: newStatus });
     });
   }
 

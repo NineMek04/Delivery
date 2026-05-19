@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using BackendApi.Core.Constants;
+using BackendApi.Core.Helpers;
 using BackendApi.Core.Models;
 using NetTopologySuite.Geometries;
 
@@ -8,8 +10,12 @@ namespace BackendApi.Models
     /// <summary>
     /// โมเดลร้านค้าสำหรับระบบคำนวณเส้นทางและการปักหมุด
     /// </summary>
-    public class Shop : BaseSoftDeleteEntity<string>
+    public class Shop : BaseSoftDeleteEntity<string>, ITrackableEntity
     {
+        public long RefNumber { get; init; }
+
+        [NotMapped]
+        public string TrackingCode => TrackingCodeFormatter.Format(TrackingPrefixes.Shop, RefNumber);
         [Required]
         [MaxLength(100)]
         public string Name { get; set; } = string.Empty;

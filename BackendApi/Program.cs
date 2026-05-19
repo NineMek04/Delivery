@@ -51,6 +51,10 @@ try
 }
 catch (Exception ex)
 {
+    if (ex.GetType().Name == "HostAbortedException")
+    {
+        throw;
+    }
     Log.Fatal(ex, "Application start-up failed");
 }
 finally

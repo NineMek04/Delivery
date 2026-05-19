@@ -1,9 +1,11 @@
 using BackendApi.Core;
+using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
 using BackendApi.Services.Dispatch;
+using BackendApi.Services.Tracking;
 using MapsterMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,12 +23,18 @@ public class OrdersController : DeliveryControllerBase
     private readonly IMapper _mapper;
     private readonly StateMachineService _stateMachine;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ITrackingSearchService _searchService;
 
-    public OrdersController(IMapper mapper, StateMachineService stateMachine, IServiceScopeFactory scopeFactory)
+    public OrdersController(
+        IMapper mapper, 
+        StateMachineService stateMachine, 
+        IServiceScopeFactory scopeFactory,
+        ITrackingSearchService searchService)
     {
         _mapper = mapper;
         _stateMachine = stateMachine;
         _scopeFactory = scopeFactory;
+        _searchService = searchService;
     }
 
     /// <summary>
@@ -86,11 +94,34 @@ public class OrdersController : DeliveryControllerBase
     [HttpGet]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
     public async Task<ActionResult<ApiResponse<PaginatedResult<OrderDto>>>> GetOrders(
+        [FromQuery] string? search = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
         var query = DB.GetQuery<Order>(asNoTracking: true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var parsedRef = _searchService.ParseSearchQuery(search, TrackingPrefixes.Order);
+            if (parsedRef.HasValue)
+            {
+                // 1. ถ้าระบุรหัสเป๊ะ ยิงตรงเข้าระบบ Index ทันที (เร็วที่สุด)
+                query = query.Where(o => o.RefNumber == parsedRef.Value);
+            }
+            else
+            {
+                // 2. Fallback: ค้นหาด้วยสถานะออเดอร์ หรือ ID ของไรเดอร์ที่ได้รับมอบหมาย
+                if (Enum.TryParse<BackendApi.Core.StateMachines.OrderState>(search, true, out var searchState))
+                {
+                    query = query.Where(o => o.State == searchState);
+                }
+                else
+                {
+                    query = query.Where(o => o.AssignedRiderId == search);
+                }
+            }
+        }
         
         var total = await query.CountAsync(cancellationToken);
         
@@ -114,7 +145,7 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
-    /// ดูออเดอร์เดียวตาม ID
+    /// ดูออเดอร์เดียวตาม ID หรือ Tracking Code
     /// </summary>
     [HttpGet("{id}")]
     [Authorize(Policy = AuthConstants.OperationsPolicy)]
@@ -122,7 +153,20 @@ public class OrdersController : DeliveryControllerBase
         string id, 
         CancellationToken cancellationToken)
     {
-        var order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+        Order? order = null;
+
+        var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Order);
+        if (parsedRef.HasValue)
+        {
+            // ค้นหาด้วย Tracking Code (RefNumber Index)
+            order = await DB.GetQuery<Order>().FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
+        }
+        else
+        {
+            // ค้นหาด้วย UUID เดิม
+            order = await DB.GetObjectByKeyAsync<Order>(id, cancellationToken);
+        }
+
         if (order is null)
             return NotFound(ApiResponse<OrderDto>.Fail("Order not found."));
 

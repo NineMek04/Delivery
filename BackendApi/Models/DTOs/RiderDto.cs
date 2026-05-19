@@ -8,6 +8,9 @@ public class RiderDto
     /// <summary>รหัสไรเดอร์ (GUID)</summary>
     public string Id { get; set; } = string.Empty;
 
+    /// <summary>โค้ดไรเดอร์สำหรับการอ้างอิงอักษร</summary>
+    public string TrackingCode { get; set; } = string.Empty;
+
     /// <summary>ชื่อไรเดอร์</summary>
     public string Name { get; set; } = string.Empty;
 

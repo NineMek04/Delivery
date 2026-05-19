@@ -1,10 +1,14 @@
 using BackendApi.Core;
+using BackendApi.Core.Constants;
 using BackendApi.Core.Mappings;
+using BackendApi.Core.Models;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Services.Tracking;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Controllers.MasterData
 {
@@ -14,11 +18,75 @@ namespace BackendApi.Controllers.MasterData
     [Authorize]
     public class ShopsController : CrudControllerBase<Shop, ShopDto>
     {
-        // สืบทอด CRUD อัตโนมัติ:
-        //   GET    /api/v1/shops         → ดึงรายการร้านค้าทั้งหมด (แบ่งหน้า)
-        //   GET    /api/v1/shops/{id}    → ดึงข้อมูลร้านค้าเดี่ยว
-        //   PUT    /api/v1/shops/{id}    → แก้ไขข้อมูลร้านค้า
-        //   DELETE /api/v1/shops/{id}    → ลบร้านค้า (Soft Delete)
+        private readonly ITrackingSearchService _searchService;
+
+        public ShopsController(ITrackingSearchService searchService)
+        {
+            _searchService = searchService;
+        }
+
+        /// <summary>
+        /// ดึงรายการร้านค้าทั้งหมด (แบ่งหน้า และรองรับการค้นหา)
+        /// </summary>
+        [HttpGet]
+        public override async Task<ActionResult<PaginatedResult<ShopDto>>> GetAll(
+            [FromQuery] string? search = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var query = DB.GetQuery<Shop>(asNoTracking: true);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var parsedRef = _searchService.ParseSearchQuery(search, TrackingPrefixes.Shop);
+                if (parsedRef.HasValue)
+                {
+                    // 1. ถ้าระบุรหัสเป๊ะ ยิงตรงเข้าระบบ Index ทันที (เร็วที่สุด)
+                    query = query.Where(s => s.RefNumber == parsedRef.Value);
+                }
+                else
+                {
+                    // 2. Fallback: ค้นหาด้วยชื่อร้านค้า หรือชื่อเมนู (Case-insensitive)
+                    var term = search.Trim().ToLower();
+                    query = query.Where(s => s.Name.ToLower().Contains(term) || s.MenuName.ToLower().Contains(term));
+                }
+            }
+
+            var total = await query.CountAsync(cancellationToken);
+
+            var shops = await query
+                .OrderBy(s => s.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return Ok(new PaginatedResult<ShopDto>
+            {
+                Items = shops.Adapt<List<ShopDto>>(),
+                TotalCount = total,
+                Page = page,
+                PageSize = pageSize
+            });
+        }
+
+        /// <summary>
+        /// ดึงข้อมูลร้านค้าเดี่ยว (รองรับทั้ง UUID และ Tracking Code)
+        /// </summary>
+        [HttpGet("{id}")]
+        public override async Task<ActionResult<ShopDto>> GetById(string id, CancellationToken cancellationToken = default)
+        {
+            var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Shop);
+            if (parsedRef.HasValue)
+            {
+                var entity = await DB.GetQuery<Shop>().FirstOrDefaultAsync(s => s.RefNumber == parsedRef.Value, cancellationToken);
+                if (entity is null)
+                    return NotFound(ApiResponse.Fail("ไม่พบข้อมูลร้านค้า", code: "NOT_FOUND"));
+                return Ok(entity.Adapt<ShopDto>());
+            }
+
+            return await base.GetById(id, cancellationToken);
+        }
 
         /// <summary>
         /// ซ่อน base Create ที่รับ ShopDto เพื่อป้องกัน Swagger conflict

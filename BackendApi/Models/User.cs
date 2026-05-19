@@ -1,4 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using BackendApi.Core.Constants;
+using BackendApi.Core.Helpers;
 using BackendApi.Core.Models;
 
 namespace BackendApi.Models;
@@ -6,8 +9,12 @@ namespace BackendApi.Models;
 /// <summary>
 /// ผู้ใช้ระบบ — รองรับ Admin, Dispatcher และ Rider
 /// </summary>
-public class User : BaseSoftDeleteEntity<string>
+public class User : BaseSoftDeleteEntity<string>, ITrackableEntity
 {
+    public long RefNumber { get; init; }
+
+    [NotMapped]
+    public string TrackingCode => TrackingCodeFormatter.Format(TrackingPrefixes.User, RefNumber);
     [Required, MaxLength(100)]
     public string Email { get; set; } = string.Empty;
 

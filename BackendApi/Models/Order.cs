@@ -1,12 +1,18 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using BackendApi.Core.Constants;
+using BackendApi.Core.Helpers;
 using BackendApi.Core.Models;
 using BackendApi.Core.StateMachines;
 using NetTopologySuite.Geometries;
 
 namespace BackendApi.Models
 {
-    public class Order : BaseSoftDeleteEntity<string>
+    public class Order : BaseSoftDeleteEntity<string>, ITrackableEntity
     {
+        public long RefNumber { get; init; }
+
+        [NotMapped]
+        public string TrackingCode => TrackingCodeFormatter.Format(TrackingPrefixes.Order, RefNumber);
         /// <summary>สถานะปัจจุบันของ Order (State Machine)</summary>
         public OrderState State { get; set; } = OrderState.CREATED;
 

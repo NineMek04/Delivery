@@ -198,4 +198,5 @@ Delivery/
 1. `AI-BLUEPRINT.md` — ไฟล์นี้ (Context Ledger)
 2. `AI-CHANGELOG.md` — สถานะงานล่าสุด
 3. `PROJECT-SPEC.md` — รายละเอียด Spec เชิงลึก
-4. `.cursorrules` — กฎและ workflow ของ AI
+4. `OSRM-SETUP.md` — คู่มือการดาวน์โหลด ติดตั้ง และกำหนดค่า OSRM ออฟไลน์
+5. `.cursorrules` — กฎและ workflow ของ AI

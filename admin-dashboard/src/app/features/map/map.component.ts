@@ -56,6 +56,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   // ── Active Order & Dynamic VRP Routing Details ──
   public activeOrder: any = null;
   public assignedRiderId: string | null = null;
+  public simAutoFollow = false;
   private activeShopMarker: L.Marker | null = null;
   private activeCustomerMarker: L.Marker | null = null;
   private pickupRouteLine: L.Polyline | null = null;
@@ -175,6 +176,55 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   showFullThailand(): void {
     this.map?.fitBounds(this.THAILAND_BOUNDS);
+  }
+
+  toggleSimAutoFollow(): void {
+    this.simAutoFollow = !this.simAutoFollow;
+    console.log('Live Map: Simulation Auto-Follow toggled to', this.simAutoFollow);
+    if (this.simAutoFollow && this.assignedRiderId) {
+      const riderMarker = this.markers.get(this.assignedRiderId);
+      if (riderMarker && this.activeOrder) {
+        const bounds = L.latLngBounds([
+          riderMarker.getLatLng(),
+          [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
+        ]);
+        this.map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+      }
+    }
+  }
+
+  private decodePolyline(str: string): L.LatLngTuple[] {
+    let index = 0;
+    const len = str.length;
+    let lat = 0;
+    let lng = 0;
+    const coordinates: L.LatLngTuple[] = [];
+
+    while (index < len) {
+      let b;
+      let shift = 0;
+      let result = 0;
+      do {
+        b = str.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = str.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      coordinates.push([lat / 1e5, lng / 1e5]);
+    }
+    return coordinates;
   }
 
   // ── ระบบปักหมุดและสร้างร้านค้า (Shop Registration Logic) ──
@@ -414,8 +464,19 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       }).addTo(this.map);
     }
 
-    // Solid Emerald Green (Shop -> Customer)
-    this.deliveryRouteLine = L.polyline([[pickupLat, pickupLng], [dropoffLat, dropoffLng]], {
+    // Solid Emerald Green (Shop -> Customer) - วาดโครงข่ายถนน Dijkstra จริง
+    let deliveryCoords: L.LatLngTuple[] = [[pickupLat, pickupLng], [dropoffLat, dropoffLng]];
+    const polylineString = offer.order?.encodedPolyline || offer.order?.EncodedPolyline;
+    if (polylineString) {
+      try {
+        deliveryCoords = this.decodePolyline(polylineString);
+        console.log('Live Map: Decoded Dijkstra route coordinates count:', deliveryCoords.length);
+      } catch (err) {
+        console.error('Failed to decode order polyline, utilizing straight line fallback', err);
+      }
+    }
+
+    this.deliveryRouteLine = L.polyline(deliveryCoords, {
       color: '#10b981',
       weight: 5,
       className: 'route-delivery-line'
@@ -433,6 +494,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.activeRadarCircle) {
       this.activeRadarCircle.remove();
       this.activeRadarCircle = null;
+    }
+
+    // Smooth Auto-Zoom centering camera precisely when order is assigned (Key Dispatch event)
+    if (this.assignedRiderId) {
+      const riderMarker = this.markers.get(this.assignedRiderId);
+      if (riderMarker && this.activeOrder) {
+        const bounds = L.latLngBounds([
+          riderMarker.getLatLng(),
+          [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
+        ]);
+        this.map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+      }
     }
 
     const currentLocs = this.trackingService.getRiderLocations();
@@ -532,6 +605,15 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           [loc.latitude, loc.longitude],
           [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
         ]);
+      }
+
+      // 🎬 Simulator Camera tracking (fitBounds รันเฉพาะเมื่อเปืด simAutoFollow เท่านั้น เพื่อปกป้อง UX)
+      if (this.simAutoFollow && isWinner && this.activeOrder) {
+        const bounds = L.latLngBounds([
+          [loc.latitude, loc.longitude],
+          [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
+        ]);
+        this.map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
       }
     });
   }

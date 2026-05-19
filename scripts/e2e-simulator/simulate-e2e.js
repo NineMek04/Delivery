@@ -70,6 +70,7 @@ let shopId       = '';
 let riderPos     = { ...RIDER_1_START };
 let offerReceived = false;
 let riderConns   = [];
+let activeOrder  = null; // ข้อมูลออเดอร์พร้อมเส้นทาง EncodedPolyline จาก OSRM
 
 // ─── Helpers ─────────────────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -83,6 +84,41 @@ function section(title) {
   console.log(`\n${'═'.repeat(60)}`);
   console.log(`  ${title}`);
   console.log(`${'═'.repeat(60)}`);
+}
+
+// ถอดรหัสพิกัดย่อ Google Polyline เป็นพิกัดละติจูด/ลองจิจูดคู่จริง
+function decodePolyline(str) {
+  let index = 0;
+  const len = str.length;
+  let lat = 0;
+  let lng = 0;
+  const coordinates = [];
+
+  while (index < len) {
+    let b;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    coordinates.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return coordinates;
 }
 
 // ─── Auth ─────────────────────────────────────────────────────
@@ -139,7 +175,7 @@ async function createOrder() {
   const fee = res.data?.value?.deliveryFee;
   if (!orderId) throw new Error('Order creation failed — no ID returned');
   log('📦', 'Admin', `Order created → ID: ${orderId}`);
-  log('📏', 'System', `Calculated Distance: ${distance?.toFixed(2)} km | Fee: ${fee?.toFixed(2)} THB`);
+  log('📏', 'System', `Road Route Distance: ${distance?.toFixed(2)} km | Fee: ${fee?.toFixed(2)} THB`);
   log('🤖', 'AI',    'VRP Dispatch engine started — scanning for closest IDLE rider...');
 }
 
@@ -154,16 +190,37 @@ async function sendGps(conn, lat, lng) {
 }
 
 // ─── Movement ─────────────────────────────────────────────────
-async function moveTo(conn, from, to, steps, delayMs, label, name) {
-  log('🛵', name, `Moving: ${label} (${steps} steps)`);
-  const dLat = (to.lat - from.lat) / steps;
-  const dLng = (to.lng - from.lng) / steps;
-  for (let i = 1; i <= steps; i++) {
-    riderPos.lat = from.lat + dLat * i;
-    riderPos.lng = from.lng + dLng * i;
-    process.stdout.write(`\r  📍 ${riderPos.lat.toFixed(5)}, ${riderPos.lng.toFixed(5)}  (${i}/${steps})`);
+async function moveToPolyline(conn, coords, delayMs, label, name) {
+  log('🛵', name, `Moving along: ${label} (${coords.length} street nodes)`);
+  
+  // ดาวน์แซมพลิงโหนดเพื่อให้สิมูเลชันวิ่งสมูทและจบการทดสอบภายใน 15-25 วินาที
+  const maxSteps = 22;
+  const stepInterval = Math.max(1, Math.floor(coords.length / maxSteps));
+  
+  const nodesToVisit = [];
+  for (let i = 0; i < coords.length; i += stepInterval) {
+    nodesToVisit.push(coords[i]);
+  }
+  if (nodesToVisit[nodesToVisit.length - 1] !== coords[coords.length - 1]) {
+    nodesToVisit.push(coords[coords.length - 1]);
+  }
+
+  for (let i = 0; i < nodesToVisit.length; i++) {
+    const node = nodesToVisit[i];
+    
+    // 1. เพิ่มความแปรปรวน GPS Jitter (เบี่ยงเบนทางกายภาพเสมือนจริงเล็กน้อย)
+    const jitterLat = node.lat + (Math.random() - 0.5) * 0.00008;
+    const jitterLng = node.lng + (Math.random() - 0.5) * 0.00008;
+    
+    riderPos.lat = jitterLat;
+    riderPos.lng = jitterLng;
+    
+    process.stdout.write(`\r  📍 ${riderPos.lat.toFixed(5)}, ${riderPos.lng.toFixed(5)}  (${i + 1}/${nodesToVisit.length})`);
     await sendGps(conn, riderPos.lat, riderPos.lng);
-    await sleep(delayMs);
+    
+    // 2. เพิ่มความแปรปรวนด้านความเร็วเสมือนการจราจรติดขัด (Traffic speed variance delay)
+    const variableDelay = delayMs * (0.65 + Math.random() * 0.7);
+    await sleep(variableDelay);
   }
   console.log(); // newline after progress
 }
@@ -185,23 +242,54 @@ async function updateStatus(status) {
 async function runDelivery(conn, rider) {
   section('STEP 5 — Delivery & Routing Simulation');
 
-  // ตั้งต้นตำแหน่งปัจจุบันของ Rider คนที่ชนะ ณ จุดที่เขาจอด
   riderPos = { ...rider.start };
 
-  // Phase 1: ไปรับของที่ร้าน
+  // Phase 1: เดินทางไปรับของที่ร้านคู่ค้า (ลากเส้นตรงจำลองพร้อม Jitter)
   log('🚀', rider.name, 'Phase 1: Heading to pickup store...');
-  // ปรับ delay ก้าวขยับเพื่อให้เห็นชัดๆ บน Dashboard
-  await moveTo(conn, riderPos, SHOP_LOCATION, 15, 1200, `${rider.name} → Store`, rider.name);
+  const pickupSteps = 12;
+  const pickupCoords = [];
+  for (let i = 0; i <= pickupSteps; i++) {
+    const t = i / pickupSteps;
+    pickupCoords.push({
+      lat: riderPos.lat + (SHOP_LOCATION.lat - riderPos.lat) * t,
+      lng: riderPos.lng + (SHOP_LOCATION.lng - riderPos.lng) * t
+    });
+  }
+  await moveToPolyline(conn, pickupCoords, 800, `${rider.name} → Store`, rider.name);
   log('📍', rider.name, 'Arrived at restaurant! Food picked up successfully.');
   await updateStatus('PICKING_UP');
-  await sleep(2000);
+  await sleep(2500);
 
-  // Phase 2: ไปส่งของที่บ้านลูกค้า
-  log('🚀', rider.name, 'Phase 2: Heading to customer dropoff...');
-  await moveTo(conn, SHOP_LOCATION, DROPOFF, 18, 1200, `Store → Dropoff`, rider.name);
+  // Phase 2: เดินทางไปส่งที่บ้านลูกค้า (ถอดรหัสเส้นโค้งถนนจริง OSRM Dijkstra)
+  log('🚀', rider.name, 'Phase 2: Heading to customer dropoff using real OSRM road curves...');
+  
+  let deliveryCoords = [];
+  const polylineStr = activeOrder ? (activeOrder.encodedPolyline || activeOrder.EncodedPolyline) : null;
+  if (polylineStr) {
+    try {
+      deliveryCoords = decodePolyline(polylineStr);
+      log('ℹ️', 'Dijkstra', `OSRM Polyline decoded successfully into ${deliveryCoords.length} path coordinates.`);
+    } catch (err) {
+      log('⚠️', 'Dijkstra', `Polyline decode failed: ${err.message}. Falling back to straight-line interpolation.`);
+    }
+  }
+
+  // Fallback ในกรณีที่ไม่ได้ถอดรหัส
+  if (deliveryCoords.length === 0) {
+    const deliverySteps = 15;
+    for (let i = 0; i <= deliverySteps; i++) {
+      const t = i / deliverySteps;
+      deliveryCoords.push({
+        lat: SHOP_LOCATION.lat + (DROPOFF.lat - SHOP_LOCATION.lat) * t,
+        lng: SHOP_LOCATION.lng + (DROPOFF.lng - SHOP_LOCATION.lng) * t
+      });
+    }
+  }
+
+  await moveToPolyline(conn, deliveryCoords, 800, `Store → Dropoff (Road Network)`, rider.name);
   log('📍', rider.name, 'Arrived at customer dropoff destination!');
   await updateStatus('DELIVERING');
-  await sleep(1500);
+  await sleep(2000);
   await updateStatus('COMPLETED');
 
   section('🎉 E2E SIMULATION COMPLETED SUCCESSFULLY');
@@ -226,7 +314,6 @@ async function connectAllRiders() {
     riderObj.token = token;
     riderObj.id = rId;
 
-    // เก็บข้อมูล Winner Rider
     if (riderObj.email === 'rider1@delivery.com') {
       riderToken = token;
       riderId = rId;
@@ -243,15 +330,19 @@ async function connectAllRiders() {
       .configureLogging(signalR.LogLevel.Warning)
       .build();
 
-    // ตัวประมวลผลการรับงาน
     conn.on('OfferReceived', async (offer) => {
-      if (offerReceived) return; // idempotent
+      if (offerReceived) return;
       offerReceived = true;
+
+      // เซ็ตข้อมูลและ JWT Token ประจำตัวผู้ชนะแบบเรียลไทม์เพื่อใช้ PATCH อัปเดตสถานะผ่านด่านความปลอดภัยหลังบ้าน
+      riderToken = token;
+      riderId = rId;
 
       log('🔔', riderObj.name, `Offer received! OfferId=${offer.offerId} v${offer.version}`);
       log('📊', 'AI Match', `Selected Rider ID: ${offer.riderId} (Winner is indeed closer!)`);
 
       if (offer.order?.id) orderId = offer.order.id;
+      if (offer.order) activeOrder = offer.order; // บันทึกออเดอร์พร้อมเส้นทาง EncodedPolyline
 
       log('⏳', riderObj.name, 'Simulating rider acceptance delay (2s)...');
       await sleep(2000);
@@ -280,7 +371,6 @@ async function connectAllRiders() {
     await conn.start();
     log('✅', 'SignalR', `${riderObj.name} connected successfully!`);
 
-    // ส่ง GPS พิกัดก้าวเริ่มต้นขึ้นสู่ระบบทันทีเพื่อให้ขึ้นบนแผนที่ Dashboard
     log('📡', 'GPS', `Broadcasting starting location: ${riderObj.start.lat.toFixed(5)}, ${riderObj.start.lng.toFixed(5)}`);
     await conn.invoke('UpdateLocation', riderObj.start.lat, riderObj.start.lng, 5.0);
     

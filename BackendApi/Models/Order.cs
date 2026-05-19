@@ -56,5 +56,16 @@ namespace BackendApi.Models
 
         public DateTime? AssignedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
+
+        // ── Dijkstra Real-Road Routing Cache fields ──────────────────
+
+        /// <summary>เส้นทางที่ผ่านถนนจริงเข้ารหัสแบบ Google Polyline (ช่วยประหยัด DB 99%)</summary>
+        public string? EncodedPolyline { get; set; }
+
+        /// <summary>ระยะทางจริงของถนนจัดส่ง (เมตร)</summary>
+        public double RouteDistanceMeters { get; set; }
+
+        /// <summary>ระยะเวลาเดินทางจริงโดยประมาณ (วินาที)</summary>
+        public double RouteDurationSeconds { get; set; }
     }
 }

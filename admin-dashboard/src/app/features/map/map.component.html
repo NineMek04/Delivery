@@ -24,6 +24,7 @@
       <button type="button" (click)="zoomIn()">+</button>
       <button type="button" (click)="zoomOut()">-</button>
       <button type="button" (click)="recenter()">◎</button>
+      <button type="button" class="btn-sim-follow" [class.active]="simAutoFollow" (click)="toggleSimAutoFollow()" title="Sim Auto-Follow Focus">🎬</button>
     </div>
 
     <!-- Modal Form ลงทะเบียนร้านค้าสไตล์กระจกโปร่งแสง (Glassmorphic Modal Popup) -->

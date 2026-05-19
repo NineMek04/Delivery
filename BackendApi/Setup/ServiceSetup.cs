@@ -122,6 +122,9 @@ public static class ServiceSetup
             }
         });
 
+        // --- OSRM Routing HttpClient ---
+        services.AddHttpClient<OsrmRoutingService>();
+
         // --- Swagger / OpenAPI ---
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>

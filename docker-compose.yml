@@ -50,6 +50,8 @@ services:
       - Cors__AllowedOrigins__0=http://localhost
       - Cors__AllowedOrigins__1=http://localhost:80
       - Cors__AllowedOrigins__2=http://localhost:4200
+      - Cors__AllowedOrigins__3=http://localhost:8080
+      - Routing__LocalOsrmUrl=http://osrm:5000
       - Authentication__RequireSecureCookie=false
     depends_on:
       db:
@@ -118,6 +120,16 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+  # 7. ระบบคำนวณเส้นทางถนน Dijkstra (Offline OSRM Server)
+  osrm:
+    image: osrm/osrm-backend
+    container_name: delivery-osrm
+    volumes:
+      - ./osrm_data:/data
+    command: osrm-routed --algorithm mld /data/udon-thani.osrm
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
 
 volumes:
   postgres_data:

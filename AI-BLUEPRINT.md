@@ -3,8 +3,8 @@
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **Version:** 0.8.0 (Phase 4: Universal Tracking & Sequential Reference Numbers)  
-> **Last Updated:** 2026-05-19
+> **Version:** 0.9.0 (Phase 5: Real-world Routing & Real-time Dispatch Simulation)  
+> **Last Updated:** 2026-05-20
 
 ---
 
@@ -134,7 +134,7 @@ Delivery/
 
 ## 5. Current State of Development
 
-### สถานะรวม: 🔵 **Phase 4 — Universal Tracking & Sequential Reference Numbers** (สำเร็จ 100%)
+### สถานะรวม: 🔵 **Phase 5 — Real-world Routing & Real-time Dispatch Simulation** (สำเร็จ 100% สำหรับ Core/Web)
 
 | Component            | Status            | รายละเอียด                                                    |
 |----------------------|-------------------|--------------------------------------------------------------|
@@ -143,9 +143,11 @@ Delivery/
 | **Redis Cache**      | ✅ Running         | Used for GPS speed layer, presence, and distributed locking  |
 | **BackendApi**       | ✅ 100% Ready      | ขจัดปัญหา N+1 Query, ย้าย Haversine Math ไปหา PostGIS Engine, เพิ่มระบบ Provision Partition อัตโนมัติ |
 | **Universal Tracking**| ✅ 100% Ready      | ติดตั้งรหัสอ้างอิงสวยงาม ORD-, RID-, SHP-, USR- คิวรี O(1)/O(log N) ผนวกการค้นหาแบบผสมผสาน |
+| **OSRM Routing**     | ✅ 100% Ready      | ติดตั้งระบบ Offline-First Dijkstra สำหรับวาดเส้นทางโค้งจริง พร้อมการบีบอัด Polyline |
 | **ai-engine**        | 🟢 95% Ready       | FastAPI + OR-Tools VRP solver & Phase A Scorer. Waiting for Backend to call. |
-| **admin-dashboard**  | 🟢 65% Ready       | อัปเดต Map Component พิกัดอุดรธานี เพิ่ม Cockpit/Portal ฝั่งผู้ซื้อและร้านค้าคู่ค้าแบบ Real-time |
+| **admin-dashboard**  | 🟢 85% Ready       | ใช้งาน Sim Map, แยก Component ย่อย, แปลง Polyline, ปรับ UI แสดงรหัส Tracking Code สวยงาม |
 | **rider_app**        | 🟡 30% Ready       | Foundation ready. Needs real UI, build_runner, and Background GPS logic. |
+| **E2E Simulator**    | ✅ 100% Ready      | Node.js script เชื่อมต่อเต็มรูปแบบ รองรับเส้นทาง OSRM, GPS Jitter, SignalR Flow พร้อมกันหลาย Rider |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
 | **Database Migration**| ✅ Applied         | Run `dotnet ef database update` สำหรับ Spatial Index, Partitioning, และ RefNumber ล่าสุด |
 | **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
@@ -168,18 +170,20 @@ Delivery/
 ## 7. Next Tasks (Priority Order)
 
 ### 🔴 Critical — ขาดและ block การทำงาน
-1. **พัฒนา Angular Dashboard** — Map view (Leaflet/Google Maps) + real-time tracking UI + รัน OpenAPI Generator
+1. **พัฒนา Angular Dashboard** — Map view (Leaflet/Google Maps) + real-time tracking UI + รัน OpenAPI Generator(🟢 ผ่านแล้ว)
+### 🔴 Critical — สเต็ปต่อไปสำหรับ Mobile App
 2. **พัฒนา Flutter Rider App ต่อ** — Implement UI จริง, รัน `build_runner`, และทำระบบส่ง GPS พื้นหลัง (Background Service)
 
 ### 🟡 Important — ต้องทำเร็วๆ นี้
 3. **Backend ↔ AI Integration** — (✅ สำเร็จแล้ว) มี `AiService` พร้อมเรียกใช้จาก Controller/Service อื่น
 4. **ขยาย Business Logic** — (✅ สำเร็จแล้ว) มี `OrdersController` สำหรับจัดการออเดอร์และทริกเกอร์ Dispatch
-5. **Dispatch Integration Test** — (✅ สำเร็จแล้ว) ทดสอบ End-to-End Flow: Admin -> Backend -> AI -> SignalR -> Rider ได้รับ Offer งานสำเร็จ
-
+6. **Dispatch Integration Test** — (✅ สำเร็จแล้ว) ทดสอบ End-to-End Flow: Admin -> Backend -> AI -> SignalR -> Rider ได้รับ Offer งานสำเร็จ
+7. **พัฒนา Mobile App ฝั่ง Customer / Store** — อิงจาก Prototype หน้าเว็บที่สร้างไว้ (ใช้ Flutter หรือ Web-based PWA)
+8. **Backend Features (Tier 2/3)** — FCM Push Notifications, ระบบชำระเงิน, ETA Calculation
 ### 🟢 Nice-to-have
-7. **CI/CD Workflows** — GitHub Actions
-8. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
-
+9. **CI/CD Workflows** — GitHub Actions
+10. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
+11. **CI/CD Workflows** — GitHub Actions & Automated deployments
 ---
 
 ## 8. AI-Specific Notes (สำหรับ AI Assistant)
@@ -497,25 +501,25 @@ Step 8  Shared Components   — LoadingOverlay, ErrorSnackBar, StatusBadge ฯ�
 
 | # | งาน | Priority |
 |---|---|---|
-| 1 | **Map — Route Follow Fix** — แก้ Defect หมุดลอย ให้ Rider เดินตามเส้นทางจริง + Auto-zoom | 🔴 |
-| 2 | **Riders Management Page** — ตาราง Rider ทั้งหมด, สถานะ, ตำแหน่งล่าสุด, Activate/Deactivate | 🔴 |
+| 1 | **Map — Route Follow Fix** — แก้ Defect หมุดลอย ให้ Rider เดินตามเส้นทางจริง + Auto-zoom | ✅ (เสร็จแล้วใน Sim Map) |
+| 2 | **Riders Management Page** — ตาราง Rider ทั้งหมด, สถานะ, ตำแหน่งล่าสุด, Activate/Deactivate | 🟡 |
 | 3 | **Order Detail Modal** — คลิกออเดอร์แล้วเห็น Items, ร้านค้า, ลูกค้า, Timeline สถานะ | 🟡 |
 | 4 | **Shop Management Page** — ตาราง Shop, แก้ไขข้อมูล, เปิด/ปิดร้าน | 🟡 |
 | 5 | **User Management Page** — Admin จัดการ User ทั้งหมด, เปลี่ยน Role | 🟡 |
 
 ---
 
-### 9.10 Overall Progress Summary (ณ 2026-05-19)
+### 9.10 Overall Progress Summary (ณ 2026-05-20)
 
 ```
-Backend API           ████████████████████  100%  ✅ Phase 4 Complete
-AI Engine             ███████████████████░   95%  🟢 Waiting for full integration
-Admin Dashboard       ██████████████░░░░░░   70%  🟢 Core working, needs fixes
-Rider App             ██████░░░░░░░░░░░░░░   30%  🟡 Foundation ready, UI needed
-Customer App          ░░░░░░░░░░░░░░░░░░░░    0%  ❌ Not started (needs Backend Tier 1)
-Store Partner App     ░░░░░░░░░░░░░░░░░░░░    0%  ❌ Not started (needs Backend Menu System)
-
-Overall Project       ████████████░░░░░░░░  ~60%
+Backend API                 ████████████████████  100%  ✅ Phase 4 Complete
+AI Engine                   ███████████████████░   95%  🟢 Waiting for full integration
+Admin Dashboard             ██████████████░░░░░░   70%  🟢 Core working, needs fixes
+Rider App                   ██████░░░░░░░░░░░░░░   30%  🟡 Foundation ready, UI needed
+Customer App                ░░░░░░░░░░░░░░░░░░░░    0%  ❌ Not started (needs Backend Tier 1)
+Store Partner App           ░░░░░░░░░░░░░░░░░░░░    0%  ❌ Not started (needs Backend Menu System)
+needs fixes +Admin Dashboard█████████████████░░░   85% 🟢 Sim Map
+Overall Project             ████████████░░░░░░░░  ~60%
 ```
 
 **Next Immediate Action:** เริ่มจาก Backend Tier 1 (#1 Customer Real-time Events) → จากนั้น Rider App Step 1 (Login Screen UI)
@@ -563,3 +567,15 @@ Overall Project       ████████████░░░░░░░�
 ### Next Suggested Work
 - Run the full Docker-backed simulator against `/map` and tune animation timing/zoom if needed.
 - When Flutter rider app is ready, replace the simulator GPS/acceptance flow with real rider app events while keeping the same SignalR/backend event contract.
+
+### สิ่งที่ยังเหลือต้องทำ (Next Action Items) สำหรับโปรเจกต์ Delivery
+ - เมื่อระบบแกนกลาง (Core Backend, AI, Database) เสถียรและทดสอบ E2E ผ่านหมดแล้ว 
+### งานที่เหลือจะมุ่งเน้นไปที่ส่วนที่เชื่อมต่อกับ ผู้ใช้งานจริง (End Users) ครับ:
+  1. 📱 ฝั่งแอปพลิเคชันมือถือ (Priority สูงสุด)
+    - Rider App (Flutter): ขึ้นโครง UI จริงทั้งหมด (Login, Home Dashboard แบบมี Toggle รับงาน, หน้า Active Delivery, และ Map Tracking) และเขียนระบบ Service ในการส่ง GPS เบื้องหลัง (Background Service)
+    - Customer App / Store Partner App: เนื่องจากเราทำ Prototype ของ 2 ฝั่งนี้บน Angular เรียบร้อยแล้ว (สามารถกดสั่ง, เปิดปิดร้าน, สร้างออเดอร์) ขั้นต่อไปคือการยกฟีเจอร์นี้ไปทำเป็น Mobile App หรือ Web PWA ครับ
+  2. ⚙️ ฝั่ง Backend API (Tier 2/3)
+    - ระบบการแจ้งเตือน (Push Notifications): ฝัง Firebase Cloud Messaging (FCM) เพื่อให้เวลา AI หางานเจอ หรือเวลาสถานะออเดอร์เปลี่ยน แจ้งเตือนจะเด้งเข้ามือถือแม้แอปปิดอยู่
+    - ETA & Pricing: ปรับแต่งสูตรคำนวณเวลาถึงโดยประมาณ (ETA) ให้ละเอียดขึ้นโดยใช้ความเร็วรถและระยะทางจาก OSRM รวมถึงทำระบบ Payment (ถ้าจำเป็น)
+  3. 💻 ฝั่ง Admin Dashboard
+    - เก็บตกหน้าจอที่เหลือ เช่น หน้าจัดการ Rider เชิงลึก (Activate/Deactivate, ดูประวัติรายบุคคล) และระบบจัดการร้านค้าครับ

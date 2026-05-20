@@ -2,8 +2,8 @@
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
-> **Version:** 0.7.0 (Phase 3: PostGIS Spatial Performance & Enterprise Database Scale)  
-> **Last Updated:** 2026-05-18  
+> **Version:** 0.9.0 (Phase 5: Real-world Routing & Real-time Dispatch Simulation)  
+> **Last Updated:** 2026-05-20  
 > **Team Lead:** นนท์ธรัตน์ ทาลา
 
 ---
@@ -32,7 +32,9 @@
 | Rider Mobile App | Flutter app สำหรับส่ง GPS และรับเส้นทาง | **Foundation Ready** |
 | Dockerized Services | รันระบบด้วย Docker Compose ครบ 5 services | **Ready** |
 | Backend Security | JWT, Refresh Token, Rotation, Role policy | **Enhanced** |
-| PostGIS Spatial Tuning & Scaling | GiST Indexes, Range Partitioning รายเดือน, Database Clustering & Health Checks | **Completed (Phase 3)** |
+| PostGIS Spatial Tuning & Scaling | GiST Indexes, Range Partitioning รายเดือน, Database Clustering | **Completed** |
+| Universal Tracking & OSRM | รหัส Tracking Code ที่อ่านง่าย (ORD-xxx), เส้นทางโค้งจริงแบบออฟไลน์ด้วย OSRM | **Completed** |
+| Simulation Sandbox | ระบบจำลองการยิง GPS, สมัครร้านค้า, การวิ่งตามถนนด้วย Polyline Decoder | **Completed** |
 
 ---
 
@@ -281,8 +283,8 @@ Delivery/
 - [x] Add `AiService` HttpClient to communicate with AI Engine.
 
 ### Frontend / Mobile
-- [ ] Run `npm run generate:api` in Angular to sync DTOs.
-- [ ] Build Angular Dashboard Map View (Leaflet/Google Maps) + real-time SignalR UI.
+- [x] Run `npm run generate:api` in Angular to sync DTOs.
+- [x] Build Angular Dashboard Map View (Leaflet) + real-time SignalR UI (Sim Map).
 - [x] Initialize **Flutter Rider App** project and AuthService.
 - [ ] Build real UI for Rider App and run `build_runner`.
 - [ ] Implement Phase 2: Background GPS Service and end-to-end dispatch receiving in Rider App.
@@ -293,8 +295,8 @@ Delivery/
 - [x] Wait for BackendApi to integrate and call its endpoints (`AiService` added).
 
 ### Integration
-- [x] End-to-end flow: create order → optimize route → assign rider → broadcast tracking.
-- [ ] Docker Compose full dispatch smoke test.
+- [x] End-to-end flow: create order → VRP optimize → OSRM routing → assign rider → broadcast tracking.
+- [x] Docker Compose full dispatch smoke test (ผ่าน `simulate-e2e.js`).
 - [ ] Add CI build workflow.
 
 ---

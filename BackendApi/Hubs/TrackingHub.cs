@@ -167,6 +167,7 @@ public class TrackingHub : Hub
         var rider = await _dbContext.Riders.FindAsync(riderId);
         if (rider is not null)
         {
+            rider.CurrentLocation = new NetTopologySuite.Geometries.Point(lng, lat) { SRID = 4326 };
             rider.LastGpsUpdate = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 

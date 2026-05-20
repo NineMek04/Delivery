@@ -16,7 +16,18 @@ export interface DispatchOffer {
   offerId: string;
   version: number;
   expiresAt: string;
+  riderId?: string;
+  pickupRoute?: any;
   order: any;
+}
+
+export interface DispatchScanStarted {
+  order: any;
+  pickupLat: number;
+  pickupLng: number;
+  searchRadiusKm: number;
+  nearbyRiders: any[];
+  startedAt: string;
 }
 
 @Injectable({
@@ -34,6 +45,12 @@ export class TrackingSignalRService {
   // New Observables for Map component to track dispatch phases
   private _offerReceived = new Subject<DispatchOffer>();
   public offerReceived$ = this._offerReceived.asObservable();
+
+  private _dispatchScanStarted = new Subject<DispatchScanStarted>();
+  public dispatchScanStarted$ = this._dispatchScanStarted.asObservable();
+
+  private _dispatchCandidatesRanked = new Subject<any>();
+  public dispatchCandidatesRanked$ = this._dispatchCandidatesRanked.asObservable();
 
   private _orderAssigned = new Subject<{ id: string; riderId: string; assignedAt: string }>();
   public orderAssigned$ = this._orderAssigned.asObservable();
@@ -112,6 +129,23 @@ export class TrackingSignalRService {
     // OfferReceived — Backend ยิงไปหา Rider โดยตรง (group rider:{id})
     this.hubConnection.on('OfferReceived', (offer: DispatchOffer) => {
       this.addAlert('AI Dispatcher', `Offer sent to rider (Order ${offer.order?.id?.slice(0, 8) || 'Unknown'})`, 'info');
+      this._offerReceived.next(offer);
+    });
+
+    this.hubConnection.on('DispatchScanStarted', (data: DispatchScanStarted) => {
+      const count = data.nearbyRiders?.length ?? 0;
+      this.addAlert('AI Scan', `Scanning ${count} nearby riders for Order ${data.order?.id?.slice(0, 8) || 'Unknown'}`, 'info');
+      this._dispatchScanStarted.next(data);
+    });
+
+    this.hubConnection.on('DispatchCandidatesRanked', (data: any) => {
+      const winner = data.rankedCandidates?.[0]?.riderId || data.RankedCandidates?.[0]?.RiderId;
+      this.addAlert('AI Rank', winner ? `Best rider candidate: ${winner.slice(0, 8)}` : 'Ranking completed', 'info');
+      this._dispatchCandidatesRanked.next(data);
+    });
+
+    this.hubConnection.on('DispatchOfferSent', (offer: DispatchOffer) => {
+      this.addAlert('Dispatch Offer', `Offer sent to Rider ${offer.riderId?.slice(0, 8) || 'Unknown'}`, 'info');
       this._offerReceived.next(offer);
     });
 

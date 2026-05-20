@@ -27,7 +27,7 @@ export class MainLayoutComponent {
 
   readonly navItems: NavItem[] = [
     { path: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
-    { path: '/map',       label: 'Live Map',   icon: Truck },
+    { path: '/map',       label: 'Sim Map',    icon: Truck },
     { path: '/orders',    label: 'Orders',     icon: Warehouse },
     { path: '/riders',    label: 'Riders',     icon: Users },
     { path: '/shops',     label: 'Shops',      icon: Store },

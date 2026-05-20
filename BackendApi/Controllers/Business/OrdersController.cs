@@ -286,6 +286,22 @@ public class OrdersController : DeliveryControllerBase
         }
 
         var resultDto = _mapper.Map<OrderDto>(order);
+
+        await _hubContext.Clients.Group("admins").SendAsync(
+            "OrderStatusChanged",
+            order.Id,
+            order.State.ToString(),
+            cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(order.AssignedRiderId))
+        {
+            await _hubContext.Clients.Group($"rider:{order.AssignedRiderId}").SendAsync(
+                "OrderStatusChanged",
+                order.Id,
+                order.State.ToString(),
+                cancellationToken);
+        }
+
         return Ok(ApiResponse<OrderDto>.Ok(resultDto, "สถานะออเดอร์อัปเดตเรียบร้อยแล้ว"));
     }
 

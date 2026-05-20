@@ -525,6 +525,11 @@ i {
   fill: #2563eb !important;
 }
 
+.scan-candidate-marker {
+  animation: pulse 1.4s infinite ease-in-out;
+  filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.45));
+}
+
 @keyframes winner-glow {
   0% {
     box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7);

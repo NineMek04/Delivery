@@ -326,6 +326,54 @@
 
 
 
+---
+
+## [Log Date: 2026-05-20 (2)] | By: AI Agent
+
+### Component: BackendApi / Dispatch Realtime Simulation Bridge
+- **Action:** เพิ่ม SignalR events สำหรับ Admin Dashboard เพื่อให้เห็น dispatch flow แบบ simulation ได้ครบขึ้น:
+  - `DispatchScanStarted` แสดงช่วงระบบกำลังสแกนหาไรเดอร์รอบร้าน
+  - `DispatchCandidatesRanked` แสดงผล AI ranking ของไรเดอร์ที่อยู่ใกล้หลายคน
+  - `DispatchOfferSent` แสดง offer ที่ส่งไปยังไรเดอร์ที่ถูกเลือก
+  - `OrderStatusChanged` broadcast ไปยัง admin และ rider เมื่อสถานะเปลี่ยนผ่าน `PICKING_UP`, `DELIVERING`, `COMPLETED`
+- **Action:** ปรับ `TrackingHub.UpdateLocation()` ให้บันทึก `Rider.CurrentLocation` ล่าสุดลง PostgreSQL/PostGIS พร้อม GPS realtime เพื่อให้ AI/ranking และ dashboard ใช้ตำแหน่งล่าสุดได้ตรงกัน
+- **Action:** ปรับ `DispatchService` ให้คำนวณเส้นทางช่วง Rider -> Store ผ่าน `OsrmRoutingService` และแนบ `PickupRoute.EncodedPolyline` ไปกับ offer payload สำหรับวาดเส้นบน map ก่อนเริ่มวิ่งจริง
+
+### Component: E2E Simulator
+- **Action:** ยกเครื่อง `scripts/e2e-simulator/simulate-e2e.js` ให้รองรับ simulation แทน Flutter rider app ชั่วคราว:
+  - สุ่ม rider 5-10 คนรอบร้าน
+  - register/login rider จำลองอัตโนมัติ
+  - สุ่มร้าน, เมนู, dropoff และ order
+  - ส่ง GPS realtime ผ่าน SignalR
+  - รับ offer ด้วยไรเดอร์ที่ backend/AI เลือก
+  - วิ่งตาม route จริงทั้งช่วง Rider -> Store และ Store -> Dropoff โดยใช้ encoded polyline/OSRM และ fallback เป็นเส้นตรงถ้าจำเป็น
+
+### Component: Admin Dashboard / Sim Map
+- **Action:** เพิ่มหน้าแผนที่ simulation แยกไฟล์ใหม่ภายใต้ `admin-dashboard/src/app/features/sim-map/`
+  - `sim-map.component.ts`
+  - `sim-map.component.html`
+  - `sim-map.component.scss`
+- **Action:** ปรับ route ให้ `/map` ใช้ `SimMapComponent` ชั่วคราวสำหรับทดสอบ flow simulation และเพิ่ม `/map-live` เพื่อเก็บหน้า `MapComponent` เดิมไว้สำหรับกลับไปใช้กับ production/mobile flow เมื่อ Flutter app พร้อม
+- **Action:** เพิ่ม UI บนแผนที่สำหรับ simulation:
+  - HUD แสดง phase `Scan -> Offer -> Assign -> Pickup -> Dropoff`
+  - candidate ranking board
+  - realtime event timeline
+  - route progress
+  - selected rider state
+  - scan circle รอบร้าน
+  - pickup/dropoff markers
+- **Action:** ปรับการเคลื่อนที่ marker ให้ smooth ด้วย `requestAnimationFrame`, เพิ่ม auto-follow/zoom ไปหาไรเดอร์ที่กำลังจะวิ่ง และให้ camera ติดตาม selected rider ระหว่าง pickup/delivery
+
+### Verification
+- **Backend Build:** `dotnet build BackendApi\BackendApi.csproj` ผ่าน (0 errors; เหลือ warnings เดิมเรื่อง Redis async batch / XML docs)
+- **Simulator Syntax:** `node --check scripts\e2e-simulator\simulate-e2e.js` ผ่าน
+- **Angular Build:** `npm.cmd run build` ผ่านเมื่อรันนอก sandbox permission; มี warnings เดิมเรื่อง bundle budget และ CommonJS (`leaflet`, `sweetalert2`)
+
+### Notes For Next Agent
+- `/map` = หน้า Sim Map ใหม่สำหรับทดสอบ realtime simulation
+- `/map-live` = หน้า map เดิม เก็บไว้เป็นตัวจริง/ตัวกลับไปใช้เมื่อ Flutter app เสร็จ
+- ยังไม่ได้ run full simulator หลังเพิ่ม Sim Map เพราะ environment นี้ยังติด permission Docker API (`docker compose ps` อ่าน Docker config/pipe ไม่ได้)
+- Worktree มีการแก้ไฟล์จากหลายงานก่อนหน้าอยู่แล้ว โดยเฉพาะ migration/menu/order; อย่า revert งานผู้ใช้หรือไฟล์ที่ไม่ได้แตะใน task ปัจจุบัน
 ### Component: BackendApi — Database Spatial Performance & Scaling
 - **Action:** เพิ่ม **GiST Index** ผ่าน Fluent API (HasMethod("gist")) ให้พิกัดภูมิศาสตร์ทั้งหมด ใน `ApplicationDbContext.cs` (`Rider.CurrentLocation`, `Order.PickupLocation`, `Order.DropoffLocation`, `RiderLocationHistory.Location`) เพื่อเปลี่ยนจาก Sequential Scan มาเป็น Index Scan
 - **Action:** สร้าง Migration `Phase3EnterpriseSpatialScaling` พร้อมปรับแต่ง Raw SQL เพิ่มเติมในเมธอด `Up()`:
@@ -581,5 +629,50 @@
 - **E2E Simulation Run**: รันจำลองผ่าน `node scripts/e2e-simulator/simulate-e2e.js` สำเร็จลุล่วง ไรเดอร์ขับเคลื่อนคดเคี้ยวตามแนวถนนจริง อัปเดตสเตจสเตทผ่านสิทธิ์ไรเดอร์สมบูรณ์แบบ แผนที่หน้าบ้านเกาะขยับกล้องติดตามอัจฉริยะได้อย่างยอดเยี่ยม
 - **Defect Resolution**: ล้างปัญหาข้อบกพร่อง **🔴 CriticalAction** ก่อนหน้านี้ได้สำเร็จ 100%!
 
+---
+
+## [Log Date: 2026-05-20] | By: AI Agent
+
+### Component: BackendApi — Master Data Compilation & Logic Fix
+- **Action:** แก้ไขปัญหาการ Compile Error ใน `MenuItemsController.cs` 
+  - เปลี่ยนจากการเรียกใช้ฟังก์ชัน Synchronous `DB.DeleteObject(entity)` ที่ไม่มีจริงใน `DBHandlerCore` ไปใช้งาน Asynchronous `await DB.DeleteObjectAsync<MenuItem>(id, softDelete: true, cancellationToken: cancellationToken)` ที่เป็นมาตรฐานแทน
+
+### Component: Admin Dashboard — Angular Standalone Component Import
+- **Action:** แก้ไข Compile Error ในหน้าบริหารจัดการคำสั่งซื้อ (Orders) บนแดชบอร์ด (`orders.component.ts`)
+  - นำเข้า (Import) และเพิ่ม `OrderDetailComponent` เข้าไปยัง `imports` array ของ `@Component` เนื่องจากเป็น Angular 19 Standalone Component เพื่อแก้ไขข้อผิดพลาดที่ไม่รู้จักแท็ก `<app-order-detail>`
+
+### Component: Database (PostGIS) — PostgreSQL Index Method Collision & Auto-Migration Fix
+- **Defect Detected:** บั๊กรันไทม์ `relation "MenuItems" does not exist` ตอนเข้าหน้าแดชบอร์ดร้านค้า มีสาเหตุจากกระบวนการ Migration `AddMenuItemsAndOptions` ของ EF Core ล้มเหลวกลางทางระหว่าง Startup เนื่องจากมีความพยายามสร้าง **GiST Index** บนฟิลด์ `ShopId` (ซึ่งมีชนิดข้อมูลเป็น `text`/string ไม่ใช่ geospatial geometry) ส่งผลให้เกิดข้อผิดพลาด `data type text has no default operator class for access method "gist"` บน PostgreSQL
+- **Action:** 
+  - นำการตั้งค่าดัชนี `.HasMethod("gist")` ของ `MenuItem.ShopId` ออกจาก `ApplicationDbContext.cs` เนื่องจากไม่มีความจำเป็นทางพิกัดภูมิศาสตร์ และขัดแย้งกับข้อจำกัดของ PostgreSQL
+  - ทำความสะอาดและแก้ไขไฟล์ Migration `20260520030924_AddMenuItemsAndOptions.cs`, ไฟล์ `.Designer.cs` และไฟล์ `.ModelSnapshot.cs` เพื่อลบคำสั่งสร้าง `IX_MenuItems_ShopId_Gist` ดัชนี GiST บน `ShopId` ออกทั้งหมด
+- **Status:** สำเร็จ ไมเกรชันของ EF Core สามารถสร้างและประยุกต์ใช้กับตารางใน PostgreSQL ได้อย่างสมบูรณ์ ไร้ข้อขัดข้อง และกระบวนการ Seeding ข้อมูลตารางร้านค้า/รายการอาหารทำงานผ่านราบรื่น 100%
+
+### Verification & Infrastructure
+- **Docker Compose:** ดำเนินการ Rebuild และนำอิมเมจของ `delivery-backend` คอนเทนเนอร์ขึ้นรันใหม่
+- **Current Status:** คอนเทนเนอร์หลักทั้งหมดคอมไพล์ผ่านและรันได้ปกติในสถานะ **Healthy** 100% ระบบสามารถดึงข้อมูลร้านค้าและรายการอาหารได้สมบูรณ์ ปราศจากปัญหา 500 Internal Server Error บนหน้าบ้านแล้ว
 
 
+
+
+
+
+---
+
+## [Log Date: 2026-05-20 (3)] | By: AI Agent
+
+### Component: Documentation / Latest Sim Map Context
+- **Action:** Added current simulation-map handoff context to `AI-BLUEPRINT.md` so the next agent can continue from the active routing and realtime dispatch state quickly.
+- **Action:** Confirmed the intended current map split:
+  - `/map` = new `SimMapComponent` for realtime simulator testing.
+  - `/map-live` = original `MapComponent` kept for the future production/mobile flow.
+- **Action:** Recorded the current simulator/backend/admin contracts:
+  - Admin SignalR events: `DispatchScanStarted`, `DispatchCandidatesRanked`, `DispatchOfferSent`, `OrderStatusChanged`.
+  - Simulator entrypoint: `scripts/e2e-simulator/simulate-e2e.js`.
+  - Main sim UI files: `admin-dashboard/src/app/features/sim-map/`.
+
+### Verification Snapshot
+- `node --check scripts\e2e-simulator\simulate-e2e.js` passed.
+- `npm.cmd run build` in `admin-dashboard` passed with existing bundle/CommonJS warnings.
+- `dotnet build BackendApi\BackendApi.csproj` passed with existing warnings.
+- Full Docker-backed simulator run still needs Docker API access outside the current sandbox.

@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, AfterViewInit, ElementRef, ViewChild, inj
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
-import { TrackingSignalRService, RiderLocationUpdate } from '../../core/services/tracking-signalr.service';
+import { DispatchScanStarted, TrackingSignalRService, RiderLocationUpdate } from '../../core/services/tracking-signalr.service';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { RiderService } from '../../core/services/rider.service';
 import { Subscription } from 'rxjs';
@@ -62,6 +62,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private pickupRouteLine: L.Polyline | null = null;
   private deliveryRouteLine: L.Polyline | null = null;
   private activeRadarCircle: L.Circle | null = null;
+  private candidateMarkers: L.CircleMarker[] = [];
 
   // ── คุณลักษณะระบบร้านค้า (Shop Registration Features) ──
   public isAddShopMode = false;
@@ -105,6 +106,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     );
 
     // Dynamic AI Dispatch Events Subscriptions
+    this.subscriptions.add(
+      this.trackingService.dispatchScanStarted$.subscribe(data => {
+        this.handleDispatchScanStarted(data);
+      })
+    );
+
+    this.subscriptions.add(
+      this.trackingService.dispatchCandidatesRanked$.subscribe(data => {
+        this.handleDispatchCandidatesRanked(data);
+      })
+    );
+
     this.subscriptions.add(
       this.trackingService.offerReceived$.subscribe(offer => {
         this.handleOfferReceived(offer);
@@ -396,16 +409,80 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // ── Real-time Dispatch Event Handling ──
 
+  private handleDispatchScanStarted(data: DispatchScanStarted): void {
+    console.log('Live Map: Dispatch scan started', data);
+    this.clearActiveOrderLayers();
+    this.activeOrder = data.order;
+
+    const pickupLat = data.pickupLat ?? data.order?.pickupLat ?? data.order?.PickupLat;
+    const pickupLng = data.pickupLng ?? data.order?.pickupLng ?? data.order?.PickupLng;
+    const dropoffLat = data.order?.dropoffLat ?? data.order?.DropoffLat;
+    const dropoffLng = data.order?.dropoffLng ?? data.order?.DropoffLng;
+
+    if (!pickupLat || !pickupLng) return;
+
+    this.activeRadarCircle = L.circle([pickupLat, pickupLng], {
+      radius: Math.max(250, (data.searchRadiusKm || 0.6) * 1000),
+      color: '#3b82f6',
+      fillColor: '#3b82f6',
+      fillOpacity: 0.08,
+      className: 'ai-radar-pulse'
+    }).addTo(this.map);
+
+    const points: L.LatLngExpression[] = [[pickupLat, pickupLng]];
+    if (dropoffLat && dropoffLng) {
+      points.push([dropoffLat, dropoffLng]);
+    }
+
+    const nearbyRiders = data.nearbyRiders || [];
+    nearbyRiders.forEach((candidate: any, index: number) => {
+      const lat = candidate.lat ?? candidate.Lat;
+      const lng = candidate.lng ?? candidate.Lng;
+      const riderId = candidate.riderId ?? candidate.RiderId;
+      const distanceKm = candidate.distanceKm ?? candidate.DistanceKm;
+      if (lat == null || lng == null) return;
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: Math.max(7, 13 - index),
+        color: '#2563eb',
+        fillColor: '#60a5fa',
+        fillOpacity: 0.7,
+        weight: 2,
+        className: 'scan-candidate-marker'
+      })
+        .bindTooltip(`Candidate ${index + 1}: RID-${String(riderId || '').slice(0, 6).toUpperCase()} (${Number(distanceKm || 0).toFixed(2)} km)`, {
+          direction: 'top',
+          className: 'custom-shop-tooltip'
+        })
+        .addTo(this.map);
+
+      this.candidateMarkers.push(marker);
+      points.push([lat, lng]);
+    });
+
+    this.map.fitBounds(L.latLngBounds(points), { padding: [80, 80], maxZoom: 15 });
+  }
+
+  private handleDispatchCandidatesRanked(data: any): void {
+    console.log('Live Map: Dispatch candidates ranked', data);
+    const ranked = data.rankedCandidates || data.RankedCandidates || [];
+    const winner = ranked[0]?.riderId || ranked[0]?.RiderId;
+    if (!winner) return;
+
+    this.assignedRiderId = winner;
+    const currentLocs = this.trackingService.getRiderLocations();
+    this.updateMapMarkers(currentLocs);
+  }
+
   private handleOfferReceived(offer: any): void {
     console.log('Live Map: Offer received', offer);
-    this.clearActiveOrderLayers();
     this.activeOrder = offer.order;
     this.assignedRiderId = offer.riderId || offer.order?.assignedRiderId || null;
 
-    const pickupLat = offer.order?.pickupLat;
-    const pickupLng = offer.order?.pickupLng;
-    const dropoffLat = offer.order?.dropoffLat;
-    const dropoffLng = offer.order?.dropoffLng;
+    const pickupLat = offer.order?.pickupLat ?? offer.order?.PickupLat;
+    const pickupLng = offer.order?.pickupLng ?? offer.order?.PickupLng;
+    const dropoffLat = offer.order?.dropoffLat ?? offer.order?.DropoffLat;
+    const dropoffLng = offer.order?.dropoffLng ?? offer.order?.DropoffLng;
 
     if (!pickupLat || !pickupLng || !dropoffLat || !dropoffLng) return;
 
@@ -444,19 +521,23 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       .bindPopup(`<b>🏁 จุดจัดส่งของลูกค้า:</b><br>พิกัด: ${dropoffLat.toFixed(5)}, ${dropoffLng.toFixed(5)}`)
       .addTo(this.map);
 
-    // 3. Add pulsing AI Radar ring around Shop
-    this.activeRadarCircle = L.circle([pickupLat, pickupLng], {
-      radius: 600,
-      color: '#3b82f6',
-      fillColor: '#3b82f6',
-      fillOpacity: 0.1,
-      className: 'ai-radar-pulse'
-    }).addTo(this.map);
+    // 3. Plot paths
+    let pickupCoords: L.LatLngExpression[] = [];
+    const pickupRoutePolyline = offer.pickupRoute?.encodedPolyline || offer.pickupRoute?.EncodedPolyline;
+    if (pickupRoutePolyline) {
+      try {
+        pickupCoords = this.decodePolyline(pickupRoutePolyline);
+      } catch (err) {
+        console.error('Failed to decode pickup route polyline, utilizing straight line fallback', err);
+      }
+    }
 
-    // 4. Plot paths
-    // Dash Red (Rider -> Shop)
-    if (riderPos) {
-      this.pickupRouteLine = L.polyline([riderPos, [pickupLat, pickupLng]], {
+    if (!pickupCoords.length && riderPos) {
+      pickupCoords = [riderPos, [pickupLat, pickupLng]];
+    }
+
+    if (pickupCoords.length) {
+      this.pickupRouteLine = L.polyline(pickupCoords, {
         color: '#ef4444',
         weight: 4,
         dashArray: '8, 8',
@@ -495,6 +576,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       this.activeRadarCircle.remove();
       this.activeRadarCircle = null;
     }
+    this.clearCandidateMarkers();
 
     // Smooth Auto-Zoom centering camera precisely when order is assigned (Key Dispatch event)
     if (this.assignedRiderId) {
@@ -515,7 +597,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private handleOrderStatusChanged(data: any): void {
     console.log('Live Map: Order status changed', data);
     
-    if (data.status === 'PICKING_UP' || data.status === 'DELIVERING') {
+    if (data.status === 'DELIVERING') {
       if (this.pickupRouteLine) {
         this.pickupRouteLine.remove();
         this.pickupRouteLine = null;
@@ -551,8 +633,14 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       this.activeRadarCircle.remove();
       this.activeRadarCircle = null;
     }
+    this.clearCandidateMarkers();
     this.activeOrder = null;
     this.assignedRiderId = null;
+  }
+
+  private clearCandidateMarkers(): void {
+    this.candidateMarkers.forEach(marker => marker.remove());
+    this.candidateMarkers = [];
   }
 
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {

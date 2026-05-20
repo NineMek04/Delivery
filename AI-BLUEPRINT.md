@@ -521,3 +521,45 @@ Overall Project       ████████████░░░░░░░�
 **Next Immediate Action:** เริ่มจาก Backend Tier 1 (#1 Customer Real-time Events) → จากนั้น Rider App Step 1 (Login Screen UI)
 4. `OSRM-SETUP.md` — คู่มือการดาวน์โหลด ติดตั้ง และกำหนดค่า OSRM ออฟไลน์
 5. `.cursorrules` — กฎและ workflow ของ AI
+
+---
+
+## Latest Working Context - 2026-05-20 Sim Realtime Dispatch Map
+
+### Current Routing
+- Admin route `/map` now opens the new simulation-focused map: `admin-dashboard/src/app/features/sim-map/`.
+- Original live map is still available at `/map-live`: `admin-dashboard/src/app/features/map/`.
+- Sidebar label now points operators to `Sim Map` during simulator testing.
+
+### Sim Map Behavior
+- Shows scan circle around the order shop when dispatch starts.
+- Shows nearby rider candidates and ranked candidates from SignalR.
+- Smoothly animates rider marker movement with `requestAnimationFrame`.
+- Auto-follows and zooms to the selected rider while pickup/dropoff route simulation is running.
+- Draws pickup and dropoff markers, full route, and remaining route progress.
+- Includes a lightweight HUD for flow phases: Scan -> Offer -> Assign -> Pickup -> Dropoff.
+
+### Backend Realtime Bridge
+- `BackendApi/Hubs/TrackingHub.cs` now keeps `Rider.CurrentLocation` in PostGIS synced with realtime rider GPS updates.
+- `BackendApi/Services/Dispatch/DispatchService.cs` broadcasts dispatch simulation events to admin clients:
+  - `DispatchScanStarted`
+  - `DispatchCandidatesRanked`
+  - `DispatchOfferSent`
+- Dispatch offers include pickup route details when available from OSRM.
+- `OrdersController` broadcasts `OrderStatusChanged` to admin and rider groups after status transitions.
+
+### Simulator
+- Main file: `scripts/e2e-simulator/simulate-e2e.js`.
+- It creates 5-10 simulated riders near a random shop/order area, sends realtime GPS through SignalR, accepts the selected offer, then moves through pickup and delivery routes.
+- Route source order is backend encoded route -> local OSRM fallback -> straight-line fallback.
+- Useful env vars: `DELIVERY_API_URL`, `DELIVERY_HUB_URL`, `DELIVERY_HEALTH_URL`, `DELIVERY_OSRM_URL`, `DELIVERY_ADMIN_EMAIL`, `DELIVERY_ADMIN_PASSWORD`, `DELIVERY_SIM_PASSWORD`, `DELIVERY_SIM_RIDERS`.
+
+### Verification Notes
+- `node --check scripts\e2e-simulator\simulate-e2e.js` passed.
+- `npm.cmd run build` in `admin-dashboard` passed with existing budget/CommonJS warnings.
+- `dotnet build BackendApi\BackendApi.csproj` passed with existing warnings.
+- Full simulator execution may require Docker API access outside the sandbox on this machine.
+
+### Next Suggested Work
+- Run the full Docker-backed simulator against `/map` and tune animation timing/zoom if needed.
+- When Flutter rider app is ready, replace the simulator GPS/acceptance flow with real rider app events while keeping the same SignalR/backend event contract.

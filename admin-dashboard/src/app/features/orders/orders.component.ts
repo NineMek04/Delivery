@@ -5,11 +5,12 @@ import { OrderService } from '../../core/services/order.service';
 import { OrderDto } from '../../api/generated/model/order-dto';
 import Swal from 'sweetalert2';
 import { LucideAngularModule, RefreshCcw, Search, Plus, XCircle, RotateCcw, Info } from 'lucide-angular';
+import { OrderDetailComponent } from './order-detail/order-detail.component';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent],
   templateUrl: './orders.component.html',
   styleUrl: './orders.component.scss'
 })

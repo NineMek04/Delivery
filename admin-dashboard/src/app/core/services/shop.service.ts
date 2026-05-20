@@ -3,6 +3,7 @@ import { BaseApiService } from './base-api.service';
 
 export interface ShopDto {
   id?: string;
+  trackingCode?: string;
   name: string;
   menuName: string;
   menuPrice: number;

@@ -74,6 +74,7 @@ export class ShopsComponent implements OnInit {
     if (!q) return this.shops;
     return this.shops.filter(s =>
       (s.id || '').toLowerCase().includes(q) ||
+      (s.trackingCode || '').toLowerCase().includes(q) ||
       (s.name || '').toLowerCase().includes(q) ||
       (s.menuName || '').toLowerCase().includes(q)
     );
@@ -145,6 +146,17 @@ export class ShopsComponent implements OnInit {
 
   shortId(id?: string): string {
     return id ? id.slice(0, 8).toUpperCase() : '—';
+  }
+
+  getShopTrackingCode(shop?: ShopDto | null): string {
+    if (!shop) return '—';
+    return shop.trackingCode ? shop.trackingCode : this.shortId(shop.id);
+  }
+
+  getSelectedShopTrackingCode(): string {
+    if (!this.selectedShopId) return '—';
+    const shop = this.shops.find(s => s.id === this.selectedShopId);
+    return shop ? this.getShopTrackingCode(shop) : this.shortId(this.selectedShopId);
   }
 
   formatCoord(val?: number | null): string {

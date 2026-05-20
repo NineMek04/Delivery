@@ -1,7 +1,7 @@
 <div class="order-detail-overlay" (click)="close.emit()">
   <div class="order-detail-modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3>Order #{{ shortId(order.id) }}</h3>
+      <h3>Order {{ getOrderTrackingCode() }}</h3>
       <button type="button" class="close-btn" (click)="close.emit()">
         <lucide-icon [img]="icons.X" size="20"></lucide-icon>
       </button>
@@ -51,7 +51,7 @@
         </div>
         <div class="info-item">
           <div class="info-label">Assigned Rider</div>
-          <div class="info-value">{{ shortId(order.assignedRiderId) }}</div>
+          <div class="info-value">{{ order.assignedRiderId ? shortId(order.assignedRiderId) : '—' }}</div>
         </div>
         <div class="info-item">
           <div class="info-label">Created</div>

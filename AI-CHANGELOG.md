@@ -676,3 +676,26 @@
 - `npm.cmd run build` in `admin-dashboard` passed with existing bundle/CommonJS warnings.
 - `dotnet build BackendApi\BackendApi.csproj` passed with existing warnings.
 - Full Docker-backed simulator run still needs Docker API access outside the current sandbox.
+
+---
+
+## [Log Date: 2026-05-20 (4)]| By: AI Agent
+
+### Component: BackendApi & Admin Dashboard — Codebase Refactoring
+- **Action:** Extracted heavy business logic from `OrdersController.cs` into a dedicated `OrderService.cs` (`IOrderService.cs`) to achieve Interface Segregation. `OrdersController` is now incredibly thin.
+- **Action:** Decomposed Leaflet Map components (`sim-map.component.ts` and `map.component.ts`) by introducing pure utility services (`map-math.service.ts` and `map-drawing.service.ts`) to prevent memory leaks and handle logic purely.
+- **Impact:** Vastly improved maintainability and resolved file bloat while maintaining 1:1 logic parity.
+
+### Component: BackendApi — Swagger Routing Conflict Resolution
+- **Action:** Resolved an Ambiguous Action / Conflicting Route exception in Swagger caused by method overloading in `MenuItemsController`.
+- **Action:** Overrode the base `Create` and `Update` methods from `CrudControllerBase` and applied the `[NonAction]` attribute to effectively hide the base endpoints from the Swagger generator.
+
+### Component: Admin Dashboard — Tracking Code Display
+- **Action:** Updated the dashboard and all related views (Orders, Riders, Shops, Modals) to display human-readable `trackingCode` properties (e.g., `ORD-xxx`, `RID-xxx`) instead of shortened UUIDs (`shortId`).
+- **Action:** Added helper methods (`getOrderTrackingCode`, `getRiderTrackingCode`) to handle displaying the tracking code with a safe fallback to the shortened UUID if missing.
+- **Action:** Appended `trackingCode?: string | null;` to both `order-dto.ts` and `rider-dto.ts`.
+
+### Verification
+- **Backend**: `dotnet build` succeeded perfectly (`0 Error(s)`). Swagger UI now launches correctly without schema conflicts.
+- **Frontend**: Local Angular build (`npm run build`) completed successfully (100% compiled without TypeScript errors).
+- **Docker Environment**: Executed `docker-compose up -d --build frontend`. Both `delivery-frontend` and `delivery-backend` containers were smoothly recreated and are actively running.

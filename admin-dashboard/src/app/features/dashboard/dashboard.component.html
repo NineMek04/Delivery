@@ -89,13 +89,13 @@
           <tbody>
             @for (shp of routeCards; track shp.id) {
               <tr class="group">
-                <td class="col-pid">{{ shortId(shp.id) }}</td>
+                <td class="col-pid">{{ getOrderTrackingCode(shp) }}</td>
                 <td class="col-trajectory group-hover-slide">
                   {{ shp.pickupLat | number:'1.4-4' }}, {{ shp.pickupLng | number:'1.4-4' }}
                   <span class="driver">TO {{ shp.dropoffLat | number:'1.4-4' }}, {{ shp.dropoffLng | number:'1.4-4' }}</span>
                 </td>
                 <td class="col-operator">
-                  <span class="vehicle">{{ shortId(shp.assignedRiderId) }}</span>
+                  <span class="vehicle">{{ getRiderTrackingCode(shp.assignedRiderId) }}</span>
                   <span class="driver">{{ shp.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }} // {{ shp.distanceKm | number:'1.1-1' }} KM</span>
                 </td>
                 <td class="col-phase">
@@ -125,7 +125,7 @@
             <div class="health-icon warning group-hover-glow"><lucide-icon [img]="icons.AlertTriangle" size="24"></lucide-icon></div>
             <div class="health-info">
               <div class="health-item-header">
-                <p class="item-name group-hover-text">{{ shortId(item.id) }}</p>
+                <p class="item-name group-hover-text">{{ getOrderTrackingCode(item) }}</p>
                 <span class="status-badge warning">{{ item.status || 'PENDING' }}</span>
               </div>
               <p class="item-desc">{{ item.distanceKm | number:'1.1-1' }} KM // {{ item.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }}</p>

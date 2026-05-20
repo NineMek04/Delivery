@@ -75,6 +75,7 @@ public static class ServiceSetup
         services.AddScoped<StateMachineService>();
         services.AddScoped<DispatchService>();
         services.AddScoped<ITrackingSearchService, TrackingSearchService>();
+        services.AddScoped<IOrderService, OrderService>();
 
         // --- Background Workers (The System Janitors) ---
         services.AddHostedService<DispatchTimeoutWorker>();

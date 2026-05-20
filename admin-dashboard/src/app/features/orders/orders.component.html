@@ -67,12 +67,12 @@
         <tbody>
           @for (order of filteredOrders; track order.id) {
             <tr (click)="openOrderDetail(order)" style="cursor: pointer;">
-              <td class="mono primary">{{ shortId(order.id) }}</td>
+              <td class="mono primary">{{ getOrderTrackingCode(order) }}</td>
               <td>{{ order.distanceKm | number:'1.2-2' }} km</td>
               <td class="mono">{{ order.pickupLat | number:'1.4-4' }}, {{ order.pickupLng | number:'1.4-4' }}</td>
               <td class="mono">{{ order.dropoffLat | number:'1.4-4' }}, {{ order.dropoffLng | number:'1.4-4' }}</td>
               <td><span class="status" [class]="getStatusTone(order.status)">{{ order.status || 'PENDING' }}</span></td>
-              <td class="mono">{{ shortId(order.assignedRiderId) }}</td>
+              <td class="mono">{{ getRiderTrackingCode(order.assignedRiderId) }}</td>
               <td class="actions">
                 @if (order.status === 'CREATED' || order.status === 'MATCHING') {
                   <button type="button" class="ghost-action" (click)="retryDispatch(order.id)">

@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import * as L from 'leaflet';
 import { Subscription } from 'rxjs';
 import { DispatchScanStarted, RiderLocationUpdate, TrackingSignalRService } from '../../core/services/tracking-signalr.service';
+import { MapDrawingService } from '../map/services/map-drawing.service';
+import { MapMathService } from '../map/services/map-math.service';
 
 type FlowPhase = 'idle' | 'scan' | 'offer' | 'assigned' | 'pickup' | 'delivery' | 'completed';
 
@@ -33,6 +35,7 @@ interface RiderRow {
   selector: 'app-sim-map',
   standalone: true,
   imports: [CommonModule],
+  providers: [MapDrawingService, MapMathService],
   templateUrl: './sim-map.component.html',
   styleUrl: './sim-map.component.scss'
 })
@@ -40,19 +43,15 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('mapElement', { static: true }) mapElement!: ElementRef<HTMLElement>;
 
   private readonly trackingService = inject(TrackingSignalRService);
+  public readonly draw = inject(MapDrawingService);
+  private readonly math = inject(MapMathService);
+  
   private readonly subscriptions = new Subscription();
   private readonly udonCenter: L.LatLngTuple = [17.4138, 102.7872];
   private readonly thailandBounds: L.LatLngBoundsExpression = [[5.5, 97.3], [20.5, 105.7]];
 
   private map!: L.Map;
-  private markerMap = new Map<string, L.Marker>();
-  private markerPositions = new Map<string, L.LatLng>();
-  private markerAnimations = new Map<string, number>();
   private routeCoords: { pickup: L.LatLng[]; delivery: L.LatLng[] } = { pickup: [], delivery: [] };
-  private routeLines: { pickup?: L.Polyline; delivery?: L.Polyline; completed?: L.Polyline } = {};
-  private activeMarkers: { shop?: L.Marker; dropoff?: L.Marker } = {};
-  private radarCircle?: L.Circle;
-  private candidateMarkers: L.CircleMarker[] = [];
   private followThrottleAt = 0;
   private timelineId = 0;
 
@@ -143,12 +142,13 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
       subdomains: 'abcd',
       maxZoom: 19
     }).addTo(this.map);
+
+    this.draw.initializeMap(this.map);
   }
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
     this.trackingService.stopConnection();
-    this.markerAnimations.forEach(frame => cancelAnimationFrame(frame));
     this.map?.remove();
   }
 
@@ -181,7 +181,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private handleDispatchScanStarted(data: DispatchScanStarted): void {
-    this.clearActiveLayers();
+    this.clearSimLayers();
     this.flowPhase = 'scan';
     this.activeOrder = this.normalizeOrder(data.order);
     this.activeOrderId = this.shortOrder(this.activeOrder?.id);
@@ -194,10 +194,10 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     const dropoff = this.getDropoffLatLng();
     if (!pickup) return;
 
-    this.activeMarkers.shop = this.createStaticMarker(pickup, 'S', 'shop').addTo(this.map);
-    if (dropoff) this.activeMarkers.dropoff = this.createStaticMarker(dropoff, 'D', 'dropoff').addTo(this.map);
+    this.draw.activeMarkers.shop = this.draw.createStaticMarker(pickup, 'S', 'shop').addTo(this.map);
+    if (dropoff) this.draw.activeMarkers.dropoff = this.draw.createStaticMarker(dropoff, 'D', 'dropoff').addTo(this.map);
 
-    this.radarCircle = L.circle(pickup, {
+    this.draw.radarCircle = L.circle(pickup, {
       radius: Math.max(300, Number(data.searchRadiusKm || 0.8) * 1000),
       color: '#38bdf8',
       fillColor: '#38bdf8',
@@ -220,7 +220,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
           className: 'scan-candidate-marker'
         }).addTo(this.map);
         marker.bindTooltip(`#${index + 1} RID-${riderId.slice(0, 6).toUpperCase()} / ${distanceKm.toFixed(2)} km`);
-        this.candidateMarkers.push(marker);
+        this.draw.candidateMarkers.push(marker);
       }
       return {
         rank: index + 1,
@@ -253,7 +253,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.liveRouteLabel = 'Best rider selected';
     this.routeHint = `${winner.label} has the best AI score for this pickup.`;
     this.addTimeline('AI ranking completed', `${winner.label} selected as best candidate.`, 'success');
-    this.refreshMarkerIcons();
+    this.draw.refreshMarkerIcons(this.assignedRiderId);
     this.focusActiveFlow();
   }
 
@@ -262,13 +262,16 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.activeOrder = this.normalizeOrder(offer.order || this.activeOrder);
     this.activeOrderId = this.shortOrder(this.activeOrder?.id);
     this.assignedRiderId = offer.riderId || offer.RiderId || this.assignedRiderId;
-    this.routeCoords.pickup = this.decodeRoute(offer.pickupRoute?.encodedPolyline || offer.PickupRoute?.EncodedPolyline);
-    this.routeCoords.delivery = this.decodeRoute(this.activeOrder?.encodedPolyline);
-    this.drawOfferRoutes();
+    
+    this.routeCoords.pickup = this.math.decodeRoute(offer.pickupRoute?.encodedPolyline || offer.PickupRoute?.EncodedPolyline);
+    this.routeCoords.delivery = this.math.decodeRoute(this.activeOrder?.encodedPolyline);
+    
+    this.draw.drawOfferRoutes(this.routeCoords.pickup, this.routeCoords.delivery, this.getPickupLatLng(), this.getDropoffLatLng());
+
     this.liveRouteLabel = 'Offer sent to rider';
     this.routeHint = this.assignedRiderId ? `${this.selectedRiderLabel} is confirming the order.` : 'Waiting for rider confirmation.';
     this.addTimeline('Offer sent', `${this.selectedRiderLabel} received the simulated order offer.`, 'scan');
-    this.refreshMarkerIcons();
+    this.draw.refreshMarkerIcons(this.assignedRiderId);
     this.focusActiveFlow();
   }
 
@@ -277,11 +280,13 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.assignedRiderId = data.riderId || data.RiderId || this.assignedRiderId;
     this.liveRouteLabel = 'Rider accepted order';
     this.routeHint = 'Zooming to selected rider before pickup movement starts.';
-    this.radarCircle?.remove();
-    this.radarCircle = undefined;
-    this.clearCandidateMarkers();
+    
+    this.draw.radarCircle?.remove();
+    this.draw.radarCircle = undefined;
+    this.draw.clearCandidateMarkers();
+    
     this.addTimeline('Order assigned', `${this.selectedRiderLabel} accepted the order.`, 'success');
-    this.refreshMarkerIcons();
+    this.draw.refreshMarkerIcons(this.assignedRiderId);
     this.zoomToSelectedRider();
   }
 
@@ -296,8 +301,8 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     } else if (status === 'DELIVERING') {
       this.flowPhase = 'delivery';
       this.routeProgress = 0;
-      this.routeLines.pickup?.remove();
-      this.routeLines.pickup = undefined;
+      this.draw.routeLines.pickup?.remove();
+      this.draw.routeLines.pickup = undefined;
       this.liveRouteLabel = 'Rider heading to dropoff';
       this.routeHint = 'Delivery route is now active on the real road polyline.';
       this.addTimeline('Food picked up', `${this.selectedRiderLabel} is delivering to destination.`, 'success');
@@ -317,20 +322,21 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
 
     locationMap.forEach((loc, riderId) => {
       const next = L.latLng(loc.latitude, loc.longitude);
-      const marker = this.markerMap.get(riderId);
+      const marker = this.draw.markerMap.get(riderId);
+      
       if (marker) {
-        this.animateMarker(riderId, marker, next);
+        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, () => {
+          if (riderId === this.assignedRiderId) {
+            this.updateRouteProgress(next);
+            this.followSelectedRider(next);
+          }
+        });
       } else {
-        const created = L.marker(next, { icon: this.createRiderIcon(riderId) })
+        const created = L.marker(next, { icon: this.draw.createRiderIcon(riderId, this.assignedRiderId) })
           .bindTooltip(`RID-${riderId.slice(0, 6).toUpperCase()}`)
           .addTo(this.map);
-        this.markerMap.set(riderId, created);
-        this.markerPositions.set(riderId, next);
-      }
-
-      if (riderId === this.assignedRiderId) {
-        this.updateRouteProgress(next);
-        this.followSelectedRider(next);
+        this.draw.markerMap.set(riderId, created);
+        this.draw.markerPositions.set(riderId, next);
       }
     });
   }
@@ -349,43 +355,12 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.riderRows = rows.sort((a, b) => Number(b.id === this.assignedRiderId) - Number(a.id === this.assignedRiderId));
   }
 
-  private animateMarker(riderId: string, marker: L.Marker, next: L.LatLng): void {
-    const previous = this.markerPositions.get(riderId) || marker.getLatLng();
-    const distance = previous.distanceTo(next);
-    if (distance < 1) return;
-
-    const existingFrame = this.markerAnimations.get(riderId);
-    if (existingFrame) cancelAnimationFrame(existingFrame);
-
-    const duration = Math.min(950, Math.max(260, distance * 14));
-    const startedAt = performance.now();
-    const bearing = this.calculateBearing(previous, next);
-
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const lat = previous.lat + (next.lat - previous.lat) * eased;
-      const lng = previous.lng + (next.lng - previous.lng) * eased;
-      marker.setLatLng([lat, lng]);
-      marker.setIcon(this.createRiderIcon(riderId, bearing));
-
-      if (t < 1) {
-        this.markerAnimations.set(riderId, requestAnimationFrame(tick));
-      } else {
-        this.markerPositions.set(riderId, next);
-        this.markerAnimations.delete(riderId);
-      }
-    };
-
-    this.markerAnimations.set(riderId, requestAnimationFrame(tick));
-  }
-
   private updateRouteProgress(position: L.LatLng): void {
     const coords = this.flowPhase === 'delivery' ? this.routeCoords.delivery : this.routeCoords.pickup;
-    const line = this.flowPhase === 'delivery' ? this.routeLines.delivery : this.routeLines.pickup;
+    const line = this.flowPhase === 'delivery' ? this.draw.routeLines.delivery : this.draw.routeLines.pickup;
     if (!coords.length || !line) return;
 
-    const nearest = this.findNearestRouteIndex(position, coords);
+    const nearest = this.math.findNearestRouteIndex(position, coords);
     const remaining = [position, ...coords.slice(Math.min(nearest + 1, coords.length - 1))];
     line.setLatLngs(remaining);
     this.routeProgress = Math.min(100, Math.round((nearest / Math.max(1, coords.length - 1)) * 100));
@@ -405,7 +380,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private zoomToSelectedRider(): void {
     if (!this.assignedRiderId) return;
-    const marker = this.markerMap.get(this.assignedRiderId);
+    const marker = this.draw.markerMap.get(this.assignedRiderId);
     if (!marker) {
       this.focusActiveFlow();
       return;
@@ -413,52 +388,11 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.map.flyTo(marker.getLatLng(), 17, { duration: 0.9 });
   }
 
-  private drawOfferRoutes(): void {
-    this.routeLines.pickup?.remove();
-    this.routeLines.delivery?.remove();
-
-    if (this.routeCoords.pickup.length) {
-      this.routeLines.pickup = L.polyline(this.routeCoords.pickup, {
-        color: '#ef4444',
-        weight: 5,
-        opacity: 0.9,
-        dashArray: '10, 10'
-      }).addTo(this.map);
-    }
-
-    const pickup = this.getPickupLatLng();
-    const dropoff = this.getDropoffLatLng();
-    const deliveryCoords = this.routeCoords.delivery.length
-      ? this.routeCoords.delivery
-      : pickup && dropoff ? [pickup, dropoff] : [];
-
-    if (deliveryCoords.length) {
-      this.routeLines.delivery = L.polyline(deliveryCoords, {
-        color: '#22c55e',
-        weight: 5,
-        opacity: 0.78
-      }).addTo(this.map);
-    }
-  }
-
-  private clearActiveLayers(): void {
-    this.radarCircle?.remove();
-    this.routeLines.pickup?.remove();
-    this.routeLines.delivery?.remove();
-    this.routeLines.completed?.remove();
-    this.activeMarkers.shop?.remove();
-    this.activeMarkers.dropoff?.remove();
-    this.clearCandidateMarkers();
-    this.routeLines = {};
-    this.activeMarkers = {};
+  private clearSimLayers(): void {
+    this.draw.clearActiveLayers();
     this.routeCoords = { pickup: [], delivery: [] };
     this.candidateRows = [];
     this.assignedRiderId = null;
-  }
-
-  private clearCandidateMarkers(): void {
-    this.candidateMarkers.forEach(marker => marker.remove());
-    this.candidateMarkers = [];
   }
 
   private collectActivePoints(): L.LatLng[] {
@@ -468,69 +402,11 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     if (pickup) points.push(pickup);
     if (dropoff) points.push(dropoff);
     if (this.assignedRiderId) {
-      const marker = this.markerMap.get(this.assignedRiderId);
+      const marker = this.draw.markerMap.get(this.assignedRiderId);
       if (marker) points.push(marker.getLatLng());
     }
-    this.candidateMarkers.forEach(marker => points.push(marker.getLatLng()));
+    this.draw.candidateMarkers.forEach(marker => points.push(marker.getLatLng()));
     return points;
-  }
-
-  private createRiderIcon(riderId: string, bearing = 0): L.DivIcon {
-    const winner = riderId === this.assignedRiderId ? ' winner' : '';
-    return L.divIcon({
-      className: 'sim-marker',
-      html: `<div class="sim-marker-core${winner}" style="transform: rotate(${bearing}deg)">R</div>`,
-      iconSize: [34, 34],
-      iconAnchor: [17, 17]
-    });
-  }
-
-  private createStaticMarker(latLng: L.LatLng, label: string, tone: 'shop' | 'dropoff'): L.Marker {
-    return L.marker(latLng, {
-      icon: L.divIcon({
-        className: 'sim-marker',
-        html: `<div class="sim-marker-core ${tone}">${label}</div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
-      })
-    });
-  }
-
-  private refreshMarkerIcons(): void {
-    this.markerMap.forEach((marker, riderId) => marker.setIcon(this.createRiderIcon(riderId)));
-  }
-
-  private decodeRoute(polyline?: string): L.LatLng[] {
-    if (!polyline) return [];
-    let index = 0;
-    let lat = 0;
-    let lng = 0;
-    const coords: L.LatLng[] = [];
-
-    while (index < polyline.length) {
-      let shift = 0;
-      let result = 0;
-      let b: number;
-      do {
-        b = polyline.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      lat += (result & 1) ? ~(result >> 1) : result >> 1;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = polyline.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      lng += (result & 1) ? ~(result >> 1) : result >> 1;
-
-      coords.push(L.latLng(lat / 1e5, lng / 1e5));
-    }
-
-    return coords;
   }
 
   private normalizeOrder(order: any): any {
@@ -556,28 +432,6 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
   private getDropoffLatLng(): L.LatLng | null {
     if (!this.activeOrder?.dropoffLat || !this.activeOrder?.dropoffLng) return null;
     return L.latLng(this.activeOrder.dropoffLat, this.activeOrder.dropoffLng);
-  }
-
-  private findNearestRouteIndex(position: L.LatLng, coords: L.LatLng[]): number {
-    let bestIndex = 0;
-    let bestDistance = Number.MAX_SAFE_INTEGER;
-    coords.forEach((coord, index) => {
-      const distance = position.distanceTo(coord);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = index;
-      }
-    });
-    return bestIndex;
-  }
-
-  private calculateBearing(from: L.LatLng, to: L.LatLng): number {
-    const fromLat = from.lat * Math.PI / 180;
-    const toLat = to.lat * Math.PI / 180;
-    const deltaLng = (to.lng - from.lng) * Math.PI / 180;
-    const y = Math.sin(deltaLng) * Math.cos(toLat);
-    const x = Math.cos(fromLat) * Math.sin(toLat) - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
   }
 
   private shortOrder(orderId?: string): string {

@@ -52,7 +52,7 @@
         <tbody>
           @for (shop of filteredShops; track shop.id) {
             <tr>
-              <td class="mono primary">{{ shortId(shop.id) }}</td>
+              <td class="mono primary">{{ getShopTrackingCode(shop) }}</td>
 
               <!-- NAME — editable -->
               <td>
@@ -139,7 +139,7 @@
           </button>
         </div>
         <div class="modal-body">
-          <p class="shop-info">Shop ID: {{ selectedShopId.slice(0, 8).toUpperCase() }}</p>
+          <p class="shop-info">Shop ID: {{ getSelectedShopTrackingCode() }}</p>
           @if (menuItems.length > 0) {
             <div class="menu-list">
               @for (item of menuItems; track item.id) {

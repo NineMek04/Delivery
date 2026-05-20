@@ -154,6 +154,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return id ? id.slice(0, 8).toUpperCase() : 'UNASSIGNED';
   }
 
+  getOrderTrackingCode(order?: OrderDto | null): string {
+    if (!order) return 'UNASSIGNED';
+    return order.trackingCode ? order.trackingCode : this.shortId(order.id);
+  }
+
+  getRiderTrackingCode(riderId?: string | null): string {
+    if (!riderId) return 'UNASSIGNED';
+    const rider = this.riders.find(r => r.id === riderId);
+    return rider && rider.trackingCode ? rider.trackingCode : this.shortId(riderId);
+  }
+
   private syncChart(): void {
     // ใช้สถานะตรงตาม Backend State Machine
     const buckets = ['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP', 'DELIVERING', 'COMPLETED', 'CANCELLED'];

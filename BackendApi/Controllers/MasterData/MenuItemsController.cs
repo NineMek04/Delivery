@@ -71,6 +71,25 @@ namespace BackendApi.Controllers.MasterData
         }
 
         /// <summary>
+        /// ซ่อน base Create ที่รับ MenuItemDto เพื่อป้องกัน Swagger conflict
+        /// </summary>
+        [NonAction]
+        public override Task<ActionResult<MenuItemDto>> Create(
+            [FromBody] MenuItemDto dto,
+            CancellationToken cancellationToken = default)
+            => base.Create(dto, cancellationToken);
+
+        /// <summary>
+        /// ซ่อน base Update ที่รับ MenuItemDto เพื่อป้องกัน Swagger conflict
+        /// </summary>
+        [NonAction]
+        public override Task<ActionResult<MenuItemDto>> Update(
+            string id,
+            [FromBody] MenuItemDto dto,
+            CancellationToken cancellationToken = default)
+            => base.Update(id, dto, cancellationToken);
+
+        /// <summary>
         /// สร้างเมนูสินค้าใหม่
         /// </summary>
         [HttpPost]
@@ -98,7 +117,7 @@ namespace BackendApi.Controllers.MasterData
         {
             var entity = await DB.GetQuery<MenuItem>()
                 .Include(m => m.Options)
-                    .ThenInclude(o => o.Items)
+                .ThenInclude(o => o.Items)
                 .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
             if (entity is null)

@@ -24,10 +24,13 @@ const iconDefault = L.icon({
 });
 L.Marker.prototype.options.icon = iconDefault;
 
+import { MapMathService } from './services/map-math.service';
+
 @Component({
   selector: 'app-map',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  providers: [MapMathService],
   templateUrl: './map.component.html',
   styleUrl: './map.component.scss'
 })
@@ -48,6 +51,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private trackingService = inject(TrackingSignalRService);
   private shopService = inject(ShopService);
   private riderService = inject(RiderService);
+  private math = inject(MapMathService);
   private subscriptions: Subscription = new Subscription();
 
   public alerts: any[] = [];
@@ -206,38 +210,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  private decodePolyline(str: string): L.LatLngTuple[] {
-    let index = 0;
-    const len = str.length;
-    let lat = 0;
-    let lng = 0;
-    const coordinates: L.LatLngTuple[] = [];
-
-    while (index < len) {
-      let b;
-      let shift = 0;
-      let result = 0;
-      do {
-        b = str.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = str.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      coordinates.push([lat / 1e5, lng / 1e5]);
-    }
-    return coordinates;
+  private decodePolyline(str: string): L.LatLng[] {
+    return this.math.decodeRoute(str);
   }
 
   // ── ระบบปักหมุดและสร้างร้านค้า (Shop Registration Logic) ──
@@ -546,7 +520,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     }
 
     // Solid Emerald Green (Shop -> Customer) - วาดโครงข่ายถนน Dijkstra จริง
-    let deliveryCoords: L.LatLngTuple[] = [[pickupLat, pickupLng], [dropoffLat, dropoffLng]];
+    let deliveryCoords: L.LatLngExpression[] = [[pickupLat, pickupLng], [dropoffLat, dropoffLng]];
     const polylineString = offer.order?.encodedPolyline || offer.order?.EncodedPolyline;
     if (polylineString) {
       try {

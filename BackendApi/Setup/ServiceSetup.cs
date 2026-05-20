@@ -48,7 +48,13 @@ public static class ServiceSetup
                 tags: ["cache", "ready"])
             .AddCheck<BackendApi.HealthChecks.PostGisHealthCheck>(
                 "postgis",
-                tags: ["db", "spatial", "ready"]);
+                tags: ["db", "spatial", "ready"])
+            .AddCheck<BackendApi.HealthChecks.DispatchQueueHealthCheck>(
+                "dispatch_queue",
+                tags: ["queue", "ready"])
+            .AddCheck<BackendApi.HealthChecks.SignalRHealthCheck>(
+                "signalr",
+                tags: ["realtime", "ready"]);
 
         services.AddScoped<ConditionContext>();
         services.AddScoped<DBHandlerCore>();

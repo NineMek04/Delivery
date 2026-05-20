@@ -23,12 +23,16 @@ try
     }
 
     // --- 3. Logging (Serilog) ---
+    var seqUrl = builder.Configuration["SEQ_URL"] ?? builder.Configuration["Seq:ServerUrl"] ?? "http://seq:5341";
+    var seqApiKey = builder.Configuration["SEQ_API_KEY"];
+
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
         .WriteTo.Console()
-        .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day));
+        .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+        .WriteTo.Seq(seqUrl, apiKey: string.IsNullOrWhiteSpace(seqApiKey) ? null : seqApiKey));
 
     // --- 4. Infrastructure (Kestrel, etc.) ---
     builder.WebHost.ConfigureKestrel(options =>

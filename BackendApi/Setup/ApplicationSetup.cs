@@ -1,5 +1,8 @@
 using BackendApi.Hubs;
 using Serilog;
+using System.Text.Json;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Prometheus;
 namespace BackendApi.Setup;
 
 public static class ApplicationSetup
@@ -23,6 +26,7 @@ public static class ApplicationSetup
         }
 
         app.UseRouting();
+        app.UseHttpMetrics(); // Prometheus HTTP metrics
         app.UseCors(ServiceSetup.ClientCorsPolicy);
         app.UseSerilogRequestLogging();
 
@@ -35,10 +39,31 @@ public static class ApplicationSetup
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.MapMetrics(); // Expose /metrics for Prometheus
         app.MapHealthChecks("/health");
-        app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains("ready")
+        });
+
+        app.MapHealthChecks("/health/detail", new HealthCheckOptions
+        {
+            ResponseWriter = async (context, report) =>
+            {
+                context.Response.ContentType = "application/json";
+                var response = new
+                {
+                    status = report.Status.ToString(),
+                    results = report.Entries.Select(e => new
+                    {
+                        check = e.Key,
+                        status = e.Value.Status.ToString(),
+                        description = e.Value.Description,
+                        data = e.Value.Data
+                    })
+                };
+                await context.Response.WriteAsync(JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true }));
+            }
         });
 
         app.MapControllers();

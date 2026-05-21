@@ -26,12 +26,12 @@ export class MainLayoutComponent {
   icons = { Menu, Search, Bell, User, Settings };
 
   readonly navItems: NavItem[] = [
-    { path: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
-    { path: '/map',       label: 'Sim Map',    icon: Truck },
-    { path: '/orders',    label: 'Orders',     icon: Warehouse },
-    { path: '/riders',    label: 'Riders',     icon: Users },
-    { path: '/shops',     label: 'Shops',      icon: Store },
-    { path: '/analytics', label: 'Analytics',  icon: ChartLine },
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/map-live',  label: 'Map',       icon: Truck },
+    { path: '/orders',    label: 'Orders',    icon: Warehouse },
+    { path: '/riders',    label: 'Riders',    icon: Users },
+    { path: '/shops',     label: 'Shops',     icon: Store },
+    { path: '/analytics', label: 'Analytics', icon: ChartLine },
   ];
 
   toggleSidebar() {

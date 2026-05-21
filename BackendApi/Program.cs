@@ -2,10 +2,13 @@ using BackendApi.Setup;
 using Serilog;
 
 // --- 1. Bootstrap Logger (Early Logging for Start-up Failures) ---
-Log.Logger = new LoggerConfiguration()
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
+if (Log.Logger.GetType().Name == "SilentLogger")
+{
+    Log.Logger = new LoggerConfiguration()
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .CreateLogger();
+}
 
 try
 {
@@ -59,9 +62,13 @@ catch (Exception ex)
     {
         throw;
     }
+    Console.WriteLine($"[PROGRAM CRASH] {ex}");
     Log.Fatal(ex, "Application start-up failed");
+    throw;
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+public partial class Program { }

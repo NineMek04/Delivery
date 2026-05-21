@@ -282,6 +282,123 @@ node simulator.js
    - เข้าตรวจสอบที่ URL: `http://localhost:5000/health/detail`
    - ระบบจะแสดงค่า JSON ยืนยันสุขภาพของฐานข้อมูล PostGIS, Redis Connection, SignalR State และ DispatchQueue State หากขึ้นค่า `"status": "Healthy"` แสดงว่าทำงานปกติสมบูรณ์
 
+---
+
+## 8. คู่มือการทดสอบระบบ (Testing Guide and Procedures)
+
+เอกสารส่วนนี้สรุปขั้นตอนการทดสอบ คำสั่ง และคำแนะนำในการดูรายละเอียดการทดสอบสำหรับระบบ Smart Delivery Routing System
+
+### 8.1 การทดสอบ Backend Integration Tests (.NET)
+
+ระบบ Integration Test ถูกออกแบบมาเพื่อทดสอบ Backend API อย่างเต็มรูปแบบตั้งแต่ Database ไปจนถึง API Layer โดยใช้ `WebApplicationFactory` และ `Testcontainers` (จำลอง PostgreSQL + PostGIS บน Docker) เพื่อทดสอบระบบในสภาพแวดล้อมที่เหมือนการรันโปรดักชันจริง ครอบคลุม HTTP pipeline, ธุรกรรมฐานข้อมูล (Database transactions) และลอจิกของบริการต่างๆ
+
+#### ข้อกำหนดเบื้องต้น (Prerequisites)
+- ต้องเปิดใช้งาน Docker บนเครื่องของคุณ (Testcontainers จำเป็นต้องใช้ Docker ในการสร้างฐานข้อมูลทดสอบแบบแยกส่วน)
+- ติดตั้ง .NET 8 SDK
+
+#### เครื่องมือและโครงสร้าง
+- **Test Framework:** `xUnit`
+- **In-Memory Server:** `Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory` (จำลอง HTTP Server ของ .NET โดยไม่ต้องเปิด Port จริง)
+- **Database:** `Testcontainers.PostgreSql` จะดึง Docker Image `postgis/postgis:15-3.4` ขึ้นมาแบบอัตโนมัติก่อนรันเทส และทำลายทิ้งเมื่อเทสเสร็จสิ้น ทำให้ได้ฐานข้อมูลใหม่ที่สะอาดทุกครั้งที่รัน
+- **ตำแหน่งไฟล์:** `scripts/BackendApi.IntegrationTests/`
+
+#### วิธีการรันการทดสอบ (Commands)
+
+รันคำสั่งเหล่านี้ผ่าน Terminal หรือ PowerShell:
+
+* **รันเทสทั้งหมด (แบบปกติ):**
+  ```powershell
+  cd c:\Users\ASUS\Desktop\Project\Delivery\scripts\BackendApi.IntegrationTests
+  dotnet test
+  ```
+* **รันเทสและดูรายละเอียดเพิ่มเติม (Detailed Logging):**
+  *(คำสั่งนี้จะแสดงรายชื่อเทสที่ผ่าน/ไม่ผ่านอย่างละเอียด รวมถึงระยะเวลาที่ใช้ของแต่ละเคส)*
+  ```powershell
+  dotnet test --logger "console;verbosity=detailed"
+  ```
+* **รันเทสเฉพาะกลุ่ม (Filter by Class Name):**
+  ```powershell
+  dotnet test --filter "FullyQualifiedName~AuthFlowTests"
+  dotnet test --filter "FullyQualifiedName~OrderLifecycleTests"
+  ```
+
+#### การดูรายละเอียดและการแก้ปัญหา (Troubleshooting)
+- **Test Explorer:** หากใช้ Visual Studio หรือ VS Code (C# Dev Kit) สามารถเปิด Test Explorer เพื่อดูการรันแต่ละเคส ระยะเวลา และ Log ได้
+- หากการรัน `dotnet test` แจ้งว่า **Failed** ให้เลื่อนดูใน Terminal ตรงส่วนที่มีคำว่า `Error Message:` และ `Stack Trace:`
+- หากมีปัญหากับ `WebApplicationFactory` (เช่น `The logger is already frozen` หรือ Environment Variables ไม่ครบ):
+  - ให้ตรวจสอบที่ไฟล์ `BackendApi/Program.cs` เพื่อดูการตั้งค่า Logger
+  - ตรวจสอบ `DeliveryWebApplicationFactory.cs` เพื่อดูการจำลอง Environment Variables สำหรับ Secret Key (เช่น JWT Key)
+- หากมีปัญหาติดต่อ Database ไม่ได้ ให้ตรวจสอบว่า Docker Desktop ทำงานอยู่หรือไม่
+
+#### รายชื่อชุดเทสปัจจุบัน (Total 18 Tests)
+- **AuthFlowTests:** ทดสอบ Register, Login, Refresh Token, Session Validation และ Logout (Full Flow)
+- **OrderLifecycleTests:** ทดสอบการสร้าง Order (ได้สถานะ CREATED), ดึงรายการ Order (Pagination), และการเข้าถึงพร้อมตรวจสิทธิ์ (Access control/404)
+- **OrderCancelTests:** ทดสอบระบบยกเลิกออเดอร์ ตรวจสอบการเปลี่ยนสถานะ (State transitions) สิทธิ์แบบปกติ, แบบไม่มี Auth, และสถานะ CANCELLED หลังยกเลิก
+- **SpatialQueryTests:** ทดสอบการค้นหาร้านอาหารในรัศมีวงกลมด้วยพิกัด GPS (PostGIS / NetTopologySuite)
+
+---
+
+### 8.2 การทดสอบโหลดและจำลองความเครียดของระบบ (Load and Stress Tests - Node.js)
+
+สคริปต์เหล่านี้ถูกสร้างขึ้นมาเพื่อจำลองทราฟฟิกปริมาณมหาศาลและการทำงานพร้อมกัน (Concurrency) เพื่อหาจุดคอขวด (Bottlenecks) ในท่อส่งข้อมูลเรียลไทม์ของ SignalR, คิวการจัดส่ง (Dispatch Queue), และ REST APIs
+
+#### ข้อกำหนดเบื้องต้น (Prerequisites)
+- ติดตั้ง Node.js เรียบร้อยแล้ว
+- Backend API ต้องรันอยู่บนเครื่อง (ใช้คำสั่ง `dotnet run` ในโฟลเดอร์ BackendApi)
+- Redis และ PostgreSQL ต้องทำงานอยู่ (ผ่านคำสั่ง `docker-compose up -d`)
+
+#### การตั้งค่า (Setup)
+ติดตั้ง dependencies ที่จำเป็นก่อน:
+```powershell
+cd c:\Users\ASUS\Desktop\Project\Delivery\scripts\load-test
+npm install
+```
+
+> **💡 เคล็ดลับ (TIP):** คุณสามารถส่งพารามิเตอร์เพิ่มเติม (Custom arguments) ไปยังสคริปต์ทดสอบใดๆ ก็ได้ เช่น `--riders 100` หรือ `--duration 120`
+
+#### รายการการทดสอบที่มีอยู่
+
+**A. การทดสอบความเครียดของระบบรับส่งพิกัด GPS (SignalR GPS Telemetry Stress Test)**  
+จำลองไรเดอร์หลายคนส่งข้อมูลอัปเดตตำแหน่ง GPS และสัญญาณชีพ (heartbeats) อย่างต่อเนื่องพร้อมๆ กัน
+```powershell
+npm run test:signalr
+# หรือสั่งรันและปรับแต่งค่าแบบ manual:
+node signalr-stress.js --riders 50 --duration 60 --interval 2000
+```
+* **สิ่งที่ต้องสังเกต:** ดูอัตราข้อมูล "GPS/sec", "GPS Errors", และ "Disconnects" ระบบที่มีเสถียรภาพควรมี Disconnects เป็น 0 และมี Error ใกล้เคียง 0
+
+**B. การทดสอบความเครียดของ HTTP API (API HTTP Stress Test)**  
+ทดสอบ REST API มาตรฐาน (เช่น ดึงรายการออเดอร์) ด้วยการจำลองผู้ใช้งานเรียกเรียกใช้งานพร้อมกันเป็นจำนวนมาก
+```powershell
+npm run test:api
+# หรือสั่งรันแบบ manual:
+node api-stress.js --concurrent 10 --requests 200 --endpoint orders
+```
+* **สิ่งที่ต้องสังเกต:** เช็คความหน่วงเวลา (Latencies) ในระดับ p50, p95, และ p99 รวมถึงดู "Status Codes" ให้แน่ใจว่าระบบไม่ชนลิมิต `429 Too Many Requests` หรือพังกลายเป็น `500 Internal Server Error`
+
+**C. การทดสอบแรงกดดันคิวการจัดส่ง (Dispatch Queue Pressure Test)**  
+จำลองการสร้างออเดอร์ปริมาณมหาศาล ซึ่งจะไปกระตุ้นระบบคำนวณเส้นทาง OSRM และคิวจัดสรรมอบหมายงานของ AI (AI Dispatch queues) ทันที
+```powershell
+npm run test:dispatch
+# หรือสั่งรันแบบ manual:
+node dispatch-stress.js --orders 50 --concurrent 5
+```
+* **สิ่งที่ต้องสังเกต:** ตรวจสอบ "Dispatch Rate (orders/sec)" และดูให้แน่ใจว่าค่า "Failures" ต้องเป็นศูนย์ หากค่า Latency ขึ้นสูงมาก แสดงว่ามีคอขวดอยู่ที่ OSRM หรือ Database
+
+**D. การทดสอบความเสถียรในการเชื่อมต่อใหม่ของ SignalR (SignalR Reconnect Stability Test)**  
+จำลองการเชื่อมต่อ ตัดการเชื่อมต่อ และเชื่อมต่อใหม่ของไรเดอร์อย่างรวดเร็วและซ้ำซาก เพื่อทดสอบการกู้คืนสถานะเซสชันของระบบ (Session state recovery)
+```powershell
+npm run test:reconnect
+# หรือสั่งรันแบบ manual:
+node reconnect-stress.js --riders 20 --cycles 10 --delay 3000
+```
+* **สิ่งที่ต้องสังเกต:** "Success Rate" ควรเป็น 100% หากมี "Failures" หมายความว่ามีไรเดอร์ที่ไม่สามารถเชื่อมต่อหรือกู้คืนเซสชันของตัวเองกลับมาได้
+
+---
+
+### 8.3 การรายงานผล (Reporting)
+หลังจากรันการทดสอบโหลดเสร็จสิ้น แนะนำให้คัดลอกไฟล์ `report-template.md` เพื่อใช้บันทึกผลการทำ Benchmark ของคุณ สำหรับนำไปใช้เปรียบเทียบกับการทดสอบประสิทธิภาพในการอัปเดตระบบครั้งต่อๆ ไป
+
 
 # rider_app
         # NOTE
@@ -293,4 +410,3 @@ node simulator.js
             # รัน flutter analyze เพื่อตรวจ code quality
             # Implement UI จริง ใน feature screens (แทน placeholder)
             # เชื่อม BackendApi — ใส่ URL จริง, implement login flow, test SignalR
-

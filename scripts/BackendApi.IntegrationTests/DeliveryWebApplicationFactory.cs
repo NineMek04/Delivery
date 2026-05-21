@@ -1,0 +1,101 @@
+using BackendApi.Data;
+using BackendApi.Services;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Testcontainers.PostgreSql;
+
+namespace BackendApi.IntegrationTests;
+
+/// <summary>
+/// Custom WebApplicationFactory ที่ใช้ Testcontainers PostgreSQL
+/// สำหรับรันเทสที่ต้องการ Full HTTP Pipeline (Auth, Controllers, Services)
+/// </summary>
+public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _container;
+
+    public DeliveryWebApplicationFactory()
+    {
+        // Set environment variables for Program.cs to use before WebApplicationFactory injects test configs
+        Environment.SetEnvironmentVariable("Jwt__Key", "ThisIsADummyKeyForTestingPurposesMustBeAtLeast32Bytes!");
+        Environment.SetEnvironmentVariable("Jwt__Issuer", "TestIssuer");
+        Environment.SetEnvironmentVariable("Jwt__Audience", "TestAudience");
+
+        _container = new PostgreSqlBuilder()
+            .WithImage("postgis/postgis:15-3.3")
+            .WithDatabase("delivery_test")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .Build();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+
+        // Create PostGIS extension before EF Core migration
+        await using var conn = new NpgsqlConnection(_container.GetConnectionString());
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "CREATE EXTENSION IF NOT EXISTS postgis;";
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        await base.DisposeAsync();
+        await _container.DisposeAsync();
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+
+        // Inject minimum configuration required to pass validation during startup
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "Jwt:Key", "ThisIsADummyKeyForTestingPurposesMustBeAtLeast32Bytes!" },
+                { "Jwt:Issuer", "TestIssuer" },
+                { "Jwt:Audience", "TestAudience" },
+                { "Jwt:ExpirationMinutes", "60" }
+            });
+        });
+
+        builder.ConfigureServices(services =>
+        {
+            // Remove the existing ApplicationDbContext registration
+            var dbDescriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
+            if (dbDescriptor is not null)
+                services.Remove(dbDescriptor);
+
+            // Remove existing ICurrentUserService
+            var userServiceDesc = services.SingleOrDefault(
+                d => d.ServiceType == typeof(ICurrentUserService));
+            if (userServiceDesc is not null)
+                services.Remove(userServiceDesc);
+
+            // Register Testcontainers-backed database
+            var dataSourceBuilder = new NpgsqlDataSourceBuilder(_container.GetConnectionString());
+            dataSourceBuilder.UseNetTopologySuite(handleOrdinates: NetTopologySuite.Geometries.Ordinates.XY);
+            var dataSource = dataSourceBuilder.Build();
+
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseNpgsql(dataSource, npgsql =>
+                    npgsql.UseNetTopologySuite(handleOrdinates: NetTopologySuite.Geometries.Ordinates.XY)));
+
+            services.AddScoped<ICurrentUserService, DummyCurrentUserService>();
+
+            // Ensure the database is created and migrated
+            using var scope = services.BuildServiceProvider().CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            dbContext.Database.Migrate();
+        });
+    }
+}

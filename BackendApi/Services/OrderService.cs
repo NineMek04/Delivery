@@ -26,6 +26,7 @@ public class OrderService : IOrderService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ITrackingSearchService _searchService;
     private readonly OsrmRoutingService _routingService;
+    private readonly IAiService _aiService;
     private readonly IHubContext<TrackingHub> _hubContext;
     private readonly ILogger<OrderService> _logger;
 
@@ -36,6 +37,7 @@ public class OrderService : IOrderService
         IServiceScopeFactory scopeFactory,
         ITrackingSearchService searchService,
         OsrmRoutingService routingService,
+        IAiService aiService,
         IHubContext<TrackingHub> hubContext,
         ILogger<OrderService> logger)
     {
@@ -45,6 +47,7 @@ public class OrderService : IOrderService
         _scopeFactory = scopeFactory;
         _searchService = searchService;
         _routingService = routingService;
+        _aiService = aiService;
         _hubContext = hubContext;
         _logger = logger;
     }
@@ -72,7 +75,6 @@ public class OrderService : IOrderService
             routeDistanceMeters = route.DistanceMeters;
             routeDurationSeconds = route.DurationSeconds;
 
-            // ใช้ระยะทางจริงของโครงข่ายถนน Dijkstra แทนการประมาณการแนวเส้นตรงแบบ Haversine เพื่อความโปร่งใสสูงสุด
             distanceKm = routeDistanceMeters / 1000.0;
             deliveryFee = 30 + (decimal)(distanceKm * 10.0);
         }
@@ -82,13 +84,43 @@ public class OrderService : IOrderService
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ไม่สามารถคำนวณเส้นทางจัดส่งบนถนนจริงได้ เนื่องจากระบบ Dijkstra/OSRM และโครงข่ายอินเทอร์เน็ตล้มเหลว"));
         }
 
+        // ขอ ETA Prediction จาก AI Engine
+        var expectedDeliveryTime = dto.ExpectedDeliveryTime;
+        try
+        {
+            var etaRequest = new PredictEtaRequestDto
+            {
+                PickupLat = dto.PickupLat,
+                PickupLng = dto.PickupLng,
+                DropoffLat = dto.DropoffLat,
+                DropoffLng = dto.DropoffLng,
+                RouteDistanceMeters = routeDistanceMeters,
+                RouteDurationSeconds = routeDurationSeconds,
+                CurrentTime = DateTime.UtcNow.ToString("O"),
+                WeatherCondition = "clear", // Could be dynamic in future
+                TrafficLevel = "normal"     // Could be dynamic in future
+            };
+            var etaPrediction = await _aiService.PredictEtaAsync(etaRequest, cancellationToken);
+            if (etaPrediction != null && !string.IsNullOrEmpty(etaPrediction.EtaDatetime))
+            {
+                if (DateTime.TryParse(etaPrediction.EtaDatetime, out var aiExpectedTime))
+                {
+                    expectedDeliveryTime = aiExpectedTime;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get AI ETA Prediction, falling back to client expected time");
+        }
+
         var order = new Order
         {
             PickupLocation = pickup,
             DropoffLocation = dropoff,
             DistanceKm = distanceKm,
             DeliveryFee = deliveryFee,
-            ExpectedDeliveryTime = dto.ExpectedDeliveryTime,
+            ExpectedDeliveryTime = expectedDeliveryTime,
             State = Core.StateMachines.OrderState.CREATED,
             EncodedPolyline = encodedPolyline,
             RouteDistanceMeters = routeDistanceMeters,

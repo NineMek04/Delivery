@@ -9,6 +9,7 @@ using BackendApi.Services.Dispatch;
 using BackendApi.Services;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Tracking;
+using BackendApi.Services.Analytics;
 using FluentValidation;
 using Mapster;
 using MapsterMapper;
@@ -82,6 +83,7 @@ public static class ServiceSetup
         services.AddScoped<DispatchService>();
         services.AddScoped<ITrackingSearchService, TrackingSearchService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
 
         // --- Background Workers (The System Janitors) ---
         services.AddHostedService<DispatchTimeoutWorker>();

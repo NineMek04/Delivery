@@ -15,7 +15,7 @@ At the start of every new task, read these files first to perform Context Routin
 3. `AI-CHANGELOG.md` - latest project status and applied changes.
 4. `.cursorrules` - original Cursor rules and workflow constraints.
 
-*(Note: Avoid reading the full `AI-BLUEPRINT.md` or `PROJECT-SPEC.md` directly. Rely on partitioned specs in `.docs/ai-context/` to save tokens).*
+*(Note: Avoid reading the full `AI-BLUEPRINT.md` or `PROJECT-SPEC.md` or `AI-CHANGELOG.md` directly. Rely on partitioned specs in `.docs/ai-context/` to save tokens).*
 
 Use the actual codebase as the source of truth when it differs from documentation.
 

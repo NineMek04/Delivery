@@ -138,6 +138,7 @@ Delivery/
 ## 5. Current State of Development
 
 ### สถานะรวม: 🔵 **Phase 5 — Real-world Routing & Real-time Dispatch Simulation** (สำเร็จ 100% สำหรับ Core/Web)
+### สถานะรวม: 🟢 **Phase 6 — Production Readiness & Operational Intelligence** (สำเร็จ 100% สำหรับ Core Backend/AI/Testing)
 
 | Component            | Status            | รายละเอียด                                                    |
 |----------------------|-------------------|--------------------------------------------------------------|
@@ -147,8 +148,8 @@ Delivery/
 | **BackendApi**       | ✅ 100% Ready      | ขจัดปัญหา N+1 Query, ย้าย Haversine Math ไปหา PostGIS Engine, เพิ่มระบบ Provision Partition อัตโนมัติ |
 | **Universal Tracking**| ✅ 100% Ready      | ติดตั้งรหัสอ้างอิงสวยงาม ORD-, RID-, SHP-, USR- คิวรี O(1)/O(log N) ผนวกการค้นหาแบบผสมผสาน |
 | **OSRM Routing**     | ✅ 100% Ready      | ติดตั้งระบบ Offline-First Dijkstra สำหรับวาดเส้นทางโค้งจริง พร้อมการบีบอัด Polyline |
-| **ai-engine**        | 🟢 95% Ready       | FastAPI + OR-Tools VRP solver & Phase A Scorer. Waiting for Backend to call. |
-| **admin-dashboard**  | 🟢 85% Ready       | ใช้งาน Sim Map, แยก Component ย่อย, แปลง Polyline, ปรับ UI แสดงรหัส Tracking Code สวยงาม |
+| **ai-engine**        | ✅ 100% Ready      | FastAPI + OR-Tools VRP solver, Phase A Scorer, และ ETA Prediction Engine |
+| **admin-dashboard**  | 🟢 90% Ready       | ใช้งาน Sim Map, แปลง Polyline, ปรับ UI แสดงรหัส Tracking Code สวยงาม, รับข้อมูล Analytics |
 | **rider_app**        | 🟡 30% Ready       | Foundation ready. Needs real UI, build_runner, and Background GPS logic. |
 | **E2E Simulator**    | ✅ 100% Ready      | Node.js script เชื่อมต่อเต็มรูปแบบ รองรับเส้นทาง OSRM, GPS Jitter, SignalR Flow พร้อมกันหลาย Rider |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
@@ -156,6 +157,10 @@ Delivery/
 | **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
 | **Enterprise Audit** | ✅ Ready           | Layered Base Entities, Soft Delete, IP Tracking, Concurrency Tokens (RowVersion) |
 | **E2E Testcontainers**| ✅ 100% Passed     | รัน integration tests แบบ End-to-End บน Testcontainers PostGIS Docker จริง ผ่านฉลุย 5/5 เคส |
+| **Integration Tests**| ✅ 100% Passed     | รันผ่าน 18/18 เคส (Auth, Order, Cancel, Spatial) ด้วย Testcontainers PostGIS |
+| **Stress/Load Tests**| ✅ 100% Passed     | สคริปต์ Node.js สำหรับเทสโหลด SignalR, API, Dispatch และ Reconnect stability |
+| **Analytics & ETA**  | ✅ 100% Ready      | AI ประเมินเวลาส่งอัตโนมัติ และ Dashboard summary endpoints สำหรับ Admin |
+| **AI-OS Context**    | ✅ Implemented     | ใช้งาน `AI-INDEX.md` ในการจัดการ context อย่างแม่นยำและประหยัด Token |
 
 ---
 
@@ -182,11 +187,14 @@ Delivery/
 4. **ขยาย Business Logic** — (✅ สำเร็จแล้ว) มี `OrdersController` สำหรับจัดการออเดอร์และทริกเกอร์ Dispatch
 6. **Dispatch Integration Test** — (✅ สำเร็จแล้ว) ทดสอบ End-to-End Flow: Admin -> Backend -> AI -> SignalR -> Rider ได้รับ Offer งานสำเร็จ
 7. **พัฒนา Mobile App ฝั่ง Customer / Store** — อิงจาก Prototype หน้าเว็บที่สร้างไว้ (ใช้ Flutter หรือ Web-based PWA)
-8. **Backend Features (Tier 2/3)** — FCM Push Notifications, ระบบชำระเงิน, ETA Calculation
+9. **Backend Features (Tier 2/3)** — FCM Push Notifications, ระบบชำระเงิน, ETA Calculation
+10. **พัฒนา Mobile App ฝั่ง Customer / Store** — อิงจาก Prototype หน้าเว็บที่สร้างไว้ (ใช้ Flutter หรือ Web-based PWA)
+11. **Backend Features (Tier 2/3)** — FCM Push Notifications และระบบชำระเงิน
 ### 🟢 Nice-to-have
-9. **CI/CD Workflows** — GitHub Actions
-10. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
-11. **CI/CD Workflows** — GitHub Actions & Automated deployments
+12. **CI/CD Workflows** — GitHub Actions
+13. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
+14. **CI/CD Workflows** — GitHub Actions & Automated deployments
+15. **RabbitMQ Event Bus** — เปลี่ยนจาก Synchronous เป็น Event-Driven สำหรับบาง Module
 ---
 
 ## 8. AI-Specific Notes (สำหรับ AI Assistant)

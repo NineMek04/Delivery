@@ -38,6 +38,8 @@
 | Backend Security | JWT, Refresh Token, Rotation, Role policy | **Enhanced** |
 | PostGIS Spatial Tuning & Scaling | GiST Indexes, Range Partitioning รายเดือน, Database Clustering | **Completed** |
 | Universal Tracking & OSRM | รหัส Tracking Code ที่อ่านง่าย (ORD-xxx), เส้นทางโค้งจริงแบบออฟไลน์ด้วย OSRM | **Completed** |
+| Integration & Stress Test | รันสอบ E2E ผ่าน Testcontainers (xUnit) และ Node.js Load Scripts | **Completed** |
+| Operational Intelligence | ระบบ Analytics API และ AI-ETA Prediction Engine | **Completed** |
 | Simulation Sandbox | ระบบจำลองการยิง GPS, สมัครร้านค้า, การวิ่งตามถนนด้วย Polyline Decoder | **Completed** |
 
 ---
@@ -301,7 +303,10 @@ Delivery/
 ### Integration
 - [x] End-to-end flow: create order → VRP optimize → OSRM routing → assign rider → broadcast tracking.
 - [x] Docker Compose full dispatch smoke test (ผ่าน `simulate-e2e.js`).
-- [ ] Add CI build workflow.
+- [x] Add CI build workflow (GitHub Actions).
+- [x] Integration Tests (xUnit + Testcontainers) 18/18 Passed.
+- [x] Stress / Load testing (SignalR, API, Dispatch).
+- [x] Analytics API & ETA Prediction Engine.
 
 ---
 

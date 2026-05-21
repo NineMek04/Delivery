@@ -1,5 +1,8 @@
 # AI-BLUEPRINT: Smart Delivery Routing System
 
+> **⚠️ AI AGENT NOTICE:** 
+> This file is now a **Historical Archive (Layer 1)**. For targeted context, start by reading `AI-INDEX.md` and navigate to `.docs/ai-context/` instead to save tokens and prevent context overload.
+
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  

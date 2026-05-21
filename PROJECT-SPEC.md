@@ -1,4 +1,8 @@
 # Project Specification
+
+> **⚠️ AI AGENT NOTICE:** 
+> This file is a **Historical Archive (Layer 1)**. Do not load this entire file into memory unless absolutely necessary. Start with `AI-INDEX.md` to route to specific partitioned specs in `.docs/ai-context/`.
+
 ## AI-Optimized Smart Delivery Routing System
 ### ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
 
@@ -379,5 +383,3 @@ Delivery/
 - [AI-CHANGELOG.md](./AI-CHANGELOG.md)
 - [.cursorrules](./.cursorrules)
 - [docker-compose.yml](./docker-compose.yml)
-
-

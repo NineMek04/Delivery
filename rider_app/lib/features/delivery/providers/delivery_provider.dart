@@ -1,71 +1,137 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/api_helpers.dart';
+import '../../../core/api/services/order_api_service.dart';
+import '../../../core/config/app_constants.dart';
 import '../../../models/order.dart';
 
-part 'delivery_provider.g.dart';
+const _activeStatuses = {
+  'OFFERING',
+  'ASSIGNED',
+  'PICKING_UP',
+  'DELIVERING',
+};
 
-/// Delivery Provider — state สำหรับจัดการ orders ของ Rider.
-///
-/// เทียบกับ:
-/// - Angular: `route.service.ts` (API calls สำหรับ route/order)
-/// - .NET: `Controllers/MasterData/` (Order CRUD)
-///
-/// TODO: Implement order fetching/status update ผ่าน BackendApi
-@riverpod
-class DeliveryNotifier extends _$DeliveryNotifier {
+const _completedStatuses = {
+  'COMPLETED',
+  'CANCELLED',
+};
+
+final deliveryNotifierProvider =
+    NotifierProvider<DeliveryNotifier, DeliveryState>(
+  DeliveryNotifier.new,
+);
+
+/// Delivery state — active/completed orders for the logged-in rider.
+class DeliveryNotifier extends Notifier<DeliveryState> {
   @override
   DeliveryState build() {
     return const DeliveryState();
   }
 
-  /// โหลด active orders ที่ assign ให้ rider.
-  Future<void> loadActiveOrders() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> loadOrders() async {
+    state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // TODO: Call BackendApi
-      // final response = await dio.get('/orders?assignedRiderId=...&status=ASSIGNED,DELIVERING');
-      state = state.copyWith(isLoading: false);
+      final orders = await ref.read(orderApiServiceProvider).getMyOrders();
+
+      final active = orders
+          .where((o) => _activeStatuses.contains(o.status.toUpperCase()))
+          .toList();
+      final completed = orders
+          .where((o) => _completedStatuses.contains(o.status.toUpperCase()))
+          .toList();
+
+      state = state.copyWith(
+        isLoading: false,
+        activeOrders: active,
+        completedOrders: completed,
+        activeOrder: active.isNotEmpty ? active.first : null,
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  /// อัปเดตสถานะ order (ASSIGNED → PICKED_UP → DELIVERING → COMPLETED).
   Future<void> updateOrderStatus(String orderId, String newStatus) async {
+    state = state.copyWith(isUpdating: true, error: null);
+
     try {
-      // TODO: Call BackendApi PUT /orders/{id}
+      final updated = await ref.read(orderApiServiceProvider).updateStatus(
+        orderId: orderId,
+        status: newStatus,
+      );
+
+      final active = List<OrderDto>.from(state.activeOrders);
+      final completed = List<OrderDto>.from(state.completedOrders);
+
+      active.removeWhere((o) => o.id == orderId);
+      completed.removeWhere((o) => o.id == orderId);
+
+      if (_completedStatuses.contains(updated.status.toUpperCase())) {
+        completed.insert(0, updated);
+      } else if (_activeStatuses.contains(updated.status.toUpperCase())) {
+        active.insert(0, updated);
+      }
+
+      state = state.copyWith(
+        isUpdating: false,
+        activeOrders: active,
+        completedOrders: completed,
+        activeOrder: active.isNotEmpty ? active.first : null,
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(isUpdating: false, error: e.message);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(isUpdating: false, error: e.toString());
     }
   }
+
+  Future<void> markPickingUp(String orderId) =>
+      updateOrderStatus(orderId, 'PICKING_UP');
+
+  Future<void> markDelivering(String orderId) =>
+      updateOrderStatus(orderId, AppConstants.orderDelivering);
+
+  Future<void> markCompleted(String orderId) =>
+      updateOrderStatus(orderId, AppConstants.orderCompleted);
 }
 
-/// Delivery state.
 class DeliveryState {
   final bool isLoading;
+  final bool isUpdating;
   final String? error;
   final List<OrderDto> activeOrders;
   final List<OrderDto> completedOrders;
+  final OrderDto? activeOrder;
 
   const DeliveryState({
     this.isLoading = false,
+    this.isUpdating = false,
     this.error,
     this.activeOrders = const [],
     this.completedOrders = const [],
+    this.activeOrder,
   });
 
   DeliveryState copyWith({
     bool? isLoading,
+    bool? isUpdating,
     String? error,
     List<OrderDto>? activeOrders,
     List<OrderDto>? completedOrders,
+    OrderDto? activeOrder,
+    bool clearActiveOrder = false,
   }) {
     return DeliveryState(
       isLoading: isLoading ?? this.isLoading,
+      isUpdating: isUpdating ?? this.isUpdating,
       error: error,
       activeOrders: activeOrders ?? this.activeOrders,
       completedOrders: completedOrders ?? this.completedOrders,
+      activeOrder: clearActiveOrder ? null : (activeOrder ?? this.activeOrder),
     );
   }
 }

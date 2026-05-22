@@ -1,97 +1,103 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+import '../api_helpers.dart';
 
-part 'api_response.freezed.dart';
-part 'api_response.g.dart';
+/// Standard API Response wrapper (`ApiResponse` / `ApiResponse<T>`).
+class ApiResponse {
+  final bool success;
+  final String? message;
+  final String? errorDetail;
+  final String? code;
 
-/// Standard API Response wrapper.
-///
-/// ตรงกับ:
-/// - .NET: `BackendApi/Core/Models/ApiResponse.cs`
-/// - Angular: `admin-dashboard/src/app/models/common.model.ts` → `HttpStatusResult`
-///
-/// ```json
-/// {
-///   "Success": true,
-///   "Message": "สำเร็จ",
-///   "ErrorDetail": null,
-///   "Code": null
-/// }
-/// ```
-@freezed
-abstract class ApiResponse with _$ApiResponse {
-  const factory ApiResponse({
-    /// ผลลัพธ์สำเร็จหรือไม่ (maps to `Success` in C# / `Success` in Angular)
-    @JsonKey(name: 'Success') required bool success,
+  const ApiResponse({
+    required this.success,
+    this.message,
+    this.errorDetail,
+    this.code,
+  });
 
-    /// ข้อความแสดงผล (maps to `Message`)
-    @JsonKey(name: 'Message') String? message,
-
-    /// รายละเอียด error (maps to `ErrorDetail` — แสดงเฉพาะ Dev mode)
-    @JsonKey(name: 'ErrorDetail') String? errorDetail,
-
-    /// Error code สำหรับ frontend mapping (maps to `Code`)
-    @JsonKey(name: 'Code') String? code,
-  }) = _ApiResponse;
-
-  factory ApiResponse.fromJson(Map<String, dynamic> json) =>
-      _$ApiResponseFromJson(json);
+  factory ApiResponse.fromJson(Map<String, dynamic> json) {
+    return ApiResponse(
+      success: readField<bool>(json, 'Success') ?? false,
+      message: readField<String>(json, 'Message'),
+      errorDetail: readField<String>(json, 'ErrorDetail'),
+      code: readField<String>(json, 'Code'),
+    );
+  }
 }
 
-/// Standard API Response wrapper with payload.
-///
-/// ตรงกับ:
-/// - .NET: `ApiResponse<T>` (inherits ApiResponse, adds `Value`)
-/// - Angular: `HttpStatusResultValue<T>` (extends HttpStatusResult, adds `Value`)
-///
-/// ```json
-/// {
-///   "Success": true,
-///   "Message": "สำเร็จ",
-///   "Value": { ... }
-/// }
-/// ```
-///
-/// Usage:
-/// ```dart
-/// final response = ApiResponseValue<RiderDto>.fromJson(
-///   json,
-///   (obj) => RiderDto.fromJson(obj as Map<String, dynamic>),
-/// );
-/// ```
-@Freezed(genericArgumentFactories: true)
-abstract class ApiResponseValue<T> with _$ApiResponseValue<T> {
-  const factory ApiResponseValue({
-    @JsonKey(name: 'Success') required bool success,
-    @JsonKey(name: 'Message') String? message,
-    @JsonKey(name: 'ErrorDetail') String? errorDetail,
-    @JsonKey(name: 'Code') String? code,
-    @JsonKey(name: 'Value') T? value,
-  }) = _ApiResponseValue<T>;
+class ApiResponseValue<T> {
+  final bool success;
+  final String? message;
+  final String? errorDetail;
+  final String? code;
+  final T? value;
+
+  const ApiResponseValue({
+    required this.success,
+    this.message,
+    this.errorDetail,
+    this.code,
+    this.value,
+  });
 
   factory ApiResponseValue.fromJson(
     Map<String, dynamic> json,
-    T Function(Object?) fromJsonT,
-  ) =>
-      _$ApiResponseValueFromJson(json, fromJsonT);
+    T Function(Map<String, dynamic>) fromJsonT,
+  ) {
+    final rawValue = readField<dynamic>(json, 'Value') ?? readField<dynamic>(json, 'value');
+    return ApiResponseValue(
+      success: readField<bool>(json, 'Success') ?? false,
+      message: readField<String>(json, 'Message'),
+      errorDetail: readField<String>(json, 'ErrorDetail'),
+      code: readField<String>(json, 'Code'),
+      value: rawValue == null ? null : fromJsonT(asMap(rawValue)),
+    );
+  }
 }
 
-/// Paginated result wrapper.
-///
-/// ตรงกับ: `BackendApi/Core/Models/PaginatedResult.cs`
-@Freezed(genericArgumentFactories: true)
-abstract class PaginatedResult<T> with _$PaginatedResult<T> {
-  const factory PaginatedResult({
-    @JsonKey(name: 'Items') required List<T> items,
-    @JsonKey(name: 'TotalCount') required int totalCount,
-    @JsonKey(name: 'Page') required int page,
-    @JsonKey(name: 'PageSize') required int pageSize,
-    @JsonKey(name: 'HasPrevious') required bool hasPrevious,
-    @JsonKey(name: 'HasNext') required bool hasNext,
-  }) = _PaginatedResult<T>;
+class PaginatedResult<T> {
+  final List<T> items;
+  final int totalCount;
+  final int page;
+  final int pageSize;
+  final bool hasPrevious;
+  final bool hasNext;
+
+  const PaginatedResult({
+    required this.items,
+    required this.totalCount,
+    required this.page,
+    required this.pageSize,
+    required this.hasPrevious,
+    required this.hasNext,
+  });
 
   factory PaginatedResult.fromJson(
     Map<String, dynamic> json,
-    T Function(Object?) fromJsonT,
-  ) =>
-      _$PaginatedResultFromJson(json, fromJsonT);
+    T Function(Map<String, dynamic>) fromJsonT,
+  ) {
+    final rawItems = readField<List>(json, 'Items') ?? readField<List>(json, 'items') ?? [];
+    return PaginatedResult(
+      items: rawItems.map((e) => fromJsonT(asMap(e))).toList(),
+      totalCount:
+          readField<num>(json, 'TotalCount')?.toInt() ??
+          readField<num>(json, 'totalCount')?.toInt() ??
+          0,
+      page:
+          readField<num>(json, 'Page')?.toInt() ??
+          readField<num>(json, 'page')?.toInt() ??
+          1,
+      pageSize:
+          readField<num>(json, 'PageSize')?.toInt() ??
+          readField<num>(json, 'pageSize')?.toInt() ??
+          10,
+      hasPrevious:
+          readField<bool>(json, 'HasPrevious') ??
+          readField<bool>(json, 'hasPrevious') ??
+          false,
+      hasNext:
+          readField<bool>(json, 'HasNext') ??
+          readField<bool>(json, 'hasNext') ??
+          false,
+    );
+  }
 }

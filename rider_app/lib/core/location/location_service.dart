@@ -4,12 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
 import '../config/environment.dart';
 import '../signalr/signalr_service.dart';
-
-part 'location_service.g.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -27,8 +23,7 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 ///                          Angular Dashboard
 ///                          (Real-time Map)
 /// ```
-@riverpod
-class LocationService extends _$LocationService {
+class LocationService extends Notifier<LocationState> {
   StreamSubscription<Position>? _positionSubscription;
 
   @override
@@ -199,3 +194,7 @@ class LocationState {
     );
   }
 }
+
+final locationServiceProvider = NotifierProvider<LocationService, LocationState>(
+  LocationService.new,
+);

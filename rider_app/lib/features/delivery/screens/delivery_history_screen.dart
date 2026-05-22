@@ -1,46 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Delivery History Screen — ประวัติการส่งของ Rider.
-///
-/// แสดง:
-/// - รายการ order ที่ส่งสำเร็จแล้ว (status: COMPLETED)
-/// - รายการ order ที่ถูกยกเลิก (status: CANCELLED)
-/// - Filter ตามวันที่
-///
-/// TODO: ใส่ UI จริงพร้อม order history list จาก BackendApi
-class DeliveryHistoryScreen extends ConsumerWidget {
+import '../../../shared/widgets/loading_overlay.dart';
+import '../../../shared/widgets/order_card.dart';
+import '../providers/delivery_provider.dart';
+
+/// ประวัติออเดอร์ที่ส่งเสร็จ / ยกเลิก.
+class DeliveryHistoryScreen extends ConsumerStatefulWidget {
   const DeliveryHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DeliveryHistoryScreen> createState() => _DeliveryHistoryScreenState();
+}
+
+class _DeliveryHistoryScreenState extends ConsumerState<DeliveryHistoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(deliveryNotifierProvider.notifier).loadOrders();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(deliveryNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('ประวัติการส่ง'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(deliveryNotifierProvider.notifier).loadOrders(),
+          ),
+        ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.history,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'ยังไม่มีประวัติการส่ง',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '[ Delivery History List Placeholder ]',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+      body: Stack(
+        children: [
+          if (state.completedOrders.isEmpty && !state.isLoading)
+            const Center(child: Text('ยังไม่มีประวัติการส่ง'))
+          else
+            RefreshIndicator(
+              onRefresh: () => ref.read(deliveryNotifierProvider.notifier).loadOrders(),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: state.completedOrders.length,
+                itemBuilder: (context, index) {
+                  return OrderCard(order: state.completedOrders[index]);
+                },
               ),
             ),
-          ],
-        ),
+          if (state.isLoading) const LoadingOverlay(),
+        ],
       ),
     );
   }

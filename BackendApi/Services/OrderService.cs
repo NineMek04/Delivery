@@ -255,14 +255,20 @@ public class OrderService : IOrderService
     }
 
     public async Task<(int StatusCode, ApiResponse<List<OrderDto>> Response)> GetMyOrdersAsync(
-        string? riderId,
+        string? userId,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(riderId))
-            return (StatusCodes.Status401Unauthorized, ApiResponse<List<OrderDto>>.Fail("Rider ID not found in token."));
+        if (string.IsNullOrEmpty(userId))
+            return (StatusCodes.Status401Unauthorized, ApiResponse<List<OrderDto>>.Fail("User ID not found in token."));
+
+        var user = await _db.GetQuery<BackendApi.Models.User>(asNoTracking: true)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user?.RiderId is null)
+            return (StatusCodes.Status401Unauthorized, ApiResponse<List<OrderDto>>.Fail("Rider profile not linked to this user."));
 
         var orders = await _db.GetQuery<Order>(asNoTracking: true)
-            .Where(o => o.AssignedRiderId == riderId)
+            .Where(o => o.AssignedRiderId == user.RiderId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(cancellationToken);
 

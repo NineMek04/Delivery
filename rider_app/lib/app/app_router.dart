@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../core/auth/auth_service.dart';
 import '../features/auth/screens/login_screen.dart';
@@ -10,54 +10,44 @@ import '../features/delivery/screens/active_delivery_screen.dart';
 import '../features/delivery/screens/delivery_history_screen.dart';
 import '../features/tracking/screens/map_tracking_screen.dart';
 
-part 'app_router.g.dart';
+/// Re-run GoRouter redirect when [authServiceProvider] changes.
+final _routerRefreshProvider = Provider<Listenable>((ref) {
+  final notifier = ValueNotifier<int>(0);
+  ref.listen(authServiceProvider, (_, __) {
+    notifier.value++;
+  });
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
 
-/// App Router — Declarative routing ด้วย go_router.
-///
-/// เทียบกับ:
-/// - Angular: `admin-dashboard/src/app/app.routes.ts`
-///
-/// Route structure:
-/// - `/login` — หน้า Login (unauthenticated only)
-/// - `/` — Home Dashboard
-/// - `/delivery/active` — Active Delivery
-/// - `/delivery/history` — Delivery History
-/// - `/tracking` — Map Tracking (real-time GPS)
-@riverpod
-GoRouter appRouter(Ref ref) {
-  final authState = ref.watch(authServiceProvider);
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     debugLogDiagnostics: true,
-
-    // ── Redirect Logic (Auth Guard) ──────────────────────────────────
+    refreshListenable: refreshListenable,
     redirect: (context, state) {
-      final isLoggedIn = authState == AuthStatus.authenticated;
-      final isLoading = authState == AuthStatus.loading;
+      final authState = ref.read(authServiceProvider);
       final isLoginRoute = state.matchedLocation == '/login';
 
-      // ยังโหลดอยู่ → อย่า redirect
-      if (isLoading) return null;
-
-      // ยังไม่ login + ไม่ได้อยู่หน้า login → ไปหน้า login
-      if (!isLoggedIn && !isLoginRoute) return '/login';
-
-      // login แล้ว + อยู่หน้า login → ไปหน้า home
-      if (isLoggedIn && isLoginRoute) return '/';
-
+      if (authState == AuthStatus.loading) {
+        return isLoginRoute ? null : '/login';
+      }
+      if (authState != AuthStatus.authenticated && !isLoginRoute) {
+        return '/login';
+      }
+      if (authState == AuthStatus.authenticated && isLoginRoute) {
+        return '/';
+      }
       return null;
     },
-
-    // ── Routes ───────────────────────────────────────────────────────
     routes: [
       GoRoute(
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
       ),
-
-      // ── Main App Shell (with bottom navigation) ────────────────────
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
@@ -85,11 +75,9 @@ GoRouter appRouter(Ref ref) {
       ),
     ],
   );
-}
+});
 
 /// Main Shell — Bottom Navigation wrapper.
-///
-/// ครอบ child routes ด้วย bottom navigation bar.
 class MainShell extends StatelessWidget {
   final Widget child;
 

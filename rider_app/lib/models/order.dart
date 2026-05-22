@@ -1,77 +1,96 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+import '../core/api/api_helpers.dart';
 
-part 'order.freezed.dart';
-part 'order.g.dart';
+/// Order DTO — maps to BackendApi `OrderDto`.
+class OrderDto {
+  final String id;
+  final String status;
+  final double? pickupLat;
+  final double? pickupLng;
+  final double? dropoffLat;
+  final double? dropoffLng;
+  final DateTime? expectedDeliveryTime;
+  final String? assignedRiderId;
+  final double distanceKm;
+  final double deliveryFee;
+  final String? trackingCode;
+  final String? encodedPolyline;
 
-/// Order DTO — ข้อมูลออเดอร์.
-///
-/// ตรงกับ:
-/// - .NET Entity: `BackendApi/Models/Order.cs`
-/// - .NET DTO: `BackendApi/Models/DTOs/OrderDto.cs`
-///
-/// Fields mapping:
-/// | Flutter (Dart)          | .NET (C#)                |
-/// |-------------------------|--------------------------|
-/// | id                      | Id (GUID string)         |
-/// | status                  | Status                   |
-/// | pickupLat / pickupLng   | PickupLat / PickupLng    |
-/// | dropoffLat / dropoffLng | DropoffLat / DropoffLng  |
-/// | expectedDeliveryTime    | ExpectedDeliveryTime     |
-/// | assignedRiderId         | AssignedRiderId          |
-@freezed
-abstract class OrderDto with _$OrderDto {
-  const factory OrderDto({
-    /// รหัสออเดอร์ (GUID)
-    @JsonKey(name: 'Id') required String id,
+  const OrderDto({
+    required this.id,
+    this.status = 'PENDING',
+    this.pickupLat,
+    this.pickupLng,
+    this.dropoffLat,
+    this.dropoffLng,
+    this.expectedDeliveryTime,
+    this.assignedRiderId,
+    this.distanceKm = 0,
+    this.deliveryFee = 0,
+    this.trackingCode,
+    this.encodedPolyline,
+  });
 
-    /// สถานะ: PENDING, ASSIGNED, PICKED_UP, DELIVERING, COMPLETED, CANCELLED
-    @JsonKey(name: 'Status') @Default('PENDING') String status,
+  factory OrderDto.fromJson(Map<String, dynamic> json) {
+    final expectedRaw =
+        readField<String>(json, 'ExpectedDeliveryTime') ??
+        readField<String>(json, 'expectedDeliveryTime');
 
-    /// ละติจูดจุดรับสินค้า (Pickup)
-    @JsonKey(name: 'PickupLat') double? pickupLat,
+    return OrderDto(
+      id: readField<String>(json, 'Id') ?? readField<String>(json, 'id') ?? '',
+      status:
+          readField<String>(json, 'Status') ??
+          readField<String>(json, 'status') ??
+          'PENDING',
+      pickupLat: _toDouble(readField(json, 'PickupLat') ?? readField(json, 'pickupLat')),
+      pickupLng: _toDouble(readField(json, 'PickupLng') ?? readField(json, 'pickupLng')),
+      dropoffLat: _toDouble(readField(json, 'DropoffLat') ?? readField(json, 'dropoffLat')),
+      dropoffLng: _toDouble(readField(json, 'DropoffLng') ?? readField(json, 'dropoffLng')),
+      expectedDeliveryTime:
+          expectedRaw != null ? DateTime.tryParse(expectedRaw) : null,
+      assignedRiderId:
+          readField<String>(json, 'AssignedRiderId') ??
+          readField<String>(json, 'assignedRiderId'),
+      distanceKm:
+          _toDouble(readField(json, 'DistanceKm') ?? readField(json, 'distanceKm')) ?? 0,
+      deliveryFee:
+          _toDouble(readField(json, 'DeliveryFee') ?? readField(json, 'deliveryFee')) ?? 0,
+      trackingCode:
+          readField<String>(json, 'TrackingCode') ??
+          readField<String>(json, 'trackingCode'),
+      encodedPolyline:
+          readField<String>(json, 'EncodedPolyline') ??
+          readField<String>(json, 'encodedPolyline'),
+    );
+  }
+}
 
-    /// ลองจิจูดจุดรับสินค้า (Pickup)
-    @JsonKey(name: 'PickupLng') double? pickupLng,
-
-    /// ละติจูดจุดส่งสินค้า (Dropoff)
-    @JsonKey(name: 'DropoffLat') double? dropoffLat,
-
-    /// ลองจิจูดจุดส่งสินค้า (Dropoff)
-    @JsonKey(name: 'DropoffLng') double? dropoffLng,
-
-    /// เวลาที่คาดว่าจะส่งถึง
-    @JsonKey(name: 'ExpectedDeliveryTime') DateTime? expectedDeliveryTime,
-
-    /// รหัสไรเดอร์ที่ได้รับมอบหมาย
-    @JsonKey(name: 'AssignedRiderId') String? assignedRiderId,
-  }) = _OrderDto;
-
-  factory OrderDto.fromJson(Map<String, dynamic> json) =>
-      _$OrderDtoFromJson(json);
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
 }
 
 /// Create Order DTO.
-///
-/// ตรงกับ: `BackendApi/Models/DTOs/CreateOrderDto.cs`
-@freezed
-abstract class CreateOrderDto with _$CreateOrderDto {
-  const factory CreateOrderDto({
-    /// ละติจูดจุดรับสินค้า
-    @JsonKey(name: 'PickupLat') required double pickupLat,
+class CreateOrderDto {
+  final double pickupLat;
+  final double pickupLng;
+  final double dropoffLat;
+  final double dropoffLng;
+  final DateTime expectedDeliveryTime;
 
-    /// ลองจิจูดจุดรับสินค้า
-    @JsonKey(name: 'PickupLng') required double pickupLng,
+  const CreateOrderDto({
+    required this.pickupLat,
+    required this.pickupLng,
+    required this.dropoffLat,
+    required this.dropoffLng,
+    required this.expectedDeliveryTime,
+  });
 
-    /// ละติจูดจุดส่งสินค้า
-    @JsonKey(name: 'DropoffLat') required double dropoffLat,
-
-    /// ลองจิจูดจุดส่งสินค้า
-    @JsonKey(name: 'DropoffLng') required double dropoffLng,
-
-    /// เวลาที่คาดว่าจะส่งถึง
-    @JsonKey(name: 'ExpectedDeliveryTime') required DateTime expectedDeliveryTime,
-  }) = _CreateOrderDto;
-
-  factory CreateOrderDto.fromJson(Map<String, dynamic> json) =>
-      _$CreateOrderDtoFromJson(json);
+  Map<String, dynamic> toJson() => {
+    'PickupLat': pickupLat,
+    'PickupLng': pickupLng,
+    'DropoffLat': dropoffLat,
+    'DropoffLng': dropoffLng,
+    'ExpectedDeliveryTime': expectedDeliveryTime.toIso8601String(),
+  };
 }

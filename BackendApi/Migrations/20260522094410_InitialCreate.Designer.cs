@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BackendApi.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260519032049_AddUniversalTrackingNumbers")]
-    partial class AddUniversalTrackingNumbers
+    [Migration("20260522094410_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -26,6 +26,238 @@ namespace BackendApi.Migrations
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("BackendApi.Models.MenuItem", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreatedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeletedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("RefNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("RefNumber"));
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea")
+                        .HasDefaultValue(new byte[0]);
+
+                    b.Property<string>("ShopId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UpdatedFromIp")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RefNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_MenuItems_RefNumber");
+
+                    b.HasIndex("ShopId")
+                        .HasDatabaseName("IX_MenuItems_ShopId");
+
+                    b.ToTable("MenuItems");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItemOption", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreatedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeletedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxSelections")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MenuItemId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea")
+                        .HasDefaultValue(new byte[0]);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UpdatedFromIp")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuItemId");
+
+                    b.ToTable("MenuItemOptions");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItemOptionItem", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreatedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeletedFromIp")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MenuItemOptionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea")
+                        .HasDefaultValue(new byte[0]);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UpdatedFromIp")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuItemOptionId");
+
+                    b.ToTable("MenuItemOptionItems");
+                });
 
             modelBuilder.Entity("BackendApi.Models.Order", b =>
                 {
@@ -77,6 +309,9 @@ namespace BackendApi.Migrations
                     b.Property<Point>("DropoffLocation")
                         .HasColumnType("geometry(Point, 4326)");
 
+                    b.Property<string>("EncodedPolyline")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("ExpectedDeliveryTime")
                         .HasColumnType("timestamp with time zone");
 
@@ -97,6 +332,12 @@ namespace BackendApi.Migrations
                         .HasColumnType("bigint");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("RefNumber"));
+
+                    b.Property<double>("RouteDistanceMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("RouteDurationSeconds")
+                        .HasColumnType("double precision");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -448,6 +689,54 @@ namespace BackendApi.Migrations
                         .HasDatabaseName("IX_Users_RefNumber");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItem", b =>
+                {
+                    b.HasOne("BackendApi.Models.Shop", "Shop")
+                        .WithMany("MenuItems")
+                        .HasForeignKey("ShopId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Shop");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItemOption", b =>
+                {
+                    b.HasOne("BackendApi.Models.MenuItem", "MenuItem")
+                        .WithMany("Options")
+                        .HasForeignKey("MenuItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MenuItem");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItemOptionItem", b =>
+                {
+                    b.HasOne("BackendApi.Models.MenuItemOption", "MenuItemOption")
+                        .WithMany("Items")
+                        .HasForeignKey("MenuItemOptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MenuItemOption");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItem", b =>
+                {
+                    b.Navigation("Options");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.MenuItemOption", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("BackendApi.Models.Shop", b =>
+                {
+                    b.Navigation("MenuItems");
                 });
 #pragma warning restore 612, 618
         }

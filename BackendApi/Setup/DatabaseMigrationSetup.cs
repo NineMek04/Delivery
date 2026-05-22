@@ -1,4 +1,5 @@
 using BackendApi.Data;
+using BackendApi.ServiceMigration;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -36,6 +37,11 @@ public static class DatabaseMigrationSetup
             {
                 Log.Information("Healthy: Database is up to date. No pending migrations.");
             }
+
+            // ── ServiceMigration: Run advanced PostgreSQL schema configurator (Partitioning, Clustering & Views) ──
+            Log.Information("⚙️ [ServiceMigration] Running advanced PostgreSQL schema configuration...");
+            await PostgresAdvancedConfigurator.ConfigureSchemaAsync(context);
+            Log.Information("✅ [ServiceMigration] Schema setup completed.");
 
             // Seed mock data if tables are empty
             Log.Information("🌱 Seeding mock data if database is empty...");

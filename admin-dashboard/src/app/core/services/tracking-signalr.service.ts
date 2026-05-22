@@ -3,6 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { RealtimeTelemetryDto, RiderUtilizationDto } from './analytics.service';
 
 export interface RiderLocationUpdate {
   riderId: string;
@@ -58,6 +59,9 @@ export class TrackingSignalRService {
   private _orderStatusChanged = new Subject<{ orderId: string; status: string }>();
   public orderStatusChanged$ = this._orderStatusChanged.asObservable();
 
+  private _telemetryUpdated = new BehaviorSubject<{ telemetry: RealtimeTelemetryDto; utilization: RiderUtilizationDto } | null>(null);
+  public telemetryUpdated$ = this._telemetryUpdated.asObservable();
+
   constructor(private authService: AuthService) {}
 
   public getRiderLocations(): Map<string, RiderLocationUpdate> {
@@ -109,6 +113,26 @@ export class TrackingSignalRService {
 
   private addListeners(): void {
     if (!this.hubConnection) return;
+
+    this.hubConnection.on('TelemetryUpdated', (data: any) => {
+      const telemetry = data.telemetry || data.Telemetry;
+      const utilization = data.utilization || data.Utilization;
+      if (telemetry && utilization) {
+        this._telemetryUpdated.next({
+          telemetry: {
+            activeRidersCount: telemetry.activeRidersCount ?? telemetry.ActiveRidersCount ?? 0,
+            gpsUpdatesPerSecond: telemetry.gpsUpdatesPerSecond ?? telemetry.GpsUpdatesPerSecond ?? 0,
+            dispatchQueueSize: telemetry.dispatchQueueSize ?? telemetry.DispatchQueueSize ?? 0
+          },
+          utilization: {
+            ridersBusyCount: utilization.ridersBusyCount ?? utilization.RidersBusyCount ?? 0,
+            ridersIdleCount: utilization.ridersIdleCount ?? utilization.RidersIdleCount ?? 0,
+            ridersOfflineCount: utilization.ridersOfflineCount ?? utilization.RidersOfflineCount ?? 0,
+            averageDeliveriesPerRider: utilization.averageDeliveriesPerRider ?? utilization.AverageDeliveriesPerRider ?? 0
+          }
+        });
+      }
+    });
 
     // Listen to rider location updates with robust coordinate property mapping
     this.hubConnection.on('RiderLocationUpdated', (data: any) => {

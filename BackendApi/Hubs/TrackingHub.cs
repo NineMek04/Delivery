@@ -4,6 +4,9 @@ using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Security;
 using BackendApi.Services.Dispatch;
+using BackendApi.Services.Telemetry;
+using BackendApi.Infrastructure.EventBus;
+using BackendApi.Infrastructure.EventBus.Events;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +14,16 @@ using Microsoft.EntityFrameworkCore;
 namespace BackendApi.Hubs;
 
 /// <summary>
-/// Realtime Gateway — สื่อสารสองทางระหว่าง Rider App และ Backend
-/// รับพิกัด, รับ Heartbeat, และจัดการการรับ-ปฏิเสธ Offer งาน
+/// Realtime Gateway — สื่อสารสองทางระหว่าง Rider App / Admin Dashboard และ Backend
+/// 
+/// Partial class structure:
+///   - TrackingHub.cs          → Core (constructor, lifecycle, utilities)
+///   - TrackingHub.Location.cs → GPS (UpdateLocation, UpdateRiderLocation, UpdateHeartbeat)
+///   - TrackingHub.RiderStatus.cs → Status (UpdateRiderStatus, UpdateStatus)
+///   - TrackingHub.Dispatch.cs → Offers (AcceptOffer, RejectOffer)
 /// </summary>
 [Authorize]
-public class TrackingHub : Hub
+public partial class TrackingHub : Hub
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly RiderPresenceService _presenceService;
@@ -23,6 +31,8 @@ public class TrackingHub : Hub
     private readonly DispatchService _dispatchService;
     private readonly StateMachineService _stateMachine;
     private readonly IConfiguration _config;
+    private readonly IEventBus _eventBus;
+    private readonly TelemetryAggregator _aggregator;
     private readonly ILogger<TrackingHub> _logger;
 
     private const string AdminGroup = "admins";
@@ -35,6 +45,8 @@ public class TrackingHub : Hub
         DispatchService dispatchService,
         StateMachineService stateMachine,
         IConfiguration config,
+        IEventBus eventBus,
+        TelemetryAggregator aggregator,
         ILogger<TrackingHub> logger)
     {
         _dbContext = dbContext;
@@ -43,8 +55,12 @@ public class TrackingHub : Hub
         _dispatchService = dispatchService;
         _stateMachine = stateMachine;
         _config = config;
+        _eventBus = eventBus;
+        _aggregator = aggregator;
         _logger = logger;
     }
+
+    // ── Connection Lifecycle ────────────────────────────────────────
 
     public override async Task OnConnectedAsync()
     {
@@ -82,6 +98,14 @@ public class TrackingHub : Hub
                     var newState = await HasActiveJobAsync(rider.Id) ? RiderState.BUSY : RiderState.IDLE;
                     await _stateMachine.TransitionRiderAsync(rider, newState);
                 }
+
+                // แจ้ง Admin Dashboard ว่ามีไรเดอร์ออนไลน์ใหม่
+                await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
+                {
+                    RiderId = user.RiderId,
+                    NewStatus = rider.State.ToString(),
+                    Timestamp = DateTime.UtcNow
+                });
             }
         }
         else if (role == AuthConstants.CustomerRole)
@@ -96,6 +120,13 @@ public class TrackingHub : Hub
         await base.OnConnectedAsync();
     }
 
+    /// <summary>
+    /// Network Drop Fallback — เมื่อไรเดอร์หลุดจากเครือข่ายกะทันหัน
+    /// (เน็ตตัด, เข้าใต้ตึก, แบตหมด) ระบบจะ:
+    /// 1. เปลี่ยนสถานะเป็น STALE ทันที (ชั่วคราว เผื่อกลับมาภายใน 15 วินาที)
+    /// 2. ลบจาก GEO index เพื่อป้องกันไม่ให้ถูก dispatch งานใหม่
+    /// 3. HeartbeatMonitor จะเก็บกวาดจาก STALE → OFFLINE หากไม่กลับมา
+    /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
@@ -106,111 +137,42 @@ public class TrackingHub : Hub
             var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
             if (user?.RiderId is not null)
             {
-                // ไม่ได้ตัดเป็น OFFLINE ทันที ปล่อยให้ HeartbeatMonitor เช็คและให้เป็น STALE ก่อน
-                _logger.LogInformation("Rider {RiderId} SignalR disconnected. Waiting for heartbeat timeout.", user.RiderId);
+                var rider = await _dbContext.Riders.FindAsync(user.RiderId);
+                if (rider is not null && rider.State != RiderState.OFFLINE)
+                {
+                    var oldState = rider.State;
+
+                    // เปลี่ยนเป็น STALE ทันที เพื่อหลีกเลี่ยงไม่ให้ถูก dispatch ใหม่
+                    var transitioned = await _stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
+
+                    if (transitioned)
+                    {
+                        _logger.LogWarning(
+                            "Rider {RiderId} disconnected unexpectedly ({OldState} → STALE). Waiting for reconnect or heartbeat timeout.",
+                            user.RiderId, oldState);
+
+                        // แจ้ง Admin Dashboard ว่าไรเดอร์หลุด
+                        await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
+                        {
+                            RiderId = user.RiderId,
+                            NewStatus = RiderState.STALE.ToString(),
+                            PreviousStatus = oldState.ToString(),
+                            Reason = "network_disconnect",
+                            Timestamp = DateTime.UtcNow
+                        });
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("Rider {RiderId} SignalR disconnected (already OFFLINE).", user.RiderId);
+                }
             }
         }
 
         await base.OnDisconnectedAsync(exception);
     }
 
-    // ── 1. GPS & Heartbeat ─────────────────────────────────────────
-
-    public async Task UpdateHeartbeat()
-    {
-        var riderId = await GetRiderIdAsync();
-        if (riderId is null) return;
-
-        await _presenceService.UpdateHeartbeatAsync(riderId);
-
-        // ดึงสถานะปัจจุบันกลับมาให้ Rider เผื่อหลุดและกลับมา (State Sync)
-        var rider = await _dbContext.Riders.FindAsync(riderId);
-        if (rider is not null && rider.State == RiderState.STALE)
-        {
-            var newState = await HasActiveJobAsync(riderId) ? RiderState.BUSY : RiderState.IDLE;
-            await _stateMachine.TransitionRiderAsync(rider, newState);
-        }
-    }
-
-    public async Task UpdateLocation(double lat, double lng, double accuracy)
-    {
-        var riderId = await GetRiderIdAsync();
-        if (riderId is null) return;
-
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
-
-        if (accuracy > 50) return; // กรอง Drift เล็กๆ
-
-        // Sanity Check: โดดไปไกลผิดปกติไหม (Teleport protection)
-        var lastGps = await _presenceService.GetLastKnownLocationAsync(riderId);
-        if (lastGps is not null)
-        {
-            var maxDriftKm = _config.GetValue("Dispatch:MaxGpsDriftKm", 5.0);
-            var distMeters = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, lat, lng);
-            var timeDiffSeconds = (DateTime.UtcNow - lastGps.Value.UpdatedAt).TotalSeconds;
-            
-            // ความเร็ว > 18,000 km/h (5 km in 1 sec)
-            if (timeDiffSeconds > 0 && (distMeters / 1000.0) / (timeDiffSeconds / 3600.0) > 18000)
-            {
-                _logger.LogWarning("GPS Teleport detected for Rider {RiderId}", riderId);
-                return;
-            }
-        }
-
-        // อัปเดตลง Redis Cache
-        await _presenceService.UpdateGpsAsync(riderId, lat, lng);
-
-        // เก็บลง Buffer เพื่อเขียนลง PostGIS
-        _gpsBuffer.AddPointAndCheckFlush(riderId, lat, lng);
-
-        // อัปเดตใน Entity
-        var rider = await _dbContext.Riders.FindAsync(riderId);
-        if (rider is not null)
-        {
-            rider.CurrentLocation = new NetTopologySuite.Geometries.Point(lng, lat) { SRID = 4326 };
-            rider.LastGpsUpdate = DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync();
-
-            // Broadcast ไปให้ Admin
-            await Clients.Group(AdminGroup).SendAsync("RiderLocationUpdated", new
-            {
-                RiderId = riderId,
-                Lat = lat,
-                Lng = lng,
-                Status = rider.State.ToString(),
-                Timestamp = rider.LastGpsUpdate
-            });
-        }
-    }
-
-    // ── 2. Dispatch Offer Handling ─────────────────────────────────
-
-    public async Task AcceptOffer(string offerId, int version)
-    {
-        var riderId = await GetRiderIdAsync();
-        if (riderId is null) return;
-
-        var success = await _dispatchService.AcceptOfferAsync(riderId, offerId, version);
-
-        if (success)
-        {
-            await Clients.Caller.SendAsync("OfferAcceptedResult", new { Success = true });
-        }
-        else
-        {
-            await Clients.Caller.SendAsync("OfferAcceptedResult", new { Success = false, Message = "งานนี้หลุดไปแล้ว หรือมีผู้รับแล้ว" });
-        }
-    }
-
-    public async Task RejectOffer(string offerId, string orderId)
-    {
-        var riderId = await GetRiderIdAsync();
-        if (riderId is null) return;
-
-        await _dispatchService.RejectOrTimeoutAsync(orderId, riderId, offerId);
-    }
-
-    // ── Utility ────────────────────────────────────────────────────
+    // ── Shared Utility Methods ──────────────────────────────────────
 
     private async Task<string?> GetRiderIdAsync()
     {

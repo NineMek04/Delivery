@@ -9,6 +9,8 @@ using BackendApi.Models.DTOs;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Tracking;
+using BackendApi.Infrastructure.EventBus;
+using BackendApi.Infrastructure.EventBus.Events;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
@@ -28,6 +30,7 @@ public class OrderService : IOrderService
     private readonly OsrmRoutingService _routingService;
     private readonly IAiService _aiService;
     private readonly IHubContext<TrackingHub> _hubContext;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<OrderService> _logger;
 
     public OrderService(
@@ -39,6 +42,7 @@ public class OrderService : IOrderService
         OsrmRoutingService routingService,
         IAiService aiService,
         IHubContext<TrackingHub> hubContext,
+        IEventBus eventBus,
         ILogger<OrderService> logger)
     {
         _db = db;
@@ -49,6 +53,7 @@ public class OrderService : IOrderService
         _routingService = routingService;
         _aiService = aiService;
         _hubContext = hubContext;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -129,6 +134,26 @@ public class OrderService : IOrderService
 
         var savedOrder = _db.InsertObject(order);
         await _db.CommitChangesAsync(cancellationToken);
+
+        // Publish Order Created Integration Event asynchronously to RabbitMQ
+        try
+        {
+            await _eventBus.PublishAsync(new OrderCreatedIntegrationEvent(
+                savedOrder.Id,
+                savedOrder.RefNumber,
+                savedOrder.State,
+                savedOrder.PickupLocation?.Y ?? 0,
+                savedOrder.PickupLocation?.X ?? 0,
+                savedOrder.DropoffLocation?.Y ?? 0,
+                savedOrder.DropoffLocation?.X ?? 0,
+                savedOrder.DistanceKm,
+                savedOrder.DeliveryFee
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish OrderCreatedIntegrationEvent for Order {OrderId}", savedOrder.Id);
+        }
 
         var responseDto = _mapper.Map<OrderDto>(savedOrder);
 

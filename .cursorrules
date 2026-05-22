@@ -16,7 +16,7 @@
   - **PostgreSQL**: ทำหน้าที่เป็น *persistent truth* (ข้อมูลสถานะ Orders, Riders, Transactions) เสมอ
 
 ## 3. Workflow & Logging Rules
-- **CRITICAL**: ALWAYS read `AI-INDEX.md` and `AI-BOOTSTRAP.md` FIRST before starting any task to perform Context Pruning.
+- **CRITICAL**: ALWAYS read `AGENTS.md` and `AI-INDEX.md` FIRST before starting any task to perform Context Pruning.
 - Reference 
 1. `AI-INDEX.md` - The Master Router to find which specific spec files you need to read.
 2. `AI-BOOTSTRAP.md` - AI Behavior Rules and Anti-Hallucination constraints.

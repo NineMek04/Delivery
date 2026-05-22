@@ -10,6 +10,9 @@ using BackendApi.Services;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Tracking;
 using BackendApi.Services.Analytics;
+using BackendApi.Services.Telemetry;
+using BackendApi.Infrastructure.EventBus;
+using BackendApi.Infrastructure.EventBus.Handlers;
 using FluentValidation;
 using Mapster;
 using MapsterMapper;
@@ -84,12 +87,20 @@ public static class ServiceSetup
         services.AddScoped<ITrackingSearchService, TrackingSearchService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddSingleton<TelemetryAggregator>();
+
+        // --- EventBus / RabbitMQ Message Broker ---
+        services.AddSingleton<IEventBus, RabbitMqEventBus>();
+        services.AddTransient<OrderCreatedIntegrationEventHandler>();
+        services.AddTransient<OrderStatusChangedIntegrationEventHandler>();
+        services.AddTransient<RiderLocationUpdatedIntegrationEventHandler>();
 
         // --- Background Workers (The System Janitors) ---
         services.AddHostedService<DispatchTimeoutWorker>();
         services.AddHostedService<HeartbeatMonitor>();
         services.AddHostedService<GpsSyncWorker>();
         services.AddHostedService<PartitionMaintenanceWorker>();
+        services.AddHostedService<TelemetryBroadcastWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

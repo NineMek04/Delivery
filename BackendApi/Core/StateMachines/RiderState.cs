@@ -35,6 +35,7 @@ public static class RiderStateRules
         (RiderState.OFFLINE, RiderState.IDLE) => true,          // เปิดแอป / เชื่อมต่อ
         (RiderState.IDLE, RiderState.RESERVED) => true,         // ถูกจองตัวชั่วคราว
         (RiderState.IDLE, RiderState.OFFLINE) => true,          // ปิดแอป
+        (RiderState.IDLE, RiderState.STALE) => true,            // เน็ตหลุดระหว่างว่างงาน
         (RiderState.RESERVED, RiderState.BUSY) => true,         // กดรับงาน
         (RiderState.RESERVED, RiderState.IDLE) => true,         // ปฏิเสธงาน / Timeout
         (RiderState.RESERVED, RiderState.STALE) => true,        // เน็ตหลุดระหว่างรอกดรับ

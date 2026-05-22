@@ -54,10 +54,16 @@ services:
       - Cors__AllowedOrigins__4=http://localhost:8081
       - Routing__LocalOsrmUrl=http://osrm:5000
       - Authentication__RequireSecureCookie=false
+      - MessageBroker__Host=rabbitmq
+      - MessageBroker__Port=5672
+      - MessageBroker__Username=${RABBITMQ_USER}
+      - MessageBroker__Password=${RABBITMQ_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
@@ -175,6 +181,23 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+
+  # 12. RabbitMQ Message Broker (Real-time Event Architecture)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: delivery-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP Protocol
+      - "15672:15672"   # Management Dashboard UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -3,6 +3,9 @@ using Serilog;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Prometheus;
+using BackendApi.Infrastructure.EventBus;
+using BackendApi.Infrastructure.EventBus.Events;
+using BackendApi.Infrastructure.EventBus.Handlers;
 namespace BackendApi.Setup;
 
 public static class ApplicationSetup
@@ -70,6 +73,12 @@ public static class ApplicationSetup
 
         // --- SignalR Hub ---
         app.MapHub<TrackingHub>("/hubs/tracking");
+
+        // --- EventBus Subscriptions (Decoupled background processing) ---
+        var eventBus = app.Services.GetRequiredService<IEventBus>();
+        eventBus.Subscribe<OrderCreatedIntegrationEvent, OrderCreatedIntegrationEventHandler>();
+        eventBus.Subscribe<OrderStatusChangedIntegrationEvent, OrderStatusChangedIntegrationEventHandler>();
+        eventBus.Subscribe<RiderLocationUpdatedIntegrationEvent, RiderLocationUpdatedIntegrationEventHandler>();
 
         return app;
     }

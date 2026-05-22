@@ -112,4 +112,99 @@ public class AnalyticsService : IAnalyticsService
 
         return result;
     }
+
+    public async Task<AnalyticsSummaryDto> GetAnalyticsSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true).ToListAsync(cancellationToken);
+
+        var total = orders.Count;
+        var completed = orders.Count(o => o.State == OrderState.COMPLETED);
+        var cancelled = orders.Count(o => o.State == OrderState.CANCELLED);
+
+        double successRate = total > 0 ? (completed / (double)total) * 100 : 0;
+        double failedDispatch = total > 0 ? (cancelled / (double)total) * 100 : 0;
+
+        var completedWithTimes = orders
+            .Where(o => o.State == OrderState.COMPLETED && o.AssignedAt.HasValue && o.CompletedAt.HasValue)
+            .ToList();
+        double avgTime = completedWithTimes.Count > 0 
+            ? completedWithTimes.Average(o => (o.CompletedAt!.Value - o.AssignedAt!.Value).TotalMinutes) 
+            : 0;
+
+        return new AnalyticsSummaryDto
+        {
+            AverageDeliveryTimeMinutes = Math.Round(avgTime, 1),
+            SuccessRatePercent = Math.Round(successRate, 1),
+            FailedDispatchPercent = Math.Round(failedDispatch, 1),
+            TotalOrdersCount = total,
+            CompletedOrdersCount = completed,
+            CancelledOrdersCount = cancelled
+        };
+    }
+
+    public async Task<RealtimeTelemetryDto> GetRealtimeTelemetryAsync(CancellationToken cancellationToken = default)
+    {
+        var riders = await _db.GetQuery<Models.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
+        var activeRiders = riders.Count(r => r.State != RiderState.OFFLINE);
+
+        var oneMinuteAgo = DateTime.UtcNow.AddMinutes(-1);
+        var gpsCount = await _db.GetQuery<Models.RiderLocationHistory>(asNoTracking: true)
+            .Where(lh => lh.RecordedAt >= oneMinuteAgo)
+            .CountAsync(cancellationToken);
+
+        var gpsUpdatesPerSecond = Math.Round(gpsCount / 60.0, 2);
+
+        var queueSize = await _db.GetQuery<Models.Order>(asNoTracking: true)
+            .Where(o => o.State == OrderState.MATCHING || o.State == OrderState.OFFERING)
+            .CountAsync(cancellationToken);
+
+        return new RealtimeTelemetryDto
+        {
+            ActiveRidersCount = activeRiders,
+            GpsUpdatesPerSecond = gpsUpdatesPerSecond,
+            DispatchQueueSize = queueSize
+        };
+    }
+
+    public async Task<RiderUtilizationDto> GetRiderUtilizationAsync(CancellationToken cancellationToken = default)
+    {
+        var riders = await _db.GetQuery<Models.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
+        
+        var busy = riders.Count(r => r.State == RiderState.BUSY);
+        var idle = riders.Count(r => r.State == RiderState.IDLE || r.State == RiderState.RESERVED);
+        var offline = riders.Count(r => r.State == RiderState.OFFLINE || r.State == RiderState.STALE);
+
+        var completedOrdersCount = await _db.GetQuery<Models.Order>(asNoTracking: true)
+            .Where(o => o.State == OrderState.COMPLETED)
+            .CountAsync(cancellationToken);
+
+        double avgDeliveries = riders.Count > 0 ? completedOrdersCount / (double)riders.Count : 0;
+
+        return new RiderUtilizationDto
+        {
+            RidersBusyCount = busy,
+            RidersIdleCount = idle,
+            RidersOfflineCount = offline,
+            AverageDeliveriesPerRider = Math.Round(avgDeliveries, 1)
+        };
+    }
+
+    public async Task<List<HeatmapPointDto>> GetHeatmapPointsAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true)
+            .Where(o => o.PickupLocation != null)
+            .Select(o => new { o.PickupLocation!.X, o.PickupLocation!.Y })
+            .ToListAsync(cancellationToken);
+
+        var result = orders.Select(o => new HeatmapPointDto
+        {
+            Longitude = o.X,
+            Latitude = o.Y,
+            Intensity = 1.0
+        })
+        .ToList();
+
+        return result;
+    }
 }
+

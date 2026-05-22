@@ -46,4 +46,33 @@ public class AnalyticsController : DeliveryControllerBase
         var riders = await _analyticsService.GetTopPerformingRidersAsync(count, cancellationToken);
         return Ok(ApiResponse<List<RiderPerformanceDto>>.Ok(riders));
     }
+
+    [HttpGet("summary")]
+    public async Task<ActionResult<ApiResponse<AnalyticsSummaryDto>>> GetSummary(CancellationToken cancellationToken)
+    {
+        var summary = await _analyticsService.GetAnalyticsSummaryAsync(cancellationToken);
+        return Ok(ApiResponse<AnalyticsSummaryDto>.Ok(summary));
+    }
+
+    [HttpGet("realtime")]
+    public async Task<ActionResult<ApiResponse<RealtimeTelemetryDto>>> GetRealtime(CancellationToken cancellationToken)
+    {
+        var realtime = await _analyticsService.GetRealtimeTelemetryAsync(cancellationToken);
+        return Ok(ApiResponse<RealtimeTelemetryDto>.Ok(realtime));
+    }
+
+    [HttpGet("rider-utilization")]
+    public async Task<ActionResult<ApiResponse<RiderUtilizationDto>>> GetRiderUtilization(CancellationToken cancellationToken)
+    {
+        var utilization = await _analyticsService.GetRiderUtilizationAsync(cancellationToken);
+        return Ok(ApiResponse<RiderUtilizationDto>.Ok(utilization));
+    }
+
+    [HttpGet("heatmap")]
+    public async Task<ActionResult<ApiResponse<List<HeatmapPointDto>>>> GetHeatmap(CancellationToken cancellationToken)
+    {
+        var heatmap = await _analyticsService.GetHeatmapPointsAsync(cancellationToken);
+        return Ok(ApiResponse<List<HeatmapPointDto>>.Ok(heatmap));
+    }
 }
+

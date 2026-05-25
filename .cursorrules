@@ -20,7 +20,7 @@
 - Reference 
 1. `AI-INDEX.md` - The Master Router to find which specific spec files you need to read.
 2. `AI-BOOTSTRAP.md` - AI Behavior Rules and Anti-Hallucination constraints.
-3. `AI-CHANGELOG.md` - latest project status and applied changes.
+3. `.docs/AI-CHANGELOG/` - latest project status and applied changes (read only relevant date files).
 4. `.cursorrules` - original Cursor rules and workflow constraints.
 5. **AI‑OS Docs** - After the core files, consult the appropriate spec/contract in `.docs/ai-context/` (referenced via `AI-INDEX.md`).
 - Keep changes scoped to the request and do not rewrite unrelated files.
@@ -29,8 +29,8 @@
   - **Backend**: Use `CrudControllerBase` for master data, `DeliveryControllerBase` for complex logic. Always use `DBHandlerCore` for database operations. Keep controllers thin; place business logic in `BackendApi/Services/` (never in `Controllers/Services/`). Use Mapster for DTOs and `ApiResponse` for all outputs.
   - **Frontend (Angular)**: Use `BaseApiService<T>` for standard CRUD operations, `DeliveryHttpRequest` (Fluent API) for custom calls, and OpenAPI generated models for type safety.
   - **Mobile (Flutter)**: Follow the established foundation, use standard `ApiResponse` mappings, Dio for networking, and Riverpod for state management.
-- Do not update `AI-CHANGELOG.md` automatically; ask the user every time before logging work there.
-- When updating `AI-CHANGELOG.md`, ALWAYS append new logs to the end of the file. DO NOT modify, overwrite, or delete historical entries.
+- Do not update `.docs/AI-CHANGELOG/` automatically; ask the user every time before logging work there (create/update files based on date).
+- When updating `.docs/AI-CHANGELOG/`, ALWAYS append new logs to the end of the current date's file. DO NOT modify, overwrite, or delete historical entries.
 - Follow the project plan closely. Do not invent new features or abstractions outside the scope of the current milestone or existing base structures.
 
 ## 4. Error Mitigation

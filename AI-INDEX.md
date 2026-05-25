@@ -11,7 +11,7 @@
 ```
 1. AI-INDEX.md        ← ไฟล์นี้ (อ่านก่อนเสมอ)
 2. AI-BOOTSTRAP.md    ← Behavior rules & anti-hallucination constraints
-3. AI-CHANGELOG.md    ← สถานะงานล่าสุด (อ่านเฉพาะส่วนที่เกี่ยวข้อง)
+3. .docs/AI-CHANGELOG/ ← สถานะงานล่าสุด (อ่านเฉพาะไฟล์ตามวันที่เกี่ยวข้อง)
 ```
 
 ---
@@ -80,7 +80,7 @@
 |---|---|
 | `PROJECT-SPEC.md` | Full project spec, getting started guide |
 | `AI-BLUEPRINT.md` | Full system architecture, Flutter feature lists |
-| `AI-CHANGELOG.md` | Complete history of AI changes |
+| `.docs/AI-CHANGELOG/` | Complete history of AI changes, separated by date |
 | `OSRM-SETUP.md` | Complete OSRM setup and compilation guide |
 | `docker-compose.yml` | Live container configuration |
 

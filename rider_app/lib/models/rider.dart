@@ -12,7 +12,7 @@ class RiderDto {
   const RiderDto({
     required this.id,
     required this.name,
-    this.status = 'AVAILABLE',
+    this.status = 'IDLE',
     this.lat,
     this.lng,
     this.lastUpdated,
@@ -32,7 +32,7 @@ class RiderDto {
           readField<String>(json, 'status') ??
           readField<String>(json, 'State') ??
           readField<String>(json, 'state') ??
-          'AVAILABLE',
+          'IDLE',
       lat: _toDouble(readField(json, 'Lat') ?? readField(json, 'lat')),
       lng: _toDouble(readField(json, 'Lng') ?? readField(json, 'lng')),
       lastUpdated: lastRaw != null ? DateTime.tryParse(lastRaw) : null,

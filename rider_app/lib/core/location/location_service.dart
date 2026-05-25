@@ -73,14 +73,25 @@ class LocationService extends Notifier<LocationState> {
         ),
       );
 
-      state = LocationState(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        isTracking: true,
-        lastUpdated: DateTime.now(),
-      );
-
-      _logger.i('📍 Initial position: ${position.latitude}, ${position.longitude}');
+      if (position.accuracy <= 50.0) {
+        state = LocationState(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy,
+          heading: _normalizeHeading(position.heading),
+          isTracking: true,
+          lastUpdated: DateTime.now(),
+        );
+        _logger.i(
+          'Initial GPS accepted: ${position.latitude}, ${position.longitude} (${position.accuracy}m)',
+        );
+      } else {
+        // Tracking is active, but we intentionally wait for a usable point.
+        state = const LocationState(isTracking: true);
+        _logger.d(
+          'Initial GPS filtered: accuracy ${position.accuracy}m is > 50m',
+        );
+      }
     } catch (e) {
       _logger.e('❌ Failed to get initial position', error: e);
     }
@@ -149,6 +160,8 @@ class LocationService extends Notifier<LocationState> {
     state = state.copyWith(
       latitude: position.latitude,
       longitude: position.longitude,
+      accuracy: position.accuracy,
+      heading: _normalizeHeading(position.heading),
       lastUpdated: DateTime.now(),
       error: null,
     );
@@ -158,7 +171,13 @@ class LocationService extends Notifier<LocationState> {
     signalRService.sendLocationUpdate(
       lat: position.latitude,
       lng: position.longitude,
+      accuracy: position.accuracy,
     );
+  }
+
+  double? _normalizeHeading(double heading) {
+    if (!heading.isFinite || heading < 0) return null;
+    return heading % 360;
   }
 }
 
@@ -166,6 +185,8 @@ class LocationService extends Notifier<LocationState> {
 class LocationState {
   final double? latitude;
   final double? longitude;
+  final double? accuracy;
+  final double? heading;
   final bool isTracking;
   final DateTime? lastUpdated;
   final String? error;
@@ -173,6 +194,8 @@ class LocationState {
   const LocationState({
     this.latitude,
     this.longitude,
+    this.accuracy,
+    this.heading,
     this.isTracking = false,
     this.lastUpdated,
     this.error,
@@ -181,6 +204,8 @@ class LocationState {
   LocationState copyWith({
     double? latitude,
     double? longitude,
+    double? accuracy,
+    double? heading,
     bool? isTracking,
     DateTime? lastUpdated,
     String? error,
@@ -188,6 +213,8 @@ class LocationState {
     return LocationState(
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      accuracy: accuracy ?? this.accuracy,
+      heading: heading ?? this.heading,
       isTracking: isTracking ?? this.isTracking,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       error: error,

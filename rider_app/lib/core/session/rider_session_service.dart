@@ -22,7 +22,7 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     return const RiderSessionState();
   }
 
-  /// Go online: connect SignalR, set AVAILABLE, start GPS.
+  /// Go online: connect SignalR, set IDLE, start GPS.
   Future<void> goOnline() async {
     if (state.isOnline) return;
 

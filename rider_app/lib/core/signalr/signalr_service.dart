@@ -42,6 +42,42 @@ class RiderStatusResult {
   });
 }
 
+/// Rider location event used by simulation mirror UI.
+class RiderLocationUpdateEvent {
+  final String riderId;
+  final double latitude;
+  final double longitude;
+  final String status;
+  final DateTime timestamp;
+
+  const RiderLocationUpdateEvent({
+    required this.riderId,
+    required this.latitude,
+    required this.longitude,
+    required this.status,
+    required this.timestamp,
+  });
+}
+
+/// Dispatch scan start event used by simulation mirror UI.
+class DispatchScanStartedEvent {
+  final String orderId;
+  final double? pickupLat;
+  final double? pickupLng;
+  final double? dropoffLat;
+  final double? dropoffLng;
+  final int nearbyCount;
+
+  const DispatchScanStartedEvent({
+    required this.orderId,
+    required this.pickupLat,
+    required this.pickupLng,
+    required this.dropoffLat,
+    required this.dropoffLng,
+    required this.nearbyCount,
+  });
+}
+
 /// SignalR client for TrackingHub (`/hubs/tracking`).
 class SignalRService extends Notifier<SignalRConnectionState> {
   HubConnection? _hubConnection;
@@ -53,6 +89,13 @@ class SignalRService extends Notifier<SignalRConnectionState> {
       StreamController<OfferAcceptedResult>.broadcast();
   final _riderStatusResultController =
       StreamController<RiderStatusResult>.broadcast();
+  final _riderLocationController =
+      StreamController<RiderLocationUpdateEvent>.broadcast();
+  final _dispatchScanStartedController =
+      StreamController<DispatchScanStartedEvent>.broadcast();
+  final _dispatchCandidatesRankedController =
+      StreamController<int>.broadcast();
+  final _dispatchOfferSentController = StreamController<DispatchOffer>.broadcast();
 
   @override
   SignalRConnectionState build() {
@@ -62,6 +105,10 @@ class SignalRService extends Notifier<SignalRConnectionState> {
       _orderStatusController.close();
       _offerAcceptedController.close();
       _riderStatusResultController.close();
+      _riderLocationController.close();
+      _dispatchScanStartedController.close();
+      _dispatchCandidatesRankedController.close();
+      _dispatchOfferSentController.close();
     });
     return SignalRConnectionState.disconnected;
   }
@@ -76,6 +123,18 @@ class SignalRService extends Notifier<SignalRConnectionState> {
 
   Stream<RiderStatusResult> get onRiderStatusResult =>
       _riderStatusResultController.stream;
+
+  Stream<RiderLocationUpdateEvent> get onRiderLocationUpdated =>
+      _riderLocationController.stream;
+
+  Stream<DispatchScanStartedEvent> get onDispatchScanStarted =>
+      _dispatchScanStartedController.stream;
+
+  Stream<int> get onDispatchCandidatesRanked =>
+      _dispatchCandidatesRankedController.stream;
+
+  Stream<DispatchOffer> get onDispatchOfferSent =>
+      _dispatchOfferSentController.stream;
 
   Future<void> connect() async {
     if (state == SignalRConnectionState.connected ||
@@ -151,7 +210,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     }
   }
 
-  /// Hub: UpdateStatus(status) — AVAILABLE maps to IDLE on server.
+  /// Hub: UpdateStatus(status).
   Future<bool> updateStatus(String status) async {
     if (state != SignalRConnectionState.connected) return false;
 
@@ -207,10 +266,24 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     });
 
     hub.on('OrderStatusChanged', (args) {
-      if (args == null || args.length < 2) return;
-      final orderId = args[0]?.toString() ?? '';
-      final status = args[1]?.toString() ?? '';
-      if (orderId.isEmpty) return;
+      if (args == null || args.isEmpty) return;
+      var orderId = '';
+      var status = '';
+      if (args.length >= 2) {
+        orderId = args[0]?.toString() ?? '';
+        status = args[1]?.toString() ?? '';
+      } else {
+        final map = _maybeAsJsonMap(args.first);
+        if (map != null) {
+          orderId = map['orderId']?.toString() ?? map['OrderId']?.toString() ?? '';
+          status = map['newStatus']?.toString() ??
+              map['NewStatus']?.toString() ??
+              map['status']?.toString() ??
+              map['Status']?.toString() ??
+              '';
+        }
+      }
+      if (orderId.isEmpty || status.isEmpty) return;
       _orderStatusController.add(
         OrderStatusChangedEvent(orderId: orderId, status: status),
       );
@@ -246,12 +319,103 @@ class SignalRService extends Notifier<SignalRConnectionState> {
         _logger.e('Failed to parse RiderStatusUpdatedResult', error: e);
       }
     });
+
+    hub.on('RiderLocationUpdated', (args) {
+      if (args == null || args.isEmpty) return;
+      final map = _maybeAsJsonMap(args.first);
+      if (map == null) return;
+      final riderId = map['riderId']?.toString() ?? map['RiderId']?.toString() ?? '';
+      final latitude = _toDouble(
+        map['latitude'] ?? map['Latitude'] ?? map['lat'] ?? map['Lat'],
+      );
+      final longitude = _toDouble(
+        map['longitude'] ?? map['Longitude'] ?? map['lng'] ?? map['Lng'],
+      );
+      if (riderId.isEmpty || latitude == null || longitude == null) return;
+
+      final timestampRaw = map['timestamp']?.toString() ?? map['Timestamp']?.toString();
+      _riderLocationController.add(
+        RiderLocationUpdateEvent(
+          riderId: riderId,
+          latitude: latitude,
+          longitude: longitude,
+          status: map['status']?.toString() ?? map['Status']?.toString() ?? 'UNKNOWN',
+          timestamp: timestampRaw != null ? (DateTime.tryParse(timestampRaw) ?? DateTime.now()) : DateTime.now(),
+        ),
+      );
+    });
+
+    hub.on('DispatchScanStarted', (args) {
+      if (args == null || args.isEmpty) return;
+      final map = _maybeAsJsonMap(args.first);
+      if (map == null) return;
+
+      final order = _maybeAsJsonMap(map['order']) ?? _maybeAsJsonMap(map['Order']);
+      final orderId = order?['id']?.toString() ?? order?['Id']?.toString() ?? '';
+      final pickupLat = _toDouble(
+        map['pickupLat'] ?? map['PickupLat'] ?? order?['pickupLat'] ?? order?['PickupLat'],
+      );
+      final pickupLng = _toDouble(
+        map['pickupLng'] ?? map['PickupLng'] ?? order?['pickupLng'] ?? order?['PickupLng'],
+      );
+      final dropoffLat = _toDouble(
+        order?['dropoffLat'] ?? order?['DropoffLat'],
+      );
+      final dropoffLng = _toDouble(
+        order?['dropoffLng'] ?? order?['DropoffLng'],
+      );
+      final nearby = map['nearbyRiders'] ?? map['NearbyRiders'];
+      final nearbyCount = nearby is List ? nearby.length : 0;
+
+      _dispatchScanStartedController.add(
+        DispatchScanStartedEvent(
+          orderId: orderId,
+          pickupLat: pickupLat,
+          pickupLng: pickupLng,
+          dropoffLat: dropoffLat,
+          dropoffLng: dropoffLng,
+          nearbyCount: nearbyCount,
+        ),
+      );
+    });
+
+    hub.on('DispatchCandidatesRanked', (args) {
+      if (args == null || args.isEmpty) return;
+      final map = _maybeAsJsonMap(args.first);
+      if (map == null) return;
+      final candidates = map['rankedCandidates'] ?? map['RankedCandidates'];
+      final count = candidates is List ? candidates.length : 0;
+      _dispatchCandidatesRankedController.add(count);
+    });
+
+    hub.on('DispatchOfferSent', (args) {
+      if (args == null || args.isEmpty) return;
+      try {
+        final map = _asJsonMap(args.first);
+        final offer = DispatchOffer.fromJson(map);
+        _dispatchOfferSentController.add(offer);
+      } catch (_) {
+        // Ignore payload shape mismatch for non-rider audiences.
+      }
+    });
   }
 
   Map<String, dynamic> _asJsonMap(Object? value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return Map<String, dynamic>.from(value);
     throw FormatException('Expected map payload, got $value');
+  }
+
+  Map<String, dynamic>? _maybeAsJsonMap(Object? value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 }
 

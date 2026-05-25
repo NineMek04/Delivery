@@ -24,6 +24,8 @@ class TrackingNotifier extends Notifier<TrackingState> {
       isTracking: location.isTracking,
       latitude: location.latitude,
       longitude: location.longitude,
+      accuracy: location.accuracy,
+      heading: location.heading,
       lastUpdated: location.lastUpdated,
       locationError: location.error,
       isOnline: session.isOnline,
@@ -50,6 +52,8 @@ class TrackingState {
   final bool isTracking;
   final double? latitude;
   final double? longitude;
+  final double? accuracy;
+  final double? heading;
   final DateTime? lastUpdated;
   final String? locationError;
   final bool isOnline;
@@ -61,6 +65,8 @@ class TrackingState {
     this.isTracking = false,
     this.latitude,
     this.longitude,
+    this.accuracy,
+    this.heading,
     this.lastUpdated,
     this.locationError,
     this.isOnline = false,
@@ -73,6 +79,8 @@ class TrackingState {
     bool? isTracking,
     double? latitude,
     double? longitude,
+    double? accuracy,
+    double? heading,
     DateTime? lastUpdated,
     String? locationError,
     bool? isOnline,
@@ -84,6 +92,8 @@ class TrackingState {
       isTracking: isTracking ?? this.isTracking,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      accuracy: accuracy ?? this.accuracy,
+      heading: heading ?? this.heading,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       locationError: locationError,
       isOnline: isOnline ?? this.isOnline,

@@ -32,7 +32,10 @@ class AppTheme {
 
   // ── Status Colors (ตรงกับ Rider/Order status ใน BackendApi) ──────
   static const Map<String, Color> riderStatusColors = {
+    'IDLE': accentColor,
     'AVAILABLE': accentColor,
+    'RESERVED': warningColor,
+    'BUSY': warningColor,
     'DELIVERING': warningColor,
     'OFFLINE': textMuted,
   };

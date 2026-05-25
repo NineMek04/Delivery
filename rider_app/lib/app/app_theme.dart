@@ -38,9 +38,11 @@ class AppTheme {
   };
 
   static const Map<String, Color> orderStatusColors = {
-    'PENDING': warningColor,
+    'CREATED': textMuted,
+    'MATCHING': infoColor,
+    'OFFERING': warningColor,
     'ASSIGNED': infoColor,
-    'PICKED_UP': primaryColor,
+    'PICKING_UP': primaryColor,
     'DELIVERING': primaryLight,
     'COMPLETED': accentColor,
     'CANCELLED': errorColor,

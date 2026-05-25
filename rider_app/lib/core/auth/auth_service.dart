@@ -3,16 +3,14 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'safe_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:logger/logger.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
+import '../../models/auth_response.dart';
+import '../api/api_helpers.dart';
 import '../config/app_constants.dart';
 import '../config/environment.dart';
 import 'auth_constants.dart';
-
-part 'auth_service.g.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -54,9 +52,8 @@ enum AuthStatus {
 /// 2. **Token Clocking** — ตรวจสอบ token expiry เป็นระยะ ๆ (เทียบ Angular interval(5000))
 /// 3. **User Data Management** — จัดเก็บ/ดึงข้อมูลผู้ใช้จาก SecureStorage
 /// 4. **Proactive Refresh** — refresh token ก่อนหมดอายุ 2 นาที
-@riverpod
-class AuthService extends _$AuthService {
-  final _storage = const FlutterSecureStorage();
+class AuthService extends Notifier<AuthStatus> {
+  final _storage = SafeStorage();
 
   /// Cached token เพื่อไม่ต้องอ่าน storage ทุกครั้ง
   String? _cachedToken;
@@ -226,27 +223,19 @@ class AuthService extends _$AuthService {
         data: {'RefreshToken': refreshToken},
       );
 
-      final responseData = response.data as Map<String, dynamic>;
-
-      // ตรวจสอบ Success ตาม ApiResponse pattern
-      if (responseData['Success'] == true && responseData['Value'] != null) {
-        final value = responseData['Value'] as Map<String, dynamic>;
-        final newAccessToken = value['AccessToken'] as String;
-        final newRefreshToken = value['RefreshToken'] as String;
-        final userData = value['User'] as Map<String, dynamic>?;
-
+      final parsed = parseApiResponse(response.data, AuthResponse.fromJson);
+      if (parsed.success && parsed.value != null) {
+        final auth = parsed.value!;
         await setTokens(
-          accessToken: newAccessToken,
-          refreshToken: newRefreshToken,
-          userData: userData,
+          accessToken: auth.accessToken,
+          refreshToken: auth.refreshToken,
+          userData: auth.user.toJson(),
         );
 
         _logger.i('🔄 Token refreshed successfully');
         return true;
       } else {
-        _logger.w(
-          '⚠️ Refresh API returned failure: ${responseData['Message']}',
-        );
+        _logger.w('⚠️ Refresh API returned failure: ${parsed.message}');
         await _forceLogout();
         return false;
       }
@@ -453,3 +442,7 @@ class AuthService extends _$AuthService {
     _logger.w('🔒 Force logout — all tokens cleared');
   }
 }
+
+final authServiceProvider = NotifierProvider<AuthService, AuthStatus>(
+  AuthService.new,
+);

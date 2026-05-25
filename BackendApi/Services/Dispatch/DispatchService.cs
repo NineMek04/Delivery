@@ -3,6 +3,7 @@ using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
+using BackendApi.Services.Ai;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,7 @@ public class DispatchService
     private readonly RiderPresenceService _presenceService;
     private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
     private readonly BackendApi.Services.Ai.IAiService _aiService;
+    private readonly OsrmRoutingService _routingService;
     private readonly IConfiguration _config;
     private readonly ILogger<DispatchService> _logger;
 
@@ -37,6 +39,7 @@ public class DispatchService
         RiderPresenceService presenceService,
         IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
         BackendApi.Services.Ai.IAiService aiService,
+        OsrmRoutingService routingService,
         IConfiguration config,
         ILogger<DispatchService> logger)
     {
@@ -46,6 +49,7 @@ public class DispatchService
         _presenceService = presenceService;
         _hubContext = hubContext;
         _aiService = aiService;
+        _routingService = routingService;
         _config = config;
         _logger = logger;
     }
@@ -91,6 +95,22 @@ public class DispatchService
         // 1. ดึง Nearby Riders จาก Redis GEORADIUS
         var nearbyRiders = await _presenceService.GetNearbyRidersAsync(pickupLat, pickupLng, searchRadiusKm);
 
+        await _hubContext.Clients.Group("admins").SendAsync("DispatchScanStarted", new
+        {
+            Order = BuildOrderPayload(order),
+            PickupLat = pickupLat,
+            PickupLng = pickupLng,
+            SearchRadiusKm = searchRadiusKm,
+            NearbyRiders = nearbyRiders.Select(r => new
+            {
+                RiderId = r.Member.ToString(),
+                Lat = r.Position?.Latitude,
+                Lng = r.Position?.Longitude,
+                DistanceKm = r.Distance
+            }).ToList(),
+            StartedAt = DateTime.UtcNow
+        });
+
         if (nearbyRiders.Length == 0)
         {
             _logger.LogWarning("No nearby riders found for order {OrderId} within {Radius}km",
@@ -130,6 +150,18 @@ public class DispatchService
 
         // 3. ส่ง Candidates ไป AI Engine สำหรับ Scoring (Phase A)
         var rankedCandidates = await RankCandidatesWithAiAsync(order, candidates, ridersDict);
+
+        await _hubContext.Clients.Group("admins").SendAsync("DispatchCandidatesRanked", new
+        {
+            Order = BuildOrderPayload(order),
+            RankedCandidates = rankedCandidates.Select((c, index) => new
+            {
+                Rank = index + 1,
+                c.RiderId,
+                c.DistanceKm
+            }).ToList(),
+            RankedAt = DateTime.UtcNow
+        });
 
         // 4. ลองจอง Rider ทีละคนตามลำดับ
         foreach (var candidate in rankedCandidates)
@@ -174,11 +206,51 @@ public class DispatchService
             return false;
         }
 
+        string? pickupPolyline = null;
+        double? pickupRouteDistanceMeters = null;
+        double? pickupRouteDurationSeconds = null;
+        var riderLocation = await _presenceService.GetLastKnownLocationAsync(riderId);
+
+        if (riderLocation is not null && order.PickupLocation is not null)
+        {
+            try
+            {
+                var pickupRoute = await _routingService.GetRouteDetailsAsync(
+                    riderLocation.Value.Lat,
+                    riderLocation.Value.Lng,
+                    order.PickupLocation.Y,
+                    order.PickupLocation.X);
+
+                pickupPolyline = pickupRoute.Polyline;
+                pickupRouteDistanceMeters = pickupRoute.DistanceMeters;
+                pickupRouteDurationSeconds = pickupRoute.DurationSeconds;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to calculate pickup route for Rider {RiderId} and Order {OrderId}. Falling back to straight line on clients.",
+                    riderId,
+                    order.Id);
+            }
+        }
+
         var offerPayload = new
         {
             OfferId = offerId,
             Version = order.OfferVersion,
             ExpiresAt = order.OfferExpiresAt,
+            RiderId = riderId,
+            PickupRoute = new
+            {
+                EncodedPolyline = pickupPolyline,
+                DistanceMeters = pickupRouteDistanceMeters,
+                DurationSeconds = pickupRouteDurationSeconds,
+                StartLat = riderLocation?.Lat,
+                StartLng = riderLocation?.Lng,
+                EndLat = order.PickupLocation?.Y,
+                EndLng = order.PickupLocation?.X
+            },
             Order = new
             {
                 order.Id,
@@ -196,11 +268,32 @@ public class DispatchService
         await _hubContext.Clients.Group($"rider:{riderId}")
             .SendAsync("OfferReceived", offerPayload);
 
+        await _hubContext.Clients.Group("admins")
+            .SendAsync("DispatchOfferSent", offerPayload);
+
         _logger.LogInformation(
             "Offer {OfferId} (v{Version}) sent to Rider {RiderId} for Order {OrderId} — expires in {Timeout}s",
             offerId, order.OfferVersion, riderId, order.Id, offerTimeout);
 
         return true;
+    }
+
+    private static object BuildOrderPayload(Order order)
+    {
+        return new
+        {
+            order.Id,
+            PickupLat = order.PickupLocation?.Y,
+            PickupLng = order.PickupLocation?.X,
+            DropoffLat = order.DropoffLocation?.Y,
+            DropoffLng = order.DropoffLocation?.X,
+            order.SlaLimitMinutes,
+            DistanceKm = order.DistanceKm,
+            DeliveryFee = order.DeliveryFee,
+            EncodedPolyline = order.EncodedPolyline,
+            RouteDistanceMeters = order.RouteDistanceMeters,
+            RouteDurationSeconds = order.RouteDurationSeconds
+        };
     }
 
     /// <summary>

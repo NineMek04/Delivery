@@ -128,11 +128,7 @@ namespace BackendApi.Data
                 .HasIndex(m => m.ShopId)
                 .HasDatabaseName("IX_MenuItems_ShopId");
 
-            // MenuItems — ใช้สำหรับสืบค้นพิกัดร้านค้าเชิงพื้นที่ (GiST Index)
-            modelBuilder.Entity<MenuItem>()
-                .HasIndex(m => m.ShopId)
-                .HasMethod("gist")
-                .HasDatabaseName("IX_MenuItems_ShopId_Gist");
+
 
             // Orders — B-tree สำหรับ GetMyOrders query (WHERE AssignedRiderId = ?)
             modelBuilder.Entity<Order>()

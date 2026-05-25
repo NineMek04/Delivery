@@ -1,66 +1,181 @@
 <section class="analytics-page">
-  <div class="section-heading">
+  <!-- HUD Header Section -->
+  <header class="section-heading">
     <div>
       <h2>{{ title }}</h2>
-      <p>Optimization metrics calculated from current backend order and rider data.</p>
+      <p>Operational intelligence aggregates computed directly inside PostgreSQL/PostGIS & AI engines.</p>
     </div>
-    <button type="button" (click)="loadAnalytics()">Refresh_Telemetry</button>
-  </div>
+    
+    <div class="hud-telemetry">
+      <div class="telemetry-item">
+        <span class="label">GPS_THROUGHPUT</span>
+        <span class="value cyan-glow">{{ telemetryUpdatesPerSecond }} Hz</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">ACTIVE_CONNS</span>
+        <span class="value green-glow">{{ telemetryActiveRiders }} Live</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">DISPATCH_QUEUE</span>
+        <span class="value amber-glow">{{ telemetryQueueSize }} jobs</span>
+      </div>
+      <button type="button" class="btn-neon-action" (click)="loadAnalytics()" [class.spinning]="isLoading">
+        {{ isLoading ? 'Syncing...' : 'REFRESH_TELEM' }}
+      </button>
+    </div>
+  </header>
 
+  <!-- Futuristic Glassmorphism KPI Grid -->
   <div class="analytics-cards">
-    <article>
-      <span>Total AI Routes Generated</span>
-      <strong>{{ generatedRoutes }} <small>API</small></strong>
-      <div class="progress green" [style.width.%]="orders.length ? 100 : 0"></div>
+    <article class="kpi-card cyan-border">
+      <div class="card-glow"></div>
+      <span class="kpi-label">Avg_Delivery_Time</span>
+      <strong class="kpi-value">{{ averageDeliveryTime }} <small>mins</small></strong>
+      <div class="progress cyan" [style.width.%]="summary ? 85 : 0"></div>
+      <p class="kpi-sub">Calculated from completed PostGIS order timelines</p>
     </article>
-    <article>
-      <span>Kilometers Planned</span>
-      <strong>{{ kilometersOptimized | number:'1.0-1' }} <small>km</small></strong>
-      <div class="progress blue" [style.width.%]="kilometersOptimized ? 78 : 0"></div>
+    
+    <article class="kpi-card green-border">
+      <div class="card-glow"></div>
+      <span class="kpi-label">SLA_Success_Rate</span>
+      <strong class="kpi-value">{{ successRate }}%</strong>
+      <div class="progress green" [style.width.%]="successRate"></div>
+      <p class="kpi-sub">Completed orders / total orders volume</p>
     </article>
-    <article>
-      <span>Active Fleet</span>
-      <strong>{{ activeFleet }} <small>riders</small></strong>
-      <p>Live capacity from RiderService</p>
+    
+    <article class="kpi-card red-border">
+      <div class="card-glow"></div>
+      <span class="kpi-label">Failed_Dispatch_Rate</span>
+      <strong class="kpi-value">{{ failedDispatchRate }}%</strong>
+      <div class="progress red" [style.width.%]="failedDispatchRate"></div>
+      <p class="kpi-sub">System-wide dispatches that timed out or failed</p>
+    </article>
+
+    <article class="kpi-card amber-border">
+      <div class="card-glow"></div>
+      <span class="kpi-label">Total_Order_Runs</span>
+      <strong class="kpi-value">{{ totalOrdersCount }} <small>runs</small></strong>
+      <div class="progress amber" [style.width.%]="summary ? 100 : 0"></div>
+      <p class="kpi-sub">Completed: {{ completedOrdersCount }} | Cancelled: {{ cancelledOrdersCount }}</p>
     </article>
   </div>
 
-  <div class="chart-row">
-    <article class="line-chart-card">
-      <div class="row-between">
-        <h3>Order_State_Flow</h3>
-        <span><i class="green-dot"></i>Success&nbsp;&nbsp;<i class="red-dot"></i>Cancelled</span>
-      </div>
-      <div class="line-chart">
-        <canvas baseChart
-          [data]="chartData"
-          [options]="chartOptions"
-          type="line"
-          aria-label="Order state flow chart">
-        </canvas>
-      </div>
-    </article>
-    <article class="donut-card">
-      <h3>Order Success Rate</h3>
-      <div class="donut" [style.--success]="successRate + '%'"><strong>{{ successRate }}%</strong><span>Success</span></div>
-      <p><span><i class="green-dot"></i>Delivered/Completed</span><b>{{ successRate }}%</b></p>
-      <p><span><i class="red-dot"></i>Cancelled</span><b>{{ cancelledRate }}%</b></p>
-      <p><span><i class="gray-dot"></i>In Progress</span><b>{{ 100 - successRate - cancelledRate | number:'1.0-1' }}%</b></p>
-    </article>
-  </div>
+  <!-- Primary Dynamic Content Grid -->
+  <div class="analytics-layout-grid">
+    <!-- Left Column: Trend Chart & Leaflet Spatial Heatmap -->
+    <div class="main-column">
+      <!-- Line Chart Panel -->
+      <article class="dashboard-panel trend-panel">
+        <div class="panel-header">
+          <h3>System_Throughput_Trends</h3>
+          <span class="badge blue">Rolling 7 Days</span>
+        </div>
+        <div class="chart-container">
+          <canvas baseChart
+            [data]="trendChartData"
+            [options]="trendChartOptions"
+            type="line"
+            aria-label="Order volume throughput trend line chart">
+          </canvas>
+        </div>
+      </article>
 
-  <article class="table-card hub-table">
-    <div class="row-between">
-      <h3>Backend_State_Breakdown</h3>
-      <button type="button" (click)="loadAnalytics()">Sync</button>
+      <!-- Leaflet Spatial Density Map Panel -->
+      <article class="dashboard-panel spatial-panel">
+        <div class="panel-header">
+          <h3>PostGIS_Spatial_Demand_Heatmap</h3>
+          <span class="badge red">Realtime Hotspots</span>
+        </div>
+        <div class="map-wrapper">
+          <div #mapElement class="analytics-heatmap-map"></div>
+          <div class="map-hud-legend">
+            <span class="legend-title">DEMAND INTENSITY</span>
+            <div class="legend-row">
+              <span class="color-dot red"></span> High Demand (&gt; 70%)
+            </div>
+            <div class="legend-row">
+              <span class="color-dot orange"></span> Medium Density (40%-70%)
+            </div>
+            <div class="legend-row">
+              <span class="color-dot yellow"></span> Low Density (&lt; 40%)
+            </div>
+          </div>
+        </div>
+      </article>
     </div>
-    <table>
-      <thead><tr><th>Distribution State</th><th>Active Fleet</th><th>Share</th><th>Volume</th><th>Status</th></tr></thead>
-      <tbody>
-        @for (hub of hubs; track hub.name) {
-          <tr><td><strong>{{ hub.name }}</strong></td><td>{{ hub.fleet }}</td><td>{{ hub.rate }}</td><td>{{ hub.duration }}</td><td><span class="status" [class]="hub.tone">{{ hub.status }}</span></td></tr>
-        }
-      </tbody>
-    </table>
-  </article>
+
+    <!-- Right Column: Rider Utilization & Top Performers -->
+    <div class="sidebar-column">
+      <!-- Utilization Donut Panel -->
+      <article class="dashboard-panel utilization-panel">
+        <div class="panel-header">
+          <h3>Rider_Fleet_Utilization</h3>
+          <span class="badge amber">Live Status</span>
+        </div>
+        <div class="donut-container">
+          <div class="chart-wrapper-donut">
+            <canvas baseChart
+              [data]="utilizationChartData"
+              [options]="utilizationChartOptions"
+              type="doughnut"
+              aria-label="Rider utilization status doughnut chart">
+            </canvas>
+          </div>
+        </div>
+        <div class="utilization-stats">
+          @if (riderUtilization) {
+            <div class="stat-row">
+              <span class="dot-label"><i class="dot-icon yellow-bg"></i>Busy Riders</span>
+              <span class="stat-val font-mono">{{ riderUtilization.ridersBusyCount }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="dot-label"><i class="dot-icon green-bg"></i>Idle Riders</span>
+              <span class="stat-val font-mono">{{ riderUtilization.ridersIdleCount }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="dot-label"><i class="dot-icon gray-bg"></i>Offline Riders</span>
+              <span class="stat-val font-mono">{{ riderUtilization.ridersOfflineCount }}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="stat-row highlight">
+              <span>Avg deliveries per Rider</span>
+              <span class="stat-val font-mono">{{ riderUtilization.averageDeliveriesPerRider | number:'1.0-1' }}</span>
+            </div>
+          } @else {
+            <p class="placeholder-text">Fleet metrics loading...</p>
+          }
+        </div>
+      </article>
+
+      <!-- Top Riders Leaderboard Panel -->
+      <article class="dashboard-panel leaderboard-panel">
+        <div class="panel-header">
+          <h3>Top_Performers_Leaderboard</h3>
+          <span class="badge green">SLA Score</span>
+        </div>
+        <div class="leaderboard-list">
+          @if (topRiders.length > 0) {
+            @for (rider of topRiders; track rider.riderId; let idx = $index) {
+              <div class="leaderboard-item">
+                <div class="rank font-mono" [class.gold]="idx === 0" [class.silver]="idx === 1" [class.bronze]="idx === 2">
+                  #{{ idx + 1 }}
+                </div>
+                <div class="rider-info">
+                  <span class="name">{{ rider.name }}</span>
+                  <span class="sub text-truncate">ID: RID-{{ rider.riderId.substring(0, 6).toUpperCase() }}</span>
+                </div>
+                <div class="rider-stats font-mono">
+                  <span class="primary-stat">{{ rider.completedDeliveries }} deliveries</span>
+                  <span class="secondary-stat">{{ rider.averageDeliveryTimeMinutes | number:'1.0-1' }} mins avg</span>
+                </div>
+              </div>
+            }
+          } @else {
+            <p class="placeholder-text">No riders found in active database</p>
+          }
+        </div>
+      </article>
+    </div>
+  </div>
 </section>
+

@@ -14,6 +14,7 @@
  */
 export interface OrderDto { 
     id?: string | null;
+    trackingCode?: string | null;
     status?: string | null;
     pickupLat?: number | null;
     pickupLng?: number | null;

@@ -21,7 +21,7 @@ services:
       - "checkpoint_completion_target=0.9"
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=Admin@Ts2x04_
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=delivery_db
     ports:
       - "5432:5432"
@@ -41,22 +41,29 @@ services:
     container_name: delivery-backend
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=Admin@Ts2x04_
+      - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=${POSTGRES_PASSWORD}
       - ConnectionStrings__Redis=redis:6379
       - AI_SERVICE_URL=http://ai-service:8000
-      - Jwt__Key=DeliverySmartRoutingSystem_SuperSecretKey_2024
+      - Jwt__Key=${JWT_SECRET}
       - Jwt__Issuer=DeliveryBackendApi
       - Jwt__Audience=DeliveryClients
       - Cors__AllowedOrigins__0=http://localhost
       - Cors__AllowedOrigins__1=http://localhost:80
       - Cors__AllowedOrigins__2=http://localhost:4200
       - Cors__AllowedOrigins__3=http://localhost:8080
+      - Cors__AllowedOrigins__4=http://localhost:8081
       - Routing__LocalOsrmUrl=http://osrm:5000
       - Authentication__RequireSecureCookie=false
+      - MessageBroker__Host=rabbitmq
+      - MessageBroker__Port=5672
+      - MessageBroker__Username=${RABBITMQ_USER}
+      - MessageBroker__Password=${RABBITMQ_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
@@ -90,7 +97,7 @@ services:
       dockerfile: Dockerfile
     container_name: delivery-ai
     environment:
-      - DATABASE_URL=postgresql://postgres:Admin@Ts2x04_@db:5432/delivery_db
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/delivery_db
     depends_on:
       db:
         condition: service_healthy
@@ -132,6 +139,68 @@ services:
       - "5001:5000"
     restart: unless-stopped
 
+  # 8. Nginx Reverse Proxy
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: delivery-nginx
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+  # 9. Seq (Centralized Logging)
+  seq:
+    image: datalust/seq:latest
+    container_name: delivery-seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    ports:
+      - "5341:5341"
+      - "8082:80"
+    volumes:
+      - seq_data:/data
+
+  # 10. Prometheus (Metrics)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: delivery-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  # 11. Grafana (Dashboard)
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: delivery-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  # 12. RabbitMQ Message Broker (Real-time Event Architecture)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: delivery-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP Protocol
+      - "15672:15672"   # Management Dashboard UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
+  seq_data:
+  grafana_data:

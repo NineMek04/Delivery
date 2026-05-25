@@ -60,4 +60,26 @@ public class AiService : IAiService
             return null;
         }
     }
+
+    public async Task<PredictEtaResponseDto?> PredictEtaAsync(PredictEtaRequestDto request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/v1/predict-eta", request, cancellationToken);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to predict ETA. Status: {Status}, Body: {Body}", response.StatusCode, errorBody);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<PredictEtaResponseDto>(cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while calling AI Engine for ETA prediction");
+            return null;
+        }
+    }
 }

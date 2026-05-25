@@ -66,7 +66,7 @@
         <tbody>
           @for (rider of filteredRiders; track rider.id) {
             <tr>
-              <td class="mono primary">{{ shortId(rider.id) }}</td>
+              <td class="mono primary">{{ getRiderTrackingCode(rider) }}</td>
               <td>{{ rider.name || '—' }}</td>
               <td><span class="status" [class]="getStatusTone(rider.status)">{{ rider.status || 'UNKNOWN' }}</span></td>
               <td class="mono">

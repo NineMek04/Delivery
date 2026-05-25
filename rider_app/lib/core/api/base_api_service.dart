@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'api_helpers.dart';
 import 'models/api_response.dart';
 
 /// Generic Base API Service — CRUD operations สำหรับทุก entity.
@@ -47,12 +48,7 @@ abstract class BaseApiService<T> {
       queryParameters: queryParameters,
     );
 
-    return ApiResponseValue.fromJson(
-      response.data as Map<String, dynamic>,
-      (json) => (json as List)
-          .map((e) => fromJson(e as Map<String, dynamic>))
-          .toList(),
-    );
+    return parseApiListResponse(response.data, fromJson);
   }
 
   /// GET item by ID.

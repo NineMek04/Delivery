@@ -16,7 +16,13 @@
   - **PostgreSQL**: ทำหน้าที่เป็น *persistent truth* (ข้อมูลสถานะ Orders, Riders, Transactions) เสมอ
 
 ## 3. Workflow & Logging Rules
-- Read `AI-BLUEPRINT.md`, `AI-CHANGELOG.md`, and `docker-compose.yml` before starting a new task.
+- **CRITICAL**: ALWAYS read `AGENTS.md` and `AI-INDEX.md` FIRST before starting any task to perform Context Pruning.
+- Reference 
+1. `AI-INDEX.md` - The Master Router to find which specific spec files you need to read.
+2. `AI-BOOTSTRAP.md` - AI Behavior Rules and Anti-Hallucination constraints.
+3. `AI-CHANGELOG.md` - latest project status and applied changes.
+4. `.cursorrules` - original Cursor rules and workflow constraints.
+5. **AI‑OS Docs** - After the core files, consult the appropriate spec/contract in `.docs/ai-context/` (referenced via `AI-INDEX.md`).
 - Keep changes scoped to the request and do not rewrite unrelated files.
 - Use the codebase as the source of truth when docs and code disagree.
 - Always follow the project's established base standards and architectural patterns for each specific part of the system:

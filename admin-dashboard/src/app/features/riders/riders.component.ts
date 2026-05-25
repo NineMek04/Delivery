@@ -44,6 +44,7 @@ export class RidersComponent implements OnInit {
     if (!q) return this.riders;
     return this.riders.filter(r =>
       (r.id || '').toLowerCase().includes(q) ||
+      (r.trackingCode || '').toLowerCase().includes(q) ||
       (r.name || '').toLowerCase().includes(q) ||
       (r.status || '').toLowerCase().includes(q)
     );
@@ -74,6 +75,11 @@ export class RidersComponent implements OnInit {
 
   shortId(id?: string | null): string {
     return id ? id.slice(0, 8).toUpperCase() : '—';
+  }
+
+  getRiderTrackingCode(rider?: RiderDto | null): string {
+    if (!rider) return '—';
+    return rider.trackingCode ? rider.trackingCode : this.shortId(rider.id);
   }
 
   formatCoord(val?: number | null): string {

@@ -1,0 +1,118 @@
+<section class="sim-map-page">
+  <div class="map-shell">
+    <div class="map-canvas" #mapElement></div>
+
+    <section class="sim-hud">
+      <div class="hud-kicker">Simulation Control</div>
+      <h2>{{ flowTitle }}</h2>
+      <div class="hud-grid">
+        <div>
+          <span>Order</span>
+          <strong>{{ activeOrderId || 'WAITING' }}</strong>
+        </div>
+        <div>
+          <span>Rider</span>
+          <strong>{{ selectedRiderLabel }}</strong>
+        </div>
+        <div>
+          <span>Scan</span>
+          <strong>{{ candidateRows.length }}</strong>
+        </div>
+        <div>
+          <span>Route</span>
+          <strong>{{ routeDistanceLabel }}</strong>
+        </div>
+      </div>
+      <div class="phase-rail">
+        @for (step of flowSteps; track step.key) {
+          <div class="phase-step" [class.active]="step.key === flowPhase" [class.done]="step.done">
+            <i></i>
+            <span>{{ step.label }}</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="route-card">
+      <div class="row-between">
+        <div>
+          <span class="eyebrow">Live Route</span>
+          <strong>{{ liveRouteLabel }}</strong>
+        </div>
+        <button type="button" [class.active]="autoFollow" (click)="toggleAutoFollow()">
+          {{ autoFollow ? 'FOLLOWING' : 'FOLLOW' }}
+        </button>
+      </div>
+      <div class="route-progress">
+        <span [style.width.%]="routeProgress"></span>
+      </div>
+      <p>{{ routeHint }}</p>
+    </section>
+
+    @if (candidateRows.length) {
+      <section class="candidate-board">
+        <div class="row-between">
+          <h3>AI Candidate Ranking</h3>
+          <span>{{ candidateRows.length }} riders</span>
+        </div>
+        @for (candidate of candidateRows; track candidate.riderId) {
+          <article [class.winner]="candidate.riderId === assignedRiderId">
+            <b>#{{ candidate.rank }}</b>
+            <div>
+              <strong>{{ candidate.label }}</strong>
+              <span>{{ candidate.distanceKm | number:'1.2-2' }} km from pickup</span>
+            </div>
+            <em>{{ candidate.riderId === assignedRiderId ? 'SELECTED' : 'READY' }}</em>
+          </article>
+        }
+      </section>
+    }
+
+    <div class="map-controls">
+      <button type="button" (click)="zoomIn()">+</button>
+      <button type="button" (click)="zoomOut()">-</button>
+      <button type="button" (click)="focusActiveFlow()">FOCUS</button>
+      <button type="button" (click)="resetView()">UDN</button>
+    </div>
+  </div>
+
+  <aside class="sim-side">
+    <section>
+      <div class="row-between">
+        <h3>Realtime Events</h3>
+        <span class="badge">{{ timeline.length }}</span>
+      </div>
+      <div class="timeline">
+        @for (item of timeline; track item.id) {
+          <article [class]="item.tone">
+            <i></i>
+            <div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.text }}</p>
+              <span>{{ item.time }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section>
+      <div class="row-between">
+        <h3>Rider Stream</h3>
+        <span class="badge">{{ riderRows.length }}</span>
+      </div>
+      @for (rider of riderRows; track rider.id) {
+        <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
+          <div class="rider-dot">{{ rider.short }}</div>
+          <div>
+            <strong>{{ rider.label }}</strong>
+            <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
+          </div>
+        </div>
+      }
+      @if (!riderRows.length) {
+        <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
+      }
+    </section>
+  </aside>
+</section>

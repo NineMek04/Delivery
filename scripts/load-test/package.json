@@ -1,0 +1,20 @@
+{
+  "name": "load-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:signalr": "node signalr-stress.js",
+    "test:api": "node api-stress.js",
+    "test:dispatch": "node dispatch-stress.js",
+    "test:reconnect": "node reconnect-stress.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@microsoft/signalr": "^10.0.0",
+    "axios": "^1.16.1"
+  }
+}

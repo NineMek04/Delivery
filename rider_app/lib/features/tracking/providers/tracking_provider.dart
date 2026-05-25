@@ -1,66 +1,93 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/location/location_service.dart';
+import '../../../core/session/rider_session_service.dart';
+import '../../../core/signalr/signalr_service.dart';
 import '../../../models/route_result.dart';
 
-part 'tracking_provider.g.dart';
+final trackingNotifierProvider =
+    NotifierProvider<TrackingNotifier, TrackingState>(
+  TrackingNotifier.new,
+);
 
-/// Tracking Provider — state สำหรับ GPS tracking + route display.
-///
-/// เชื่อมต่อกับ:
-/// - LocationService (GPS streaming)
-/// - SignalRService (ส่ง/รับ location updates)
-/// - AI Service (VRP route results)
-///
-/// TODO: Implement tracking logic
-@riverpod
-class TrackingNotifier extends _$TrackingNotifier {
+/// Tracking state — GPS position + route overlay + session connectivity.
+class TrackingNotifier extends Notifier<TrackingState> {
+  RouteResult? _currentRoute;
+
   @override
   TrackingState build() {
-    return const TrackingState();
+    final location = ref.watch(locationServiceProvider);
+    final session = ref.watch(riderSessionServiceProvider);
+    final signalRState = ref.watch(signalRServiceProvider);
+
+    return TrackingState(
+      isTracking: location.isTracking,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      lastUpdated: location.lastUpdated,
+      locationError: location.error,
+      isOnline: session.isOnline,
+      signalRConnected: signalRState == SignalRConnectionState.connected,
+      currentRoute: _currentRoute,
+    );
   }
 
-  /// เริ่ม GPS tracking + SignalR connection.
   Future<void> startTracking() async {
-    state = state.copyWith(isTracking: true);
-
-    // TODO:
-    // 1. ref.read(locationServiceProvider.notifier).startTracking();
-    // 2. ref.read(signalRServiceProvider.notifier).connect();
+    await ref.read(riderSessionServiceProvider.notifier).goOnline();
   }
 
-  /// หยุด GPS tracking.
   Future<void> stopTracking() async {
-    state = state.copyWith(isTracking: false);
-
-    // TODO:
-    // 1. ref.read(locationServiceProvider.notifier).stopTracking();
+    await ref.read(riderSessionServiceProvider.notifier).goOffline();
   }
 
-  /// อัปเดตเส้นทางจาก AI Service.
   void updateRoute(RouteResult route) {
-    state = state.copyWith(currentRoute: route);
+    _currentRoute = route;
+    ref.invalidateSelf();
   }
 }
 
-/// Tracking state.
 class TrackingState {
   final bool isTracking;
+  final double? latitude;
+  final double? longitude;
+  final DateTime? lastUpdated;
+  final String? locationError;
+  final bool isOnline;
+  final bool signalRConnected;
   final RouteResult? currentRoute;
   final String? error;
 
   const TrackingState({
     this.isTracking = false,
+    this.latitude,
+    this.longitude,
+    this.lastUpdated,
+    this.locationError,
+    this.isOnline = false,
+    this.signalRConnected = false,
     this.currentRoute,
     this.error,
   });
 
   TrackingState copyWith({
     bool? isTracking,
+    double? latitude,
+    double? longitude,
+    DateTime? lastUpdated,
+    String? locationError,
+    bool? isOnline,
+    bool? signalRConnected,
     RouteResult? currentRoute,
     String? error,
   }) {
     return TrackingState(
       isTracking: isTracking ?? this.isTracking,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      locationError: locationError,
+      isOnline: isOnline ?? this.isOnline,
+      signalRConnected: signalRConnected ?? this.signalRConnected,
       currentRoute: currentRoute ?? this.currentRoute,
       error: error,
     );

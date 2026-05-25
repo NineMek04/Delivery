@@ -1,82 +1,103 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+import '../core/api/api_helpers.dart';
 
-part 'route_result.freezed.dart';
-part 'route_result.g.dart';
+/// VRP Route Result from AI Service.
+class RouteResult {
+  final int vehicleCount;
+  final double totalDistance;
+  final double totalTime;
+  final List<VehicleRoute> routes;
 
-/// VRP Route Result — ผลลัพธ์จาก AI Service.
-///
-/// ตรงกับ:
-/// - Python: `ai-engine/main.py` → VRP solver response
-///
-/// Data Flow:
-/// ```
-/// Flutter ──► .NET Backend ──► AI Service (OR-Tools)
-///                                    │
-///                              VRP Result
-///                                    │
-///                              ◄─── Waypoint Sequence
-/// ```
-@freezed
-abstract class RouteResult with _$RouteResult {
-  const factory RouteResult({
-    /// จำนวนยานพาหนะที่ใช้
-    required int vehicleCount,
+  const RouteResult({
+    required this.vehicleCount,
+    required this.totalDistance,
+    required this.totalTime,
+    required this.routes,
+  });
 
-    /// ระยะทางรวม (เมตร)
-    required double totalDistance,
-
-    /// เวลารวม (วินาที)
-    required double totalTime,
-
-    /// เส้นทางของแต่ละยานพาหนะ
-    required List<VehicleRoute> routes,
-  }) = _RouteResult;
-
-  factory RouteResult.fromJson(Map<String, dynamic> json) =>
-      _$RouteResultFromJson(json);
+  factory RouteResult.fromJson(Map<String, dynamic> json) {
+    final rawRoutes = readField<List>(json, 'routes') ?? readField<List>(json, 'Routes') ?? [];
+    return RouteResult(
+      vehicleCount:
+          readField<num>(json, 'vehicleCount')?.toInt() ??
+          readField<num>(json, 'VehicleCount')?.toInt() ??
+          0,
+      totalDistance:
+          _toDouble(readField(json, 'totalDistance') ?? readField(json, 'TotalDistance')) ?? 0,
+      totalTime:
+          _toDouble(readField(json, 'totalTime') ?? readField(json, 'TotalTime')) ?? 0,
+      routes: rawRoutes
+          .map((e) => VehicleRoute.fromJson(asMap(e)))
+          .toList(),
+    );
+  }
 }
 
-/// เส้นทางของยานพาหนะแต่ละคัน.
-@freezed
-abstract class VehicleRoute with _$VehicleRoute {
-  const factory VehicleRoute({
-    /// ลำดับที่ของยานพาหนะ
-    required int vehicleIndex,
+class VehicleRoute {
+  final int vehicleIndex;
+  final List<Waypoint> waypoints;
+  final double distance;
 
-    /// ลำดับจุดแวะพัก (Waypoint Sequence)
-    required List<Waypoint> waypoints,
+  const VehicleRoute({
+    required this.vehicleIndex,
+    required this.waypoints,
+    required this.distance,
+  });
 
-    /// ระยะทางของเส้นทางนี้ (เมตร)
-    required double distance,
-  }) = _VehicleRoute;
-
-  factory VehicleRoute.fromJson(Map<String, dynamic> json) =>
-      _$VehicleRouteFromJson(json);
+  factory VehicleRoute.fromJson(Map<String, dynamic> json) {
+    final rawWaypoints =
+        readField<List>(json, 'waypoints') ?? readField<List>(json, 'Waypoints') ?? [];
+    return VehicleRoute(
+      vehicleIndex:
+          readField<num>(json, 'vehicleIndex')?.toInt() ??
+          readField<num>(json, 'VehicleIndex')?.toInt() ??
+          0,
+      waypoints: rawWaypoints
+          .map((e) => Waypoint.fromJson(asMap(e)))
+          .toList(),
+      distance:
+          _toDouble(readField(json, 'distance') ?? readField(json, 'Distance')) ?? 0,
+    );
+  }
 }
 
-/// Waypoint — จุดแวะพักแต่ละจุดในเส้นทาง.
-@freezed
-abstract class Waypoint with _$Waypoint {
-  const factory Waypoint({
-    /// ลำดับในเส้นทาง
-    required int sequence,
+class Waypoint {
+  final int sequence;
+  final double lat;
+  final double lng;
+  final String type;
+  final String? orderId;
+  final String? locationName;
 
-    /// ละติจูด (SRID 4326)
-    required double lat,
+  const Waypoint({
+    required this.sequence,
+    required this.lat,
+    required this.lng,
+    required this.type,
+    this.orderId,
+    this.locationName,
+  });
 
-    /// ลองจิจูด (SRID 4326)
-    required double lng,
+  factory Waypoint.fromJson(Map<String, dynamic> json) {
+    return Waypoint(
+      sequence:
+          readField<num>(json, 'sequence')?.toInt() ??
+          readField<num>(json, 'Sequence')?.toInt() ??
+          0,
+      lat: _toDouble(readField(json, 'lat') ?? readField(json, 'Lat')) ?? 0,
+      lng: _toDouble(readField(json, 'lng') ?? readField(json, 'Lng')) ?? 0,
+      type:
+          readField<String>(json, 'type') ?? readField<String>(json, 'Type') ?? '',
+      orderId:
+          readField<String>(json, 'orderId') ?? readField<String>(json, 'OrderId'),
+      locationName:
+          readField<String>(json, 'locationName') ??
+          readField<String>(json, 'LocationName'),
+    );
+  }
+}
 
-    /// ประเภท: pickup / dropoff / depot
-    required String type,
-
-    /// รหัสออเดอร์ที่เกี่ยวข้อง (ถ้ามี)
-    String? orderId,
-
-    /// ชื่อสถานที่ (ถ้ามี)
-    String? locationName,
-  }) = _Waypoint;
-
-  factory Waypoint.fromJson(Map<String, dynamic> json) =>
-      _$WaypointFromJson(json);
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
 }

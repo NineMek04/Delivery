@@ -18,6 +18,10 @@ export interface RiderDto {
      */
     id?: string | null;
     /**
+     * รหัส Tracking สำหรับค้นหา (เช่น RID-100021)
+     */
+    trackingCode?: string | null;
+    /**
      * ชื่อไรเดอร์
      */
     name?: string | null;

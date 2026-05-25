@@ -1,46 +1,47 @@
 /// Environment configuration for the Rider App.
 ///
-/// เทียบกับ:
-/// - Angular: `admin-dashboard/src/environments/environment.ts`
-/// - .NET: `BackendApi/appsettings.json`
-///
-/// NOTE: 10.0.2.2 = localhost mapping สำหรับ Android Emulator
-/// ถ้ารันบนอุปกรณ์จริง → เปลี่ยนเป็น IP จริงของเครื่อง dev
+/// Docker Web (default): same-origin `/api/v1` + `/hubs/tracking` via nginx proxy.
+/// Native dev: `--dart-define=API_BASE_URL=http://10.0.2.2:5000`
 class Environment {
   Environment._();
 
-  // ── API Configuration ──────────────────────────────────────────────
-  /// Base URL ของ Backend API (ตรงกับ port ใน docker-compose.yml)
-  static const String apiBaseUrl = 'http://10.0.2.2:5000';
+  /// Empty = same-origin (Docker nginx หรือ reverse proxy).
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:5000', // Changed to Emulator default
+  );
 
-  /// API path prefix (ตรงกับ route prefix ใน BackendApi `api/v1/[controller]`)
   static const String apiPrefix = '/api/v1';
 
-  /// Full API URL
-  static String get apiUrl => '$apiBaseUrl$apiPrefix';
+  static String get apiUrl {
+    if (apiBaseUrl.isEmpty) return apiPrefix;
+    final base = apiBaseUrl.endsWith('/')
+        ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
+        : apiBaseUrl;
+    return '$base$apiPrefix';
+  }
 
-  // ── SignalR Configuration ──────────────────────────────────────────
-  /// SignalR Hub URL (ตรงกับ Hub mapping ใน BackendApi)
-  static const String signalRUrl = 'http://10.0.2.2:5000/hubs/tracking';
+  static String get signalRUrl {
+    if (apiBaseUrl.isEmpty) return '/hubs/tracking';
+    final base = apiBaseUrl.endsWith('/')
+        ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
+        : apiBaseUrl;
+    return '$base/hubs/tracking';
+  }
 
-  // ── Feature Flags ──────────────────────────────────────────────────
-  /// ใช้ระบุ environment ปัจจุบัน
-  static const bool isDevelopment = true;
+  static const bool isDevelopment = bool.fromEnvironment(
+    'DEBUG',
+    defaultValue: true,
+  );
 
-  /// เปิด/ปิด logging ของ HTTP requests
-  static const bool enableHttpLogging = true;
+  static const bool enableHttpLogging = bool.fromEnvironment(
+    'HTTP_LOGGING',
+    defaultValue: true,
+  );
 
-  // ── Timeouts ───────────────────────────────────────────────────────
-  /// Connection timeout สำหรับ HTTP requests
   static const Duration connectTimeout = Duration(seconds: 15);
-
-  /// Receive timeout สำหรับ HTTP requests
   static const Duration receiveTimeout = Duration(seconds: 15);
-
-  // ── GPS Configuration ──────────────────────────────────────────────
-  /// ระยะห่างขั้นต่ำ (เมตร) ก่อนส่ง GPS update ใหม่
   static const int gpsDistanceFilter = 10;
-
-  /// ความถี่ในการส่ง GPS update ผ่าน SignalR (วินาที)
   static const int gpsUpdateIntervalSeconds = 5;
+  static const int offerCountdownSeconds = 30;
 }

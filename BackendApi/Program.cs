@@ -2,10 +2,13 @@ using BackendApi.Setup;
 using Serilog;
 
 // --- 1. Bootstrap Logger (Early Logging for Start-up Failures) ---
-Log.Logger = new LoggerConfiguration()
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
+if (Log.Logger.GetType().Name == "SilentLogger")
+{
+    Log.Logger = new LoggerConfiguration()
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .CreateLogger();
+}
 
 try
 {
@@ -23,12 +26,16 @@ try
     }
 
     // --- 3. Logging (Serilog) ---
+    var seqUrl = builder.Configuration["SEQ_URL"] ?? builder.Configuration["Seq:ServerUrl"] ?? "http://seq:5341";
+    var seqApiKey = builder.Configuration["SEQ_API_KEY"];
+
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
         .WriteTo.Console()
-        .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day));
+        .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+        .WriteTo.Seq(seqUrl, apiKey: string.IsNullOrWhiteSpace(seqApiKey) ? null : seqApiKey));
 
     // --- 4. Infrastructure (Kestrel, etc.) ---
     builder.WebHost.ConfigureKestrel(options =>
@@ -55,9 +62,13 @@ catch (Exception ex)
     {
         throw;
     }
+    Console.WriteLine($"[PROGRAM CRASH] {ex}");
     Log.Fatal(ex, "Application start-up failed");
+    throw;
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+public partial class Program { }

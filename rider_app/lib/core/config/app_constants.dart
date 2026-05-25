@@ -34,9 +34,9 @@ class AppConstants {
   static const String orderCompleted = 'COMPLETED';
   static const String orderCancelled = 'CANCELLED';
 
-  // ── API Endpoints ──────────────────────────────────────────────────
-  /// ตรงกับ route conventions ใน BackendApi Controllers
-  static const String ridersEndpoint = '/riders';
-  static const String ordersEndpoint = '/orders';
-  static const String authEndpoint = '/auth';
+  // ── API Endpoints (relative to baseUrl /api/v1 — ห้ามขึ้นต้นด้วย /) ──
+  /// Dio รวม path กับ baseUrl; path ที่ขึ้นต้นด้วย / จะหลุดออกจาก /api/v1
+  static const String ridersEndpoint = 'riders';
+  static const String ordersEndpoint = 'orders';
+  static const String authEndpoint = 'auth';
 }

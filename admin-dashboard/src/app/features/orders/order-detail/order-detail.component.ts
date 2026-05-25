@@ -76,6 +76,10 @@ export class OrderDetailComponent implements OnInit {
     return id ? id.slice(0, 8).toUpperCase() : '—';
   }
 
+  getOrderTrackingCode(): string {
+    return this.order.trackingCode ? this.order.trackingCode : this.shortId(this.order.id);
+  }
+
   formatCoord(val?: number | null): string {
     return val != null ? val.toFixed(5) : '—';
   }
@@ -89,7 +93,7 @@ export class OrderDetailComponent implements OnInit {
     if (!this.order.id) return;
     Swal.fire({
       title: 'ยกเลิกออเดอร์?',
-      text: `ออเดอร์ #${this.shortId(this.order.id)} จะถูกยกเลิก`,
+      text: `ออเดอร์ ${this.getOrderTrackingCode()} จะถูกยกเลิก`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',

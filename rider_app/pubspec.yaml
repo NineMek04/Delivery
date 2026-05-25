@@ -13,11 +13,10 @@ dependencies:
 
   # --- Networking ---
   dio: ^5.7.0                         # HTTP client (เทียบ delivery-http-request.ts ใน Angular)
-  signalr_netcore: ^1.3.7             # SignalR client สำหรับเชื่อมต่อ .NET Hub
+  signalr_netcore: ^1.4.4             # SignalR client — import signalr_client.dart
 
   # --- State Management ---
   flutter_riverpod: ^2.6.1            # Riverpod — DI & state (เทียบ DI Container ใน .NET)
-  riverpod_annotation: ^2.6.1         # Code generation annotations
 
   # --- Routing ---
   go_router: ^14.8.1                  # Declarative routing
@@ -36,10 +35,6 @@ dependencies:
   google_fonts: ^6.2.1                # Typography
   flutter_svg: ^2.0.17                # SVG icons/assets
 
-  # --- Data Modeling ---
-  freezed_annotation: ^3.0.0          # Immutable data classes (เทียบ C# record/DTO)
-  json_annotation: ^4.9.0             # JSON serialization annotations
-
   # --- Utilities ---
   intl: ^0.20.2                       # i18n & date formatting
   logger: ^2.5.0                      # Structured logging (เทียบ ILogger ใน .NET)
@@ -48,17 +43,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-
-  # --- Code Generation ---
-  build_runner: ^2.4.14               # Code generation runner
-  freezed: ^3.0.6                     # Freezed code generator
-  json_serializable: ^6.9.5           # JSON code generator
-  riverpod_generator: ^2.6.5          # Riverpod code generator
-  custom_lint: ^0.7.5
-  riverpod_lint: ^2.6.5               # Lint rules สำหรับ Riverpod
-
-# NOTE: Package versions อาจต้องปรับตาม compatibility กับ Dart SDK 3.9
-# ณ เวลา install จริง — ใช้ flutter pub add ทีละตัวเพื่อให้ได้ version ที่ compatible
 
 flutter:
   uses-material-design: true

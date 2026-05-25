@@ -1,6 +1,8 @@
 using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Infrastructure.EventBus;
+using BackendApi.Infrastructure.EventBus.Events;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Services.Dispatch;
@@ -8,19 +10,20 @@ namespace BackendApi.Services.Dispatch;
 /// <summary>
 /// State Machine Service — Validate และดำเนินการเปลี่ยนสถานะ Order/Rider
 /// ป้องกัน Illegal State Transition ทุกกรณี
-/// 
-/// Reservation ≠ Assignment:
-///   MATCHING → RESERVED → OFFERING → ACCEPTED → ASSIGNED
-///   ระหว่าง RESERVED/OFFERING ยัง "ไม่ใช่งานจริง"
 /// </summary>
 public class StateMachineService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<StateMachineService> _logger;
 
-    public StateMachineService(ApplicationDbContext dbContext, ILogger<StateMachineService> logger)
+    public StateMachineService(
+        ApplicationDbContext dbContext, 
+        IEventBus eventBus,
+        ILogger<StateMachineService> logger)
     {
         _dbContext = dbContext;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -69,6 +72,22 @@ public class StateMachineService
         }
 
         await _dbContext.SaveChangesAsync();
+
+        // Publish Order Status Changed Integration Event asynchronously to RabbitMQ
+        try
+        {
+            await _eventBus.PublishAsync(new OrderStatusChangedIntegrationEvent(
+                order.Id,
+                order.RefNumber,
+                oldState,
+                order.State,
+                order.AssignedRiderId
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish OrderStatusChangedIntegrationEvent for Order {OrderId}", order.Id);
+        }
 
         _logger.LogInformation(
             "Order {OrderId} transitioned: {From} → {To}",

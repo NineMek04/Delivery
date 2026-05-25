@@ -1,65 +1,65 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+import '../core/api/api_helpers.dart';
 
-part 'rider.freezed.dart';
-part 'rider.g.dart';
+/// Rider DTO — maps to BackendApi `RiderDto`.
+class RiderDto {
+  final String id;
+  final String name;
+  final String status;
+  final double? lat;
+  final double? lng;
+  final DateTime? lastUpdated;
 
-/// Rider DTO — ข้อมูลไรเดอร์.
-///
-/// ตรงกับ:
-/// - .NET Entity: `BackendApi/Models/Rider.cs`
-/// - .NET DTO: `BackendApi/Models/DTOs/RiderDto.cs`
-///
-/// Fields mapping:
-/// | Flutter (Dart)     | .NET (C#)           |
-/// |--------------------|---------------------|
-/// | id                 | Id (GUID string)    |
-/// | name               | Name                |
-/// | status             | Status              |
-/// | lat                | Lat (from PostGIS)  |
-/// | lng                | Lng (from PostGIS)  |
-/// | lastUpdated        | LastUpdated         |
-@freezed
-abstract class RiderDto with _$RiderDto {
-  const factory RiderDto({
-    /// รหัสไรเดอร์ (GUID)
-    @JsonKey(name: 'Id') required String id,
+  const RiderDto({
+    required this.id,
+    required this.name,
+    this.status = 'AVAILABLE',
+    this.lat,
+    this.lng,
+    this.lastUpdated,
+  });
 
-    /// ชื่อไรเดอร์
-    @JsonKey(name: 'Name') required String name,
+  factory RiderDto.fromJson(Map<String, dynamic> json) {
+    final lastRaw =
+        readField<String>(json, 'LastUpdated') ??
+        readField<String>(json, 'lastUpdated');
 
-    /// สถานะ: AVAILABLE, DELIVERING, OFFLINE
-    @JsonKey(name: 'Status') @Default('AVAILABLE') String status,
-
-    /// ละติจูดปัจจุบัน (mapped from PostGIS Point → lat/lng by Mapster)
-    @JsonKey(name: 'Lat') double? lat,
-
-    /// ลองจิจูดปัจจุบัน
-    @JsonKey(name: 'Lng') double? lng,
-
-    /// เวลาที่อัปเดตตำแหน่งล่าสุด
-    @JsonKey(name: 'LastUpdated') DateTime? lastUpdated,
-  }) = _RiderDto;
-
-  factory RiderDto.fromJson(Map<String, dynamic> json) =>
-      _$RiderDtoFromJson(json);
+    return RiderDto(
+      id: readField<String>(json, 'Id') ?? readField<String>(json, 'id') ?? '',
+      name:
+          readField<String>(json, 'Name') ?? readField<String>(json, 'name') ?? '',
+      status:
+          readField<String>(json, 'Status') ??
+          readField<String>(json, 'status') ??
+          readField<String>(json, 'State') ??
+          readField<String>(json, 'state') ??
+          'AVAILABLE',
+      lat: _toDouble(readField(json, 'Lat') ?? readField(json, 'lat')),
+      lng: _toDouble(readField(json, 'Lng') ?? readField(json, 'lng')),
+      lastUpdated: lastRaw != null ? DateTime.tryParse(lastRaw) : null,
+    );
+  }
 }
 
-/// Create/Update Rider DTO.
-///
-/// ตรงกับ: `BackendApi/Models/DTOs/CreateRiderDto.cs`
-@freezed
-abstract class CreateRiderDto with _$CreateRiderDto {
-  const factory CreateRiderDto({
-    /// ชื่อไรเดอร์
-    @JsonKey(name: 'Name') required String name,
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
 
-    /// ละติจูดเริ่มต้น (ไม่บังคับ)
-    @JsonKey(name: 'Lat') double? lat,
+class CreateRiderDto {
+  final String name;
+  final double? lat;
+  final double? lng;
 
-    /// ลองจิจูดเริ่มต้น (ไม่บังคับ)
-    @JsonKey(name: 'Lng') double? lng,
-  }) = _CreateRiderDto;
+  const CreateRiderDto({
+    required this.name,
+    this.lat,
+    this.lng,
+  });
 
-  factory CreateRiderDto.fromJson(Map<String, dynamic> json) =>
-      _$CreateRiderDtoFromJson(json);
+  Map<String, dynamic> toJson() => {
+    'Name': name,
+    if (lat != null) 'Lat': lat,
+    if (lng != null) 'Lng': lng,
+  };
 }

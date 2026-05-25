@@ -3,6 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { RealtimeTelemetryDto, RiderUtilizationDto } from './analytics.service';
 
 export interface RiderLocationUpdate {
   riderId: string;
@@ -16,7 +17,18 @@ export interface DispatchOffer {
   offerId: string;
   version: number;
   expiresAt: string;
+  riderId?: string;
+  pickupRoute?: any;
   order: any;
+}
+
+export interface DispatchScanStarted {
+  order: any;
+  pickupLat: number;
+  pickupLng: number;
+  searchRadiusKm: number;
+  nearbyRiders: any[];
+  startedAt: string;
 }
 
 @Injectable({
@@ -35,11 +47,20 @@ export class TrackingSignalRService {
   private _offerReceived = new Subject<DispatchOffer>();
   public offerReceived$ = this._offerReceived.asObservable();
 
+  private _dispatchScanStarted = new Subject<DispatchScanStarted>();
+  public dispatchScanStarted$ = this._dispatchScanStarted.asObservable();
+
+  private _dispatchCandidatesRanked = new Subject<any>();
+  public dispatchCandidatesRanked$ = this._dispatchCandidatesRanked.asObservable();
+
   private _orderAssigned = new Subject<{ id: string; riderId: string; assignedAt: string }>();
   public orderAssigned$ = this._orderAssigned.asObservable();
 
   private _orderStatusChanged = new Subject<{ orderId: string; status: string }>();
   public orderStatusChanged$ = this._orderStatusChanged.asObservable();
+
+  private _telemetryUpdated = new BehaviorSubject<{ telemetry: RealtimeTelemetryDto; utilization: RiderUtilizationDto } | null>(null);
+  public telemetryUpdated$ = this._telemetryUpdated.asObservable();
 
   constructor(private authService: AuthService) {}
 
@@ -93,6 +114,26 @@ export class TrackingSignalRService {
   private addListeners(): void {
     if (!this.hubConnection) return;
 
+    this.hubConnection.on('TelemetryUpdated', (data: any) => {
+      const telemetry = data.telemetry || data.Telemetry;
+      const utilization = data.utilization || data.Utilization;
+      if (telemetry && utilization) {
+        this._telemetryUpdated.next({
+          telemetry: {
+            activeRidersCount: telemetry.activeRidersCount ?? telemetry.ActiveRidersCount ?? 0,
+            gpsUpdatesPerSecond: telemetry.gpsUpdatesPerSecond ?? telemetry.GpsUpdatesPerSecond ?? 0,
+            dispatchQueueSize: telemetry.dispatchQueueSize ?? telemetry.DispatchQueueSize ?? 0
+          },
+          utilization: {
+            ridersBusyCount: utilization.ridersBusyCount ?? utilization.RidersBusyCount ?? 0,
+            ridersIdleCount: utilization.ridersIdleCount ?? utilization.RidersIdleCount ?? 0,
+            ridersOfflineCount: utilization.ridersOfflineCount ?? utilization.RidersOfflineCount ?? 0,
+            averageDeliveriesPerRider: utilization.averageDeliveriesPerRider ?? utilization.AverageDeliveriesPerRider ?? 0
+          }
+        });
+      }
+    });
+
     // Listen to rider location updates with robust coordinate property mapping
     this.hubConnection.on('RiderLocationUpdated', (data: any) => {
       const currentMap = this._riderLocations.getValue();
@@ -112,6 +153,23 @@ export class TrackingSignalRService {
     // OfferReceived — Backend ยิงไปหา Rider โดยตรง (group rider:{id})
     this.hubConnection.on('OfferReceived', (offer: DispatchOffer) => {
       this.addAlert('AI Dispatcher', `Offer sent to rider (Order ${offer.order?.id?.slice(0, 8) || 'Unknown'})`, 'info');
+      this._offerReceived.next(offer);
+    });
+
+    this.hubConnection.on('DispatchScanStarted', (data: DispatchScanStarted) => {
+      const count = data.nearbyRiders?.length ?? 0;
+      this.addAlert('AI Scan', `Scanning ${count} nearby riders for Order ${data.order?.id?.slice(0, 8) || 'Unknown'}`, 'info');
+      this._dispatchScanStarted.next(data);
+    });
+
+    this.hubConnection.on('DispatchCandidatesRanked', (data: any) => {
+      const winner = data.rankedCandidates?.[0]?.riderId || data.RankedCandidates?.[0]?.RiderId;
+      this.addAlert('AI Rank', winner ? `Best rider candidate: ${winner.slice(0, 8)}` : 'Ranking completed', 'info');
+      this._dispatchCandidatesRanked.next(data);
+    });
+
+    this.hubConnection.on('DispatchOfferSent', (offer: DispatchOffer) => {
+      this.addAlert('Dispatch Offer', `Offer sent to Rider ${offer.riderId?.slice(0, 8) || 'Unknown'}`, 'info');
       this._offerReceived.next(offer);
     });
 

@@ -121,6 +121,8 @@ public class OrderService : IOrderService
 
         var order = new Order
         {
+            CustomerId = string.IsNullOrWhiteSpace(dto.CustomerId) ? null : dto.CustomerId,
+            ShopId = string.IsNullOrWhiteSpace(dto.ShopId) ? null : dto.ShopId,
             PickupLocation = pickup,
             DropoffLocation = dropoff,
             DistanceKm = distanceKm,
@@ -129,8 +131,39 @@ public class OrderService : IOrderService
             State = Core.StateMachines.OrderState.CREATED,
             EncodedPolyline = encodedPolyline,
             RouteDistanceMeters = routeDistanceMeters,
-            RouteDurationSeconds = routeDurationSeconds
+            RouteDurationSeconds = routeDurationSeconds,
+            Items = new List<OrderItem>()
         };
+
+        // Snapshot MenuItems details (names & prices) into OrderItems to prevent price tampering
+        if (dto.Items != null && dto.Items.Any())
+        {
+            var menuItemIds = dto.Items.Select(i => i.MenuItemId).ToList();
+            var menuItems = await _db.GetQuery<MenuItem>()
+                .Where(m => menuItemIds.Contains(m.Id))
+                .ToDictionaryAsync(m => m.Id, cancellationToken);
+
+            foreach (var itemDto in dto.Items)
+            {
+                if (menuItems.TryGetValue(itemDto.MenuItemId, out var menuItem))
+                {
+                    order.Items.Add(new OrderItem
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        MenuItemId = itemDto.MenuItemId,
+                        Name = menuItem.Name,
+                        UnitPrice = menuItem.Price,
+                        Quantity = itemDto.Quantity,
+                        Notes = itemDto.Notes,
+                        OptionsDescription = itemDto.OptionsDescription
+                    });
+                }
+                else
+                {
+                    return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail($"ไม่พบรหัสสินค้าเมนู: {itemDto.MenuItemId} ในระบบ"));
+                }
+            }
+        }
 
         var savedOrder = _db.InsertObject(order);
         await _db.CommitChangesAsync(cancellationToken);
@@ -239,12 +272,16 @@ public class OrderService : IOrderService
 
         if (parsedRef.HasValue)
         {
-            order = await _db.GetQuery<Order>().FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
+            order = await _db.GetQuery<Order>()
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
             Console.WriteLine($"[DEBUG] Searched by RefNumber {parsedRef.Value}, result is null? {order == null}");
         }
         else
         {
-            order = await _db.GetObjectByKeyAsync<Order>(id, cancellationToken);
+            order = await _db.GetQuery<Order>()
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
             Console.WriteLine($"[DEBUG] Searched by UUID, result is null? {order == null}");
         }
 
@@ -336,6 +373,15 @@ public class OrderService : IOrderService
                 cancellationToken);
         }
 
+        if (!string.IsNullOrWhiteSpace(order.CustomerId))
+        {
+            await _hubContext.Clients.Group($"customer:{order.CustomerId}").SendAsync(
+                "OrderStatusChanged",
+                order.Id,
+                order.State.ToString(),
+                cancellationToken);
+        }
+
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "สถานะออเดอร์อัปเดตเรียบร้อยแล้ว"));
     }
 
@@ -393,6 +439,31 @@ public class OrderService : IOrderService
         }
 
         var resultDto = _mapper.Map<OrderDto>(order);
+
+        await _hubContext.Clients.Group("admins").SendAsync(
+            "OrderStatusChanged",
+            order.Id,
+            order.State.ToString(),
+            cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(order.AssignedRiderId))
+        {
+            await _hubContext.Clients.Group($"rider:{order.AssignedRiderId}").SendAsync(
+                "OrderStatusChanged",
+                order.Id,
+                order.State.ToString(),
+                cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(order.CustomerId))
+        {
+            await _hubContext.Clients.Group($"customer:{order.CustomerId}").SendAsync(
+                "OrderStatusChanged",
+                order.Id,
+                order.State.ToString(),
+                cancellationToken);
+        }
+
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ยกเลิกออเดอร์สำเร็จ"));
     }
 

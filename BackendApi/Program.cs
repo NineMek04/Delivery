@@ -1,5 +1,6 @@
 using BackendApi.Setup;
 using Serilog;
+using Microsoft.OpenApi.Extensions;
 
 // --- 1. Bootstrap Logger (Early Logging for Start-up Failures) ---
 if (Log.Logger.GetType().Name == "SilentLogger")
@@ -47,6 +48,21 @@ try
     builder.Services.AddBackendApiServices(builder.Configuration);
 
     var app = builder.Build();
+
+    // --- Swagger Spec Auto-Generation Mode ---
+    if (args.Contains("--generate-swagger") || builder.Configuration["SWAGGER_GEN"] == "true")
+    {
+        Log.Information("Generating Swagger/OpenAPI spec file...");
+        using (var scope = app.Services.CreateScope())
+        {
+            var swaggerProvider = scope.ServiceProvider.GetRequiredService<Swashbuckle.AspNetCore.Swagger.ISwaggerProvider>();
+            var swagger = swaggerProvider.GetSwagger("v1", null, "/");
+            var swaggerJson = swagger.SerializeAsJson(Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
+            await File.WriteAllTextAsync("swagger.json", swaggerJson);
+            Log.Information("Swagger spec file generated successfully at swagger.json");
+        }
+        return; // Exit successfully immediately
+    }
 
     // --- 6. Pipeline Configuration (Middleware) ---
     app.UseBackendApiPipeline();

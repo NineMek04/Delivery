@@ -54,6 +54,7 @@ public record OrderStatusChangedIntegrationEvent : IntegrationEvent
     public OrderState OldState { get; init; }
     public OrderState NewState { get; init; }
     public string? AssignedRiderId { get; init; }
+    public string? CustomerId { get; init; }
 
     public OrderStatusChangedIntegrationEvent() { }
 
@@ -63,13 +64,15 @@ public record OrderStatusChangedIntegrationEvent : IntegrationEvent
         long refNumber, 
         OrderState oldState, 
         OrderState newState, 
-        string? assignedRiderId)
+        string? assignedRiderId,
+        string? customerId)
     {
         OrderId = orderId;
         RefNumber = refNumber;
         OldState = oldState;
         NewState = newState;
         AssignedRiderId = assignedRiderId;
+        CustomerId = customerId;
     }
 }
 

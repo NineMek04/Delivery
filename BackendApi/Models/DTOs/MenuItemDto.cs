@@ -16,6 +16,7 @@ namespace BackendApi.Models.DTOs
         public decimal Price { get; set; }
         public string? ImageUrl { get; set; }
         public string ShopId { get; set; } = string.Empty;
+        public string? MenuCategoryId { get; set; }
         public ICollection<MenuItemOptionDto>? Options { get; set; }
         public DateTime? CreatedAt { get; set; }
     }
@@ -40,6 +41,8 @@ namespace BackendApi.Models.DTOs
 
         [Required(ErrorMessage = "กรุณาระบุร้านค้า")]
         public string ShopId { get; set; } = string.Empty;
+
+        public string? MenuCategoryId { get; set; }
 
         public ICollection<CreateMenuItemOptionDto>? Options { get; set; }
     }

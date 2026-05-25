@@ -27,6 +27,11 @@ namespace BackendApi.Data
         public DbSet<MenuItemOptionItem> MenuItemOptionItems { get; set; }
 
         public DbSet<RiderLocationHistory> RiderLocationHistories { get; set; }
+        
+        public DbSet<CustomerAddress> CustomerAddresses { get; set; }
+        public DbSet<MenuCategory> MenuCategories { get; set; }
+        public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<FcmToken> FcmTokens { get; set; }
 
         public override int SaveChanges()
         {
@@ -135,6 +140,52 @@ namespace BackendApi.Data
                 .HasIndex(o => o.AssignedRiderId)
                 .HasDatabaseName("IX_Orders_AssignedRiderId");
 
+            // CustomerAddresses — spatial index for address locations
+            modelBuilder.Entity<CustomerAddress>()
+                .HasIndex(ca => ca.Location)
+                .HasMethod("gist")
+                .HasDatabaseName("IX_CustomerAddresses_Location_Gist");
+
+            // CustomerAddresses — B-tree index for UserId
+            modelBuilder.Entity<CustomerAddress>()
+                .HasIndex(ca => ca.UserId)
+                .HasDatabaseName("IX_CustomerAddresses_UserId");
+
+            // MenuCategories — B-tree index for ShopId
+            modelBuilder.Entity<MenuCategory>()
+                .HasIndex(mc => mc.ShopId)
+                .HasDatabaseName("IX_MenuCategories_ShopId");
+
+            // MenuItem — B-tree index for MenuCategoryId
+            modelBuilder.Entity<MenuItem>()
+                .HasIndex(mi => mi.MenuCategoryId)
+                .HasDatabaseName("IX_MenuItems_MenuCategoryId");
+
+            // OrderItems — B-tree index for OrderId and MenuItemId
+            modelBuilder.Entity<OrderItem>()
+                .HasIndex(oi => oi.OrderId)
+                .HasDatabaseName("IX_OrderItems_OrderId");
+
+            modelBuilder.Entity<OrderItem>()
+                .HasIndex(oi => oi.MenuItemId)
+                .HasDatabaseName("IX_OrderItems_MenuItemId");
+
+            // FcmTokens — B-tree indexes for UserId and Token
+            modelBuilder.Entity<FcmToken>()
+                .HasIndex(ft => ft.UserId)
+                .HasDatabaseName("IX_FcmTokens_UserId");
+
+            modelBuilder.Entity<FcmToken>()
+                .HasIndex(ft => ft.Token)
+                .HasDatabaseName("IX_FcmTokens_Token");
+
+            // Unique filtered index on User.ShopId for StorePartners (soft delete aware)
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.ShopId)
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false AND \"ShopId\" IS NOT NULL")
+                .HasDatabaseName("IX_Users_ShopId");
+
             // --- Universal Tracking & Reference Numbers (RefNumber) ---
             modelBuilder.Entity<Order>().Property(o => o.RefNumber).UseIdentityByDefaultColumn();
             modelBuilder.Entity<Order>().HasIndex(o => o.RefNumber).IsUnique().HasDatabaseName("IX_Orders_RefNumber");
@@ -150,6 +201,12 @@ namespace BackendApi.Data
 
             modelBuilder.Entity<User>().Property(u => u.RefNumber).UseIdentityByDefaultColumn();
             modelBuilder.Entity<User>().HasIndex(u => u.RefNumber).IsUnique().HasDatabaseName("IX_Users_RefNumber");
+
+            modelBuilder.Entity<CustomerAddress>().Property(ca => ca.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<CustomerAddress>().HasIndex(ca => ca.RefNumber).IsUnique().HasDatabaseName("IX_CustomerAddresses_RefNumber");
+
+            modelBuilder.Entity<MenuCategory>().Property(mc => mc.RefNumber).UseIdentityByDefaultColumn();
+            modelBuilder.Entity<MenuCategory>().HasIndex(mc => mc.RefNumber).IsUnique().HasDatabaseName("IX_MenuCategories_RefNumber");
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {

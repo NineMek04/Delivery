@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace BackendApi.Models.DTOs
@@ -19,10 +20,15 @@ namespace BackendApi.Models.DTOs
         
         /// <summary>พิกัดลองจิจูด</summary>
         public double? Lng { get; set; }
+
+        public bool IsOpen { get; set; } = true;
+        public int PrepTimeMinutes { get; set; } = 15;
+        public string? OpeningHours { get; set; }
         
         public DateTime? CreatedAt { get; set; }
         
         public ICollection<MenuItemDto>? MenuItems { get; set; }
+        public ICollection<MenuCategoryDto>? MenuCategories { get; set; }
     }
 
     /// <summary>
@@ -48,5 +54,11 @@ namespace BackendApi.Models.DTOs
         [Required]
         [Range(-180.0, 180.0, ErrorMessage = "พิกัด Longitude ไม่ถูกต้อง")]
         public double Lng { get; set; }
+
+        public bool IsOpen { get; set; } = true;
+        public int PrepTimeMinutes { get; set; } = 15;
+
+        [MaxLength(100)]
+        public string? OpeningHours { get; set; }
     }
 }

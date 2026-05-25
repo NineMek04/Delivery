@@ -81,7 +81,8 @@ public class StateMachineService
                 order.RefNumber,
                 oldState,
                 order.State,
-                order.AssignedRiderId
+                order.AssignedRiderId,
+                order.CustomerId
             ));
         }
         catch (Exception ex)

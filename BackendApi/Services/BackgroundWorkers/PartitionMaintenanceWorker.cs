@@ -61,17 +61,21 @@ public class PartitionMaintenanceWorker : BackgroundService
             for (int i = 0; i <= 2; i++)
             {
                 var targetDate = now.AddMonths(i);
-                var year = targetDate.Year;
-                var month = targetDate.Month;
+                var yearStr = targetDate.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                var monthStr = targetDate.ToString("MM", System.Globalization.CultureInfo.InvariantCulture);
                 
+                var year = int.Parse(yearStr);
+                var month = int.Parse(monthStr);
                 var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
                 var endDate = startDate.AddMonths(1);
 
-                var partitionName = $"RiderLocationHistories_{year}_{month:D2}";
+                var partitionName = $"RiderLocationHistories_{yearStr}_{monthStr}";
+                var startStr = startDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+                var endStr = endDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
                 var sql = $@"
                     CREATE TABLE IF NOT EXISTS ""{partitionName}""
                     PARTITION OF ""RiderLocationHistories""
-                    FOR VALUES FROM ('{startDate:yyyy-MM-dd}') TO ('{endDate:yyyy-MM-dd}');
+                    FOR VALUES FROM ('{startStr}') TO ('{endStr}');
                 ";
 
                 try

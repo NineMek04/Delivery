@@ -49,15 +49,17 @@ public class SpatialQueryTests : IAsyncLifetime
     {
         await _container.StartAsync();
 
+        var connStr = _container.GetConnectionString() + ";Include Error Detail=true";
+
         // สร้าง PostGIS Extension ก่อน EF Core Migration จะใช้งาน
-        await using var conn = new NpgsqlConnection(_container.GetConnectionString());
+        await using var conn = new NpgsqlConnection(connStr);
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "CREATE EXTENSION IF NOT EXISTS postgis;";
         await cmd.ExecuteNonQueryAsync();
 
         // ใช้ NpgsqlDataSource เพื่อ register NetTopologySuite type mapping
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(_container.GetConnectionString());
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connStr);
         dataSourceBuilder.UseNetTopologySuite(handleOrdinates: Ordinates.XY);
         var dataSource = dataSourceBuilder.Build();
 
@@ -75,15 +77,22 @@ public class SpatialQueryTests : IAsyncLifetime
         for (int i = 0; i <= 2; i++)
         {
             var targetDate = now.AddMonths(i);
-            var year = targetDate.Year;
-            var month = targetDate.Month;
+            var yearStr = targetDate.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            var monthStr = targetDate.ToString("MM", System.Globalization.CultureInfo.InvariantCulture);
+            
+            var year = int.Parse(yearStr);
+            var month = int.Parse(monthStr);
             var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
             var endDate = startDate.AddMonths(1);
-            var partitionName = $"RiderLocationHistories_{year}_{month:D2}";
+            
+            var partitionName = $"RiderLocationHistories_{yearStr}_{monthStr}";
+            var startStr = startDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+            var endStr = endDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+            
             await _dbContext.Database.ExecuteSqlRawAsync($@"
                 CREATE TABLE IF NOT EXISTS ""{partitionName}""
                 PARTITION OF ""RiderLocationHistories""
-                FOR VALUES FROM ('{startDate:yyyy-MM-dd}') TO ('{endDate:yyyy-MM-dd}');
+                FOR VALUES FROM ('{startStr}') TO ('{endStr}');
             ");
         }
     }

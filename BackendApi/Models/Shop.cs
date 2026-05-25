@@ -33,6 +33,15 @@ namespace BackendApi.Models
         [Column(TypeName = "geometry(Point, 4326)")]
         public Point? Location { get; set; }
 
+        public bool IsOpen { get; set; } = true;
+
+        public int PrepTimeMinutes { get; set; } = 15;
+
+        [MaxLength(100)]
+        public string? OpeningHours { get; set; }
+
         public ICollection<MenuItem> MenuItems { get; set; } = new List<MenuItem>();
+
+        public ICollection<MenuCategory> MenuCategories { get; set; } = new List<MenuCategory>();
     }
 }

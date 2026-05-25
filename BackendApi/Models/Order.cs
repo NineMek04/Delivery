@@ -38,6 +38,18 @@ namespace BackendApi.Models
 
         public string? AssignedRiderId { get; set; }
 
+        public string? CustomerId { get; set; }
+
+        [ForeignKey(nameof(CustomerId))]
+        public User? Customer { get; set; }
+
+        public string? ShopId { get; set; }
+
+        [ForeignKey(nameof(ShopId))]
+        public Shop? Shop { get; set; }
+
+        public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+
         // ── Dispatch Offer Fields ──────────────────────────────────
 
         /// <summary>Offer ID ปัจจุบันที่ยิงไปให้ Rider (ใช้สำหรับ Idempotency)</summary>

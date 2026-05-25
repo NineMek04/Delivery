@@ -283,3 +283,81 @@ graph TD
 ### 4. ผลการตรวจสอบความถูกต้อง (Verification Results)
 *   **Compilation Checked**: รันคำสั่ง `dotnet build` บนโปรเจกต์ `BackendApi.csproj` ผ่านสมบูรณ์ ปราศจากบั๊กและคำแจ้งเตือนใดๆ (**0 Errors**)
 *   **Zero Manual Migration Intervention**: โครงสร้างแบบพิเศษทั้งหมดของ PostgreSQL (Partitioning, GiST Indexes, Clustering, views, Concurrency defaults) ติดตั้งและเตรียมการอย่างมั่นคงเรียบร้อยในระบบ Startup Service แล้ว!
+
+# บทสรุปการพัฒนาและทดสอบระบบหลังบ้านและฐานข้อมูล (Customer HUD, Menu System, FCM & Auto-Swagger)
+
+เราได้ดำเนินงานตามแผนการปรับปรุงโครงสร้างหลังบ้านและฐานข้อมูล (.NET 8 + PostGIS + EF Core + MSBuild + Docker) เสร็จสิ้นสมบูรณ์ครบ 100% พร้อมทดสอบยืนยันความถูกต้องผ่านระบบ Integration Tests (19/19 ผ่านหมด) และการบิวด์แพ็กเกจบน Docker Container สำเร็จอย่างราบรื่น
+
+---
+
+## 🛠️ ผลงานที่ได้ดำเนินการเสร็จสิ้น (Accomplished Tasks)
+
+### 1. ระบบส่งสัญญาณจีพีเอสและสเตตัสเรียลไทม์ฝั่งลูกค้า (Customer Real-time HUD)
+- **[TrackingHub.Location.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Hubs/TrackingHub.Location.cs)**: เพิ่มลอจิกในคำสั่งอัปเดตพิกัดคนขับ `UpdateLocation` โดยทำการสแกนหา ออเดอร์ที่กำลังรันงานอยู่ (`ASSIGNED`, `PICKING_UP`, `DELIVERING`) และกระจายสัญญาณจีพีเอสล่าสุด `RiderLocationUpdated` ไปหาลูกค้าในกลุ่ม SignalR `customer:{customerId}` อัตโนมัติในระดับมิลลิวินาที
+- **[OrderService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/OrderService.cs)**: เพิ่มระบบส่งสัญญาณ `OrderStatusChanged` (และสถานะยอมรับออเดอร์ในกลุ่ม `customer:{customerId}`) ทุกครั้งที่มีการเปลี่ยนผ่านสถานะออเดอร์ ทั้งในขั้นตอน `UpdateOrderStatusAsync`, `AcceptOrderByStoreAsync` และ `CancelOrderAsync`
+
+### 2. บันทึกและจัดการที่อยู่ของลูกค้า (CustomerAddress Spatial CRUD)
+- **[CustomerAddress.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/CustomerAddress.cs)**: สร้างโมเดลที่อยู่แบบ Soft Delete พร้อมจัดระเบียบฟิลด์พิกัดปักหมุดแผนที่ผ่านโครงสร้างสปาเชียล PostGIS `geometry(Point, 4326)`
+- **[CustomerAddressesController.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Controllers/MasterData/CustomerAddressesController.cs)**: พัฒนา CRUD API สำหรับลูกค้าเจาะจง `CurrentUserId` โดยมีระบบควบคุมทรานแซกชันฐานข้อมูล เมื่อตั้งค่าที่อยู่ใดเป็นเริ่มต้น (`IsDefault = true`) ระบบจะเคลียร์ที่อยู่อื่นให้เป็น `false` ทันที
+
+### 3. ระบบจัดหมวดหมู่และควบคุมร้านค้า (MenuCategory & Shop Settings)
+- **[MenuCategory.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/MenuCategory.cs)**: บูรณาการตารางหมวดหมู่เมนู ผูกโยงสินค้าเข้าหาหมวดหมู่หลักในฐานข้อมูลอย่างสมบูรณ์แบบ
+- **[MenuCategoriesController.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Controllers/MasterData/MenuCategoriesController.cs)**: พัฒนา CRUD API ควบคุมหมวดหมู่สินค้า
+- **[Shop.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/Shop.cs)**: ขยายขีดความสามารถ เพิ่มฟิลด์ควบคุมเวลาทำการ `IsOpen`, `PrepTimeMinutes`, `OpeningHours` ส่งต่อผ่าน `ShopDto` ไปฝั่งหน้าบ้าน
+
+### 4. สแนปช็อคราคาสินค้าออเดอร์ตอนชำระเงิน (Order Snapshots)
+- **[OrderItem.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/OrderItem.cs)**: ป้องกันความผันผวนของราคาขายและการแก้ไขข้อมูลเมนูย้อนหลัง โดยการสร้างตารางสแนปช็อตเก็บราคาขาย ชื่อสินค้า ปริมาณ และตัวเลือกย่อยพิเศษ (options description) ณ เสี้ยววินาทีที่ลูกค้าสั่งซื้อ
+- **[OrderService.CreateOrderAsync](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/OrderService.cs)**: ดึงข้อมูลชื่อและราคาเมนูจากตาราง `MenuItems` มาสลักใส่ `OrderItems` อัตโนมัติ พร้อมสกรีนป้องกันค่าฟิลด์ความสัมพันธ์เปล่า (`string.Empty` ชี้ `ShopId`/`CustomerId` ให้สลับเป็๋น `null` ป้องกันปัญหาคีย์สัมพันธ์หลุด)
+
+### 5. โครงข่ายแจ้งเตือนและสิทธิ์พาร์ทเนอร์ (FCM Notifications & User Mapping)
+- **[FcmToken.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/FcmToken.cs)**: บันทึกคีย์จดทะเบียนของดีไวซ์ FCM พร้อม API จดทะเบียนสำหรับหน้าบ้าน
+- **[User.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/User.cs)**: เพิ่มความสมบูรณ์ของโครงสร้างบัญชีร้านค้า โดยการผูกคีย์ `ShopId` (nullable) ลงบัญชีผู้ใช้ประเภท `StorePartner`
+- **[FcmNotificationService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Notifications/FcmNotificationService.cs)**: รองรับพุชแจ้งเตือน FCM ในเบื้องหลัง และมีระบบ **FCM Simulation Mode** โดยส่ง JSON พุชความละเอียดสูงผูกโยงข้อมูลตัวแปร Serilog Properties (`{@NotificationPayload}`) ส่งตรงไปแสดงบน **Seq Telemetry Hub** (http://localhost:5341) เมื่อไม่ได้ใส่คีย์กูเกิล
+
+### 6. ระบบสกัด OpenAPI (Swagger) แบบอัตโนมัติด้วย MSBuild
+- **[BackendApi.csproj](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/BackendApi.csproj)**: ฝังท่อคำสั่งคอมไพล์สำเร็จ (Post-Build Target) หลังบิวด์/พับลิชโค้ด ให้สั่งรันโปรเจกต์สกัดไฟล์ `swagger.json` ออกมาเตรียมไว้บนดิสก์ปลายทางโดยอัตโนมัติ
+- **[Program.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Program.cs)**: บูรณาการรับสวิตช์คำสั่งคอมมานด์ไลน์ `--generate-swagger` ซึ่งจะทำการสกัด Spec แล้วกระโดดสั่งปิดการทำงานของระบบทันที ทำให้สามารถสกัด Spec สำเร็จโดยไม่ต้องพึ่งพาหรือต่อฐานข้อมูล PostgreSQL/Redis เลย (เลี่ยงปัญหา Database Connection Trap ตอนคอมไพล์บน Docker Build)
+- **[Dockerfile](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Dockerfile)**: ตั้งค่า ENV `Jwt__Key` เป็นความยาว 32 ไบต์ชั่วคราวขณะคอมไพล์ช่วง Stage 1: Build เพื่อให้ระบบ Swashbuckle ผ่านการตรวจสอบความปลอดภัย JwtKey Startup Check ทำให้บิวด์พับลิชและสกัด Spec คอนเทนเนอร์เสร็จเรียบร้อยไร้รอยต่อ
+
+---
+
+## 🧪 ผลการตรวจสอบความถูกต้อง (Verification Results)
+
+### 1. การแก้ไขจุดติดขัดเชิงลึก (Critical Debugging Success)
+
+> [!TIP]
+> **การเอาชนะกับดัก "The Thai Calendar Trap"**
+> - **อาการ**: การรัน Integration Test ของการเก็บพิกัดไรเดอร์ย้อนหลัง (`RiderLocationHistory`) แสดงความล้มเหลวด้วยข้อความ: `23514: no partition of relation "RiderLocationHistories" found for row` ทั้งที่ตารางพาร์ทิชันถูกสร้างขึ้นแล้วสำหรับเดือนปัจจุบัน (พฤษภาคม 2026)
+> - **สาเหตุเชิงลึก**: เมื่อตรวจสอบผ่านคำสั่งดึงค่า Bounds จริงในระบบพบว่า C# สั่งสลักช่วงขอบเขต SQL ว่า: `FOR VALUES FROM ('2569-05-01 00:00:00+00') TO ('2569-06-01 00:00:00+00')` เนื่องจากเครื่องคอมพิวเตอร์ที่รันระบบอยู่ใช้รูปแบบวัฒนธรรมท้องถิ่น (OS Culture) เป็น **ไทย (ปีพุทธศักราช B.E.)** ทำให้ปี `2026` ถูกฟอร์แมตออกมาเป็น `2569` ตอนคอมไพล์สตริง แต่วันที่ตัวแปร DateTime.UtcNow ที่สั่งเพิ่มเข้าไปในฐานข้อมูลส่งค่าคริสต์ศักราช `2026` ทำให้ค่าหลุดนอกขอบเขตพาร์ทิชัน 2569 จนเกิดการแครช
+> - **แนวทางแก้ไข**: ปรับปรุงคำสั่งจัดทำรูปแบบเวลาและปีพาร์ทิชันทั้งหมดในระบบ (`SpatialQueryTests.cs`, `PartitionMaintenanceWorker.cs`, และ `PostgresAdvancedConfigurator.cs`) ให้ใช้รูปแบบวัฒนธรรมเป็นสากลและไม่ผันแปรตาม OS เสมอ:
+>   `targetDate.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture)`
+>   ผลลัพธ์ทำให้ขอบเขตกลับมาสอดคล้องกันที่ปี `2026` ในทุกสภาพแวดล้อมระบบปฏิบัติการ!
+
+### 2. ผลลัพธ์การรันชุดเทสบูรณาการหลังแก้ไขสปาเชียล (100% Passed)
+จากการแก้ไขข้อผิดพลาดทั้งเรื่อง Calendar Culture และเรื่องการแปลงค่า `ShopId` เปล่าให้เป็น `null` ทำให้การรัน `dotnet test` ทั้งหมด 19 ชุด ผ่านพ้นสำเร็จอย่างสมบูรณ์แบบ:
+
+```text
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    19, Skipped:     0, Total:    19, Duration: 25 s - BackendApi.IntegrationTests.dll (net8.0)
+```
+
+### 3. ผลลัพธ์การบิวด์บนตู้คอนเทนเนอร์ (Lean Docker Build Success)
+การบิวด์ Docker Image ผ่านคำสั่ง `docker build` ทำงานราบรื่นและสามารถสกัด Spec ดึงขึ้นมาใช้งานบนหน้าบ้านได้ทันทีโดยไม่ติดขัดปัญหาใดๆ:
+
+```text
+#12 4.377   [04:54:50 INF] Starting Delivery Backend API...
+#12 4.627   [04:54:50 INF] Generating Swagger/OpenAPI spec file...
+#12 4.908   [04:54:51 INF] Swagger spec file generated successfully at swagger.json
+#12 12.62   BackendApi -> /app/publish/
+#12 DONE 12.7s
+#16 naming to docker.io/library/test-backend:latest done
+#16 DONE 0.7s
+```
+
+---
+
+## 📈 ทิศทางก้าวต่อไปของทีมงาน (Next Steps)
+- ทำการรัน `docker-compose up -d --build` เพื่อให้ backend เวอร์ชั่นล่าสุดขึ้นรันบนโปรดักชั่นจำลองของไมโครเซอร์วิส
+- เปิดหน้าจอแดชบอร์ด **Seq Telemetry Hub** (http://localhost:5341) ไว้แสดงผลจังหวะพ่นพิกัดจีพีเอสเรียลไทม์และการแจ้งเตือนข้อเสนอส่งไปยังแอปมือถือจำลองให้เห็นภาพรวมของความเร็วในระดับมิลลิวินาที

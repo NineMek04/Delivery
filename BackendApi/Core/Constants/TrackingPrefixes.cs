@@ -7,5 +7,7 @@ namespace BackendApi.Core.Constants
         public const string Shop = "SHP";
         public const string User = "USR";
         public const string MenuItem = "MNU";
+        public const string CustomerAddress = "ADR";
+        public const string MenuCategory = "CAT";
     }
 }

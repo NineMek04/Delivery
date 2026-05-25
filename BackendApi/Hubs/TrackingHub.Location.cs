@@ -75,6 +75,24 @@ public partial class TrackingHub
                 Status = rider.State.ToString(),
                 Timestamp = rider.LastGpsUpdate
             });
+
+            // BROADCAST TO CUSTOMER FOR LIVE LOCATION TRACKING
+            var activeOrder = await _dbContext.Orders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.AssignedRiderId == riderId && 
+                    (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+
+            if (activeOrder is not null && !string.IsNullOrEmpty(activeOrder.CustomerId))
+            {
+                await Clients.Group($"customer:{activeOrder.CustomerId}").SendAsync("RiderLocationUpdated", new
+                {
+                    RiderId = riderId,
+                    Lat = lat,
+                    Lng = lng,
+                    Status = rider.State.ToString(),
+                    Timestamp = rider.LastGpsUpdate
+                });
+            }
         }
     }
 

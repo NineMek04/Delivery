@@ -10,6 +10,7 @@ COPY *.csproj ./
 RUN dotnet restore
 
 COPY . ./
+ENV Jwt__Key=ThisIsADummyKeyForTestingPurposesMustBeAtLeast32Bytes!
 RUN dotnet publish -c Release -o /app/publish
 
 # Stage 2: Runtime

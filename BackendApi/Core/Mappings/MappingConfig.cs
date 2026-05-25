@@ -31,6 +31,13 @@ public static class MappingConfig
             .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
 
         // ================================================
+        // OrderItem Entity ↔ OrderItemDto
+        // ================================================
+        config.NewConfig<OrderItem, OrderItemDto>();
+        config.NewConfig<CreateOrderItemDto, OrderItem>()
+            .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
+
+        // ================================================
         // Rider Entity ↔ RiderDto
         // ================================================
         config.NewConfig<Rider, RiderDto>()
@@ -58,6 +65,24 @@ public static class MappingConfig
 
         config.NewConfig<CreateShopDto, Shop>()
             .Map(dest => dest.Location, src => CreatePoint(src.Lng, src.Lat))
+            .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
+
+        // ================================================
+        // MenuCategory Entity ↔ MenuCategoryDto
+        // ================================================
+        config.NewConfig<MenuCategory, MenuCategoryDto>();
+        config.NewConfig<CreateMenuCategoryDto, MenuCategory>()
+            .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
+
+        // ================================================
+        // CustomerAddress Entity ↔ CustomerAddressDto
+        // ================================================
+        config.NewConfig<CustomerAddress, CustomerAddressDto>()
+            .Map(dest => dest.Latitude, src => src.Location != null ? src.Location.Y : 0)
+            .Map(dest => dest.Longitude, src => src.Location != null ? src.Location.X : 0);
+
+        config.NewConfig<CreateCustomerAddressDto, CustomerAddress>()
+            .Map(dest => dest.Location, src => CreatePoint(src.Longitude, src.Latitude))
             .Map(dest => dest.Id, _ => Guid.NewGuid().ToString());
 
         return config;

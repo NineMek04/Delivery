@@ -36,6 +36,11 @@ namespace BackendApi.Models
         [ForeignKey(nameof(ShopId))]
         public Shop? Shop { get; set; }
 
+        public string? MenuCategoryId { get; set; }
+
+        [ForeignKey(nameof(MenuCategoryId))]
+        public MenuCategory? MenuCategory { get; set; }
+
         public ICollection<MenuItemOption> Options { get; set; } = new List<MenuItemOption>();
     }
 

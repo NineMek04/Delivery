@@ -37,4 +37,14 @@
     <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
   </ItemGroup>
 
+  <!-- Auto-generate Swagger spec after build completes -->
+  <Target Name="GenerateSwagger" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' Or '$(SWAGGER_GEN_AUTO)' == 'true'">
+    <Exec Command="dotnet $(TargetPath) --generate-swagger" />
+  </Target>
+
+  <!-- Package swagger.json into the publish directory -->
+  <Target Name="CopySwaggerToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="swagger.json" DestinationFolder="$(PublishDir)" />
+  </Target>
+
 </Project>

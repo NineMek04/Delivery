@@ -88,6 +88,8 @@ public static class ServiceSetup
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddSingleton<TelemetryAggregator>();
+        services.AddHttpClient();
+        services.AddScoped<BackendApi.Services.Notifications.IFcmNotificationService, BackendApi.Services.Notifications.FcmNotificationService>();
 
         // --- EventBus / RabbitMQ Message Broker ---
         services.AddSingleton<IEventBus, RabbitMqEventBus>();

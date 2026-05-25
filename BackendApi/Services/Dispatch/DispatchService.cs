@@ -4,6 +4,7 @@ using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
 using BackendApi.Services.Ai;
+using BackendApi.Services.Notifications;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +31,7 @@ public class DispatchService
     private readonly BackendApi.Services.Ai.IAiService _aiService;
     private readonly OsrmRoutingService _routingService;
     private readonly IConfiguration _config;
+    private readonly IFcmNotificationService _fcmService;
     private readonly ILogger<DispatchService> _logger;
 
     public DispatchService(
@@ -41,6 +43,7 @@ public class DispatchService
         BackendApi.Services.Ai.IAiService aiService,
         OsrmRoutingService routingService,
         IConfiguration config,
+        IFcmNotificationService fcmService,
         ILogger<DispatchService> logger)
     {
         _dbContext = dbContext;
@@ -51,6 +54,7 @@ public class DispatchService
         _aiService = aiService;
         _routingService = routingService;
         _config = config;
+        _fcmService = fcmService;
         _logger = logger;
     }
 
@@ -270,6 +274,35 @@ public class DispatchService
 
         await _hubContext.Clients.Group("admins")
             .SendAsync("DispatchOfferSent", offerPayload);
+
+        // Trigger FCM push notification to Rider in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var riderUser = await _dbContext.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.RiderId == riderId);
+
+                if (riderUser != null)
+                {
+                    await _fcmService.SendNotificationToUserAsync(
+                        riderUser.Id,
+                        "มีข้อเสนองานใหม่!",
+                        $"ค่าบริการจัดส่ง: ฿{order.DeliveryFee} | ระยะทาง: {order.DistanceKm:F1} กม.",
+                        new Dictionary<string, string>
+                        {
+                            { "offerId", offerId },
+                            { "orderId", order.Id },
+                            { "type", "NEW_OFFER" }
+                        });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send FCM offer notification to Rider {RiderId}", riderId);
+            }
+        });
 
         _logger.LogInformation(
             "Offer {OfferId} (v{Version}) sent to Rider {RiderId} for Order {OrderId} — expires in {Timeout}s",

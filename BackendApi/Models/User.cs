@@ -34,6 +34,14 @@ public class User : BaseSoftDeleteEntity<string>, ITrackableEntity
     /// </summary>
     public string? RiderId { get; set; }
 
+    /// <summary>
+    /// เชื่อมกับ Shop entity (nullable — มีเฉพาะ role StorePartner)
+    /// </summary>
+    public string? ShopId { get; set; }
+
+    [ForeignKey(nameof(ShopId))]
+    public Shop? Shop { get; set; }
+
     public DateTime? LastLoginAt { get; set; }
 
     /// <summary>

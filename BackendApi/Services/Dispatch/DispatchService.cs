@@ -162,7 +162,9 @@ public class DispatchService
             {
                 Rank = index + 1,
                 c.RiderId,
-                c.DistanceKm
+                c.DistanceKm,
+                c.Score,
+                c.EtaMinutes
             }).ToList(),
             RankedAt = DateTime.UtcNow
         });
@@ -411,7 +413,7 @@ public class DispatchService
     /// <summary>
     /// ส่งรายชื่อ Candidates ไปให้ AI Engine เพื่อให้คะแนนและจัดอันดับ (Phase A Heuristic)
     /// </summary>
-    private async Task<List<(string RiderId, double DistanceKm)>> RankCandidatesWithAiAsync(
+    private async Task<List<(string RiderId, double DistanceKm, double Score, int EtaMinutes)>> RankCandidatesWithAiAsync(
         Order order, List<(string RiderId, double DistanceKm)> candidates, Dictionary<string, Rider> ridersDict)
     {
         try
@@ -447,12 +449,12 @@ public class DispatchService
 
             if (aiResponse is not null && aiResponse.RankedCandidates.Any())
             {
-                var rankedList = new List<(string RiderId, double DistanceKm)>();
+                var rankedList = new List<(string RiderId, double DistanceKm, double Score, int EtaMinutes)>();
                 foreach (var item in aiResponse.RankedCandidates)
                 {
                     if (!string.IsNullOrEmpty(item.RiderId))
                     {
-                        rankedList.Add((item.RiderId, item.DistanceToPickupKm));
+                        rankedList.Add((item.RiderId, item.DistanceToPickupKm, item.Score, item.EtaMinutes));
                     }
                 }
                 return rankedList;
@@ -465,7 +467,9 @@ public class DispatchService
             _logger.LogError(ex, "Error calling AI Engine for ranking. Falling back to distance-based ranking.");
         }
 
-        // Fallback: เรียงตามระยะทางที่ได้จาก Redis GEORADIUS
-        return candidates.OrderBy(c => c.DistanceKm).ToList();
+        // Fallback: เรียงตามระยะทางที่ได้จาก Redis GEORADIUS พร้อมสร้างคะแนนและเวลาส่งจำลอง
+        return candidates.OrderBy(c => c.DistanceKm)
+                         .Select(c => (c.RiderId, c.DistanceKm, Math.Max(0.0, 100.0 - c.DistanceKm * 5.0), (int)Math.Ceiling(c.DistanceKm * 2.0)))
+                         .ToList();
     }
 }

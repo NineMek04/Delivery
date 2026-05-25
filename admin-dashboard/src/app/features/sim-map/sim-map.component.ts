@@ -21,6 +21,10 @@ interface CandidateRow {
   riderId: string;
   label: string;
   distanceKm: number;
+  score?: number;
+  etaMinutes?: number;
+  deliveryEtaMinutes?: number;
+  totalEtaMinutes?: number;
 }
 
 interface RiderRow {
@@ -62,6 +66,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
   autoFollow = true;
   routeProgress = 0;
   routeDistanceLabel = '-';
+  aiDurationLabel = '-';
   liveRouteLabel = 'Waiting for simulation';
   routeHint = 'Start the simulator to see scan, assignment, pickup, and delivery states.';
   candidateRows: CandidateRow[] = [];
@@ -189,6 +194,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.liveRouteLabel = 'Scanning rider pool';
     this.routeHint = `Scanning within ${Number(data.searchRadiusKm || 0).toFixed(1)} km around pickup.`;
     this.routeDistanceLabel = this.activeOrder?.distanceKm ? `${Number(this.activeOrder.distanceKm).toFixed(2)} km` : '-';
+    this.aiDurationLabel = 'AI calculating ETA...';
 
     const pickup = this.getPickupLatLng();
     const dropoff = this.getDropoffLatLng();
@@ -238,11 +244,28 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     const ranked = data.rankedCandidates || data.RankedCandidates || [];
     this.candidateRows = ranked.map((candidate: any, index: number) => {
       const riderId = candidate.riderId || candidate.RiderId || '';
+      const pickupEta = candidate.etaMinutes ?? candidate.EtaMinutes ?? 0;
+      
+      let deliveryEta = 0;
+      if (this.activeOrder) {
+        if (this.activeOrder.routeDurationSeconds) {
+          deliveryEta = Math.ceil(this.activeOrder.routeDurationSeconds / 60);
+        } else {
+          deliveryEta = Math.ceil((this.activeOrder.distanceKm || 0) * 2.0);
+        }
+      }
+      
+      const totalEta = pickupEta + deliveryEta;
+
       return {
         rank: candidate.rank || candidate.Rank || index + 1,
         riderId,
         label: `RID-${riderId.slice(0, 6).toUpperCase()}`,
-        distanceKm: Number(candidate.distanceKm ?? candidate.DistanceKm ?? 0)
+        distanceKm: Number(candidate.distanceKm ?? candidate.DistanceKm ?? 0),
+        score: candidate.score ?? candidate.Score,
+        etaMinutes: pickupEta,
+        deliveryEtaMinutes: deliveryEta,
+        totalEtaMinutes: totalEta
       };
     });
 
@@ -267,6 +290,26 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.routeCoords.delivery = this.math.decodeRoute(this.activeOrder?.encodedPolyline);
     
     this.draw.drawOfferRoutes(this.routeCoords.pickup, this.routeCoords.delivery, this.getPickupLatLng(), this.getDropoffLatLng());
+
+    // Calculate AI OSRM road distance and ETA
+    const pickupDist = offer.pickupRoute?.distanceMeters ?? offer.pickupRoute?.DistanceMeters ?? offer.PickupRoute?.DistanceMeters ?? 0;
+    const deliveryDist = this.activeOrder?.routeDistanceMeters ?? this.activeOrder?.RouteDistanceMeters ?? 0;
+    const totalDistKm = (pickupDist + deliveryDist) / 1000;
+    if (totalDistKm > 0) {
+      this.routeDistanceLabel = `${totalDistKm.toFixed(2)} km (Dijkstra Road)`;
+    }
+
+    const pickupDuration = offer.pickupRoute?.durationSeconds ?? offer.pickupRoute?.DurationSeconds ?? offer.PickupRoute?.DurationSeconds ?? 0;
+    const deliveryDuration = this.activeOrder?.routeDurationSeconds ?? this.activeOrder?.RouteDurationSeconds ?? 0;
+    const totalSeconds = pickupDuration + deliveryDuration;
+    if (totalSeconds > 0) {
+      const totalMins = Math.ceil(totalSeconds / 60);
+      const pickupMins = Math.ceil(pickupDuration / 60);
+      const deliveryMins = Math.ceil(deliveryDuration / 60);
+      this.aiDurationLabel = `${totalMins} mins (Rider→Store: ${pickupMins}m, Store→Dropoff: ${deliveryMins}m)`;
+    } else {
+      this.aiDurationLabel = '-';
+    }
 
     this.liveRouteLabel = 'Offer sent to rider';
     this.routeHint = this.assignedRiderId ? `${this.selectedRiderLabel} is confirming the order.` : 'Waiting for rider confirmation.';
@@ -325,7 +368,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
       const marker = this.draw.markerMap.get(riderId);
       
       if (marker) {
-        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, () => {
+        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, () => {
           if (riderId === this.assignedRiderId) {
             this.updateRouteProgress(next);
             this.followSelectedRider(next);
@@ -393,6 +436,7 @@ export class SimMapComponent implements OnInit, AfterViewInit, OnDestroy {
     this.routeCoords = { pickup: [], delivery: [] };
     this.candidateRows = [];
     this.assignedRiderId = null;
+    this.aiDurationLabel = '-';
   }
 
   private collectActivePoints(): L.LatLng[] {

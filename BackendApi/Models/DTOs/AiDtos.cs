@@ -65,6 +65,9 @@ public class RankedCandidateDto
 
     [JsonPropertyName("distance_to_pickup_km")]
     public double DistanceToPickupKm { get; set; }
+
+    [JsonPropertyName("eta_minutes")]
+    public int EtaMinutes { get; set; }
 }
 
 public class DispatchRankResponseDto

@@ -25,7 +25,7 @@ const ADMIN_CREDS = {
 };
 
 const PASSWORD = process.env.DELIVERY_SIM_PASSWORD || 'Password123!';
-const RIDER_COUNT = Number(process.env.DELIVERY_SIM_RIDERS) || randomInt(5, 10);
+const RIDER_COUNT = Number(process.env.DELIVERY_SIM_RIDERS) || randomInt(12, 18);
 const RUN_ID = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const UDON_CENTER = { lat: 17.4138, lng: 102.7872 };
 
@@ -239,27 +239,76 @@ async function sendGps(conn, lat, lng) {
   await conn.invoke('UpdateLocation', lat, lng, 5.0);
 }
 
+function interpolateCoordinates(coords, stepDistanceMeters = 12) {
+  const interpolated = [];
+  if (!coords.length) return interpolated;
+  interpolated.push(coords[0]);
+  
+  for (let i = 0; i < coords.length - 1; i++) {
+    const start = coords[i];
+    const end = coords[i + 1];
+    const latDiff = end.lat - start.lat;
+    const lngDiff = end.lng - start.lng;
+    const dist = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111320;
+    
+    const numSteps = Math.max(1, Math.floor(dist / stepDistanceMeters));
+    for (let j = 1; j <= numSteps; j++) {
+      const t = j / numSteps;
+      interpolated.push({
+        lat: start.lat + latDiff * t,
+        lng: start.lng + lngDiff * t
+      });
+    }
+  }
+  return interpolated;
+}
+
+async function startWandering(conn, rider) {
+  log('Rider Wandering', `${rider.name} started wandering loop`);
+  rider.isDelivering = false;
+  const startLoc = { ...rider.start };
+  
+  while (!rider.isDelivering) {
+    const latDiff = rider.current.lat - startLoc.lat;
+    const lngDiff = rider.current.lng - startLoc.lng;
+    const distFromStart = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111320;
+    
+    let target;
+    if (distFromStart > 4000) {
+      target = randomPointAround(startLoc, randomFloat(0.5, 1.5));
+    } else {
+      target = randomPointAround(rider.current, randomFloat(0.08, 0.16));
+    }
+    
+    const steps = straightLine(rider.current, target, randomInt(12, 18));
+    for (const step of steps) {
+      if (rider.isDelivering) break;
+      rider.current = step;
+      await sendGps(conn, step.lat, step.lng);
+      await sleep(300); // 300ms intervals matching frontend exactly
+    }
+    
+    if (rider.isDelivering) break;
+    await sleep(randomInt(800, 2000));
+  }
+  log('Rider Wandering', `${rider.name} wandering loop terminated`);
+}
+
 async function moveAlong(conn, rider, coords, label) {
-  const maxSteps = 28;
-  const stepInterval = Math.max(1, Math.floor(coords.length / maxSteps));
-  const sampled = [];
+  const detailed = interpolateCoordinates(coords, 12);
+  log(rider.name, `${label}: ${detailed.length} smooth realtime GPS ticks`);
 
-  for (let i = 0; i < coords.length; i += stepInterval) sampled.push(coords[i]);
-  if (sampled[sampled.length - 1] !== coords[coords.length - 1]) sampled.push(coords[coords.length - 1]);
-
-  log(rider.name, `${label}: ${sampled.length} realtime GPS ticks`);
-
-  for (let i = 0; i < sampled.length; i++) {
-    const node = sampled[i];
+  for (let i = 0; i < detailed.length; i++) {
+    const node = detailed[i];
     const jitter = {
-      lat: node.lat + randomFloat(-0.000035, 0.000035),
-      lng: node.lng + randomFloat(-0.000035, 0.000035)
+      lat: node.lat + randomFloat(-0.00001, 0.00001),
+      lng: node.lng + randomFloat(-0.00001, 0.00001)
     };
 
     rider.current = jitter;
-    process.stdout.write(`\r  ${rider.name} ${label} ${i + 1}/${sampled.length}: ${jitter.lat.toFixed(5)}, ${jitter.lng.toFixed(5)}`);
+    process.stdout.write(`\r  ${rider.name} ${label} ${i + 1}/${detailed.length}: ${jitter.lat.toFixed(5)}, ${jitter.lng.toFixed(5)}`);
     await sendGps(conn, jitter.lat, jitter.lng);
-    await sleep(randomInt(450, 950));
+    await sleep(300); // 300ms intervals for ultra-smooth transitions!
   }
 
   process.stdout.write('\n');
@@ -275,6 +324,7 @@ async function updateStatus(token, status) {
 async function runDelivery(conn, rider, offer) {
   if (deliveryStarted) return;
   deliveryStarted = true;
+  rider.isDelivering = true;
 
   section(`DELIVERY STARTED BY ${rider.name}`);
 
@@ -329,6 +379,7 @@ async function connectRider(rider) {
   conn.on('OfferReceived', async offer => {
     if (offerAccepted) return;
     offerAccepted = true;
+    rider.isDelivering = true; // Stop wandering immediately
     activeOrder = offer.order || activeOrder;
 
     log('AI Offer', `${rider.name} received offer ${offer.offerId || offer.OfferId} for Order ${(activeOrder?.id || activeOrder?.Id || '').slice(0, 8)}`);
@@ -347,6 +398,7 @@ async function connectRider(rider) {
     if (success) {
       await runDelivery(conn, rider, rider.acceptedOffer || {});
     } else {
+      rider.isDelivering = false; // Resume wandering if somehow rejected
       log(rider.name, `Offer rejected by backend: ${result?.message || result?.Message || 'unknown reason'}`);
     }
   });
@@ -354,6 +406,10 @@ async function connectRider(rider) {
   await conn.start();
   await sendGps(conn, rider.start.lat, rider.start.lng);
   log('Rider GPS', `${rider.name} online at ${rider.start.lat.toFixed(5)}, ${rider.start.lng.toFixed(5)} (${rider.radiusKm.toFixed(2)} km from shop)`);
+  
+  // Start autonomous background wandering in non-blocking loop
+  startWandering(conn, rider).catch(err => log(rider.name, `Wandering error: ${err.message}`));
+
   return conn;
 }
 

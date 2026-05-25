@@ -25,12 +25,13 @@ const iconDefault = L.icon({
 L.Marker.prototype.options.icon = iconDefault;
 
 import { MapMathService } from './services/map-math.service';
+import { MapDrawingService } from './services/map-drawing.service';
 
 @Component({
   selector: 'app-map',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  providers: [MapMathService],
+  providers: [MapMathService, MapDrawingService],
   templateUrl: './map.component.html',
   styleUrl: './map.component.scss'
 })
@@ -52,6 +53,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private shopService = inject(ShopService);
   private riderService = inject(RiderService);
   private math = inject(MapMathService);
+  public draw = inject(MapDrawingService);
   private subscriptions: Subscription = new Subscription();
 
   public alerts: any[] = [];
@@ -109,40 +111,13 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       })
     );
 
-    // Dynamic AI Dispatch Events Subscriptions
-    this.subscriptions.add(
-      this.trackingService.dispatchScanStarted$.subscribe(data => {
-        this.handleDispatchScanStarted(data);
-      })
-    );
 
-    this.subscriptions.add(
-      this.trackingService.dispatchCandidatesRanked$.subscribe(data => {
-        this.handleDispatchCandidatesRanked(data);
-      })
-    );
-
-    this.subscriptions.add(
-      this.trackingService.offerReceived$.subscribe(offer => {
-        this.handleOfferReceived(offer);
-      })
-    );
-
-    this.subscriptions.add(
-      this.trackingService.orderAssigned$.subscribe(data => {
-        this.handleOrderAssigned(data);
-      })
-    );
-
-    this.subscriptions.add(
-      this.trackingService.orderStatusChanged$.subscribe(data => {
-        this.handleOrderStatusChanged(data);
-      })
-    );
   }
 
   ngAfterViewInit(): void {
     this.initMap();
+    this.draw.initializeMap(this.map);
+    this.draw.markerType = 'dashboard';
     this.loadExistingShops();
     this.loadExistingRiders();
   }
@@ -150,7 +125,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
     this.trackingService.stopConnection();
-    this.clearActiveOrderLayers();
     if (this.map) {
       this.map.remove();
     }
@@ -383,246 +357,13 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // ── Real-time Dispatch Event Handling ──
 
-  private handleDispatchScanStarted(data: DispatchScanStarted): void {
-    console.log('Live Map: Dispatch scan started', data);
-    this.clearActiveOrderLayers();
-    this.activeOrder = data.order;
-
-    const pickupLat = data.pickupLat ?? data.order?.pickupLat ?? data.order?.PickupLat;
-    const pickupLng = data.pickupLng ?? data.order?.pickupLng ?? data.order?.PickupLng;
-    const dropoffLat = data.order?.dropoffLat ?? data.order?.DropoffLat;
-    const dropoffLng = data.order?.dropoffLng ?? data.order?.DropoffLng;
-
-    if (!pickupLat || !pickupLng) return;
-
-    this.activeRadarCircle = L.circle([pickupLat, pickupLng], {
-      radius: Math.max(250, (data.searchRadiusKm || 0.6) * 1000),
-      color: '#3b82f6',
-      fillColor: '#3b82f6',
-      fillOpacity: 0.08,
-      className: 'ai-radar-pulse'
-    }).addTo(this.map);
-
-    const points: L.LatLngExpression[] = [[pickupLat, pickupLng]];
-    if (dropoffLat && dropoffLng) {
-      points.push([dropoffLat, dropoffLng]);
-    }
-
-    const nearbyRiders = data.nearbyRiders || [];
-    nearbyRiders.forEach((candidate: any, index: number) => {
-      const lat = candidate.lat ?? candidate.Lat;
-      const lng = candidate.lng ?? candidate.Lng;
-      const riderId = candidate.riderId ?? candidate.RiderId;
-      const distanceKm = candidate.distanceKm ?? candidate.DistanceKm;
-      if (lat == null || lng == null) return;
-
-      const marker = L.circleMarker([lat, lng], {
-        radius: Math.max(7, 13 - index),
-        color: '#2563eb',
-        fillColor: '#60a5fa',
-        fillOpacity: 0.7,
-        weight: 2,
-        className: 'scan-candidate-marker'
-      })
-        .bindTooltip(`Candidate ${index + 1}: RID-${String(riderId || '').slice(0, 6).toUpperCase()} (${Number(distanceKm || 0).toFixed(2)} km)`, {
-          direction: 'top',
-          className: 'custom-shop-tooltip'
-        })
-        .addTo(this.map);
-
-      this.candidateMarkers.push(marker);
-      points.push([lat, lng]);
-    });
-
-    this.map.fitBounds(L.latLngBounds(points), { padding: [80, 80], maxZoom: 15 });
-  }
-
-  private handleDispatchCandidatesRanked(data: any): void {
-    console.log('Live Map: Dispatch candidates ranked', data);
-    const ranked = data.rankedCandidates || data.RankedCandidates || [];
-    const winner = ranked[0]?.riderId || ranked[0]?.RiderId;
-    if (!winner) return;
-
-    this.assignedRiderId = winner;
-    const currentLocs = this.trackingService.getRiderLocations();
-    this.updateMapMarkers(currentLocs);
-  }
-
-  private handleOfferReceived(offer: any): void {
-    console.log('Live Map: Offer received', offer);
-    this.activeOrder = offer.order;
-    this.assignedRiderId = offer.riderId || offer.order?.assignedRiderId || null;
-
-    const pickupLat = offer.order?.pickupLat ?? offer.order?.PickupLat;
-    const pickupLng = offer.order?.pickupLng ?? offer.order?.PickupLng;
-    const dropoffLat = offer.order?.dropoffLat ?? offer.order?.DropoffLat;
-    const dropoffLng = offer.order?.dropoffLng ?? offer.order?.DropoffLng;
-
-    if (!pickupLat || !pickupLng || !dropoffLat || !dropoffLng) return;
-
-    // 1. Auto-focus bounds
-    const points: L.LatLngExpression[] = [[pickupLat, pickupLng], [dropoffLat, dropoffLng]];
-    
-    let riderPos: L.LatLngExpression | null = null;
-    if (this.assignedRiderId) {
-      const riderMarker = this.markers.get(this.assignedRiderId);
-      if (riderMarker) {
-        riderPos = riderMarker.getLatLng();
-        points.push(riderPos);
-      }
-    }
-    
-    this.map.fitBounds(L.latLngBounds(points), { padding: [80, 80] });
-
-    // 2. Add glowing active markers
-    const activeShopIcon = L.divIcon({
-      className: 'active-shop-marker',
-      html: `<div style="background-color: #ea580c; width: 34px; height: 34px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px rgba(234,88,12,0.8); display: flex; align-items: center; justify-content: center; font-size: 16px; animation: bounce 0.6s infinite alternate;">🏪</div>`,
-      iconSize: [34, 34],
-      iconAnchor: [17, 17]
-    });
-    this.activeShopMarker = L.marker([pickupLat, pickupLng], { icon: activeShopIcon })
-      .bindPopup(`<b>🏪 ร้านคู่ค้าที่ AI เลือก (จุดรับ):</b><br>พิกัด: ${pickupLat.toFixed(5)}, ${pickupLng.toFixed(5)}`)
-      .addTo(this.map);
-
-    const activeCustomerIcon = L.divIcon({
-      className: 'active-customer-marker',
-      html: `<div style="background-color: #10b981; width: 34px; height: 34px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px rgba(16,185,129,0.8); display: flex; align-items: center; justify-content: center; font-size: 16px;">🏁</div>`,
-      iconSize: [34, 34],
-      iconAnchor: [17, 17]
-    });
-    this.activeCustomerMarker = L.marker([dropoffLat, dropoffLng], { icon: activeCustomerIcon })
-      .bindPopup(`<b>🏁 จุดจัดส่งของลูกค้า:</b><br>พิกัด: ${dropoffLat.toFixed(5)}, ${dropoffLng.toFixed(5)}`)
-      .addTo(this.map);
-
-    // 3. Plot paths
-    let pickupCoords: L.LatLngExpression[] = [];
-    const pickupRoutePolyline = offer.pickupRoute?.encodedPolyline || offer.pickupRoute?.EncodedPolyline;
-    if (pickupRoutePolyline) {
-      try {
-        pickupCoords = this.decodePolyline(pickupRoutePolyline);
-      } catch (err) {
-        console.error('Failed to decode pickup route polyline, utilizing straight line fallback', err);
-      }
-    }
-
-    if (!pickupCoords.length && riderPos) {
-      pickupCoords = [riderPos, [pickupLat, pickupLng]];
-    }
-
-    if (pickupCoords.length) {
-      this.pickupRouteLine = L.polyline(pickupCoords, {
-        color: '#ef4444',
-        weight: 4,
-        dashArray: '8, 8',
-        className: 'route-pickup-line'
-      }).addTo(this.map);
-    }
-
-    // Solid Emerald Green (Shop -> Customer) - วาดโครงข่ายถนน Dijkstra จริง
-    let deliveryCoords: L.LatLngExpression[] = [[pickupLat, pickupLng], [dropoffLat, dropoffLng]];
-    const polylineString = offer.order?.encodedPolyline || offer.order?.EncodedPolyline;
-    if (polylineString) {
-      try {
-        deliveryCoords = this.decodePolyline(polylineString);
-        console.log('Live Map: Decoded Dijkstra route coordinates count:', deliveryCoords.length);
-      } catch (err) {
-        console.error('Failed to decode order polyline, utilizing straight line fallback', err);
-      }
-    }
-
-    this.deliveryRouteLine = L.polyline(deliveryCoords, {
-      color: '#10b981',
-      weight: 5,
-      className: 'route-delivery-line'
-    }).addTo(this.map);
-
-    // Force marker update to highlight targeted rider
-    const currentLocs = this.trackingService.getRiderLocations();
-    this.updateMapMarkers(currentLocs);
-  }
-
-  private handleOrderAssigned(data: any): void {
-    console.log('Live Map: Order assigned to rider', data);
-    this.assignedRiderId = data.riderId;
-
-    if (this.activeRadarCircle) {
-      this.activeRadarCircle.remove();
-      this.activeRadarCircle = null;
-    }
-    this.clearCandidateMarkers();
-
-    // Smooth Auto-Zoom centering camera precisely when order is assigned (Key Dispatch event)
-    if (this.assignedRiderId) {
-      const riderMarker = this.markers.get(this.assignedRiderId);
-      if (riderMarker && this.activeOrder) {
-        const bounds = L.latLngBounds([
-          riderMarker.getLatLng(),
-          [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
-        ]);
-        this.map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
-      }
-    }
-
-    const currentLocs = this.trackingService.getRiderLocations();
-    this.updateMapMarkers(currentLocs);
-  }
-
-  private handleOrderStatusChanged(data: any): void {
-    console.log('Live Map: Order status changed', data);
-    
-    if (data.status === 'DELIVERING') {
-      if (this.pickupRouteLine) {
-        this.pickupRouteLine.remove();
-        this.pickupRouteLine = null;
-      }
-    } else if (data.status === 'COMPLETED') {
-      // Clear layers after 6 seconds so user can witness completion
-      setTimeout(() => {
-        this.clearActiveOrderLayers();
-        const currentLocs = this.trackingService.getRiderLocations();
-        this.updateMapMarkers(currentLocs);
-      }, 6000);
-    }
-  }
-
-  private clearActiveOrderLayers(): void {
-    if (this.activeShopMarker) {
-      this.activeShopMarker.remove();
-      this.activeShopMarker = null;
-    }
-    if (this.activeCustomerMarker) {
-      this.activeCustomerMarker.remove();
-      this.activeCustomerMarker = null;
-    }
-    if (this.pickupRouteLine) {
-      this.pickupRouteLine.remove();
-      this.pickupRouteLine = null;
-    }
-    if (this.deliveryRouteLine) {
-      this.deliveryRouteLine.remove();
-      this.deliveryRouteLine = null;
-    }
-    if (this.activeRadarCircle) {
-      this.activeRadarCircle.remove();
-      this.activeRadarCircle = null;
-    }
-    this.clearCandidateMarkers();
-    this.activeOrder = null;
-    this.assignedRiderId = null;
-  }
-
-  private clearCandidateMarkers(): void {
-    this.candidateMarkers.forEach(marker => marker.remove());
-    this.candidateMarkers = [];
-  }
-
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {
     if (!this.map) return;
 
     locationMap.forEach((loc, riderId) => {
-      let marker = this.markers.get(riderId);
+      let marker = this.draw.markerMap.get(riderId);
       const isWinner = riderId === this.assignedRiderId;
+      const next = L.latLng(loc.latitude, loc.longitude);
 
       const popupContent = `
         <div style="font-family: 'Inter', sans-serif; min-width: 150px;">
@@ -636,46 +377,25 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         </div>
       `;
 
-      // Define color and styling based on active order Winner status
-      const color = loc.status === 'IDLE' ? '#22c55e' : (isWinner ? '#2563eb' : '#f59e0b');
-      const border = isWinner ? '3px solid #ffde21' : '3px solid white';
-      const shadow = isWinner ? '0 0 15px rgba(37,99,235,0.8)' : '0 2px 5px rgba(0,0,0,0.3)';
-      const animationClass = isWinner ? 'winner-pulse-marker' : '';
-
-      const customIcon = L.divIcon({
-        className: `custom-rider-marker-div ${animationClass}`,
-        html: `<div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 50%; border: ${border}; box-shadow: ${shadow}; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; transition: all 0.3s ease;">🛵</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
-
       if (marker) {
-        marker.setLatLng([loc.latitude, loc.longitude]);
-        marker.setIcon(customIcon);
+        // Animate marker smoothly with 300ms continuous gliding!
+        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, () => {
+          if (this.simAutoFollow && isWinner && this.activeOrder) {
+            const bounds = L.latLngBounds([
+              next,
+              [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
+            ]);
+            this.map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+          }
+        });
         marker.setPopupContent(popupContent);
       } else {
-        marker = L.marker([loc.latitude, loc.longitude], { icon: customIcon })
+        const created = L.marker(next, { icon: this.draw.createRiderIcon(riderId, this.assignedRiderId, 0, loc.status) })
           .bindPopup(popupContent)
           .addTo(this.map);
 
-        this.markers.set(riderId, marker);
-      }
-
-      // Dynamically shorten pickup polyline as the winner rider moves
-      if (this.activeOrder && this.pickupRouteLine && isWinner) {
-        this.pickupRouteLine.setLatLngs([
-          [loc.latitude, loc.longitude],
-          [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
-        ]);
-      }
-
-      // 🎬 Simulator Camera tracking (fitBounds รันเฉพาะเมื่อเปืด simAutoFollow เท่านั้น เพื่อปกป้อง UX)
-      if (this.simAutoFollow && isWinner && this.activeOrder) {
-        const bounds = L.latLngBounds([
-          [loc.latitude, loc.longitude],
-          [this.activeOrder.pickupLat, this.activeOrder.pickupLng]
-        ]);
-        this.map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+        this.draw.markerMap.set(riderId, created);
+        this.draw.markerPositions.set(riderId, next);
       }
     });
   }

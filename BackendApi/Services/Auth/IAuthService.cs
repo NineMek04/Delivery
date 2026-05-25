@@ -22,4 +22,8 @@ public interface IAuthService
         string refreshToken,
         CancellationToken cancellationToken = default);
 
+    Task<ServiceResult<bool>> ChangePasswordAsync(
+        string? userId,
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken = default);
 }

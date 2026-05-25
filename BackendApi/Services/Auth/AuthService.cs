@@ -255,6 +255,51 @@ public sealed class AuthService : IAuthService
         return ServiceResult<UserInfo>.Success(MapUserInfo(user));
     }
 
+    public async Task<ServiceResult<bool>> ChangePasswordAsync(
+        string? userId,
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return ServiceResult<bool>.Failure(
+                StatusCodes.Status401Unauthorized,
+                "ไม่พบ session",
+                "NO_SESSION");
+        }
+
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user is null || !user.IsActive)
+        {
+            return ServiceResult<bool>.Failure(
+                StatusCodes.Status401Unauthorized,
+                "ผู้ใช้งานไม่ถูกต้องหรือถูกระงับการใช้งาน",
+                "INVALID_USER");
+        }
+
+        if (!PasswordHasher.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+        {
+            return ServiceResult<bool>.Failure(
+                StatusCodes.Status400BadRequest,
+                "รหัสผ่านปัจจุบันไม่ถูกต้อง",
+                "INVALID_CURRENT_PASSWORD");
+        }
+
+        user.PasswordHash = PasswordHasher.HashPassword(request.NewPassword);
+        
+        // Revoke refresh token when password changes
+        user.RefreshToken = null;
+        user.RefreshTokenExpiresAt = null;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("User {Email} changed password successfully. RiderId: {RiderId}", user.Email, user.RiderId ?? "N/A");
+
+        return ServiceResult<bool>.Success(true, "เปลี่ยนรหัสผ่านสำเร็จ");
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     private AuthResponse GenerateAuthResponse(User user)

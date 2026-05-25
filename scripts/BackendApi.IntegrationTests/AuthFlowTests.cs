@@ -37,6 +37,7 @@ public class AuthFlowTests : IAsyncLifetime
     private record LoginPayload(string Email, string Password);
     private record RegisterPayload(string Email, string Password, string FullName, string Role);
     private record RefreshPayload(string RefreshToken);
+    private record ChangePasswordPayload(string CurrentPassword, string NewPassword);
 
     private record ApiResponseWrapper<T>(bool Success, T? Value, string? Message, string? ErrorDetail);
     private record AuthData(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserData? User);
@@ -149,5 +150,48 @@ public class AuthFlowTests : IAsyncLifetime
             response.StatusCode == HttpStatusCode.BadRequest ||
             response.StatusCode == HttpStatusCode.Unauthorized,
             $"Expected 400 or 401 but got {response.StatusCode}");
+    }
+
+    [Fact]
+    public async Task ChangePassword_Success_And_RevokesRefreshToken()
+    {
+        var uniqueEmail = $"testuser_{Guid.NewGuid():N}@test.com";
+
+        // Register user
+        var registerPayload = new RegisterPayload(uniqueEmail, "TestPass123!", "Test User", "Rider");
+        var registerResponse = await _client.PostAsJsonAsync("/api/v1/auth/register", registerPayload);
+        Assert.True(registerResponse.IsSuccessStatusCode);
+
+        var registerBody = await registerResponse.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>(_jsonOpts);
+        Assert.NotNull(registerBody?.Value);
+
+        var accessToken = registerBody.Value.AccessToken;
+        var refreshToken = registerBody.Value.RefreshToken;
+
+        // Change password
+        var changePasswordPayload = new ChangePasswordPayload("TestPass123!", "NewPass123!");
+        var changePasswordRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
+        {
+            Content = JsonContent.Create(changePasswordPayload)
+        };
+        changePasswordRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+        var changePasswordResponse = await _client.SendAsync(changePasswordRequest);
+        Assert.True(changePasswordResponse.IsSuccessStatusCode);
+
+        // Attempt login with old password -> should fail
+        var oldLoginPayload = new LoginPayload(uniqueEmail, "TestPass123!");
+        var oldLoginResponse = await _client.PostAsJsonAsync("/api/v1/auth/login", oldLoginPayload);
+        Assert.Equal(HttpStatusCode.Unauthorized, oldLoginResponse.StatusCode);
+
+        // Attempt login with new password -> should succeed
+        var newLoginPayload = new LoginPayload(uniqueEmail, "NewPass123!");
+        var newLoginResponse = await _client.PostAsJsonAsync("/api/v1/auth/login", newLoginPayload);
+        Assert.True(newLoginResponse.IsSuccessStatusCode);
+
+        // Attempt to refresh token using old refresh token -> should fail
+        var refreshPayload = new RefreshPayload(refreshToken);
+        var refreshResponse = await _client.PostAsJsonAsync("/api/v1/auth/refresh", refreshPayload);
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshResponse.StatusCode);
     }
 }

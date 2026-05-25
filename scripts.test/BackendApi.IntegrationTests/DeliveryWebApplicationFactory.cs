@@ -63,7 +63,9 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
                 { "Jwt:Key", "ThisIsADummyKeyForTestingPurposesMustBeAtLeast32Bytes!" },
                 { "Jwt:Issuer", "TestIssuer" },
                 { "Jwt:Audience", "TestAudience" },
-                { "Jwt:ExpirationMinutes", "60" }
+                { "Jwt:ExpirationMinutes", "60" },
+                { "RateLimiting:Global:PermitLimit", "99999" },
+                { "RateLimiting:Auth:PermitLimit", "99999" }
             });
         });
 

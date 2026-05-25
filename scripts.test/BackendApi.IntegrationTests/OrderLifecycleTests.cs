@@ -3,6 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Xunit;
+using Microsoft.Extensions.DependencyInjection;
+using BackendApi.Data;
+using BackendApi.Models;
 
 namespace BackendApi.IntegrationTests;
 
@@ -39,17 +42,26 @@ public class OrderLifecycleTests : IAsyncLifetime
     private record AuthData(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserInfo? User);
     private record UserInfo(string Id, string Email, string Role, string? FullName);
 
+    private record CreateOrderItemPayload(string MenuItemId, int Quantity, string? Notes = null, string? OptionsDescription = null);
+
     private record CreateOrderPayload(
         double PickupLat, double PickupLng,
         double DropoffLat, double DropoffLng,
-        DateTime ExpectedDeliveryTime);
+        DateTime ExpectedDeliveryTime,
+        string CustomerId,
+        string ShopId,
+        List<CreateOrderItemPayload> Items);
+
+    private record OrderItemData(
+        string Id, string MenuItemId, string Name, decimal UnitPrice, int Quantity);
 
     private record OrderData(
         string Id, string TrackingCode, string Status,
         double? PickupLat, double? PickupLng,
         double? DropoffLat, double? DropoffLng,
         double DistanceKm, decimal DeliveryFee,
-        string? AssignedRiderId, string? EncodedPolyline);
+        string? AssignedRiderId, string? EncodedPolyline,
+        List<OrderItemData> Items);
 
     private record PaginatedOrders(
         List<OrderData> Items, int TotalCount, int Page, int PageSize);
@@ -58,7 +70,7 @@ public class OrderLifecycleTests : IAsyncLifetime
 
     // ─── Utility ────────────────────────────────────────────────────
 
-    private async Task<string> RegisterAndGetTokenAsync(string role = "Admin")
+    private async Task<(string AccessToken, string UserId)> RegisterAndGetTokenAsync(string role = "Admin")
     {
         var email = $"order_test_{Guid.NewGuid():N}@test.com";
         var payload = new RegisterPayload(email, "TestPass123!", "Order Test User", role);
@@ -66,7 +78,7 @@ public class OrderLifecycleTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>(_jsonOpts);
-        return body!.Value!.AccessToken;
+        return (body!.Value!.AccessToken, body.Value.User!.Id);
     }
 
     private HttpRequestMessage CreateAuthRequest(HttpMethod method, string uri, string token, object? body = null)
@@ -84,11 +96,50 @@ public class OrderLifecycleTests : IAsyncLifetime
     public async Task CreateOrder_WithValidData_ReturnsOrderWithCreatedState()
     {
         // Arrange
-        var token = await RegisterAndGetTokenAsync();
+        var (token, customerId) = await RegisterAndGetTokenAsync();
+
+        // Seed Shop and MenuItem directly via DbContext
+        string shopId = Guid.NewGuid().ToString();
+        string menuItemId = Guid.NewGuid().ToString();
+        
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+            
+            var shop = new Shop
+            {
+                Id = shopId,
+                Name = "Gourmet Test Shop",
+                MenuName = "Test Signature",
+                MenuPrice = 120.00m,
+                Location = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(102.7900, 17.4150))
+            };
+            
+            var menuItem = new MenuItem
+            {
+                Id = menuItemId,
+                ShopId = shopId,
+                Name = "Special Pad Thai",
+                Price = 85.50m
+            };
+            
+            db.Shops.Add(shop);
+            db.MenuItems.Add(menuItem);
+            await db.SaveChangesAsync();
+        }
+
         var order = new CreateOrderPayload(
             PickupLat: 17.4150, PickupLng: 102.7880,
             DropoffLat: 17.4100, DropoffLng: 102.7850,
-            ExpectedDeliveryTime: DateTime.UtcNow.AddHours(1));
+            ExpectedDeliveryTime: DateTime.UtcNow.AddHours(1),
+            CustomerId: customerId,
+            ShopId: shopId,
+            Items: new List<CreateOrderItemPayload>
+            {
+                new CreateOrderItemPayload(MenuItemId: menuItemId, Quantity: 2)
+            }
+        );
 
         // Act
         var request = CreateAuthRequest(HttpMethod.Post, "/api/v1/orders", token, order);
@@ -110,13 +161,21 @@ public class OrderLifecycleTests : IAsyncLifetime
         Assert.NotNull(body?.Value);
         Assert.Equal("CREATED", body.Value.Status);
         Assert.False(string.IsNullOrWhiteSpace(body.Value.Id));
+        
+        // Verify MenuItem Snapshotted correct Name and UnitPrice
+        Assert.NotNull(body.Value.Items);
+        var firstItem = Assert.Single(body.Value.Items);
+        Assert.Equal(menuItemId, firstItem.MenuItemId);
+        Assert.Equal("Special Pad Thai", firstItem.Name);
+        Assert.Equal(85.50m, firstItem.UnitPrice);
+        Assert.Equal(2, firstItem.Quantity);
     }
 
     [Fact]
     public async Task GetOrders_AsAdmin_ReturnsPaginatedResult()
     {
         // Arrange
-        var token = await RegisterAndGetTokenAsync("Admin");
+        var (token, _) = await RegisterAndGetTokenAsync("Admin");
 
         // Act
         var request = CreateAuthRequest(HttpMethod.Get, "/api/v1/orders?page=1&pageSize=10", token);
@@ -137,7 +196,7 @@ public class OrderLifecycleTests : IAsyncLifetime
     public async Task GetOrderById_NonExistentId_Returns404()
     {
         // Arrange
-        var token = await RegisterAndGetTokenAsync("Admin");
+        var (token, _) = await RegisterAndGetTokenAsync("Admin");
         var fakeId = Guid.NewGuid().ToString();
 
         // Act
@@ -152,7 +211,13 @@ public class OrderLifecycleTests : IAsyncLifetime
     public async Task CreateOrder_WithoutAuth_Returns401()
     {
         // Arrange
-        var order = new CreateOrderPayload(17.4150, 102.7880, 17.4100, 102.7850, DateTime.UtcNow.AddHours(1));
+        var order = new CreateOrderPayload(
+            PickupLat: 17.4150, PickupLng: 102.7880,
+            DropoffLat: 17.4100, DropoffLng: 102.7850,
+            ExpectedDeliveryTime: DateTime.UtcNow.AddHours(1),
+            CustomerId: "test-customer",
+            ShopId: "test-shop",
+            Items: new List<CreateOrderItemPayload>());
 
         // Act — no Bearer token
         var response = await _client.PostAsJsonAsync("/api/v1/orders", order);

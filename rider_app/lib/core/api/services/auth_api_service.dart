@@ -67,4 +67,23 @@ class AuthApiService {
       throw wrapDioError(e).error ?? e;
     }
   }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.authEndpoint}/change-password',
+        data: {
+          'CurrentPassword': currentPassword,
+          'NewPassword': newPassword,
+        },
+      );
+      final parsed = parseApiResponse(response.data, (json) => null);
+      ensureSuccess(parsed);
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
 }

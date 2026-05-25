@@ -83,3 +83,18 @@ public class UserInfo
     public string Role { get; set; } = string.Empty;
     public string? RiderId { get; set; }
 }
+
+/// <summary>
+/// DTO สำหรับการขอเปลี่ยนรหัสผ่าน
+/// </summary>
+public class ChangePasswordRequest
+{
+    /// <summary>รหัสผ่านปัจจุบัน</summary>
+    [Required(ErrorMessage = "กรุณากรอกรหัสผ่านปัจจุบัน")]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    /// <summary>รหัสผ่านใหม่ (ขั้นต่ำ 6 ตัวอักษร)</summary>
+    [Required(ErrorMessage = "กรุณากรอกรหัสผ่านใหม่")]
+    [MinLength(6, ErrorMessage = "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร")]
+    public string NewPassword { get; set; } = string.Empty;
+}

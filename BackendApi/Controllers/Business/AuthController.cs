@@ -145,6 +145,39 @@ public class AuthController : DeliveryControllerBase
         return Ok(result.ToApiResponse());
     }
 
+    /// <summary>
+    /// เปลี่ยนรหัสผ่านของผู้ใช้งานปัจจุบัน
+    /// </summary>
+    /// <param name="request">รหัสผ่านปัจจุบันและรหัสผ่านใหม่</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>ผลลัพธ์การเปลี่ยนรหัสผ่าน</returns>
+    [HttpPost("change-password")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ApiResponse>> ChangePassword(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _authService.ChangePasswordAsync(CurrentUserId, request, cancellationToken);
+
+        if (!result.Succeeded)
+            return StatusCode(result.StatusCode, result.ToApiResponseBase());
+
+        // ลบ cookie เดิมด้วย เนื่องจาก password เปลี่ยนแปลง (ต้องการให้เข้าสู่ระบบใหม่)
+        var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        Response.Cookies.Delete(AuthConstants.AccessTokenCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = config.GetValue("Authentication:RequireSecureCookie", false),
+            SameSite = SameSiteMode.Lax,
+            Path = "/"
+        });
+
+        return Ok(ApiResponse.Ok("เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่อีกครั้ง"));
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     /// <summary>

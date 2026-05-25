@@ -117,11 +117,10 @@ namespace BackendApi.Controllers.MasterData
         [HttpDelete("{id}")]
         public override async Task<ActionResult> Delete(string id, CancellationToken cancellationToken = default)
         {
-            var entity = await DB.GetQuery<MenuItem>().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
-            if (entity is null)
+            var deleted = await DB.DeleteObjectAsync<MenuItem>(id, softDelete: true, cancellationToken: cancellationToken);
+            if (deleted is null)
                 return NotFound(ApiResponse.Fail("ไม่พบข้อมูลเมนูสินค้า", code: "NOT_FOUND"));
 
-            DB.DeleteObject(entity);
             await DB.CommitChangesAsync(cancellationToken);
 
             return NoContent();

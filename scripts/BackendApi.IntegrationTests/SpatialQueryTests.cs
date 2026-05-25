@@ -69,6 +69,23 @@ public class SpatialQueryTests : IAsyncLifetime
 
         // รัน EF Core Migrations ทั้งหมด (รวม Phase3EnterpriseSpatialScaling)
         await _dbContext.Database.MigrateAsync();
+
+        // Create partitions for current and next months so that location history tests can insert rows
+        var now = DateTime.UtcNow;
+        for (int i = 0; i <= 2; i++)
+        {
+            var targetDate = now.AddMonths(i);
+            var year = targetDate.Year;
+            var month = targetDate.Month;
+            var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var endDate = startDate.AddMonths(1);
+            var partitionName = $"RiderLocationHistories_{year}_{month:D2}";
+            await _dbContext.Database.ExecuteSqlRawAsync($@"
+                CREATE TABLE IF NOT EXISTS ""{partitionName}""
+                PARTITION OF ""RiderLocationHistories""
+                FOR VALUES FROM ('{startDate:yyyy-MM-dd}') TO ('{endDate:yyyy-MM-dd}');
+            ");
+        }
     }
 
     public async Task DisposeAsync()

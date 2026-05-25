@@ -9,6 +9,7 @@ import '../features/home/screens/home_screen.dart';
 import '../features/delivery/screens/active_delivery_screen.dart';
 import '../features/delivery/screens/delivery_history_screen.dart';
 import '../features/tracking/screens/map_tracking_screen.dart';
+import '../features/profile/screens/profile_screen.dart';
 
 /// Re-run GoRouter redirect when [authServiceProvider] changes.
 final _routerRefreshProvider = Provider<Listenable>((ref) {
@@ -71,6 +72,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'tracking',
             builder: (context, state) => const MapTrackingScreen(),
           ),
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
         ],
       ),
     ],
@@ -111,6 +117,11 @@ class MainShell extends StatelessWidget {
             selectedIcon: Icon(Icons.history),
             label: 'ประวัติ',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'โปรไฟล์',
+          ),
         ],
       ),
     );
@@ -122,6 +133,7 @@ class MainShell extends StatelessWidget {
     if (location == '/delivery/active') return 1;
     if (location == '/tracking') return 2;
     if (location == '/delivery/history') return 3;
+    if (location == '/profile') return 4;
     return 0;
   }
 
@@ -135,6 +147,8 @@ class MainShell extends StatelessWidget {
         context.goNamed('tracking');
       case 3:
         context.goNamed('deliveryHistory');
+      case 4:
+        context.goNamed('profile');
     }
   }
 }

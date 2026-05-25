@@ -1,14 +1,23 @@
 /// Environment configuration for the Rider App.
 ///
-/// Docker Web (default): same-origin `/api/v1` + `/hubs/tracking` via nginx proxy.
-/// Native dev: `--dart-define=API_BASE_URL=http://10.0.2.2:5000`
+/// ─── Build targets ───────────────────────────────────────────────────────
+/// Docker Web (production/test):
+///   API_BASE_URL is left EMPTY → nginx same-origin proxy handles /api/ & /hubs/
+///
+/// Android Emulator (local dev):
+///   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000
+///
+/// Physical device / LAN (local dev):
+///   flutter run --dart-define=API_BASE_URL=http://192.168.x.x:5000
+/// ─────────────────────────────────────────────────────────────────────────
 class Environment {
   Environment._();
 
-  /// Empty = same-origin (Docker nginx หรือ reverse proxy).
+  /// Empty string → use same-origin nginx proxy (correct for Docker Web).
+  /// Override with --dart-define=API_BASE_URL=<url> for native device dev.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5000', // Changed to Emulator default
+    defaultValue: '', // ← empty = same-origin (Docker/Web). NOT 10.0.2.2
   );
 
   static const String apiPrefix = '/api/v1';

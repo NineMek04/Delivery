@@ -1,17 +1,25 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, inject, ElementRef, ViewChild } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  AfterViewInit,
+  inject,
+  ElementRef,
+  ViewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { Subscription, forkJoin, interval } from 'rxjs';
 import * as L from 'leaflet';
-import { 
-  AnalyticsService, 
-  AnalyticsSummaryDto, 
-  RealtimeTelemetryDto, 
-  RiderUtilizationDto, 
-  HeatmapPointDto, 
-  RiderPerformanceDto, 
-  OrderTrendDto 
+import {
+  AnalyticsService,
+  AnalyticsSummaryDto,
+  RealtimeTelemetryDto,
+  RiderUtilizationDto,
+  HeatmapPointDto,
+  RiderPerformanceDto,
+  OrderTrendDto,
 } from '../../core/services/analytics.service';
 import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
 
@@ -27,7 +35,7 @@ const iconDefault = L.icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   tooltipAnchor: [16, -28],
-  shadowSize: [41, 41]
+  shadowSize: [41, 41],
 });
 L.Marker.prototype.options.icon = iconDefault;
 
@@ -36,7 +44,7 @@ L.Marker.prototype.options.icon = iconDefault;
   standalone: true,
   imports: [CommonModule, BaseChartDirective],
   templateUrl: './analytics.component.html',
-  styleUrl: './analytics.component.scss'
+  styleUrl: './analytics.component.scss',
 })
 export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('mapElement', { static: true }) mapElement!: ElementRef;
@@ -63,7 +71,7 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private map!: L.Map;
   private heatmapCircles: L.Circle[] = [];
-  private readonly THAILAND_CENTER: L.LatLngTuple = [13.7563, 100.5018]; // Center around Bangkok mock coordinates
+  private readonly THAILAND_CENTER: L.LatLngTuple = [17.4138, 102.7872]; // Center around Udon Thani OSRM coverage
 
   // ── Delivery Trend Chart configuration ──────────────────────────
   public trendChartData: ChartConfiguration<'line'>['data'] = {
@@ -92,8 +100,8 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         pointBorderColor: '#000',
         pointHoverBackgroundColor: '#fff',
         pointHoverBorderColor: '#00FF66',
-      }
-    ]
+      },
+    ],
   };
 
   public trendChartOptions: ChartConfiguration<'line'>['options'] = {
@@ -104,13 +112,19 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         beginAtZero: true,
         grid: { color: '#222222', drawTicks: false },
         border: { display: false },
-        ticks: { color: '#888888', font: { family: 'JetBrains Mono', size: 10 } }
+        ticks: {
+          color: '#888888',
+          font: { family: 'JetBrains Mono', size: 10 },
+        },
       },
       x: {
         grid: { display: false },
         border: { display: false },
-        ticks: { color: '#888888', font: { family: 'JetBrains Mono', size: 10 } }
-      }
+        ticks: {
+          color: '#888888',
+          font: { family: 'JetBrains Mono', size: 10 },
+        },
+      },
     },
     plugins: {
       legend: {
@@ -118,8 +132,8 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         position: 'top',
         labels: {
           color: '#888888',
-          font: { family: 'JetBrains Mono', size: 10 }
-        }
+          font: { family: 'JetBrains Mono', size: 10 },
+        },
       },
       tooltip: {
         backgroundColor: '#141414',
@@ -128,9 +142,9 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         borderColor: '#222222',
         borderWidth: 1,
         titleFont: { family: 'JetBrains Mono' },
-        bodyFont: { family: 'JetBrains Mono' }
-      }
-    }
+        bodyFont: { family: 'JetBrains Mono' },
+      },
+    },
   };
 
   // ── Rider Utilization Chart configuration ───────────────────────
@@ -142,17 +156,13 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         backgroundColor: [
           '#FFC107', // Busy - Amber
           '#00FF66', // Idle - Neon Green
-          '#6C757D'  // Offline - Slate Gray
+          '#6C757D', // Offline - Slate Gray
         ],
-        hoverBackgroundColor: [
-          '#FFD54F',
-          '#33FF88',
-          '#8A959E'
-        ],
+        hoverBackgroundColor: ['#FFD54F', '#33FF88', '#8A959E'],
         borderColor: '#141414',
-        borderWidth: 3
-      }
-    ]
+        borderWidth: 3,
+      },
+    ],
   };
 
   public utilizationChartOptions: ChartConfiguration<'doughnut'>['options'] = {
@@ -165,8 +175,8 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         position: 'bottom',
         labels: {
           color: '#888888',
-          font: { family: 'JetBrains Mono', size: 10 }
-        }
+          font: { family: 'JetBrains Mono', size: 10 },
+        },
       },
       tooltip: {
         backgroundColor: '#141414',
@@ -175,30 +185,30 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         borderColor: '#222222',
         borderWidth: 1,
         titleFont: { family: 'JetBrains Mono' },
-        bodyFont: { family: 'JetBrains Mono' }
-      }
-    }
+        bodyFont: { family: 'JetBrains Mono' },
+      },
+    },
   };
 
   ngOnInit(): void {
     // Connect to real-time SignalR network
     this.signalRService.startConnection();
-    
+
     // Backend Controlled Aggregation — Live Telemetry Push
     this.subscriptions.add(
-      this.signalRService.telemetryUpdated$.subscribe(data => {
+      this.signalRService.telemetryUpdated$.subscribe((data) => {
         if (!data) return;
         this.telemetry = data.telemetry;
         this.riderUtilization = data.utilization;
         this.syncUtilizationChart();
-      })
+      }),
     );
 
     // Dynamic reload when critical order state machine transitions happen
     this.subscriptions.add(
       this.signalRService.orderStatusChanged$.subscribe(() => {
         this.loadAnalytics();
-      })
+      }),
     );
   }
 
@@ -221,15 +231,19 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       center: this.THAILAND_CENTER,
       zoom: 12,
       minZoom: 6,
-      maxZoom: 18
+      maxZoom: 18,
     });
 
     // Dark sleek high-tech map style for presentation readiness
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 18
-    }).addTo(this.map);
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 18,
+      },
+    ).addTo(this.map);
   }
 
   loadAnalytics(): void {
@@ -240,9 +254,16 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       utilization: this.analyticsService.getRiderUtilization(),
       heatmap: this.analyticsService.getHeatmap(),
       trends: this.analyticsService.getOrderTrends(7),
-      topRiders: this.analyticsService.getTopRiders(5)
+      topRiders: this.analyticsService.getTopRiders(5),
     }).subscribe({
-      next: ({ summary, telemetry, utilization, heatmap, trends, topRiders }) => {
+      next: ({
+        summary,
+        telemetry,
+        utilization,
+        heatmap,
+        trends,
+        topRiders,
+      }) => {
         this.summary = summary;
         this.telemetry = telemetry;
         this.riderUtilization = utilization;
@@ -258,33 +279,35 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       error: (err) => {
         console.error('Failed to load telemetry aggregates from backend:', err);
         this.isLoading = false;
-      }
+      },
     });
   }
 
   private syncTrendChart(): void {
     if (this.orderTrends && this.orderTrends.length > 0) {
-      const sortedTrends = [...this.orderTrends].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
-      const labels = sortedTrends.map(t => {
+      const sortedTrends = [...this.orderTrends].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+      const labels = sortedTrends.map((t) => {
         const dateObj = new Date(t.date);
         return `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
       });
-      const totalData = sortedTrends.map(t => t.totalOrders);
-      const completedData = sortedTrends.map(t => t.completedOrders);
+      const totalData = sortedTrends.map((t) => t.totalOrders);
+      const completedData = sortedTrends.map((t) => t.completedOrders);
 
       this.trendChartData = {
         labels: labels,
         datasets: [
           {
             ...this.trendChartData.datasets[0],
-            data: totalData
+            data: totalData,
           },
           {
             ...this.trendChartData.datasets[1],
-            data: completedData
-          }
-        ]
+            data: completedData,
+          },
+        ],
       };
     }
   }
@@ -315,9 +338,9 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         datasets: [
           {
             ...this.utilizationChartData.datasets[0],
-            data: [busy, idle, offline]
-          }
-        ]
+            data: [busy, idle, offline],
+          },
+        ],
       };
     }
   }
@@ -325,13 +348,18 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   private updateHeatmapOnMap(): void {
     if (!this.map) return;
 
-    this.heatmapCircles.forEach(circle => circle.remove());
+    this.heatmapCircles.forEach((circle) => circle.remove());
     this.heatmapCircles = [];
 
-    this.heatmapPoints.forEach(point => {
-      const radius = 100 + (point.intensity * 200); // dynamic radius
-      const fillOpacity = 0.15 + (point.intensity * 0.25);
-      const color = point.intensity > 0.7 ? '#FF3333' : (point.intensity > 0.4 ? '#FF7700' : '#FFBB00');
+    this.heatmapPoints.forEach((point) => {
+      const radius = 100 + point.intensity * 200; // dynamic radius
+      const fillOpacity = 0.15 + point.intensity * 0.25;
+      const color =
+        point.intensity > 0.7
+          ? '#FF3333'
+          : point.intensity > 0.4
+            ? '#FF7700'
+            : '#FFBB00';
 
       const circle = L.circle([point.latitude, point.longitude], {
         radius: radius,
@@ -339,12 +367,12 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
         fillOpacity: fillOpacity,
         color: color,
         weight: 1.5,
-        opacity: 0.4
+        opacity: 0.4,
       }).addTo(this.map);
 
       circle.bindTooltip(`Intensity: ${Math.round(point.intensity * 100)}%`, {
         direction: 'top',
-        className: 'custom-shop-tooltip'
+        className: 'custom-shop-tooltip',
       });
 
       circle.bindPopup(`
@@ -362,7 +390,10 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.heatmapPoints.length > 0 && this.heatmapCircles.length > 0) {
       // Recenter only on first initialization if needed
-      const topPoint = this.heatmapPoints.reduce((max, p) => p.intensity > max.intensity ? p : max, this.heatmapPoints[0]);
+      const topPoint = this.heatmapPoints.reduce(
+        (max, p) => (p.intensity > max.intensity ? p : max),
+        this.heatmapPoints[0],
+      );
       this.map.panTo([topPoint.latitude, topPoint.longitude]);
     }
   }
@@ -370,15 +401,21 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   // ── Template Getters ────────────────────────────────────────────
 
   get averageDeliveryTime(): number {
-    return this.summary ? Math.round(this.summary.averageDeliveryTimeMinutes * 10) / 10 : 0;
+    return this.summary
+      ? Math.round(this.summary.averageDeliveryTimeMinutes * 10) / 10
+      : 0;
   }
 
   get successRate(): number {
-    return this.summary ? Math.round(this.summary.successRatePercent * 10) / 10 : 0;
+    return this.summary
+      ? Math.round(this.summary.successRatePercent * 10) / 10
+      : 0;
   }
 
   get failedDispatchRate(): number {
-    return this.summary ? Math.round(this.summary.failedDispatchPercent * 10) / 10 : 0;
+    return this.summary
+      ? Math.round(this.summary.failedDispatchPercent * 10) / 10
+      : 0;
   }
 
   get totalOrdersCount(): number {
@@ -395,11 +432,16 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get activeFleet(): number {
     if (!this.riderUtilization) return 0;
-    return this.riderUtilization.ridersBusyCount + this.riderUtilization.ridersIdleCount;
+    return (
+      this.riderUtilization.ridersBusyCount +
+      this.riderUtilization.ridersIdleCount
+    );
   }
 
   get telemetryUpdatesPerSecond(): number {
-    return this.telemetry ? Math.round(this.telemetry.gpsUpdatesPerSecond * 10) / 10 : 0;
+    return this.telemetry
+      ? Math.round(this.telemetry.gpsUpdatesPerSecond * 10) / 10
+      : 0;
   }
 
   get telemetryActiveRiders(): number {

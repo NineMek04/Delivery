@@ -1,87 +1,224 @@
-<div class="order-detail-overlay" (click)="close.emit()">
-  <div class="order-detail-modal" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h3>Order {{ getOrderTrackingCode() }}</h3>
-      <button type="button" class="close-btn" (click)="close.emit()">
-        <lucide-icon [img]="icons.X" size="20"></lucide-icon>
+<div class="od-overlay" (click)="close.emit()">
+  <div class="od-modal" (click)="$event.stopPropagation()">
+
+    <!-- ── Header ──────────────────────────────────────────────────────── -->
+    <div class="od-header">
+      <div class="od-header-left">
+        <span class="od-eyebrow">Order Detail</span>
+        <h3 class="od-title">{{ getOrderLabel() }}</h3>
+      </div>
+      <div class="od-header-right">
+        <span class="status-badge" [class]="getStatusTone(order.status)">{{ order.status ?? 'UNKNOWN' }}</span>
+        <button class="close-btn" (click)="close.emit()">
+          <lucide-icon [img]="icons.X" size="18"></lucide-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Status Timeline ────────────────────────────────────────────── -->
+    <div class="od-timeline">
+      @for (step of timelineSteps; track step.status; let i = $index) {
+        @if (step.status !== 'CANCELLED') {
+          <div class="tl-step"
+            [class.done]="i < getTimelineIndex()"
+            [class.active]="step.status === order.status"
+            [class.cancelled]="order.status === 'CANCELLED'"
+          >
+            <div class="tl-node">
+              <lucide-icon [img]="getIcon(step.icon)" size="12"></lucide-icon>
+            </div>
+            <span class="tl-label">{{ step.label }}</span>
+          </div>
+          @if (i < timelineSteps.length - 2) {
+            <div class="tl-line" [class.done]="i < getTimelineIndex()"></div>
+          }
+        }
+      }
+    </div>
+
+    <!-- ── Tabs ───────────────────────────────────────────────────────── -->
+    <div class="od-tabs">
+      <button class="tab-btn" [class.active]="activeTab === 'info'" (click)="switchTab('info')">
+        <lucide-icon [img]="icons.Info" size="14"></lucide-icon> Info
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'map'" (click)="switchTab('map')">
+        <lucide-icon [img]="icons.MapPin" size="14"></lucide-icon> Map
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'rider'" (click)="switchTab('rider')">
+        <lucide-icon [img]="icons.User" size="14"></lucide-icon> Rider
       </button>
     </div>
 
-    <div class="modal-body">
-      <!-- Status Badge -->
-      <div class="status-badge">
-        <span class="status" [class]="getStatusTone(order.status)">{{ order.status || 'UNKNOWN' }}</span>
-      </div>
+    <!-- ── Tab Body ───────────────────────────────────────────────────── -->
+    <div class="od-body">
 
-      <!-- Timeline -->
-      <div class="timeline">
-        @for (step of timelineSteps; track step.status) {
-          <div class="timeline-step" [class.active]="step.status === order.status">
-            <div class="step-icon">
-              <lucide-icon [img]="getIcon(step.icon)" size="16"></lucide-icon>
+      <!-- INFO TAB -->
+      @if (activeTab === 'info') {
+        <div class="info-grid">
+          <div class="info-section">
+            <div class="section-label">
+              <lucide-icon [img]="icons.Clock" size="13"></lucide-icon> Timestamps
             </div>
-            <div class="step-label">{{ step.label }}</div>
+            <div class="info-rows">
+              <div class="info-row">
+                <span>Created</span>
+                <strong>{{ formatDate(order.createdAt) }}</strong>
+              </div>
+              <div class="info-row">
+                <span>Assigned</span>
+                <strong>{{ formatDate(order.assignedAt) }}</strong>
+              </div>
+              <div class="info-row">
+                <span>Completed</span>
+                <strong>{{ formatDate(order.completedAt) }}</strong>
+              </div>
+              <div class="info-row">
+                <span>Delivery Duration</span>
+                <strong class="highlight">{{ duration }}</strong>
+              </div>
+            </div>
           </div>
-        }
-      </div>
 
-      <!-- Order Info -->
-      <div class="info-grid">
-        <div class="info-item">
-          <div class="info-label">Distance</div>
-          <div class="info-value">{{ order.distanceKm | number:'1.2-2' }} km</div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Delivery Fee</div>
-          <div class="info-value">{{ order.deliveryFee | number:'1.0-0' }} ฿</div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Pickup</div>
-          <div class="info-value">
-            <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
-            {{ formatCoord(order.pickupLat) }}, {{ formatCoord(order.pickupLng) }}
+          <div class="info-section">
+            <div class="section-label">
+              <lucide-icon [img]="icons.Truck" size="13"></lucide-icon> Route
+            </div>
+            <div class="info-rows">
+              <div class="info-row">
+                <span>Distance</span>
+                <strong>{{ order.distanceKm | number:'1.2-2' }} km</strong>
+              </div>
+              <div class="info-row">
+                <span>Delivery Fee</span>
+                <strong class="highlight">{{ order.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }}</strong>
+              </div>
+              <div class="info-row">
+                <span>ETA</span>
+                <strong>{{ formatDate(order.expectedDeliveryTime) }}</strong>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Dropoff</div>
-          <div class="info-value">
-            <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
-            {{ formatCoord(order.dropoffLat) }}, {{ formatCoord(order.dropoffLng) }}
-          </div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Assigned Rider</div>
-          <div class="info-value">{{ order.assignedRiderId ? shortId(order.assignedRiderId) : '—' }}</div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Created</div>
-          <div class="info-value">{{ formatDate(order.createdAt) }}</div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Assigned At</div>
-          <div class="info-value">{{ formatDate(order.assignedAt) }}</div>
-        </div>
-        <div class="info-item">
-          <div class="info-label">Completed</div>
-          <div class="info-value">{{ formatDate(order.completedAt) }}</div>
-        </div>
-      </div>
 
-      <!-- Actions -->
-      <div class="actions">
-        @if (order.status === 'CREATED' || order.status === 'MATCHING' || order.status === 'OFFERING') {
-          <button type="button" class="ghost-action" (click)="retryDispatch()">
-            <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
-            Retry Dispatch
-          </button>
-        }
-        @if (['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP'].includes(order.status || '')) {
-          <button type="button" class="danger-action" (click)="cancelOrder()">
-            <lucide-icon [img]="icons.X" size="14"></lucide-icon>
-            Cancel Order
-          </button>
-        }
-      </div>
+          <div class="info-section">
+            <div class="section-label">
+              <lucide-icon [img]="icons.MapPin" size="13"></lucide-icon> Pickup Location
+            </div>
+            <div class="coord-box">
+              <span class="coord-lbl">LAT</span>
+              <span class="coord-val">{{ formatCoord(order.pickupLat) }}</span>
+              <span class="coord-lbl">LNG</span>
+              <span class="coord-val">{{ formatCoord(order.pickupLng) }}</span>
+            </div>
+          </div>
+
+          <div class="info-section">
+            <div class="section-label">
+              <lucide-icon [img]="icons.Navigation" size="13"></lucide-icon> Dropoff Location
+            </div>
+            <div class="coord-box">
+              <span class="coord-lbl">LAT</span>
+              <span class="coord-val">{{ formatCoord(order.dropoffLat) }}</span>
+              <span class="coord-lbl">LNG</span>
+              <span class="coord-val">{{ formatCoord(order.dropoffLng) }}</span>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- MAP TAB -->
+      @if (activeTab === 'map') {
+        <div class="map-tab">
+          <div class="map-legend">
+            <span class="legend-item pickup">🏪 Pickup</span>
+            <span class="legend-item dropoff">🏠 Dropoff</span>
+            @if (order.status === 'COMPLETED') {
+              <span class="legend-item completed">— Route (Completed)</span>
+            } @else if (['DELIVERING','PICKING_UP'].includes(order.status ?? '')) {
+              <span class="legend-item inprogress">— Route (In Progress)</span>
+            } @else {
+              <span class="legend-item pending">— Route (Planned)</span>
+            }
+          </div>
+          <div class="mini-map-container" #miniMap></div>
+          <p class="map-note">* Route shown as straight line. Real road route may differ.</p>
+        </div>
+      }
+
+      <!-- RIDER TAB -->
+      @if (activeTab === 'rider') {
+        <div class="rider-tab">
+          @if (!order.assignedRiderId) {
+            <div class="empty-state">
+              <p>No rider assigned to this order yet.</p>
+            </div>
+          } @else if (isLoadingRider) {
+            <div class="empty-state">
+              <div class="mini-spinner"></div>
+              <p>Loading rider info...</p>
+            </div>
+          } @else if (rider) {
+            <div class="rider-profile">
+              <div class="rider-avatar">{{ rider.trackingCode?.slice(0, 2) ?? 'R' }}</div>
+              <div class="rider-info">
+                <strong class="rider-name">{{ rider.trackingCode ?? shortId(rider.id) }}</strong>
+                <span class="rider-id">ID: {{ shortId(rider.id) }}</span>
+              </div>
+              <span class="rider-status-badge" [class]="rider.status?.toLowerCase() ?? 'offline'">
+                {{ rider.status ?? 'UNKNOWN' }}
+              </span>
+            </div>
+            <div class="rider-details">
+              <div class="rider-detail-row">
+                <span>Rider ID (Full)</span>
+                <code>{{ rider.id }}</code>
+              </div>
+              <div class="rider-detail-row">
+                <span>Tracking Code</span>
+                <strong>{{ rider.trackingCode ?? '—' }}</strong>
+              </div>
+              <div class="rider-detail-row">
+                <span>Name</span>
+                <strong>{{ rider.name ?? '—' }}</strong>
+              </div>
+              <div class="rider-detail-row">
+                <span>Current Status</span>
+                <strong>{{ rider.status ?? '—' }}</strong>
+              </div>
+              <div class="rider-detail-row">
+                <span>Last GPS Update</span>
+                <strong>{{ rider.lastUpdated ? (rider.lastUpdated | date:'HH:mm:ss dd/MM/yy') : '—' }}</strong>
+              </div>
+              <div class="rider-detail-row">
+                <span>Current Position</span>
+                <code>{{ rider.lat | number:'1.5-5' }}, {{ rider.lng | number:'1.5-5' }}</code>
+              </div>
+            </div>
+          } @else {
+            <div class="empty-state">
+              <p>Could not load rider details.</p>
+            </div>
+          }
+        </div>
+      }
+
     </div>
+
+    <!-- ── Footer Actions ─────────────────────────────────────────────── -->
+    <div class="od-footer">
+      @if (['CREATED','MATCHING','OFFERING'].includes(order.status ?? '')) {
+        <button class="footer-btn retry" (click)="retryDispatch()">
+          <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
+          Retry Dispatch
+        </button>
+      }
+      @if (['CREATED','MATCHING','OFFERING','ASSIGNED','PICKING_UP'].includes(order.status ?? '')) {
+        <button class="footer-btn danger" (click)="cancelOrder()">
+          <lucide-icon [img]="icons.X" size="14"></lucide-icon>
+          Cancel Order
+        </button>
+      }
+      <button class="footer-btn ghost" (click)="close.emit()">Close</button>
+    </div>
+
   </div>
 </div>

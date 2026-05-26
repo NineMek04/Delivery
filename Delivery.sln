@@ -5,7 +5,7 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi", "BackendApi\BackendApi.csproj", "{494E2E43-757D-2D5F-1B51-BF2742664A95}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi.IntegrationTests", "scripts\BackendApi.IntegrationTests\BackendApi.IntegrationTests.csproj", "{ACBC5228-EB92-4F11-9E48-4E7F41C79B47}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi.IntegrationTests", "scripts.test\BackendApi.IntegrationTests\BackendApi.IntegrationTests.csproj", "{ACBC5228-EB92-4F11-9E48-4E7F41C79B47}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

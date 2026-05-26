@@ -54,14 +54,14 @@
 * **ระบบปฏิบัติการ Windows (PowerShell):**
   เปิด PowerShell ในโฟลเดอร์โปรเจกต์หลัก แล้วรันสคริปต์:
   ```powershell
-  .\scripts\setup-osrm.ps1
+  .\scripts.test\setup-osrm.ps1
   ```
 
 * **ระบบปฏิบัติการ Linux / macOS (Bash):**
   ให้สิทธิ์การรันแล้วเรียกใช้งาน:
   ```bash
-  chmod +x ./scripts/setup-osrm.sh
-  ./scripts/setup-osrm.sh
+  chmod +x ./scripts.test/setup-osrm.sh
+  ./scripts.test/setup-osrm.sh
   ```
 
 ---
@@ -177,7 +177,7 @@ catch
 docker-compose up -d
 
 # 2. บิวด์ข้อมูลถนนจังหวัดอุดรธานี (ทำครั้งแรกครั้งเดียว)
-.\scripts\setup-osrm.ps1
+.\scripts.test\setup-osrm.ps1
 
 # 3. รีสตาร์ตตู้แผนที่ออฟไลน์ให้ดึงฐานข้อมูลใหม่ขึ้นมาทำงาน
 docker-compose restart osrm
@@ -191,7 +191,7 @@ docker-compose restart osrm
 ### 🏍️ Step 3: ทริกเกอร์ Sandbox จำลองอัจฉริยะ
 ทริกเกอร์ระบบสร้างออเดอร์และการขนส่งจำลองอัจฉริยะ E2E:
 ```powershell
-node .\scripts\e2e-simulator\simulate-e2e.js
+node .\scripts.test\e2e-simulator\simulate-e2e.js
 ```
 
 ### 🎬 สิ่งที่ต้องเกิดขึ้นและสังเกตในห้องทดลอง (Verification Checkpoints):

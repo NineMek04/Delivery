@@ -399,6 +399,55 @@ node reconnect-stress.js --riders 20 --cycles 10 --delay 3000
 ### 8.3 การรายงานผล (Reporting)
 หลังจากรันการทดสอบโหลดเสร็จสิ้น แนะนำให้คัดลอกไฟล์ `report-template.md` เพื่อใช้บันทึกผลการทำ Benchmark ของคุณ สำหรับนำไปใช้เปรียบเทียบกับการทดสอบประสิทธิภาพในการอัปเดตระบบครั้งต่อๆ ไป
 
+คำสั่งสำหรับรัน Test และ Script ต่างๆ ในโปรเจกต์ของคุณครับ (จัดระเบียบตามโฟลเดอร์ใน scripts.test/):
+
+1. Integration Tests (C# Backend)
+ทดสอบระบบ Backend API (รวมถึงการเชื่อมต่อ DB, Redis, EventBus)
+
+คำสั่งรัน:
+bash
+dotnet test scripts.test/BackendApi.IntegrationTests
+2. AI Engine Tests (Python)
+ทดสอบการทำงานของฝั่ง AI Engine (การคำนวณเส้นทาง VRP, Dispatch Logic)
+
+คำสั่งรัน (ต้องใช้ pytest):
+bash
+pytest scripts.test/ai-engine.tests
+3. E2E Simulator (Node.js)
+ใช้สำหรับจำลองการทำงานตั้งแต่ต้นจนจบ (End-to-End) รวมไปถึงจำลองสถานการณ์ต่างๆ (สั่งอาหาร -> ค้นหาคนขับ -> ส่งของ)
+
+คำสั่งรันเพื่อทดสอบโฟลว์เต็มระบบ:
+bash
+node scripts.test/e2e-simulator/simulate-e2e.js
+คำสั่งรันเพื่อทดสอบความเข้ากันได้กับแอป Flutter (Mobile Client):
+bash
+node scripts.test/e2e-simulator/test-flutter-compat.js
+4. Load & Stress Test (Node.js)
+ใช้สำหรับทดสอบการรับโหลดของระบบในส่วนต่างๆ (เข้าไปรันในโฟลเดอร์ scripts.test/load-test/ ก่อนรัน หรือใช้ npm run ได้ถ้าระบุ path ถูกต้อง)
+
+ทดสอบการรับโหลดของ SignalR (Real-time connection):
+bash
+npm --prefix scripts.test/load-test run test:signalr
+# หรือรันตรงๆ: node scripts.test/load-test/signalr-stress.js
+ทดสอบการรับโหลดของ REST API ปกติ:
+bash
+npm --prefix scripts.test/load-test run test:api
+ทดสอบโหลดการยิง Dispatch หนักๆ:
+bash
+npm --prefix scripts.test/load-test run test:dispatch
+ทดสอบสถานการณ์ Client Reconnect รัวๆ:
+bash
+npm --prefix scripts.test/load-test run test:reconnect
+
+
+ใช้สำหรับการตั้งค่า OSRM (Open Source Routing Machine) สำหรับการหาเส้นทางและระยะทาง
+
+สำหรับ Windows (PowerShell):
+powershell
+.\scripts.test\setup-osrm.ps1
+สำหรับ Linux/Mac (Bash):
+bash
+./scripts.test/setup-osrm.sh
 
 # rider_app
         # NOTE

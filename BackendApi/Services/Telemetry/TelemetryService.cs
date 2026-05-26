@@ -82,16 +82,26 @@ namespace BackendApi.Services.Telemetry
                 }
             }
 
-            // 4. บันทึกพิกัดเรียลไทม์ลงเฉพาะ Redis Presence Cache
-            await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng);
+            // 4. คำนวณความเร็วจาก GPS point ก่อนหน้า (reuse lastGps จากด้านบน)
+            double speedKmh = 0.0;
+            if (lastGps is not null)
+            {
+                var distForSpeed = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, snappedLat, snappedLng);
+                var timeDiffForSpeed = (now - lastGps.Value.UpdatedAt).TotalSeconds;
+                if (timeDiffForSpeed > 0)
+                    speedKmh = (distForSpeed / timeDiffForSpeed) * 3.6; // m/s → km/h
+            }
 
-            // 5. บันทึกลง In-memory Buffer เพื่อรอเขียน PostgreSQL แบบ Batch (History Ledger)
+            // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache
+            await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh);
+
+            // 6. บันทึกลง In-memory Buffer เพื่อรอเขียน PostgreSQL แบบ Batch (History Ledger)
             _gpsBuffer.AddPointAndCheckFlush(riderId, snappedLat, snappedLng);
 
-            // 6. เพิ่มตัวนับ GPS Tick สำหรับแสดงอัตราผ่านทางหน้าหลังบ้าน
+            // 7. เพิ่มตัวนับ GPS Tick สำหรับแสดงอัตราผ่านทางหน้าหลังบ้าน
             _aggregator.IncrementGpsTick();
 
-            // 7. จัดการ Dynamic Throttling สำหรับ Broadcast ผ่าน SignalR
+            // 8. จัดการ Dynamic Throttling สำหรับ Broadcast ผ่าน SignalR
             var db = _redis.GetDatabase();
             var lastBroadcastKey = $"telemetry:last_broadcast:{riderId}";
             var lastBroadcast = await db.HashGetAllAsync(lastBroadcastKey);
@@ -173,7 +183,7 @@ namespace BackendApi.Services.Telemetry
                 });
             }
 
-            // 8. ปรับปรุงฐานข้อมูลหลัก (PostgreSQL) แบบ Throttled (ทุก 10 วินาที)
+            // 9. ปรับปรุงฐานข้อมูลหลัก (PostgreSQL) แบบ Throttled (ทุก 10 วินาที)
             // เพื่อคงความพร้อมทำงานกับระบบอื่น แต่ลด I/O ของ Database ลงมากกว่า 90%
             var dbThrottleKey = $"telemetry:db_write_throttle:{riderId}";
             var shouldWriteToDb = await db.StringSetAsync(dbThrottleKey, "locked", TimeSpan.FromSeconds(10), When.NotExists);

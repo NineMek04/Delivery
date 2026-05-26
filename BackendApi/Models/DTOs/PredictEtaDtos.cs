@@ -30,6 +30,12 @@ public class PredictEtaRequestDto
 
     [JsonPropertyName("traffic_level")]
     public string? TrafficLevel { get; set; }
+
+    [JsonPropertyName("rider_speed_kmh")]
+    public double? RiderSpeedKmh { get; set; }
+
+    [JsonPropertyName("osrm_pickup_duration_seconds")]
+    public double? OsrmPickupDurationSeconds { get; set; }
 }
 
 public class PredictEtaResponseDto

@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart' hide Path;
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/signalr/signalr_service.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../models/dispatch_offer.dart';
 import '../../../shared/utils/polyline_util.dart';
 import '../../../shared/widgets/connection_status_bar.dart';

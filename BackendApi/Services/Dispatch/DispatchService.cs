@@ -2,6 +2,7 @@ using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
+using BackendApi.Models.DTOs;
 using BackendApi.Services.Ai;
 using Microsoft.EntityFrameworkCore;
 using Order = BackendApi.Models.Order;
@@ -32,6 +33,7 @@ public class DispatchService
     private readonly RedisLockService _lockService;
     private readonly RiderPresenceService _presenceService;
     private readonly OsrmRoutingService _routingService;
+    private readonly IAiService _aiService;
     private readonly DispatchCandidateRanker _ranker;
     private readonly DispatchRiderNotifier _riderNotifier;
     private readonly DispatchAdminNotifier _adminNotifier;
@@ -44,6 +46,7 @@ public class DispatchService
         RedisLockService lockService,
         RiderPresenceService presenceService,
         OsrmRoutingService routingService,
+        IAiService aiService,
         DispatchCandidateRanker ranker,
         DispatchRiderNotifier riderNotifier,
         DispatchAdminNotifier adminNotifier,
@@ -55,6 +58,7 @@ public class DispatchService
         _lockService = lockService;
         _presenceService = presenceService;
         _routingService = routingService;
+        _aiService = aiService;
         _ranker = ranker;
         _riderNotifier = riderNotifier;
         _adminNotifier = adminNotifier;
@@ -217,6 +221,41 @@ public class DispatchService
                     "Failed to calculate pickup route for Rider {RiderId} and Order {OrderId}. Falling back to straight line on clients.",
                     riderId,
                     order.Id);
+            }
+        }
+
+        // Re-calculate ETA ด้วย OSRM pickup duration + Rider velocity จริง
+        if (pickupRouteDurationSeconds.HasValue && order.RouteDurationSeconds > 0)
+        {
+            try
+            {
+                var riderSpeed = await _presenceService.GetRiderSpeedAsync(riderId);
+                var etaRequest = new PredictEtaRequestDto
+                {
+                    PickupLat = order.PickupLocation?.Y ?? 0,
+                    PickupLng = order.PickupLocation?.X ?? 0,
+                    DropoffLat = order.DropoffLocation?.Y ?? 0,
+                    DropoffLng = order.DropoffLocation?.X ?? 0,
+                    RouteDistanceMeters = order.RouteDistanceMeters,
+                    RouteDurationSeconds = order.RouteDurationSeconds,
+                    CurrentTime = DateTime.UtcNow.ToString("O"),
+                    RiderSpeedKmh = riderSpeed > 0 ? riderSpeed : null,
+                    OsrmPickupDurationSeconds = pickupRouteDurationSeconds.Value
+                };
+
+                var etaResult = await _aiService.PredictEtaAsync(etaRequest);
+                if (etaResult != null && DateTime.TryParse(etaResult.EtaDatetime, out var newEta))
+                {
+                    order.ExpectedDeliveryTime = newEta;
+                    _logger.LogInformation(
+                        "ETA re-calculated for Order {OrderId} with Rider {RiderId}: {EtaMinutes} min (speed: {Speed} km/h, pickup: {Pickup}s)",
+                        order.Id, riderId, etaResult.EtaMinutes, riderSpeed, pickupRouteDurationSeconds.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to re-calculate ETA for Order {OrderId} with Rider {RiderId}. Using original ETA.",
+                    order.Id, riderId);
             }
         }
 

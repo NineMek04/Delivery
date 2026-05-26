@@ -39,6 +39,9 @@ public class DispatchCandidateDto
     [JsonPropertyName("lng")]
     public double Lng { get; set; }
 
+    [JsonPropertyName("speed_kmh")]
+    public double SpeedKmh { get; set; }
+
     [JsonPropertyName("current_tasks")]
     public List<Dictionary<string, object>> CurrentTasks { get; set; } = new();
 }

@@ -1,6 +1,7 @@
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Services.Ai;
+using BackendApi.Infrastructure.Redis;
 
 namespace BackendApi.Services.Dispatch;
 
@@ -11,13 +12,16 @@ namespace BackendApi.Services.Dispatch;
 public class DispatchCandidateRanker
 {
     private readonly IAiService _aiService;
+    private readonly RiderPresenceService _presenceService;
     private readonly ILogger<DispatchCandidateRanker> _logger;
 
     public DispatchCandidateRanker(
         IAiService aiService,
+        RiderPresenceService presenceService,
         ILogger<DispatchCandidateRanker> logger)
     {
         _aiService = aiService;
+        _presenceService = presenceService;
         _logger = logger;
     }
 
@@ -29,32 +33,38 @@ public class DispatchCandidateRanker
     {
         try
         {
-            var request = new DispatchRankRequestDto
-            {
-                Context = new DispatchContextDto
-                {
-                    Timestamp = DateTime.UtcNow.ToString("O"),
-                    City = "Bangkok"
-                },
-                Order = new DispatchOrderDto
-                {
-                    Id = order.Id,
-                    Pickup = new List<double> { order.PickupLocation?.Y ?? 0, order.PickupLocation?.X ?? 0 },
-                    Dropoff = new List<double> { order.DropoffLocation?.Y ?? 0, order.DropoffLocation?.X ?? 0 },
-                    SlaLimitMinutes = order.SlaLimitMinutes
-                },
-                Candidates = candidates.Select(c =>
+                // ดึง rider speed จาก Redis 5-point Moving Average
+                var candidateDtos = new List<DispatchCandidateDto>();
+                foreach (var c in candidates)
                 {
                     ridersDict.TryGetValue(c.RiderId, out var rider);
-                    return new DispatchCandidateDto
+                    var riderSpeed = await _presenceService.GetRiderSpeedAsync(c.RiderId);
+                    candidateDtos.Add(new DispatchCandidateDto
                     {
                         RiderId = c.RiderId,
                         Lat = rider?.CurrentLocation?.Y ?? 0,
                         Lng = rider?.CurrentLocation?.X ?? 0,
-                        CurrentTasks = new List<Dictionary<string, object>>() // TODO: ดึงงานที่กำลังทำอยู่
-                    };
-                }).ToList()
-            };
+                        SpeedKmh = riderSpeed > 0 ? riderSpeed : 20.0, // Default 20 km/h
+                        CurrentTasks = new List<Dictionary<string, object>>()
+                    });
+                }
+
+                var request = new DispatchRankRequestDto
+                {
+                    Context = new DispatchContextDto
+                    {
+                        Timestamp = DateTime.UtcNow.ToString("O"),
+                        City = "Bangkok"
+                    },
+                    Order = new DispatchOrderDto
+                    {
+                        Id = order.Id,
+                        Pickup = new List<double> { order.PickupLocation?.Y ?? 0, order.PickupLocation?.X ?? 0 },
+                        Dropoff = new List<double> { order.DropoffLocation?.Y ?? 0, order.DropoffLocation?.X ?? 0 },
+                        SlaLimitMinutes = order.SlaLimitMinutes
+                    },
+                    Candidates = candidateDtos
+                };
 
             var aiResponse = await _aiService.RankDispatchCandidatesAsync(request);
 

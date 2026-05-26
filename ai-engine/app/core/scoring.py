@@ -49,8 +49,11 @@ def rank_candidates(order: Dict[str, Any], candidates: List[Dict[str, Any]], max
         
         total_score = distance_score + workload_score + direction_penalty
 
-        # Estimate ETA (assume 30 km/h average city speed -> 0.5 km/min)
-        eta_minutes = int(distance_to_pickup / 0.5)
+        # Estimate ETA using rider's real-time velocity (from 5-point moving average)
+        rider_speed = candidate.get("speed_kmh", 20.0)  # Default 20 km/h
+        if rider_speed < 5.0:  # ถ้าหยุดนิ่ง/เร็วน้อยมาก ใช้ค่าเฉลี่ยเมือง
+            rider_speed = 20.0
+        eta_minutes = int((distance_to_pickup / rider_speed) * 60)
 
         ranked.append({
             "rider_id": candidate["rider_id"],

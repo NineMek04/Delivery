@@ -44,7 +44,7 @@ public class DispatchTimeoutWorker : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var dispatchService = scope.ServiceProvider.GetRequiredService<DispatchService>();
+        var offerHandler = scope.ServiceProvider.GetRequiredService<DispatchOfferHandler>();
 
         var now = DateTime.UtcNow;
 
@@ -65,7 +65,7 @@ public class DispatchTimeoutWorker : BackgroundService
                 "Offer expired: Order {OrderId} → Rider {RiderId} (offer {OfferId})",
                 order.Id, order.AssignedRiderId, order.CurrentOfferId);
 
-            await dispatchService.RejectOrTimeoutAsync(
+            await offerHandler.RejectOrTimeoutAsync(
                 order.Id, order.AssignedRiderId, order.CurrentOfferId);
         }
 

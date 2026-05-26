@@ -2,6 +2,7 @@ using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Mappings;
 using BackendApi.Core.Models;
+using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using Mapster;
@@ -34,22 +35,17 @@ namespace BackendApi.Controllers.MasterData
             var query = DB.GetQuery<MenuItem>()
                 .Where(m => m.ShopId == shopId)
                 .Include(m => m.Options)
-                    .ThenInclude(o => o.Items);
+                    .ThenInclude(o => o.Items)
+                .OrderBy(m => m.Name);
 
-            var total = await query.CountAsync(cancellationToken);
-
-            var menuItems = await query
-                .OrderBy(m => m.Name)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken);
+            var result = await query.ToPaginatedListAsync(page, pageSize, cancellationToken);
 
             return Ok(new PaginatedResult<MenuItemDto>
             {
-                Items = menuItems.Adapt<List<MenuItemDto>>(),
-                TotalCount = total,
-                Page = page,
-                PageSize = pageSize
+                Items = result.Items.Adapt<List<MenuItemDto>>(),
+                TotalCount = result.TotalCount,
+                Page = result.Page,
+                PageSize = result.PageSize
             });
         }
 

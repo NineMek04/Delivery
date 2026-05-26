@@ -1,6 +1,7 @@
 using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
+using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Services.Tracking;
@@ -50,20 +51,16 @@ public class RidersController : CrudControllerBase<Rider, RiderDto>
             }
         }
 
-        var total = await query.CountAsync(cancellationToken);
-        
-        var riders = await query
+        var result = await query
             .OrderBy(r => r.Name)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ToPaginatedListAsync(page, pageSize, cancellationToken);
 
         return Ok(new PaginatedResult<RiderDto>
         {
-            Items = riders.Adapt<List<RiderDto>>(),
-            TotalCount = total,
-            Page = page,
-            PageSize = pageSize
+            Items = result.Items.Adapt<List<RiderDto>>(),
+            TotalCount = result.TotalCount,
+            Page = result.Page,
+            PageSize = result.PageSize
         });
     }
 

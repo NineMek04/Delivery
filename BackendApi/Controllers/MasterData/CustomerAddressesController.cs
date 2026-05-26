@@ -1,6 +1,7 @@
 using BackendApi.Core;
 using BackendApi.Core.Mappings;
 using BackendApi.Core.Models;
+using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using Mapster;
@@ -51,21 +52,17 @@ namespace BackendApi.Controllers.MasterData
                 query = query.Where(a => a.Name.ToLower().Contains(term) || a.AddressLine1.ToLower().Contains(term));
             }
 
-            var total = await query.CountAsync(cancellationToken);
-
-            var addresses = await query
+            var result = await query
                 .OrderByDescending(a => a.IsDefault)
                 .ThenByDescending(a => a.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken);
+                .ToPaginatedListAsync(page, pageSize, cancellationToken);
 
             return Ok(new PaginatedResult<CustomerAddressDto>
             {
-                Items = addresses.Adapt<List<CustomerAddressDto>>(),
-                TotalCount = total,
-                Page = page,
-                PageSize = pageSize
+                Items = result.Items.Adapt<List<CustomerAddressDto>>(),
+                TotalCount = result.TotalCount,
+                Page = result.Page,
+                PageSize = result.PageSize
             });
         }
 

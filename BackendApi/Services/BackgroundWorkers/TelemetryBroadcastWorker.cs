@@ -5,6 +5,8 @@ using BackendApi.Models;
 using BackendApi.Services.Telemetry;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using StackExchange.Redis;
 
 namespace BackendApi.Services.BackgroundWorkers;
 
@@ -117,6 +119,39 @@ public class TelemetryBroadcastWorker : BackgroundService
             ridersOfflineCount: offline,
             averageDeliveriesPerRider: Math.Round(avgDeliveries, 1)
         );
+
+        // 1. ค้นหา Demand Hotspots (พิกัดร้านค้าที่มีออเดอร์หนาแน่นที่สุดในช่วงเวลา 1 ชั่วโมง)
+        var oneHourAgo = DateTime.UtcNow.AddHours(-1);
+        var recentOrders = await dbContext.Orders.AsNoTracking()
+            .Where(o => o.CreatedAt >= oneHourAgo && o.PickupLocation != null)
+            .Select(o => new { Lat = o.PickupLocation.Y, Lng = o.PickupLocation.X })
+            .ToListAsync(ct);
+
+        var hotspots = recentOrders
+            .GroupBy(o => new { LatGrid = Math.Round(o.Lat, 3), LngGrid = Math.Round(o.Lng, 3) })
+            .Select(g => new { Lat = g.Key.LatGrid, Lng = g.Key.LngGrid, Count = g.Count() })
+            .OrderByDescending(g => g.Count)
+            .Take(10)
+            .ToList();
+
+        // 2. บันทึกลง Redis operational cache (Heatmap) เพื่อดึงไปแสดงฝั่ง Dashboard ทันที
+        try
+        {
+            var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
+            var db = redis.GetDatabase();
+            var hotspotsJson = JsonSerializer.Serialize(hotspots);
+            await db.StringSetAsync("riders:hotspots:heatmap", hotspotsJson, TimeSpan.FromHours(1));
+
+            if (hotspots.Any())
+            {
+                _logger.LogInformation("[Predictive Dispatch] Analyzed demand hotspots grid. Top hotspot count: {Count} orders at ({Lat}, {Lng})", 
+                    hotspots[0].Count, hotspots[0].Lat, hotspots[0].Lng);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to cache Demand Hotspots to Redis.");
+        }
     }
 
     private async Task BroadcastTelemetryAsync(CancellationToken ct)

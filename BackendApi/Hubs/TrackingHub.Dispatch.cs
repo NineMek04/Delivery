@@ -10,7 +10,7 @@ public partial class TrackingHub
         var riderId = await GetRiderIdAsync();
         if (riderId is null) return;
 
-        var success = await _dispatchService.AcceptOfferAsync(riderId, offerId, version);
+        var success = await _offerHandler.AcceptOfferAsync(riderId, offerId, version);
 
         if (success)
         {
@@ -27,6 +27,6 @@ public partial class TrackingHub
         var riderId = await GetRiderIdAsync();
         if (riderId is null) return;
 
-        await _dispatchService.RejectOrTimeoutAsync(orderId, riderId, offerId);
+        await _offerHandler.RejectOrTimeoutAsync(orderId, riderId, offerId);
     }
 }

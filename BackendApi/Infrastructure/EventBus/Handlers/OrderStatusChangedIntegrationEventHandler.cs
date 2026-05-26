@@ -21,18 +21,18 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
     {
         private readonly IHubContext<TrackingHub> _hubContext;
         private readonly IFcmNotificationService _fcmService;
-        private readonly DBHandlerCore _db;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<OrderStatusChangedIntegrationEventHandler> _logger;
 
         public OrderStatusChangedIntegrationEventHandler(
             IHubContext<TrackingHub> hubContext,
             IFcmNotificationService fcmService,
-            DBHandlerCore db,
+            IServiceScopeFactory scopeFactory,
             ILogger<OrderStatusChangedIntegrationEventHandler> logger)
         {
             _hubContext = hubContext;
             _fcmService = fcmService;
-            _db = db;
+            _scopeFactory = scopeFactory;
             _logger = logger;
         }
 
@@ -76,8 +76,10 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                 {
                     try
                     {
+                        using var scope = _scopeFactory.CreateScope();
+                        var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
                         var statusThai = GetStatusThaiDescription(@event.NewState);
-                        await _fcmService.SendNotificationToUserAsync(
+                        await scopedFcmService.SendNotificationToUserAsync(
                             @event.CustomerId,
                             "อัปเดตสถานะออเดอร์ของคุณ",
                             $"ออเดอร์ของคุณรหัส ORD-{@event.RefNumber.ToString("D6")} สถานะเปลี่ยนเป็น: {statusThai}",
@@ -103,14 +105,18 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                 {
                     try
                     {
-                        var riderUser = await _db.GetQuery<User>()
+                        using var scope = _scopeFactory.CreateScope();
+                        var db = scope.ServiceProvider.GetRequiredService<DBHandlerCore>();
+
+                        var riderUser = await db.GetQuery<User>()
                             .AsNoTracking()
                             .FirstOrDefaultAsync(u => u.RiderId == @event.AssignedRiderId);
 
                         if (riderUser != null)
                         {
+                            var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
                             var statusThai = @event.NewState == OrderState.COMPLETED ? "เสร็จสิ้นแล้ว" : "ยกเลิกแล้ว";
-                            await _fcmService.SendNotificationToUserAsync(
+                            await scopedFcmService.SendNotificationToUserAsync(
                                 riderUser.Id,
                                 "อัปเดตสถานะออเดอร์จัดส่ง",
                                 $"ออเดอร์จัดส่งรหัส ORD-{@event.RefNumber.ToString("D6")} ได้{statusThai}",

@@ -2,6 +2,7 @@ using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Mappings;
 using BackendApi.Core.Models;
+using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Services.Tracking;
@@ -53,23 +54,19 @@ namespace BackendApi.Controllers.MasterData
                 }
             }
 
-            var total = await query.CountAsync(cancellationToken);
-
-            var shops = await query
+            var result = await query
                 .OrderBy(s => s.Name)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
                 .Include(s => s.MenuItems)
                     .ThenInclude(m => m.Options)
                         .ThenInclude(o => o.Items)
-                .ToListAsync(cancellationToken);
+                .ToPaginatedListAsync(page, pageSize, cancellationToken);
 
             return Ok(new PaginatedResult<ShopDto>
             {
-                Items = shops.Adapt<List<ShopDto>>(),
-                TotalCount = total,
-                Page = page,
-                PageSize = pageSize
+                Items = result.Items.Adapt<List<ShopDto>>(),
+                TotalCount = result.TotalCount,
+                Page = result.Page,
+                PageSize = result.PageSize
             });
         }
 

@@ -3,7 +3,6 @@ using BackendApi.Core.Constants;
 using BackendApi.Security;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Core.Models;
-using BackendApi.Hubs;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Services.Ai;
@@ -13,7 +12,6 @@ using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,7 +27,7 @@ public class OrderService : IOrderService
     private readonly ITrackingSearchService _searchService;
     private readonly OsrmRoutingService _routingService;
     private readonly IAiService _aiService;
-    private readonly IHubContext<TrackingHub> _hubContext;
+    private readonly OrderNotificationService _orderNotifier;
     private readonly IEventBus _eventBus;
     private readonly ILogger<OrderService> _logger;
 
@@ -41,7 +39,7 @@ public class OrderService : IOrderService
         ITrackingSearchService searchService,
         OsrmRoutingService routingService,
         IAiService aiService,
-        IHubContext<TrackingHub> hubContext,
+        OrderNotificationService orderNotifier,
         IEventBus eventBus,
         ILogger<OrderService> logger)
     {
@@ -52,7 +50,7 @@ public class OrderService : IOrderService
         _searchService = searchService;
         _routingService = routingService;
         _aiService = aiService;
-        _hubContext = hubContext;
+        _orderNotifier = orderNotifier;
         _eventBus = eventBus;
         _logger = logger;
     }
@@ -191,8 +189,7 @@ public class OrderService : IOrderService
         var responseDto = _mapper.Map<OrderDto>(savedOrder);
 
         // Broadcast to store partners group via SignalR
-        await _hubContext.Clients.Group("stores").SendAsync(
-            "OrderCreated", responseDto, cancellationToken);
+        await _orderNotifier.NotifyOrderCreatedAsync(responseDto, cancellationToken);
 
         // รัน Dispatch แบบ Background Task เพื่อไม่ให้รอ API ค้าง
         _ = Task.Run(async () =>
@@ -268,21 +265,21 @@ public class OrderService : IOrderService
         Order? order = null;
 
         var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Order);
-        Console.WriteLine($"[DEBUG] GetOrderById called with id: '{id}', parsedRef: {parsedRef}");
+        _logger.LogDebug("GetOrderById called with id: '{Id}', parsedRef: {ParsedRef}", id, parsedRef);
 
         if (parsedRef.HasValue)
         {
             order = await _db.GetQuery<Order>()
                 .Include(o => o.Items)
                 .FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
-            Console.WriteLine($"[DEBUG] Searched by RefNumber {parsedRef.Value}, result is null? {order == null}");
+            _logger.LogDebug("Searched by RefNumber {RefNumber}, result is null? {IsNull}", parsedRef.Value, order == null);
         }
         else
         {
             order = await _db.GetQuery<Order>()
                 .Include(o => o.Items)
                 .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
-            Console.WriteLine($"[DEBUG] Searched by UUID, result is null? {order == null}");
+            _logger.LogDebug("Searched by UUID '{Id}', result is null? {IsNull}", id, order == null);
         }
 
         if (order is null)
@@ -358,29 +355,7 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        await _hubContext.Clients.Group("admins").SendAsync(
-            "OrderStatusChanged",
-            order.Id,
-            order.State.ToString(),
-            cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(order.AssignedRiderId))
-        {
-            await _hubContext.Clients.Group($"rider:{order.AssignedRiderId}").SendAsync(
-                "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
-                cancellationToken);
-        }
-
-        if (!string.IsNullOrWhiteSpace(order.CustomerId))
-        {
-            await _hubContext.Clients.Group($"customer:{order.CustomerId}").SendAsync(
-                "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
-                cancellationToken);
-        }
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, cancellationToken);
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "สถานะออเดอร์อัปเดตเรียบร้อยแล้ว"));
     }
@@ -408,10 +383,8 @@ public class OrderService : IOrderService
 
         if (!string.IsNullOrEmpty(customerId))
         {
-            await _hubContext.Clients.Group($"customer:{customerId}").SendAsync(
-                "OrderAcceptedByStore",
-                new { orderId = order.Id, status = order.State.ToString() },
-                cancellationToken);
+            await _orderNotifier.NotifyOrderAcceptedByStoreAsync(
+                order.Id, order.State.ToString(), customerId, cancellationToken);
         }
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ร้านค้ายอมรับออเดอร์สำเร็จ"));
@@ -440,29 +413,7 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        await _hubContext.Clients.Group("admins").SendAsync(
-            "OrderStatusChanged",
-            order.Id,
-            order.State.ToString(),
-            cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(order.AssignedRiderId))
-        {
-            await _hubContext.Clients.Group($"rider:{order.AssignedRiderId}").SendAsync(
-                "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
-                cancellationToken);
-        }
-
-        if (!string.IsNullOrWhiteSpace(order.CustomerId))
-        {
-            await _hubContext.Clients.Group($"customer:{order.CustomerId}").SendAsync(
-                "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
-                cancellationToken);
-        }
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, cancellationToken);
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ยกเลิกออเดอร์สำเร็จ"));
     }

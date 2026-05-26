@@ -144,5 +144,61 @@ namespace BackendApi.Services.Ai
                 throw new HttpRequestException($"OSRM routing server returned unsuccessful status: {response.StatusCode}");
             });
         }
+
+        /// <summary>
+        /// ดึงพิกัดจุดบนถนนที่ใกล้ที่สุดเพื่อป้องกันพิกัดไรเดอร์วาร์ป (Snap-to-Road)
+        /// </summary>
+        public async Task<(double Lat, double Lng)> SnapToRoadAsync(double lat, double lng)
+        {
+            var latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var lngStr = lng.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            var retryPolicy = Policy
+                .Handle<Exception>()
+                .WaitAndRetryAsync(1, retryAttempt => TimeSpan.FromMilliseconds(50));
+
+            var resilientPolicy = Policy.WrapAsync(retryPolicy, _circuitBreakerPolicy);
+
+            try
+            {
+                return await resilientPolicy.ExecuteAsync(async () =>
+                {
+                    var url = $"{_localOsrmUrl}/nearest/v1/driving/{lngStr},{latStr}?number=1";
+                    HttpResponseMessage response;
+                    try
+                    {
+                        response = await _httpClient.GetAsync(url);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Local OSRM nearest query failed. Falling back to public OSRM nearest API.");
+                        var publicUrl = $"http://router.project-osrm.org/nearest/v1/driving/{lngStr},{latStr}?number=1";
+                        response = await _httpClient.GetAsync(publicUrl);
+                    }
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = await response.Content.ReadAsStringAsync();
+                        using var document = JsonDocument.Parse(json);
+                        var root = document.RootElement;
+                        if (root.TryGetProperty("waypoints", out var waypoints) && waypoints.GetArrayLength() > 0)
+                        {
+                            var waypoint = waypoints[0];
+                            var location = waypoint.GetProperty("location");
+                            var snappedLng = location[0].GetDouble();
+                            var snappedLat = location[1].GetDouble();
+                            return (snappedLat, snappedLng);
+                        }
+                    }
+
+                    throw new HttpRequestException($"OSRM nearest returned unsuccessful status: {response.StatusCode}");
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to snap coordinate ({Lat}, {Lng}) to road. Using raw coordinate as fallback.", lat, lng);
+                return (lat, lng); // fallback to original point
+            }
+        }
     }
 }

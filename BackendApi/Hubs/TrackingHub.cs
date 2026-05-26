@@ -29,6 +29,7 @@ public partial class TrackingHub : Hub
     private readonly RiderPresenceService _presenceService;
     private readonly GpsSyncBuffer _gpsBuffer;
     private readonly DispatchService _dispatchService;
+    private readonly DispatchOfferHandler _offerHandler;
     private readonly StateMachineService _stateMachine;
     private readonly IConfiguration _config;
     private readonly IEventBus _eventBus;
@@ -43,6 +44,7 @@ public partial class TrackingHub : Hub
         RiderPresenceService presenceService,
         GpsSyncBuffer gpsBuffer,
         DispatchService dispatchService,
+        DispatchOfferHandler offerHandler,
         StateMachineService stateMachine,
         IConfiguration config,
         IEventBus eventBus,
@@ -53,6 +55,7 @@ public partial class TrackingHub : Hub
         _presenceService = presenceService;
         _gpsBuffer = gpsBuffer;
         _dispatchService = dispatchService;
+        _offerHandler = offerHandler;
         _stateMachine = stateMachine;
         _config = config;
         _eventBus = eventBus;

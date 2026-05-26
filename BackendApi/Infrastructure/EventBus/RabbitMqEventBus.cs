@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -41,8 +42,6 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
         int.TryParse(portStr, out var port);
 
-        _logger.LogInformation("Connecting to RabbitMQ Host: {Host}:{Port}", host, port);
-
         var factory = new ConnectionFactory
         {
             HostName = host,
@@ -52,8 +51,34 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             DispatchConsumersAsync = true // Enable asynchronous event handlers
         };
 
-        _connection = factory.CreateConnection();
-        _channel = _connection.CreateModel();
+        const int maxRetries = 5;
+        var retryCount = 0;
+        var connected = false;
+
+        while (!connected && retryCount < maxRetries)
+        {
+            try
+            {
+                retryCount++;
+                _logger.LogInformation("Connecting to RabbitMQ Host: {Host}:{Port} (Attempt {Attempt}/{MaxRetries})", host, port, retryCount, maxRetries);
+                _connection = factory.CreateConnection();
+                connected = true;
+            }
+            catch (Exception ex)
+            {
+                if (retryCount >= maxRetries)
+                {
+                    _logger.LogCritical(ex, "Failed to connect to RabbitMQ broker after {MaxRetries} attempts.", maxRetries);
+                    throw;
+                }
+
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, retryCount)); // Exponential backoff: 2s, 4s, 8s, 16s
+                _logger.LogWarning("RabbitMQ broker unreachable. Retrying in {Delay}s... Error: {Message}", delay.TotalSeconds, ex.Message);
+                Thread.Sleep(delay);
+            }
+        }
+
+        _channel = _connection!.CreateModel();
 
         // Declare dynamic/direct exchange for the routing system
         _channel.ExchangeDeclare(

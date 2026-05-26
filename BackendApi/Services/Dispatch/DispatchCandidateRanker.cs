@@ -1,0 +1,91 @@
+using BackendApi.Models;
+using BackendApi.Models.DTOs;
+using BackendApi.Services.Ai;
+
+namespace BackendApi.Services.Dispatch;
+
+/// <summary>
+/// Candidate Ranker — สื่อสารกับ AI Engine เพื่อจัดอันดับ Rider ที่เหมาะสมที่สุด
+/// Fallback: ถ้า AI ล่ม ใช้ Haversine distance-based ranking
+/// </summary>
+public class DispatchCandidateRanker
+{
+    private readonly IAiService _aiService;
+    private readonly ILogger<DispatchCandidateRanker> _logger;
+
+    public DispatchCandidateRanker(
+        IAiService aiService,
+        ILogger<DispatchCandidateRanker> logger)
+    {
+        _aiService = aiService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// ส่งรายชื่อ Candidates ไปให้ AI Engine เพื่อให้คะแนนและจัดอันดับ (Phase A Heuristic)
+    /// </summary>
+    public async Task<List<RankedCandidate>> RankCandidatesAsync(
+        Order order, List<(string RiderId, double DistanceKm)> candidates, Dictionary<string, Rider> ridersDict)
+    {
+        try
+        {
+            var request = new DispatchRankRequestDto
+            {
+                Context = new DispatchContextDto
+                {
+                    Timestamp = DateTime.UtcNow.ToString("O"),
+                    City = "Bangkok"
+                },
+                Order = new DispatchOrderDto
+                {
+                    Id = order.Id,
+                    Pickup = new List<double> { order.PickupLocation?.Y ?? 0, order.PickupLocation?.X ?? 0 },
+                    Dropoff = new List<double> { order.DropoffLocation?.Y ?? 0, order.DropoffLocation?.X ?? 0 },
+                    SlaLimitMinutes = order.SlaLimitMinutes
+                },
+                Candidates = candidates.Select(c =>
+                {
+                    ridersDict.TryGetValue(c.RiderId, out var rider);
+                    return new DispatchCandidateDto
+                    {
+                        RiderId = c.RiderId,
+                        Lat = rider?.CurrentLocation?.Y ?? 0,
+                        Lng = rider?.CurrentLocation?.X ?? 0,
+                        CurrentTasks = new List<Dictionary<string, object>>() // TODO: ดึงงานที่กำลังทำอยู่
+                    };
+                }).ToList()
+            };
+
+            var aiResponse = await _aiService.RankDispatchCandidatesAsync(request);
+
+            if (aiResponse is not null && aiResponse.RankedCandidates.Any())
+            {
+                var rankedList = new List<RankedCandidate>();
+                foreach (var item in aiResponse.RankedCandidates)
+                {
+                    if (!string.IsNullOrEmpty(item.RiderId))
+                    {
+                        rankedList.Add(new RankedCandidate(item.RiderId, item.DistanceToPickupKm, item.Score, item.EtaMinutes));
+                    }
+                }
+                return rankedList;
+            }
+            
+            _logger.LogWarning("AI Engine returned null or empty. Falling back to distance-based ranking.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Fallback Rule-Based Dispatch] AI Engine is DOWN or timed out. Falling back to straight-line Haversine / Redis distance-based nearest selection for Order {OrderId}.", order.Id);
+        }
+
+        // Fallback: เรียงตามระยะทางที่ได้จาก Redis GEORADIUS พร้อมสร้างคะแนนและเวลาส่งจำลอง
+        return candidates.OrderBy(c => c.DistanceKm)
+                         .Select(c => new RankedCandidate(c.RiderId, c.DistanceKm, Math.Max(0.0, 100.0 - c.DistanceKm * 5.0), (int)Math.Ceiling(c.DistanceKm * 2.0)))
+                         .ToList();
+    }
+}
+
+/// <summary>
+/// ผลลัพธ์ Ranked Candidate ที่ได้จาก AI Engine หรือ Fallback
+/// </summary>
+public record RankedCandidate(string RiderId, double DistanceKm, double Score, int EtaMinutes);

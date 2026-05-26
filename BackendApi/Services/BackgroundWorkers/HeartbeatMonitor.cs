@@ -55,7 +55,7 @@ public class HeartbeatMonitor : BackgroundService
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var presenceService = scope.ServiceProvider.GetRequiredService<RiderPresenceService>();
         var stateMachine = scope.ServiceProvider.GetRequiredService<StateMachineService>();
-        var dispatchService = scope.ServiceProvider.GetRequiredService<DispatchService>();
+        var offerHandler = scope.ServiceProvider.GetRequiredService<DispatchOfferHandler>();
 
         var now = DateTime.UtcNow;
         var heartbeatTimeout = _config.GetValue("Dispatch:HeartbeatTimeoutSeconds", 20);
@@ -93,7 +93,7 @@ public class HeartbeatMonitor : BackgroundService
 
                         if (offeringOrder?.CurrentOfferId is not null)
                         {
-                            await dispatchService.RejectOrTimeoutAsync(
+                            await offerHandler.RejectOrTimeoutAsync(
                                 offeringOrder.Id, rider.Id, offeringOrder.CurrentOfferId);
                         }
                     }

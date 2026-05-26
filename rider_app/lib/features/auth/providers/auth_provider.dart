@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_helpers.dart';
 import '../../../core/api/services/auth_api_service.dart';
+import '../../../core/api/services/notifications_api_service.dart';
 import '../../../core/auth/auth_service.dart';
 
 import 'package:flutter/foundation.dart';
@@ -35,6 +36,21 @@ class AuthNotifier extends Notifier<AuthFormState> {
         userData: response.user.toJson(),
       );
       debugPrint('[AuthNotifier] Tokens saved successfully!');
+
+      // ลงทะเบียนอุปกรณ์รับ Push Notification (Best-effort FCM Token Registration)
+      try {
+        final fcmToken = 'sim-token-rider-${response.user.id}';
+        final deviceType = kIsWeb ? 'WEB' : (defaultTargetPlatform == TargetPlatform.iOS ? 'IOS' : 'ANDROID');
+        
+        debugPrint('[AuthNotifier] Registering simulated FCM token: $fcmToken for device: $deviceType');
+        await ref.read(notificationsApiServiceProvider).registerFcmToken(
+          token: fcmToken,
+          deviceType: deviceType,
+        );
+        debugPrint('[AuthNotifier] FCM token registered successfully');
+      } catch (fcmError) {
+        debugPrint('[AuthNotifier] Failed to register FCM token (ignored for login flow): $fcmError');
+      }
 
       state = state.copyWith(isLoading: false);
     } on ApiException catch (e) {

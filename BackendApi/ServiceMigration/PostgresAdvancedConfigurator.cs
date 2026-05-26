@@ -51,7 +51,8 @@ namespace BackendApi.ServiceMigration
 
             if (isPartitioned)
             {
-                Log.Information("🎉 [ServiceMigration] 'RiderLocationHistories' is already partitioned. Skipping migration.");
+                Log.Information("🎉 [ServiceMigration] 'RiderLocationHistories' is already partitioned. Ensuring active monthly partitions exist...");
+                await EnsureActiveMonthlyPartitionsAsync(context);
                 return;
             }
 
@@ -86,29 +87,7 @@ namespace BackendApi.ServiceMigration
                 ");
 
                 // 4. Create base partitions dynamically (current month + next 3 months) to avoid insertion range failures
-                var now = DateTime.UtcNow;
-                for (int i = 0; i <= 3; i++)
-                {
-                    var targetDate = now.AddMonths(i);
-                    var yearStr = targetDate.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture);
-                    var monthStr = targetDate.ToString("MM", System.Globalization.CultureInfo.InvariantCulture);
-                    
-                    var year = int.Parse(yearStr);
-                    var month = int.Parse(monthStr);
-                    var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    var endDate = startDate.AddMonths(1);
-
-                    var partitionName = $"RiderLocationHistories_{yearStr}_{monthStr}";
-                    var startStr = startDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
-                    var endStr = endDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
-                    var createPartitionSql = $@"
-                        CREATE TABLE IF NOT EXISTS ""{partitionName}""
-                        PARTITION OF ""RiderLocationHistories""
-                        FOR VALUES FROM ('{startStr}') TO ('{endStr}');
-                    ";
-                    await ExecuteSqlRawAsync(context, createPartitionSql);
-                    Log.Information("⚙️ [ServiceMigration] Ensured active monthly partition: {PartitionName}", partitionName);
-                }
+                await EnsureActiveMonthlyPartitionsAsync(context);
 
                 // 5. Transfer existing data from the old table (if any)
                 await ExecuteSqlRawAsync(context, "INSERT INTO \"RiderLocationHistories\" SELECT * FROM \"RiderLocationHistories_old\";");
@@ -138,6 +117,36 @@ namespace BackendApi.ServiceMigration
             finally
             {
                 if (!wasOpen) await connection.CloseAsync();
+            }
+        }
+
+        /// <summary>
+        /// Helper to dynamically create base partitions (current month + next 3 months) to avoid insertion range failures.
+        /// </summary>
+        private static async Task EnsureActiveMonthlyPartitionsAsync(ApplicationDbContext context)
+        {
+            var now = DateTime.UtcNow;
+            for (int i = 0; i <= 3; i++)
+            {
+                var targetDate = now.AddMonths(i);
+                var yearStr = targetDate.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                var monthStr = targetDate.ToString("MM", System.Globalization.CultureInfo.InvariantCulture);
+                
+                var year = int.Parse(yearStr);
+                var month = int.Parse(monthStr);
+                var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+                var endDate = startDate.AddMonths(1);
+
+                var partitionName = $"RiderLocationHistories_{yearStr}_{monthStr}";
+                var startStr = startDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+                var endStr = endDate.ToString("yyyy-MM-dd HH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+                var createPartitionSql = $@"
+                    CREATE TABLE IF NOT EXISTS ""{partitionName}""
+                    PARTITION OF ""RiderLocationHistories""
+                    FOR VALUES FROM ('{startStr}') TO ('{endStr}');
+                ";
+                await ExecuteSqlRawAsync(context, createPartitionSql);
+                Log.Information("⚙️ [ServiceMigration] Ensured active monthly partition: {PartitionName}", partitionName);
             }
         }
 

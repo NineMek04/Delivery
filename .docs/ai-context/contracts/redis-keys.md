@@ -73,13 +73,28 @@ var nearbyRiders = await _redis.GeoRadiusAsync("geo:riders",
 |---|---|
 | **Key Pattern** | `gps:last:{riderId}` (UUID) |
 | **Data Type** | Hash |
-| **Fields** | `lat`, `lng`, `accuracy`, `timestamp` |
+| **Fields** | `lat`, `lng`, `updated_at`, `speed_kmh` |
 | **TTL** | 5 minutes |
 | **SET By** | `GpsSyncBuffer` on each GPS update |
 | **READ By** | `DispatchService` (for most-recent rider location) |
 
 ```
 ใช้สำหรับ: AI scoring ต้องการตำแหน่ง Rider ล่าสุด (ก่อน flush ลง PostGIS)
+```
+
+### `riders:speed_buffer:{riderId}`
+
+| Field | Value |
+|---|---|
+| **Key Pattern** | `riders:speed_buffer:{riderId}` (UUID) |
+| **Data Type** | List |
+| **Values** | ค่าความเร็ว km/h ล่าสุด 5 จุด (5-point Moving Average) |
+| **TTL** | 5 minutes |
+| **SET By** | `RiderPresenceService.UpdateGpsAsync()` (RPUSH + LTRIM) |
+| **READ By** | `RiderPresenceService.GetRiderSpeedAsync()` → `DispatchCandidateRanker` |
+
+```
+ใช้สำหรับ: คำนวณ Rider velocity เฉลี่ย 5 จุดล่าสุด → ส่งไป AI Engine สำหรับ ETA prediction
 ```
 
 ---
@@ -168,6 +183,7 @@ GpsSyncWorker (runs every 30s)
 | `presence:rider:{id}` | String | ~60s (sliding) |
 | `geo:riders` | Sorted Set (GEO) | No TTL |
 | `gps:last:{id}` | Hash | 5 min |
+| `riders:speed_buffer:{id}` | List | 5 min |
 | `offer:{orderId}` | String (JSON) | **30s** |
 | `dispatch:lock:{orderId}` | String | ~5s |
 | `route:{coords}` | String (JSON) | 24h |

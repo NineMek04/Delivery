@@ -16,6 +16,7 @@ class DispatchCandidate(BaseModel):
     rider_id: str
     lat: float
     lng: float
+    speed_kmh: float = 20.0  # ค่าเริ่มต้น 20 km/h ถ้าไม่มีข้อมูล
     current_tasks: List[Dict[str, Any]] = []
 
 class DispatchRankRequest(BaseModel):

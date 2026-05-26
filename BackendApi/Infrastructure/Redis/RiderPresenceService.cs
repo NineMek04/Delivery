@@ -20,6 +20,8 @@ public class RiderPresenceService
     private const string GeoKey = "riders:locations";           // GEOADD key
     private const string HeartbeatPrefix = "riders:heartbeat:";  // Hash per rider
     private const string GpsPrefix = "riders:gps:";             // Hash per rider
+    private const string SpeedBufferPrefix = "riders:speed_buffer:"; // List for 5-point moving average
+    private const int SpeedBufferSize = 5;                      // จำนวนจุด GPS สำหรับ Moving Average
 
     public RiderPresenceService(IConnectionMultiplexer redis, ILogger<RiderPresenceService> logger)
     {
@@ -30,28 +32,38 @@ public class RiderPresenceService
     // ── GPS Operations ─────────────────────────────────────────────
 
     /// <summary>
-    /// อัปเดตพิกัด GPS ของ Rider ใน Redis (GEOADD + Hash)
+    /// อัปเดตพิกัด GPS ของ Rider ใน Redis (GEOADD + Hash + Speed Buffer)
     /// </summary>
-    public async Task UpdateGpsAsync(string riderId, double lat, double lng)
+    public async Task UpdateGpsAsync(string riderId, double lat, double lng, double speedKmh = 0.0)
     {
         var batch = _db.CreateBatch();
 
         // GEOADD สำหรับ spatial query (GEORADIUS)
         batch.GeoAddAsync(GeoKey, lng, lat, riderId);
 
-        // Hash สำหรับเก็บรายละเอียด (timestamp, lat, lng)
+        // Hash สำหรับเก็บรายละเอียด (timestamp, lat, lng, speed_kmh)
         var gpsKey = GpsPrefix + riderId;
         batch.HashSetAsync(gpsKey, new[]
         {
             new HashEntry("lat", lat),
             new HashEntry("lng", lng),
-            new HashEntry("updated_at", DateTime.UtcNow.Ticks)
+            new HashEntry("updated_at", DateTime.UtcNow.Ticks),
+            new HashEntry("speed_kmh", speedKmh)
         });
+
+        // เพิ่มค่าความเร็วลง Speed Buffer (5-point Moving Average)
+        if (speedKmh > 0)
+        {
+            var bufferKey = SpeedBufferPrefix + riderId;
+            batch.ListRightPushAsync(bufferKey, speedKmh);
+            batch.ListTrimAsync(bufferKey, -SpeedBufferSize, -1); // เก็บแค่ 5 จุดล่าสุด
+            batch.KeyExpireAsync(bufferKey, TimeSpan.FromMinutes(5));
+        }
 
         batch.Execute();
         await Task.CompletedTask;
 
-        _logger.LogDebug("GPS updated: Rider {RiderId} → ({Lat}, {Lng})", riderId, lat, lng);
+        _logger.LogDebug("GPS updated: Rider {RiderId} → ({Lat}, {Lng}), Speed: {Speed} km/h", riderId, lat, lng, speedKmh);
     }
 
     /// <summary>
@@ -92,6 +104,38 @@ public class RiderPresenceService
         var ticks = (long)entries.FirstOrDefault(e => e.Name == "updated_at").Value;
 
         return (lat, lng, new DateTime(ticks, DateTimeKind.Utc));
+    }
+
+    /// <summary>
+    /// ดึงค่าความเร็วเฉลี่ยของ Rider จาก 5-point Moving Average buffer ใน Redis
+    /// Fallback: ดึงจาก Hash field speed_kmh (instant speed)
+    /// </summary>
+    public async Task<double> GetRiderSpeedAsync(string riderId)
+    {
+        // ลองดึงจาก Moving Average Buffer ก่อน
+        var bufferKey = SpeedBufferPrefix + riderId;
+        var speedValues = await _db.ListRangeAsync(bufferKey);
+
+        if (speedValues.Length > 0)
+        {
+            double sum = 0;
+            int count = 0;
+            foreach (var val in speedValues)
+            {
+                if (val.TryParse(out double parsedSpeed) && parsedSpeed > 0)
+                {
+                    sum += parsedSpeed;
+                    count++;
+                }
+            }
+            if (count > 0)
+                return sum / count;
+        }
+
+        // Fallback: ดึงจาก Hash field (instant speed ล่าสุด)
+        var gpsKey = GpsPrefix + riderId;
+        var speed = await _db.HashGetAsync(gpsKey, "speed_kmh");
+        return speed.HasValue ? (double)speed : 0.0;
     }
 
     /// <summary>

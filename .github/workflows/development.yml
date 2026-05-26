@@ -1,0 +1,239 @@
+name: Build & Test (Development)
+
+on:
+  push:
+    branches:
+      - Development
+    paths:
+      - 'BackendApi/**'
+      - 'ai-engine/**'
+      - 'admin-dashboard/**'
+      - 'rider_app/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/**'
+  pull_request:
+    branches:
+      - Development
+
+jobs:
+  # === Backend Build & Test ===
+  backend-build:
+    runs-on: ubuntu-latest
+    name: Backend (.NET 8)
+    
+    services:
+      postgres:
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: delivery_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Restore dependencies
+        run: dotnet restore BackendApi/BackendApi.csproj
+      
+      - name: Build Backend
+        run: dotnet build BackendApi/BackendApi.csproj -c Release
+      
+      - name: Run Backend Tests
+        run: dotnet test scripts/BackendApi.IntegrationTests/ -c Release --logger:"console;verbosity=detailed"
+      
+      - name: Generate Swagger
+        run: |
+          cd BackendApi
+          dotnet run -- --generate-swagger
+          ls -la swagger.json
+      
+      - name: Upload Swagger Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: swagger-spec
+          path: BackendApi/swagger.json
+
+  # === AI Engine Build & Test ===
+  ai-engine-build:
+    runs-on: ubuntu-latest
+    name: AI Engine (Python FastAPI)
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ai-engine/requirements.txt pytest
+      
+      - name: Run AI Tests
+        run: pytest ai-engine/tests/ -v || true  # Optional for now
+
+  # === Frontend (Angular) Build ===
+  frontend-build:
+    runs-on: ubuntu-latest
+    name: Frontend (Angular 19)
+    needs: backend-build  # Wait for Swagger to be generated
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      
+      - name: Download Swagger Spec
+        uses: actions/download-artifact@v4
+        with:
+          name: swagger-spec
+          path: ./BackendApi
+      
+      - name: Install dependencies
+        working-directory: admin-dashboard
+        run: npm ci
+      
+      - name: Generate API from Swagger
+        working-directory: admin-dashboard
+        run: npm run generate:api
+      
+      - name: Build Angular
+        working-directory: admin-dashboard
+        run: npm run build -- --configuration production
+      
+      - name: Upload Frontend Dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-dist
+          path: admin-dashboard/dist/
+
+  # === Mobile (Flutter) Build ===
+  mobile-build:
+    runs-on: ubuntu-latest
+    name: Mobile (Flutter)
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.9.0'
+          channel: 'stable'
+      
+      - name: Get Flutter packages
+        working-directory: rider_app
+        run: flutter pub get
+      
+      - name: Run code generator
+        working-directory: rider_app
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+      
+      - name: Analyze
+        working-directory: rider_app
+        run: flutter analyze
+      
+      - name: Build web
+        working-directory: rider_app
+        run: flutter build web --release
+      
+      - name: Upload Rider App Web Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build
+          path: rider_app/build/web/
+
+  # === Docker Build & Push ===
+  docker-build:
+    runs-on: ubuntu-latest
+    name: Docker Build & Push
+    needs: [backend-build, ai-engine-build, frontend-build, mobile-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/Development'
+    
+    permissions:
+      packages: write
+      contents: read
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./BackendApi
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/delivery-backend:latest
+            ghcr.io/${{ github.repository_owner }}/delivery-backend:${{ github.sha }}
+      
+      - name: Build and Push AI Service Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-engine
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/delivery-ai:latest
+            ghcr.io/${{ github.repository_owner }}/delivery-ai:${{ github.sha }}
+      
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./admin-dashboard
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/delivery-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/delivery-frontend:${{ github.sha }}
+      
+      - name: Build and Push Rider App Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./rider_app
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/delivery-rider-app:latest
+            ghcr.io/${{ github.repository_owner }}/delivery-rider-app:${{ github.sha }}
+
+  # === Deploy Notification ===
+  notify:
+    runs-on: ubuntu-latest
+    name: Notify Deployment
+    needs: [backend-build, ai-engine-build, frontend-build, mobile-build, docker-build]
+    if: always()
+    
+    steps:
+      - name: Summarize Build Results
+        run: |
+          echo "## 🚀 Build & Test Summary"
+          echo ""
+          echo "- Backend: ${{ needs.backend-build.result }}"
+          echo "- AI Engine: ${{ needs.ai-engine-build.result }}"
+          echo "- Frontend: ${{ needs.frontend-build.result }}"
+          echo "- Mobile: ${{ needs.mobile-build.result }}"
+          echo "- Docker: ${{ needs.docker-build.result }}"

@@ -33,6 +33,6 @@ All logs must include:
 - Elasticsearch
 
 ## 6. Testing Rules & Directories
-1. **Single Test Hub Rule**: โฟลเดอร์รันการทดสอบทั้งหมด (C# Integration Tests, Python PyTest และ E2E Simulation/Load Tests) ต้องถูกรวบรวมไว้ภายใต้โฟลเดอร์เดียวคือ `scripts/` เท่านั้น (เช่น `scripts/BackendApi.IntegrationTests`, `scripts/ai-engine.tests`)
+1. **Single Test Hub Rule**: โฟลเดอร์รันการทดสอบทั้งหมด (C# Integration Tests, Python PyTest และ E2E Simulation/Load Tests) ต้องถูกรวบรวมไว้ภายใต้โฟลเดอร์เดียวคือ `scripts.test/` เท่านั้น (เช่น `scripts/BackendApi.IntegrationTests`, `scripts/ai-engine.tests`)
 2. **Exception**: สำหรับแอปพลิเคชันหน้าบ้าน Angular ยูสเคสไฟล์สเปกทดสอบระดับยูนิต (`*.spec.ts`) ให้สามารถวางไว้ควบคู่กับ Component นั้นๆ ตามมาตรฐานระบบ Angular CLI เพื่อรักษาโครงสร้างการทำงานและการ compile pipeline ของ Angular โครงการ
 3. **No Test Files in Core Directories**: ห้ามเขียนหรือสร้างโฟลเดอร์ทดสอบ (เช่น `tests/` หรือ `__tests__/`) ปนเปื้อนภายใน Context ไดเรกทอรีหลักของโปรเจค (เช่น `ai-engine/tests`) ให้ย้ายไปไว้ที่ `scripts/<component>.tests/` เท่านั้น

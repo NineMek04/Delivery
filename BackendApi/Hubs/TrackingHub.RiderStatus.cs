@@ -50,6 +50,15 @@ public partial class TrackingHub
             return false;
         }
 
+        // ✅ Fix: No-op guard — ถ้า state เดิมตรงกับ target แล้ว ไม่ต้อง transition
+        // ป้องกัน IDLE→IDLE หรือ OFFLINE→OFFLINE ที่เกิดได้เมื่อ app reconnect
+        if (rider.State == targetState)
+        {
+            _logger.LogDebug("Rider {RiderId} already in state {State} — no-op", riderId, targetState);
+            await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = true, Status = targetState.ToString() });
+            return true;
+        }
+
         var oldState = rider.State;
         var success = await _stateMachine.TransitionRiderAsync(rider, targetState);
 

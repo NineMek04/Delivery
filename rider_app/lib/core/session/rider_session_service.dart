@@ -136,7 +136,19 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   Future<void> _tearDown() async {
     _disposeSubscriptions();
     await ref.read(locationServiceProvider.notifier).stopTracking();
-    await ref.read(signalRServiceProvider.notifier).disconnect();
+
+    // ✅ Fix: ส่ง OFFLINE ก่อน disconnect เสมอ เพื่อให้ Backend DB อัปเดต state
+    // ป้องกันปัญหา state ค้างอยู่ที่ IDLE ใน DB เมื่อ GPS fail ระหว่าง goOnline()
+    // ซึ่งจะทำให้การ goOnline() ครั้งต่อไป fail ด้วย IDLE→IDLE Illegal transition
+    final signalR = ref.read(signalRServiceProvider.notifier);
+    if (ref.read(signalRServiceProvider) == SignalRConnectionState.connected) {
+      try {
+        await signalR.updateStatus(AppConstants.statusOffline);
+      } catch (e) {
+        _logger.w('Could not send OFFLINE status before teardown: $e');
+      }
+    }
+    await signalR.disconnect();
   }
 
   void _disposeSubscriptions() {

@@ -33,6 +33,57 @@
       </div>
     </section>
 
+    <!-- Top Right Filter Panel -->
+    <section class="map-filters">
+      <div class="filter-header">
+        <h3>Map Controls</h3>
+      </div>
+      
+      <div class="search-box">
+        <input 
+          type="text" 
+          placeholder="Search Rider ID..." 
+          [(ngModel)]="searchQuery" 
+          (ngModelChange)="applyFilters()"
+        >
+        @if (searchQuery) {
+          <button class="clear-btn" (click)="searchQuery = ''; applyFilters()">×</button>
+        }
+      </div>
+
+      <div class="filter-group">
+        <h4>Status Filters</h4>
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="filterIdleVisible" (change)="applyFilters()">
+          <span class="status-dot idle"></span> Idle / Available
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="filterDeliveringVisible" (change)="applyFilters()">
+          <span class="status-dot delivering"></span> Delivering / Busy
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="filterOfflineVisible" (change)="applyFilters()">
+          <span class="status-dot offline"></span> Offline
+        </label>
+      </div>
+
+      <div class="filter-group">
+        <h4>Display Options</h4>
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="clusterMode" (change)="applyFilters()">
+          <span>Marker Clustering</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="filterShowRoutes" (change)="applyFilters()">
+          <span>Show Active Routes</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="filterShowHeatmap" (change)="onHeatmapToggle()">
+          <span>Rider Density Heatmap</span>
+        </label>
+      </div>
+    </section>
+
     <section class="route-card">
       <div class="row-between">
         <div>
@@ -95,7 +146,7 @@
   </div>
 
   <aside class="sim-side">
-    <section>
+    <section class="timeline-section">
       <div class="row-between">
         <h3>Realtime Events</h3>
         <span class="badge">{{ timeline.length }}</span>
@@ -114,23 +165,28 @@
       </div>
     </section>
 
-    <section>
+    <section class="rider-stream-section">
       <div class="row-between">
         <h3>Rider Stream</h3>
-        <span class="badge">{{ riderRows.length }}</span>
+        <span class="badge">{{ filteredRiderRows.length }} / {{ riderRows.length }}</span>
       </div>
-      @for (rider of riderRows; track rider.id) {
-        <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
-          <div class="rider-dot">{{ rider.short }}</div>
-          <div>
-            <strong>{{ rider.label }}</strong>
-            <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
+      <div class="rider-list-container">
+        @for (rider of filteredRiderRows; track rider.id) {
+          <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
+            <div class="rider-dot" [class]="rider.status.split(' ')[0].toLowerCase()">{{ rider.short }}</div>
+            <div>
+              <strong>{{ rider.label }}</strong>
+              <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
+            </div>
           </div>
-        </div>
-      }
-      @if (!riderRows.length) {
-        <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
-      }
+        }
+        @if (!filteredRiderRows.length && riderRows.length) {
+          <div class="empty-panel">NO_MATCHING_RIDERS</div>
+        }
+        @if (!riderRows.length) {
+          <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
+        }
+      </div>
     </section>
   </aside>
 </section>

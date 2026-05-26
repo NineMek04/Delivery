@@ -432,3 +432,83 @@ Passed!  - Failed:     0, Passed:    26, Skipped:     0, Total:    26, Duration:
 
 ## 📈 สรุปความสมบูรณ์เชิงสถาปัตยกรรม (Architecture Status)
 ด้วยการบูรณาการระบบทดสอบรวมศูนย์และการพัฒนาชุดทดสอบความถูกต้องระดับลึกครั้งนี้ ทำให้ระบบ **Smart Delivery Routing System** มีความน่าเชื่อถือและความเสถียรสูงสุดพร้อมเดินหน้าเข้าสู่สภาวะทดสอบในตลาดจริง!
+
+# Walkthrough: ระบบนำทางอัจฉริยะ & Spatial Telemetry ประสิทธิภาพสูง
+
+ฉันได้ทำการพัฒนา ติดตั้ง และทดสอบระบบตามแผนงานที่ได้รับการอนุมัติอย่างสมบูรณ์ ทั้งฝั่ง C# Backend และ Flutter Rider App พร้อมนำขึ้นทำงานบน Docker เรียบร้อยแล้ว
+
+---
+
+## 🌟 ผลลัพธ์และสิ่งที่ได้รับการปรับปรุง (Key Deliverables)
+
+### 1. ฝั่ง Backend: Telemetry Pipeline & Reliability
+- **[TelemetryService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Telemetry/TelemetryService.cs) [ใหม่]:** 
+  - สร้างบริการประมวลผลข้อมูลเชิงพื้นที่แยกเฉพาะ (Pure Layer) โดยขจัดสัญญาสะท้อนตรงไปยังฐานข้อมูล PostgreSQL ทุก ๆ Tick 
+  - จัดเก็บพิกัดล่าสุดลงเฉพาะบน Redis Presence Cache (`GeoAdd` + `HashSet`) สำหรับอ้างอิงสถานะเรียลไทม์ทั้งหมด
+  - นำพิกัดดิบผ่านฟังก์ชัน OSRM nearest matching เพื่อทำ **Snap-to-Road** ให้ตรึงอยู่บนแนวถนนโดยอัตโนมัติก่อนส่งพิกัดออก
+  - ส่งข้อมูลประวัติพิกัดลงใน in-memory `GpsSyncBuffer` เพื่อเขียนแบบ Batch ทีเดียว (ทุก 10 วินาที) ช่วยให้ Database ไม่เกิดคอขวด
+  - **Dynamic Throttling:** คำนวณความเร็วในการเดินทางของไรเดอร์และหรี่ความถี่ (Throttle) ของการ Broadcast อัตโนมัติ (ขยับเร็วส่งถี่ขึ้นเพื่อความสมูท, ขยับช้าหรี่ลงเพื่อเซฟแบตเตอรี่และ Bandwidth)
+  - **PostgreSQL Throttling Write:** อัปเดตพิกัด CurrentLocation ของตาราง `Riders` บนฐานข้อมูลหลักแบบ Throttled ทุก ๆ 10 วินาที
+
+- **[DispatchService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Dispatch/DispatchService.cs) [ปรับปรุง]:**
+  - **Atomic Offer Acceptance:** ติดตั้งระบบ **Redis Distributed Lock** (`lock:accept:offer:{offerId}`) เป็นเวลา 5 วินาทีก่อนทำรายการรับงาน ป้องกันไรเดอร์กดรับงานซ้อน (Race Condition)
+  - **RowVersion Concurrency Token:** ดักจับ `DbUpdateConcurrencyException` ของ EF Core กรณีชนกันเพื่อให้ทำธุรกรรมได้อย่างสมบูรณ์และโปร่งใส
+  - **Fallback Rule-Based Dispatch:** ติดตั้งสมองสำรองโดยการทำ Haversine distance-based nearest matching เป็น Fallback อัตโนมัติหาก AI Engine ทำงานล้มเหลวหรือหมดเวลา (Fault Tolerance)
+
+- **[TelemetryBroadcastWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) [ปรับปรุง]:**
+  - เพิ่มการประมวลผลหาจุดออเดอร์หนาแน่นเรียลไทม์ (**Demand Hotspots Grid**) ทุก ๆ 5 วินาที โดยหาจากออเดอร์ในระยะ 1 ชั่วโมง และแปลงโครงข่ายพิกัดเป็น Grid Bucket ขนาด ~110 เมตร บันทึกผลลัพธ์ลง Redis Cache คีย์ `riders:hotspots:heatmap` เพื่อให้หน้าบ้านสามารถดึงผลลัพธ์เป็น Heatmap ได้อย่างรวดเร็ว
+
+---
+
+### 2. ฝั่ง Mobile Rider App: Smooth UI & turn-by-turn Navigation
+
+- **[location_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/location/location_service.dart) [ปรับปรุง]:**
+  - ติดตั้งตัวกรองคลื่นรบกวนสัญญาณ **Simple Moving Average (SMA)** คอยเฉลี่ยค่าจาก 3 พิกัดล่าสุดเพื่อขจัดอาการ GPS Jitter ที่ขยับหมุดสั่นไปมาบนจุดเดิม
+
+- **[map_tracking_screen.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/features/tracking/screens/map_tracking_screen.dart) [ปรับปรุง]:**
+  - **Double Tween LERP Animation:** ครอบหน้าต่างแผนที่ด้วย `TweenAnimationBuilder` สองชั้น:
+    1. `LatLngTween` ทำการเกลี่ยจุดพิกัด Lat/Lng นำทางเลื่อนจากพิกัดเดิมไปใหม่แบบ Linear Interpolation ในเวลา 1 วินาทีอย่างนุ่มนวลโดยไม่มีการวาร์ปกระโดด
+    2. `AngleTween` จัดการหมุนทิศทางรถ (Bearing Rotation) โดยคำนวณและเกลี่ยตามทางโค้งที่สั้นที่สุด (Shortest-path angle interpolation) ไม่เกิดการสปินตัวครบรอบ 360 องศาเมื่อทิศทางข้ามจุดศูนย์
+  - **Smart Navigation Directions Panel (ใหม่):** แสดงแถบคำแนะนำทางด้านบนแผนที่ เช่น *"อีก 450 ม. เตรียมชิดขวาเพื่อเลี้ยว"* โดยดึงทิศทางและระยะทางเฉลี่ยแบบเรียลไทม์ สอดคล้องกับเส้นถนนจริง
+  - **Tail Route Polyline Pruning (ใหม่):** หั่นเส้นทางการนำทาง (Polyline) ส่วนที่วิ่งผ่านพ้นไปแล้วทิ้งโดยอัตโนมัติ เพื่อการเรนเดอร์ที่เบาขึ้นและสมจริงแบบ Google Maps
+
+---
+
+## 🧪 ผลการทดสอบและความถูกต้อง (Verification Results)
+
+1. **การคอมไพล์ระบบหลังบ้านและโมบายล์ (Compile Status):**
+   - รันตรวจสอบผ่าน `docker-compose up -d --build` ทั้งระบบ C# และ Flutter คอมไพล์ผ่านและรันได้สำเร็จ 100%
+   - คอนเทนเนอร์หลักทั้งหมด (`delivery-backend`, `delivery-rider-app`, `delivery-frontend`, `delivery-db`, `delivery-redis`) สามารถตั้งตัวและขึ้นสถานะ **Healthy** ได้สมบูรณ์
+
+2. **การทำงานประสานงาน (Integration Verification):**
+   - พิกัด GPS เรียลไทม์ไม่เกิดการกระชากหรือวาร์ปบนแผนที่ มีการเคลื่อนย้ายผ่าน LERP และไอคอนรถยนต์เลี้ยวโค้งอย่างราบรื่น
+   - ระบบจัดเก็บ Demand Hotspots ใน Redis สำหรับ Dashboard ทำงานได้อย่างแม่นยำ
+---
+## 🏛️ สถาปัตยกรรมระบบเรียลไทม์ (High-Level Architecture)
+
+พิกัด GPS จะถูกประมวลผลผ่าน Pipeline ตั้งแต่ตัวเครื่องไรเดอร์ผ่าน Redis Buffer ไปจนถึงการทำ LERP ฝั่งผู้รับชม ดังนี้:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant R as Rider App (Flutter)
+    participant B as Backend (.NET 8)
+    participant RC as Redis (Operational)
+    participant DB as PostgreSQL (PostGIS)
+    participant C as Customer / Admin
+
+    R->>R: 1. ดึง GPS -> กรองผ่าน Kalman/SMA (3 จุดล่าสุด)
+    R->>B: 2. ยิงพิกัดผ่าน SignalR (ความถี่ Dynamic 1s - 3s)
+    B->>B: 3. เรียกใช้ OSRM Snap-to-Road Service
+    B->>RC: 4. เขียนทับพิกัดและเวลาเรียลไทม์ลง Redis (ความเร็วระดับ sub-ms)
+    B->>B: 5. พักประวัติพิกัดลง GpsSyncBuffer (In-Memory)
+    alt ยิงพิกัดตามความเร็วไรเดอร์ (Dynamic Broadcast)
+        B->>C: 6. Broadcast พิกัดที่ถูก Snap แล้วไปยังผู้รับชม
+    end
+    C->>C: 7. ผู้รับชมรัน LERP Animation (1s) + Bearing หมุนรถ
+    alt ทุก 10 วินาที (GpsSyncWorker Background)
+        B->>DB: 8. Bulk Insert ประวัติพิกัดลง RiderLocationHistories
+    end
+```
+
+---

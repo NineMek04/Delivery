@@ -25,6 +25,7 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 /// ```
 class LocationService extends Notifier<LocationState> {
   StreamSubscription<Position>? _positionSubscription;
+  final List<Position> _locationHistory = [];
 
   @override
   LocationState build() {
@@ -157,10 +158,28 @@ class LocationService extends Notifier<LocationState> {
       return;
     }
 
+    // กรองด้วย Simple Moving Average (SMA) จาก 3 พิกัดล่าสุดเพื่อลด Jitter
+    _locationHistory.add(position);
+    if (_locationHistory.length > 3) {
+      _locationHistory.removeAt(0);
+    }
+
+    double sumLat = 0;
+    double sumLng = 0;
+    double sumAccuracy = 0;
+    for (var pos in _locationHistory) {
+      sumLat += pos.latitude;
+      sumLng += pos.longitude;
+      sumAccuracy += pos.accuracy;
+    }
+    final avgLat = sumLat / _locationHistory.length;
+    final avgLng = sumLng / _locationHistory.length;
+    final avgAccuracy = sumAccuracy / _locationHistory.length;
+
     state = state.copyWith(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      accuracy: position.accuracy,
+      latitude: avgLat,
+      longitude: avgLng,
+      accuracy: avgAccuracy,
       heading: _normalizeHeading(position.heading),
       lastUpdated: DateTime.now(),
       error: null,
@@ -169,9 +188,9 @@ class LocationService extends Notifier<LocationState> {
     // ส่งพิกัดไปยัง Backend ผ่าน SignalR
     final signalRService = ref.read(signalRServiceProvider.notifier);
     signalRService.sendLocationUpdate(
-      lat: position.latitude,
-      lng: position.longitude,
-      accuracy: position.accuracy,
+      lat: avgLat,
+      lng: avgLng,
+      accuracy: avgAccuracy,
     );
   }
 

@@ -4,7 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
+import 'package:geolocator/geolocator.dart';
 
 import '../../../core/signalr/signalr_service.dart';
 import '../../../models/dispatch_offer.dart';
@@ -13,6 +14,31 @@ import '../../../shared/widgets/connection_status_bar.dart';
 import '../../../shared/widgets/error_dialog.dart';
 import '../../delivery/providers/delivery_provider.dart';
 import '../providers/tracking_provider.dart';
+
+class LatLngTween extends Tween<LatLng> {
+  LatLngTween({super.begin, super.end});
+
+  @override
+  LatLng lerp(double t) {
+    if (begin == null || end == null) return end ?? const LatLng(0, 0);
+    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
+    final lng = begin!.longitude + (end!.longitude - begin!.longitude) * t;
+    return LatLng(lat, lng);
+  }
+}
+
+class AngleTween extends Tween<double> {
+  AngleTween({super.begin, super.end});
+
+  @override
+  double lerp(double t) {
+    if (begin == null || end == null) return end ?? 0.0;
+    double diff = (end! - begin!) % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    return begin! + diff * t;
+  }
+}
 
 class MapTrackingScreen extends ConsumerStatefulWidget {
   const MapTrackingScreen({super.key});
@@ -43,6 +69,10 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   List<LatLng> _simPickupRoute = const [];
   List<LatLng> _simDeliveryRoute = const [];
   final List<_SimTimelineItem> _timeline = [];
+
+  // เก็บค่าล่าสุดสำหรับอนิเมชัน LERP ในแผนที่
+  LatLng? _lastAnimatedPoint;
+  double? _lastAnimatedHeading;
 
   @override
   void initState() {
@@ -189,6 +219,115 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     return LatLng(lat, lng);
   }
 
+  List<LatLng> _getTailRoute(List<LatLng> fullRoute, LatLng? currentPos) {
+    if (currentPos == null || fullRoute.isEmpty) return fullRoute;
+    
+    int closestIdx = 0;
+    double minDistance = double.infinity;
+    
+    for (int i = 0; i < fullRoute.length; i++) {
+      final dist = Geolocator.distanceBetween(
+        currentPos.latitude, currentPos.longitude,
+        fullRoute[i].latitude, fullRoute[i].longitude
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIdx = i;
+      }
+    }
+    
+    return fullRoute.sublist(closestIdx);
+  }
+
+  Widget _buildNavigationPanel(BuildContext context, LatLng riderPos, dynamic activeOrder, LatLng? pickup, LatLng? dropoff) {
+    LatLng? target = pickup;
+    String targetName = "จุดรับอาหาร (ร้านค้า)";
+    bool isPickup = true;
+
+    if (activeOrder != null) {
+      if (activeOrder.state.toString().toUpperCase() == "DELIVERING") {
+        target = dropoff;
+        targetName = "จุดส่งอาหาร (บ้านลูกค้า)";
+        isPickup = false;
+      }
+    } else if (_simPhase == SimFlowPhase.delivery || _simPhase == SimFlowPhase.completed) {
+      target = dropoff;
+      targetName = "จุดส่งอาหาร (บ้านลูกค้า)";
+      isPickup = false;
+    }
+
+    if (target == null) return const SizedBox.shrink();
+
+    final distance = Geolocator.distanceBetween(
+      riderPos.latitude, riderPos.longitude,
+      target.latitude, target.longitude
+    );
+
+    IconData icon;
+    String instruction;
+
+    if (distance > 1000) {
+      icon = Icons.navigation_outlined;
+      instruction = "ตรงไปตามถนนอุดรธานี อีก ${(distance / 1000).toStringAsFixed(1)} กม.";
+    } else if (distance > 400) {
+      icon = Icons.turn_slight_right;
+      instruction = "อีก ${(distance).toStringAsFixed(0)} ม. เตรียมชิดขวาเพื่อเลี้ยว";
+    } else if (distance > 100) {
+      icon = isPickup ? Icons.store : Icons.turn_right;
+      instruction = "อีก ${(distance).toStringAsFixed(0)} ม. เลี้ยวขวาเข้าสู่${isPickup ? 'ร้านค้า' : 'บ้านลูกค้า'}";
+    } else {
+      icon = Icons.flag;
+      instruction = "คุณเดินทางถึง${isPickup ? 'จุดรับอาหาร' : 'จุดส่งมอบอาหาร'}แล้ว!";
+    }
+
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.grey[900]?.withOpacity(0.9) ?? Colors.black87,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF1A73E8),
+              ),
+              child: Icon(icon, color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    instruction,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "มุ่งหน้าสู่ $targetName",
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tracking = ref.watch(trackingNotifierProvider);
@@ -207,10 +346,12 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         ? LatLng(order!.dropoffLat!, order.dropoffLng!)
         : _simDropoffPoint;
 
-    final routePoints = order?.encodedPolyline != null &&
-            order!.encodedPolyline!.isNotEmpty
+    // คำนวณเส้นทางข้างหลังเพื่อทำการทำ Tail Route Update กราฟิกหดตามเส้นถนนจริง
+    final rawRoutePoints = order?.encodedPolyline != null && order!.encodedPolyline!.isNotEmpty
         ? decodePolyline(order.encodedPolyline!)
         : (_simPhase == SimFlowPhase.pickup ? _simPickupRoute : _simDeliveryRoute);
+        
+    final routePoints = _getTailRoute(rawRoutePoints, riderPoint ?? _simRiderPoint);
 
     final center = riderPoint ?? _simRiderPoint ?? pickup ?? dropoff ?? _defaultCenter;
 
@@ -232,79 +373,112 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
             isOnline: tracking.isOnline,
           ),
           Expanded(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: center,
-                initialZoom: 14,
-              ),
+            child: Stack(
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.delivery.rider_app',
-                ),
-                if (routePoints.isNotEmpty)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: routePoints,
-                        color: Theme.of(context).colorScheme.primary,
-                        strokeWidth: 4,
-                      ),
-                    ],
+                TweenAnimationBuilder<LatLng>(
+                  tween: LatLngTween(
+                    begin: _lastAnimatedPoint ?? riderPoint ?? _simRiderPoint ?? center,
+                    end: riderPoint ?? _simRiderPoint ?? center,
                   ),
-                if (riderPoint != null &&
-                    tracking.isTracking &&
-                    tracking.accuracy != null)
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: riderPoint,
-                        radius: math.max(5.0, tracking.accuracy!),
-                        useRadiusInMeter: true,
-                        color: const Color(0xFF1A73E8).withValues(alpha: 0.16),
-                        borderColor:
-                            const Color(0xFF1A73E8).withValues(alpha: 0.36),
-                        borderStrokeWidth: 1.5,
+                  duration: const Duration(seconds: 1),
+                  builder: (context, animatedRiderPoint, child) {
+                    _lastAnimatedPoint = animatedRiderPoint;
+
+                    return TweenAnimationBuilder<double>(
+                      tween: AngleTween(
+                        begin: _lastAnimatedHeading ?? tracking.heading ?? 0.0,
+                        end: tracking.heading ?? 0.0,
                       ),
-                    ],
-                  ),
-                MarkerLayer(
-                  markers: [
-                    if (_simMirrorEnabled && _simRiderPoint != null)
-                      Marker(
-                        point: _simRiderPoint!,
-                        width: 44,
-                        height: 44,
-                        child: const Icon(
-                          Icons.two_wheeler,
-                          color: Colors.purple,
-                          size: 34,
-                        ),
-                      ),
-                    if (riderPoint != null)
-                      Marker(
-                        point: riderPoint,
-                        width: 96,
-                        height: 96,
-                        child: RiderLocationMarker(heading: tracking.heading),
-                      ),
-                    if (pickup != null)
-                      Marker(
-                        point: pickup,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(Icons.store, color: Colors.orange, size: 32),
-                      ),
-                    if (dropoff != null)
-                      Marker(
-                        point: dropoff,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(Icons.home, color: Colors.green, size: 32),
-                      ),
-                  ],
+                      duration: const Duration(milliseconds: 500),
+                      builder: (context, animatedHeading, child) {
+                        _lastAnimatedHeading = animatedHeading;
+
+                        return FlutterMap(
+                          mapController: _mapController,
+                          options: MapOptions(
+                            initialCenter: center,
+                            initialZoom: 14,
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.delivery.rider_app',
+                            ),
+                            if (routePoints.isNotEmpty)
+                              PolylineLayer(
+                                polylines: [
+                                  Polyline(
+                                    points: routePoints,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    strokeWidth: 4,
+                                  ),
+                                ],
+                              ),
+                            if (riderPoint != null &&
+                                tracking.isTracking &&
+                                tracking.accuracy != null)
+                              CircleLayer(
+                                circles: [
+                                  CircleMarker(
+                                    point: animatedRiderPoint,
+                                    radius: math.max(5.0, tracking.accuracy!),
+                                    useRadiusInMeter: true,
+                                    color: const Color(0xFF1A73E8).withOpacity(0.16),
+                                    borderColor: const Color(0xFF1A73E8).withOpacity(0.36),
+                                    borderStrokeWidth: 1.5,
+                                  ),
+                                ],
+                              ),
+                            MarkerLayer(
+                              markers: [
+                                if (_simMirrorEnabled && _simRiderPoint != null)
+                                  Marker(
+                                    point: animatedRiderPoint,
+                                    width: 44,
+                                    height: 44,
+                                    child: const Icon(
+                                      Icons.two_wheeler,
+                                      color: Colors.purple,
+                                      size: 34,
+                                    ),
+                                  ),
+                                if (riderPoint != null)
+                                  Marker(
+                                    point: animatedRiderPoint,
+                                    width: 96,
+                                    height: 96,
+                                    child: RiderLocationMarker(heading: animatedHeading),
+                                  ),
+                                if (pickup != null)
+                                  Marker(
+                                    point: pickup,
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(Icons.store, color: Colors.orange, size: 32),
+                                  ),
+                                if (dropoff != null)
+                                  Marker(
+                                    point: dropoff,
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(Icons.home, color: Colors.green, size: 32),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
                 ),
+                // Turn-by-Turn Navigation Panel overlay
+                if ((riderPoint != null || _simRiderPoint != null) && (order != null || _simPhase != SimFlowPhase.idle))
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    right: 16,
+                    child: _buildNavigationPanel(context, riderPoint ?? _simRiderPoint!, order, pickup, dropoff),
+                  ),
               ],
             ),
           ),

@@ -4,129 +4,101 @@
       <h2>{{ title }}</h2>
       <p>Shop registry, menu details, and spatial coordinates from BackendApi</p>
     </div>
-    <button type="button" class="primary-action" (click)="loadShops()">
-      <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
-      Refresh_Shops
-    </button>
   </div>
 
   <div class="stat-grid">
     <article>
       <span>Total Shops</span>
-      <strong>{{ shops.length }}</strong>
-      <small>registered in PostGIS</small>
+      <strong>{{ totalCount }}</strong>
+      <small>registered in system</small>
     </article>
     <article>
-      <span>Showing</span>
-      <strong>{{ filteredShops.length }}</strong>
-      <small>matching current filter</small>
+      <span>Current Page</span>
+      <strong>{{ currentPage }}</strong>
+      <small>out of {{ Math.ceil(totalCount / pageSize) || 1 }} pages</small>
     </article>
   </div>
 
-  <div class="filter-strip">
-    <label class="search">
-      <lucide-icon [img]="icons.Search" size="16"></lucide-icon>
-      <input type="search" placeholder="search_shop_name_or_menu..." [(ngModel)]="query" />
-    </label>
-  </div>
+  <app-data-table 
+    [title]="'Shop_Registry'"
+    [columns]="columns"
+    [data]="shops"
+    [totalCount]="totalCount"
+    [currentPage]="currentPage"
+    [pageSize]="pageSize"
+    [searchQuery]="query"
+    [isLoading]="isLoading"
+    [hasError]="hasError"
+    [hasActions]="true"
+    (pageChange)="onPageChange($event)"
+    (search)="onSearch($event)"
+    (refresh)="loadShops()"
+    (retry)="loadShops()">
+    
+    <ng-template #cellTemplate let-item let-col="col">
+      @if (col.field === 'id') {
+        <span class="mono primary">{{ getShopTrackingCode(item) }}</span>
+      }
+      @else if (col.field === 'name') {
+        @if (editingId === item.id) {
+          <input class="inline-input" [(ngModel)]="editSnapshot.name" />
+        } @else {
+          {{ item.name }}
+        }
+      }
+      @else if (col.field === 'menuName') {
+        @if (editingId === item.id) {
+          <input class="inline-input" [(ngModel)]="editSnapshot.menuName" />
+        } @else {
+          {{ item.menuName }}
+        }
+      }
+      @else if (col.field === 'menuItems') {
+        <button type="button" class="ghost-action" (click)="loadMenuItems(item.id!)">
+          <lucide-icon [img]="icons.Menu" size="14"></lucide-icon>
+          View Menu
+        </button>
+      }
+      @else if (col.field === 'menuPrice') {
+        @if (editingId === item.id) {
+          <input class="inline-input price-input" type="number" min="1" [(ngModel)]="editSnapshot.menuPrice" />
+        } @else {
+          {{ item.menuPrice | number:'1.0-0' }}
+        }
+      }
+      @else if (col.field === 'lat' || col.field === 'lng') {
+        <span class="mono">{{ formatCoord(item[col.field]) }}</span>
+      }
+      @else if (col.field === 'createdAt') {
+        <span class="mono">{{ formatDate(item.createdAt) }}</span>
+      }
+      @else {
+        {{ item[col.field] }}
+      }
+    </ng-template>
 
-  <div class="table-card">
-    <div class="table-title">
-      <div class="accent-line"></div>
-      <h3>Shop_Registry</h3>
-    </div>
-    <div class="table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>SHOP_ID</th>
-            <th>NAME</th>
-            <th>MENU</th>
-            <th>PRICE (฿)</th>
-            <th>LATITUDE</th>
-            <th>LONGITUDE</th>
-            <th>CREATED</th>
-            <th>ACTIONS</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (shop of filteredShops; track shop.id) {
-            <tr>
-              <td class="mono primary">{{ getShopTrackingCode(shop) }}</td>
-
-              <!-- NAME — editable -->
-              <td>
-                @if (editingId === shop.id) {
-                  <input class="inline-input" [(ngModel)]="editSnapshot.name" />
-                } @else {
-                  {{ shop.name }}
-                }
-              </td>
-
-              <!-- MENU NAME — editable -->
-              <td>
-                @if (editingId === shop.id) {
-                  <input class="inline-input" [(ngModel)]="editSnapshot.menuName" />
-                } @else {
-                  {{ shop.menuName }}
-                }
-              </td>
-
-              <!-- MENU ITEMS BUTTON -->
-              <td>
-                <button type="button" class="ghost-action" (click)="loadMenuItems(shop.id!)">
-                  <lucide-icon [img]="icons.Menu" size="14"></lucide-icon>
-                  View Menu
-                </button>
-              </td>
-
-              <!-- PRICE — editable -->
-              <td>
-                @if (editingId === shop.id) {
-                  <input class="inline-input price-input" type="number" min="1" [(ngModel)]="editSnapshot.menuPrice" />
-                } @else {
-                  {{ shop.menuPrice | number:'1.0-0' }}
-                }
-              </td>
-
-              <td class="mono">{{ formatCoord(shop.lat) }}</td>
-              <td class="mono">{{ formatCoord(shop.lng) }}</td>
-              <td class="mono">{{ formatDate(shop.createdAt) }}</td>
-
-              <!-- ACTIONS -->
-              <td class="actions">
-                @if (editingId === shop.id) {
-                  <button type="button" class="ghost-action" (click)="saveEdit(shop)">
-                    <lucide-icon [img]="icons.Check" size="14"></lucide-icon>
-                    Save
-                  </button>
-                  <button type="button" class="muted-action" (click)="cancelEdit()">
-                    <lucide-icon [img]="icons.X" size="14"></lucide-icon>
-                    Cancel
-                  </button>
-                } @else {
-                  <button type="button" class="ghost-action" (click)="startEdit(shop)">
-                    <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
-                    Edit
-                  </button>
-                  <button type="button" class="danger-action" (click)="deleteShop(shop)">
-                    <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
-                    Delete
-                  </button>
-                }
-              </td>
-            </tr>
-          }
-          @if (!filteredShops.length && !isLoading) {
-            <tr>
-              <td colspan="8" class="empty-cell">NO_SHOP_DATA_FROM_API</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-    <footer>Showing {{ filteredShops.length }} of {{ shops.length }} shops — edit inline, changes saved to BackendApi</footer>
-  </div>
+    <ng-template #actionTemplate let-item>
+      @if (editingId === item.id) {
+        <button type="button" class="ghost-action" (click)="saveEdit(item)">
+          <lucide-icon [img]="icons.Check" size="14"></lucide-icon>
+          Save
+        </button>
+        <button type="button" class="muted-action" (click)="cancelEdit()">
+          <lucide-icon [img]="icons.X" size="14"></lucide-icon>
+          Cancel
+        </button>
+      } @else {
+        <button type="button" class="ghost-action" (click)="startEdit(item)">
+          <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
+          Edit
+        </button>
+        <button type="button" class="danger-action" (click)="deleteShop(item)">
+          <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
+          Delete
+        </button>
+      }
+    </ng-template>
+  </app-data-table>
 
   <!-- Menu Items Modal -->
   @if (isMenuModalOpen && selectedShopId) {

@@ -1,0 +1,130 @@
+<div class="table-card">
+  <div class="table-header">
+    <div class="table-title">
+      <div class="accent-line"></div>
+      <h3>{{ title }}</h3>
+    </div>
+    
+    <div class="table-controls">
+      <label class="search">
+        <lucide-icon [img]="searchIcon" size="16"></lucide-icon>
+        <input type="search" placeholder="Search..." [ngModel]="searchQuery" (ngModelChange)="onSearchChange($event)" />
+      </label>
+      
+      <button type="button" class="primary-action" (click)="refresh.emit()">
+        <lucide-icon [img]="refreshIcon" size="16"></lucide-icon>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          @for (col of columns; track col.field) {
+            <th>{{ col.header }}</th>
+          }
+          @if (hasActions) {
+            <th>ACTIONS</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @if (hasError) {
+          <tr>
+            <td [attr.colspan]="columns.length + (hasActions ? 1 : 0)" class="error-cell">
+              <div class="error-state">
+                <lucide-icon [img]="errorIcon" size="24" class="error-icon"></lucide-icon>
+                <span class="error-text">ไม่สามารถโหลดข้อมูลได้</span>
+                <button type="button" class="ghost-action retry-btn" (click)="retry.emit()">
+                  <lucide-icon [img]="refreshIcon" size="14"></lucide-icon>
+                  ลองใหม่ (Retry)
+                </button>
+              </div>
+            </td>
+          </tr>
+        } @else if (isLoading) {
+          @for (row of [1, 2, 3, 4, 5]; track $index) {
+            <tr class="skeleton-row">
+              @for (col of columns; track col.field) {
+                <td>
+                  <div class="skeleton-pulse"></div>
+                </td>
+              }
+              @if (hasActions) {
+                <td>
+                  <div class="skeleton-pulse skeleton-action"></div>
+                </td>
+              }
+            </tr>
+          }
+        } @else if (data.length === 0) {
+          <tr>
+            <td [attr.colspan]="columns.length + (hasActions ? 1 : 0)" class="empty-cell">
+              No data available
+            </td>
+          </tr>
+        } @else {
+          @for (item of data; track item.id || $index) {
+            <tr>
+              @for (col of columns; track col.field) {
+                <td>
+                  <ng-container *ngTemplateOutlet="cellTemplate || defaultCell; context: { $implicit: item, col: col }"></ng-container>
+                </td>
+              }
+              @if (hasActions) {
+                <td class="actions">
+                  <ng-container *ngTemplateOutlet="actionTemplate || defaultAction; context: { $implicit: item }"></ng-container>
+                </td>
+              }
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  
+  <footer>
+    <div class="pagination-info">
+      Showing {{ data.length }} items (Total: {{ totalCount }})
+    </div>
+    
+    @if (totalCount > pageSize) {
+      <div class="pagination-controls">
+        <button type="button" class="muted-action" [disabled]="currentPage <= 1 || isLoading" (click)="onPageChange(currentPage - 1)">
+          Prev
+        </button>
+        
+        <div class="page-numbers">
+          @for (p of getPages(); track $index) {
+            @if (p === '...') {
+              <span class="pagination-ellipsis">...</span>
+            } @else {
+              <button type="button" 
+                      class="page-btn" 
+                      [class.active]="p === currentPage" 
+                      [disabled]="isLoading"
+                      (click)="onPageChange(+p)">
+                {{ p }}
+              </button>
+            }
+          }
+        </div>
+
+        <button type="button" class="muted-action" [disabled]="currentPage >= Math.ceil(totalCount / pageSize) || isLoading" (click)="onPageChange(currentPage + 1)">
+          Next
+        </button>
+      </div>
+    }
+  </footer>
+</div>
+
+<ng-template #defaultCell let-item let-col="col">
+  {{ item[col.field] }}
+</ng-template>
+
+<ng-template #defaultAction let-item>
+  <!-- Optional Default Actions -->
+</ng-template>
+

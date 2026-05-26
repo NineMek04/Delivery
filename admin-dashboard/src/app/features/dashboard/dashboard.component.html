@@ -6,7 +6,7 @@
     </div>
     <button class="primary-btn" type="button" (click)="loadDashboardData()">
       <lucide-icon [img]="icons.Plus" size="16"></lucide-icon>
-      Refresh_Data_Stream
+      Refresh Data Stream
     </button>
   </div>
 
@@ -59,7 +59,7 @@
   <div class="chart-container">
     <div class="table-title">
       <div class="accent-line"></div>
-      <h3>Order_State_Telemetry</h3>
+      <h3>Order State Telemetry</h3>
     </div>
     <div class="chart-wrapper">
       <canvas baseChart [data]="chartData" [options]="chartOptions" [type]="'line'"></canvas>
@@ -71,9 +71,9 @@
       <div class="table-header">
         <div class="table-title">
           <div class="accent-line"></div>
-          <h3>Real-time_Transit_Status</h3>
+          <h3>Real-time Transit Status</h3>
         </div>
-        <button class="link-btn" type="button" (click)="loadDashboardData()">Query_Logs <lucide-icon [img]="icons.ChevronRight" size="14"></lucide-icon></button>
+        <button class="link-btn" type="button" (click)="loadDashboardData()">Query Logs <lucide-icon [img]="icons.ChevronRight" size="14"></lucide-icon></button>
       </div>
       <div class="table-responsive">
         <table>
@@ -117,7 +117,7 @@
     <div class="health-container">
       <div class="table-title mb-24">
         <div class="accent-line negative"></div>
-        <h3>Critical_Segments</h3>
+        <h3>Critical Segments</h3>
       </div>
       <div class="health-items flex-1">
         @for (item of pendingOrders; track item.id) {
@@ -153,7 +153,7 @@
           <span>RIDERS: {{ riders.length }}</span>
           <span>LIVE: {{ liveRiders.length }}</span>
         </div>
-        <button class="outline-btn-primary" type="button" (click)="loadDashboardData()">Sync_Service_Data</button>
+        <button class="outline-btn-primary" type="button" (click)="loadDashboardData()">Sync Service Data</button>
       </div>
     </div>
   </div>

@@ -31,9 +31,11 @@ export abstract class BaseApiService<T> {
   /**
    * ดึงข้อมูลทั้งหมด (แบบแบ่งหน้า) — คืนเฉพาะ items array
    */
-  public getAll(page = 1, pageSize = 50): Observable<T[]> {
+  public getAll(page = 1, pageSize = 50, search?: string): Observable<T[]> {
+    const q: any = { page, pageSize };
+    if (search) q.search = search;
     return req<any>(`${this.endpoint}`)
-      .queryString({ page, pageSize })
+      .queryString(q)
       .get()
       .pipe(map(res => unwrapList<T>(res)));
   }
@@ -41,9 +43,11 @@ export abstract class BaseApiService<T> {
   /**
    * ดึงข้อมูลแบบ raw PaginatedResult (สำหรับ Component ที่ต้องการ totalCount)
    */
-  public getAllPaginated(page = 1, pageSize = 20): Observable<{ items: T[]; totalCount: number; page: number; pageSize: number }> {
+  public getAllPaginated(page = 1, pageSize = 20, search?: string): Observable<{ items: T[]; totalCount: number; page: number; pageSize: number }> {
+    const q: any = { page, pageSize };
+    if (search) q.search = search;
     return req<any>(`${this.endpoint}`)
-      .queryString({ page, pageSize })
+      .queryString(q)
       .get()
       .pipe(map(res => {
         const value = unwrapValue<any>(res);

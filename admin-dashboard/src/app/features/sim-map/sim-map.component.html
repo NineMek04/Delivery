@@ -25,10 +25,10 @@
       </div>
       <div class="phase-rail">
         @for (step of flowSteps; track step.key) {
-          <div class="phase-step" [class.active]="step.key === flowPhase" [class.done]="step.done">
-            <i></i>
-            <span>{{ step.label }}</span>
-          </div>
+        <div class="phase-step" [class.active]="step.key === flowPhase" [class.done]="step.done">
+          <i></i>
+          <span>{{ step.label }}</span>
+        </div>
         }
       </div>
     </section>
@@ -38,16 +38,11 @@
       <div class="filter-header">
         <h3>Map Controls</h3>
       </div>
-      
+
       <div class="search-box">
-        <input 
-          type="text" 
-          placeholder="Search Rider ID..." 
-          [(ngModel)]="searchQuery" 
-          (ngModelChange)="applyFilters()"
-        >
+        <input type="text" placeholder="Search Rider ID..." [(ngModel)]="searchQuery" (ngModelChange)="applyFilters()">
         @if (searchQuery) {
-          <button class="clear-btn" (click)="searchQuery = ''; applyFilters()">×</button>
+        <button class="clear-btn" (click)="searchQuery = ''; applyFilters()">×</button>
         }
       </div>
 
@@ -100,41 +95,48 @@
       <p>{{ routeHint }}</p>
 
       @if (aiDurationLabel !== '-') {
-        <div class="ai-eta-badge" style="margin-top: 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; font-family: 'Inter', sans-serif;">
-          <span style="font-size: 18px;">🤖</span>
-          <div style="display: flex; flex-direction: column;">
-            <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; font-weight: 700;">AI OSRM ETA Estimation</span>
-            <strong style="font-size: 12px; color: #f8fafc; font-weight: 600; margin-top: 2px;">{{ aiDurationLabel }}</strong>
-          </div>
+      <div class="ai-eta-badge"
+        style="margin-top: 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; font-family: 'Inter', sans-serif;">
+        <span style="font-size: 18px;">🤖</span>
+        <div style="display: flex; flex-direction: column;">
+          <span
+            style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; font-weight: 700;">AI
+            OSRM ETA Estimation</span>
+          <strong style="font-size: 12px; color: #f8fafc; font-weight: 600; margin-top: 2px;">{{ aiDurationLabel
+            }}</strong>
         </div>
+      </div>
       }
     </section>
 
     @if (candidateRows.length) {
-      <section class="candidate-board">
-        <div class="row-between">
-          <h3>AI Candidate Ranking</h3>
-          <span>{{ candidateRows.length }} riders</span>
+    <section class="candidate-board">
+      <div class="row-between">
+        <h3>AI Candidate Ranking</h3>
+        <span>{{ candidateRows.length }} riders</span>
+      </div>
+      @for (candidate of candidateRows; track candidate.riderId) {
+      <article [class.winner]="candidate.riderId === assignedRiderId">
+        <b>#{{ candidate.rank }}</b>
+        <div>
+          <strong>{{ candidate.label }}</strong>
+          <span>{{ candidate.distanceKm | number:'1.2-2' }} km from pickup</span>
+          @if (candidate.totalEtaMinutes !== undefined || candidate.score !== undefined) {
+          <span
+            style="color: #38bdf8; font-size: 10px; font-weight: 600; display: block; margin-top: 4px; line-height: 1.4;">
+            🤖 ถึงมือลูกค้า: ~{{ candidate.totalEtaMinutes }} นาที
+            <span
+              style="color: rgba(248, 250, 252, 0.75); display: block; font-size: 9px; font-weight: 500; margin-top: 1px;">
+              (ไรเดอร์→ร้าน: {{ candidate.etaMinutes }} น. + ร้าน→ลูกค้า: {{ candidate.deliveryEtaMinutes }} น.) |
+              Score: {{ candidate.score | number:'1.1-1' }}
+            </span>
+          </span>
+          }
         </div>
-        @for (candidate of candidateRows; track candidate.riderId) {
-          <article [class.winner]="candidate.riderId === assignedRiderId">
-            <b>#{{ candidate.rank }}</b>
-            <div>
-              <strong>{{ candidate.label }}</strong>
-              <span>{{ candidate.distanceKm | number:'1.2-2' }} km from pickup</span>
-              @if (candidate.totalEtaMinutes !== undefined || candidate.score !== undefined) {
-                <span style="color: #38bdf8; font-size: 10px; font-weight: 600; display: block; margin-top: 4px; line-height: 1.4;">
-                  🤖 ถึงมือลูกค้า: ~{{ candidate.totalEtaMinutes }} นาที
-                  <span style="color: rgba(248, 250, 252, 0.75); display: block; font-size: 9px; font-weight: 500; margin-top: 1px;">
-                    (ไรเดอร์→ร้าน: {{ candidate.etaMinutes }} น. + ร้าน→ลูกค้า: {{ candidate.deliveryEtaMinutes }} น.) | Score: {{ candidate.score | number:'1.1-1' }}
-                  </span>
-                </span>
-              }
-            </div>
-            <em>{{ candidate.riderId === assignedRiderId ? 'SELECTED' : 'READY' }}</em>
-          </article>
-        }
-      </section>
+        <em>{{ candidate.riderId === assignedRiderId ? 'SELECTED' : 'READY' }}</em>
+      </article>
+      }
+    </section>
     }
 
     <div class="map-controls">
@@ -153,14 +155,14 @@
       </div>
       <div class="timeline">
         @for (item of timeline; track item.id) {
-          <article [class]="item.tone">
-            <i></i>
-            <div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.text }}</p>
-              <span>{{ item.time }}</span>
-            </div>
-          </article>
+        <article [class]="item.tone">
+          <i></i>
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.text }}</p>
+            <span>{{ item.time }}</span>
+          </div>
+        </article>
         }
       </div>
     </section>
@@ -172,19 +174,19 @@
       </div>
       <div class="rider-list-container">
         @for (rider of filteredRiderRows; track rider.id) {
-          <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
-            <div class="rider-dot" [class]="rider.status.split(' ')[0].toLowerCase()">{{ rider.short }}</div>
-            <div>
-              <strong>{{ rider.label }}</strong>
-              <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
-            </div>
+        <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
+          <div class="rider-dot" [class]="rider.status.split(' ')[0].toLowerCase()">{{ rider.short }}</div>
+          <div>
+            <strong>{{ rider.label }}</strong>
+            <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
           </div>
+        </div>
         }
         @if (!filteredRiderRows.length && riderRows.length) {
-          <div class="empty-panel">NO_MATCHING_RIDERS</div>
+        <div class="empty-panel">NO_MATCHING_RIDERS</div>
         }
         @if (!riderRows.length) {
-          <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
+        <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
         }
       </div>
     </section>

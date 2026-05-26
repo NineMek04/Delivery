@@ -9,48 +9,78 @@ import { forkJoin } from 'rxjs';
 import Swal from 'sweetalert2';
 import { LucideAngularModule, RefreshCcw, Search, Plus, XCircle, RotateCcw, Info } from 'lucide-angular';
 import { OrderDetailComponent } from './order-detail/order-detail.component';
+import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DataTableComponent],
   templateUrl: './orders.component.html',
   styleUrl: './orders.component.scss'
 })
 export class OrdersComponent implements OnInit {
   readonly title = 'Order_Operations';
   readonly icons = { RefreshCcw, Search, Plus, XCircle, RotateCcw, Info };
+  readonly Math = Math;
   
   private orderService = inject(OrderService);
   private riderService = inject(RiderService);
+  
   public orders: OrderDto[] = [];
   public riders: RiderDto[] = [];
   public isLoading = false;
+  public hasError = false;
   public query = '';
+
+  // Pagination
+  currentPage = 1;
+  pageSize = 10;
+  totalCount = 0;
+
+  columns: TableColumn[] = [
+    { field: 'id', header: 'ORDER_ID' },
+    { field: 'distanceKm', header: 'DISTANCE' },
+    { field: 'pickup', header: 'PICKUP_POINT' },
+    { field: 'dropoff', header: 'DROPOFF_POINT' },
+    { field: 'status', header: 'STATUS' },
+    { field: 'rider', header: 'RIDER' }
+  ];
 
   // Modal state
   selectedOrder: OrderDto | null = null;
   showDetailModal = false;
 
   ngOnInit(): void {
+    // Load riders once or periodically, not strictly paginated since we need them for mapping
+    this.riderService.getAll(1, 1000).subscribe(riders => this.riders = riders);
     this.loadOrders();
   }
 
   loadOrders(): void {
     this.isLoading = true;
-    forkJoin({
-      orders: this.orderService.getAll(),
-      riders: this.riderService.getAll()
-    }).subscribe({
-      next: ({ orders, riders }) => {
-        this.orders = orders;
-        this.riders = riders;
+    this.hasError = false;
+    this.orderService.getAllPaginated(this.currentPage, this.pageSize, this.query).subscribe({
+      next: (res) => {
+        this.orders = res.items;
+        this.totalCount = res.totalCount;
         this.isLoading = false;
       },
       error: () => {
         this.isLoading = false;
+        this.hasError = true;
       }
     });
+  }
+
+  onPageChange(page: number) {
+    this.currentPage = page;
+    this.loadOrders();
+  }
+
+  onSearch(query: string) {
+    this.query = query;
+    this.currentPage = 1;
+    this.loadOrders();
   }
 
   getStatusTone(status?: string | null): string {
@@ -65,21 +95,6 @@ export class OrdersComponent implements OnInit {
       case 'CANCELLED': return 'red';
       default: return 'gray';
     }
-  }
-
-  get filteredOrders(): OrderDto[] {
-    const q = this.query.trim().toLowerCase();
-    if (!q) return this.orders;
-    return this.orders.filter(order =>
-      (order.id || '').toLowerCase().includes(q) ||
-      (order.trackingCode || '').toLowerCase().includes(q) ||
-      (order.status || '').toLowerCase().includes(q) ||
-      (order.assignedRiderId || '').toLowerCase().includes(q)
-    );
-  }
-
-  get activeCount(): number {
-    return this.orders.filter(order => !['COMPLETED', 'CANCELLED'].includes(order.status || '')).length;
   }
 
   get pendingCount(): number {
@@ -123,28 +138,104 @@ export class OrdersComponent implements OnInit {
     if (!id) return;
     
     Swal.fire({
-      title: 'Are you sure?',
-      text: "You won't be able to revert this!",
+      title: 'ยกเลิกออเดอร์?',
+      text: 'คุณต้องการยกเลิกคำสั่งซื้อนี้จากระบบใช่หรือไม่',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, cancel it!'
+      confirmButtonText: 'ใช่, ยกเลิกออเดอร์',
+      cancelButtonText: 'ยกเลิก',
+      background: '#141414',
+      color: '#FFFFFF'
     }).then((result) => {
-      if (result.isConfirmed) {
-        this.orderService.cancelOrder(id).subscribe(() => {
-          Swal.fire('Cancelled!', 'The order has been cancelled.', 'success');
+      if (!result.isConfirmed) return;
+
+      Swal.fire({
+        title: 'กำลังยกเลิก...',
+        allowOutsideClick: false,
+        background: '#141414',
+        color: '#FFFFFF',
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      this.orderService.cancelOrder(id).subscribe({
+        next: () => {
+          Swal.fire({
+            icon: 'success',
+            title: 'ยกเลิกออเดอร์สำเร็จ',
+            timer: 1500,
+            showConfirmButton: false,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
           this.loadOrders();
-        });
-      }
+        },
+        error: (err) => {
+          const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
+          Swal.fire({
+            icon: 'error',
+            title: 'ยกเลิกคำสั่งซื้อไม่สำเร็จ',
+            text: serverMessage,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
+        }
+      });
     });
   }
 
   retryDispatch(id?: string | null): void {
     if (!id) return;
-    this.orderService.retryDispatch(id).subscribe(() => {
-      Swal.fire('Dispatched!', 'The system is looking for a new rider.', 'success');
-      this.loadOrders();
+
+    Swal.fire({
+      title: 'ส่งออเดอร์ใหม่?',
+      text: 'คุณต้องการทำการกระจายไรเดอร์สำหรับออเดอร์นี้ใหม่อีกครั้งใช่หรือไม่',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#00FF66',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'ใช่, ส่งใหม่',
+      cancelButtonText: 'ยกเลิก',
+      background: '#141414',
+      color: '#FFFFFF'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+
+      Swal.fire({
+        title: 'กำลังกระตุ้นการกระจาย...',
+        allowOutsideClick: false,
+        background: '#141414',
+        color: '#FFFFFF',
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      this.orderService.retryDispatch(id).subscribe({
+        next: () => {
+          Swal.fire({
+            icon: 'success',
+            title: 'กระจายออเดอร์ใหม่สำเร็จ',
+            text: 'ระบบกำลังหาตัวผู้ขับไรเดอร์รายถัดไป',
+            background: '#141414',
+            color: '#FFFFFF'
+          });
+          this.loadOrders();
+        },
+        error: (err) => {
+          const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
+          Swal.fire({
+            icon: 'error',
+            title: 'การกระจายใหม่ล้มเหลว',
+            text: serverMessage,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
+        }
+      });
     });
   }
 }

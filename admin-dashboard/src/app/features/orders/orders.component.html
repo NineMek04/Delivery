@@ -4,101 +4,91 @@
       <h2>{{ title }}</h2>
       <p>Backend order stream, dispatch controls, and lifecycle state</p>
     </div>
-    <button type="button" class="primary-action" (click)="loadOrders()">
-      <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
-      Refresh_Orders
-    </button>
   </div>
 
   <div class="stat-grid">
     <article>
-      <span>Active Orders</span>
-      <strong>{{ activeCount }}</strong>
-      <small>loaded from OrderService</small>
+      <span>Total Orders</span>
+      <strong>{{ totalCount }}</strong>
+      <small>registered in system</small>
     </article>
     <article>
       <span>Pending Assignment</span>
       <strong class="warning">{{ pendingCount }}</strong>
-      <small class="warning">dispatch queue</small>
+      <small class="warning">on current page</small>
     </article>
     <article>
       <span>Completed Flow</span>
       <strong>{{ completedCount }}</strong>
-      <small>delivered or completed</small>
+      <small>on current page</small>
     </article>
     <article>
       <span>Delivery Fees</span>
       <strong>{{ totalFees | currency:'THB':'symbol-narrow':'1.0-0' }}</strong>
-      <small>current result set</small>
+      <small>on current page</small>
     </article>
   </div>
 
-  <div class="filter-strip">
-    <label class="search">
-      <lucide-icon [img]="icons.Search" size="16"></lucide-icon>
-      <input type="search" placeholder="search_order_payload..." [(ngModel)]="query" />
-    </label>
-    <div class="chips">
-      <span>PENDING</span>
-      <span>ASSIGNED</span>
-      <span>DELIVERING</span>
-      <span>COMPLETED</span>
-    </div>
-  </div>
+  <app-data-table 
+    [title]="'Order_Manifest'"
+    [columns]="columns"
+    [data]="orders"
+    [totalCount]="totalCount"
+    [currentPage]="currentPage"
+    [pageSize]="pageSize"
+    [searchQuery]="query"
+    [isLoading]="isLoading"
+    [hasError]="hasError"
+    [hasActions]="true"
+    (pageChange)="onPageChange($event)"
+    (search)="onSearch($event)"
+    (refresh)="loadOrders()"
+    (retry)="loadOrders()">
+    
+    <ng-template #cellTemplate let-item let-col="col">
+      @if (col.field === 'id') {
+        <span class="mono primary">{{ getOrderTrackingCode(item) }}</span>
+      }
+      @else if (col.field === 'distanceKm') {
+        {{ item.distanceKm | number:'1.2-2' }} km
+      }
+      @else if (col.field === 'pickup') {
+        <span class="mono">{{ item.pickupLat | number:'1.4-4' }}, {{ item.pickupLng | number:'1.4-4' }}</span>
+      }
+      @else if (col.field === 'dropoff') {
+        <span class="mono">{{ item.dropoffLat | number:'1.4-4' }}, {{ item.dropoffLng | number:'1.4-4' }}</span>
+      }
+      @else if (col.field === 'status') {
+        <span class="status" [class]="getStatusTone(item.status)">{{ item.status || 'PENDING' }}</span>
+      }
+      @else if (col.field === 'rider') {
+        <span class="mono">{{ getRiderTrackingCode(item.assignedRiderId) }}</span>
+      }
+      @else {
+        {{ item[col.field] }}
+      }
+    </ng-template>
 
-  <div class="table-card">
-    <div class="table-title">
-      <div class="accent-line"></div>
-      <h3>Order_Manifest</h3>
-    </div>
-    <div class="table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>ORDER_ID</th>
-            <th>DISTANCE</th>
-            <th>PICKUP_POINT</th>
-            <th>DROPOFF_POINT</th>
-            <th>STATUS</th>
-            <th>RIDER</th>
-            <th>ACTIONS</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (order of filteredOrders; track order.id) {
-            <tr (click)="openOrderDetail(order)" style="cursor: pointer;">
-              <td class="mono primary">{{ getOrderTrackingCode(order) }}</td>
-              <td>{{ order.distanceKm | number:'1.2-2' }} km</td>
-              <td class="mono">{{ order.pickupLat | number:'1.4-4' }}, {{ order.pickupLng | number:'1.4-4' }}</td>
-              <td class="mono">{{ order.dropoffLat | number:'1.4-4' }}, {{ order.dropoffLng | number:'1.4-4' }}</td>
-              <td><span class="status" [class]="getStatusTone(order.status)">{{ order.status || 'PENDING' }}</span></td>
-              <td class="mono">{{ getRiderTrackingCode(order.assignedRiderId) }}</td>
-              <td class="actions">
-                @if (order.status === 'CREATED' || order.status === 'MATCHING') {
-                  <button type="button" class="ghost-action" (click)="retryDispatch(order.id)">
-                    <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
-                    Dispatch
-                  </button>
-                }
-                @if (order.status !== 'COMPLETED' && order.status !== 'CANCELLED') {
-                  <button type="button" class="danger-action" (click)="cancelOrder(order.id)">
-                    <lucide-icon [img]="icons.XCircle" size="14"></lucide-icon>
-                    Cancel
-                  </button>
-                }
-              </td>
-            </tr>
-          }
-          @if (!filteredOrders.length && !isLoading) {
-            <tr>
-              <td colspan="7" class="empty-cell">NO_ORDER_PAYLOADS_FROM_API</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-    <footer>Showing {{ filteredOrders.length }} of {{ orders.length }} backend orders</footer>
-  </div>
+    <ng-template #actionTemplate let-item>
+      <button type="button" class="primary-action" (click)="openOrderDetail(item)">
+        <lucide-icon [img]="icons.Info" size="14"></lucide-icon>
+        View
+      </button>
+      
+      @if (item.status === 'CREATED' || item.status === 'MATCHING') {
+        <button type="button" class="ghost-action" (click)="retryDispatch(item.id)">
+          <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
+          Dispatch
+        </button>
+      }
+      @if (['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP'].includes(item.status || '')) {
+        <button type="button" class="danger-action" (click)="cancelOrder(item.id)">
+          <lucide-icon [img]="icons.XCircle" size="14"></lucide-icon>
+          Cancel
+        </button>
+      }
+    </ng-template>
+  </app-data-table>
 
   <!-- Order Detail Modal -->
   @if (showDetailModal && selectedOrder) {

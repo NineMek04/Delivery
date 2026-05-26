@@ -19,6 +19,23 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   @override
   RiderSessionState build() {
     ref.onDispose(_disposeSubscriptions);
+
+    // ฟังเหตุการณ์ Reconnect ของ SignalR เพื่อตั้งค่าออนไลน์คนขับคืนมาอัตโนมัติ
+    ref.listen<SignalRConnectionState>(signalRServiceProvider, (previous, next) async {
+      if (previous == SignalRConnectionState.reconnecting &&
+          next == SignalRConnectionState.connected &&
+          state.isOnline) {
+        _logger.i('🔄 SignalR reconnected — restoring status to IDLE and sending heartbeat');
+        try {
+          final signalR = ref.read(signalRServiceProvider.notifier);
+          await signalR.updateStatus(AppConstants.statusAvailable);
+          await signalR.sendHeartbeat();
+        } catch (e) {
+          _logger.w('Failed to restore status after reconnect: $e');
+        }
+      }
+    });
+
     return const RiderSessionState();
   }
 

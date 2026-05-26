@@ -123,6 +123,13 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
 
     _offerSub = signalRService.onDispatchOfferSent.listen((offer) {
       if (!_simMirrorEnabled || !mounted) return;
+
+      // กรองแสดงข้อเสนอเฉพาะของไรเดอร์คนปัจจุบัน
+      final currentRiderId = ref.read(authServiceProvider.notifier).userId;
+      if (currentRiderId == null || offer.riderId != currentRiderId) {
+        return;
+      }
+
       final riderId = offer.riderId ?? offer.order.id;
       setState(() {
         _simPhase = SimFlowPhase.offer;
@@ -143,6 +150,13 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
 
     _statusSub = signalRService.onOrderStatusChanged.listen((event) {
       if (!_simMirrorEnabled || !mounted) return;
+
+      // กรองสเตตัสเฉพาะออเดอร์ที่เรากำลังทำอยู่ใน Sim Mirror
+      final currentShortOrderId = _shortOrder(event.orderId);
+      if (_simOrderId != currentShortOrderId) {
+        return;
+      }
+
       final nextPhase = _phaseFromStatus(event.status);
       if (nextPhase == null) return;
       setState(() {
@@ -154,6 +168,13 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
 
     _riderLocationSub = signalRService.onRiderLocationUpdated.listen((event) {
       if (!_simMirrorEnabled || !mounted) return;
+
+      // กรองเฉพาะพิกัดที่เป็นของไรเดอร์คนปัจจุบัน
+      final currentRiderId = ref.read(authServiceProvider.notifier).userId;
+      if (currentRiderId == null || event.riderId != currentRiderId) {
+        return;
+      }
+
       setState(() {
         _simRiderPoint = LatLng(event.latitude, event.longitude);
         _simRiderLabel = _shortRider(event.riderId);
@@ -339,17 +360,24 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         : null;
 
     final order = delivery.activeOrder;
+    
+    // หากสิ้นสุดงานจำลอง (completed หรือ idle) และไม่มีงานจริง ให้เคลียร์จุดหมายและเส้นทางออก
+    final isFinished = _simPhase == SimFlowPhase.completed || _simPhase == SimFlowPhase.idle;
+
     final pickup = order?.pickupLat != null && order?.pickupLng != null
         ? LatLng(order!.pickupLat!, order.pickupLng!)
-        : _simPickupPoint;
+        : (isFinished ? null : _simPickupPoint);
+
     final dropoff = order?.dropoffLat != null && order?.dropoffLng != null
         ? LatLng(order!.dropoffLat!, order.dropoffLng!)
-        : _simDropoffPoint;
+        : (isFinished ? null : _simDropoffPoint);
 
     // คำนวณเส้นทางข้างหลังเพื่อทำการทำ Tail Route Update กราฟิกหดตามเส้นถนนจริง
     final rawRoutePoints = order?.encodedPolyline != null && order!.encodedPolyline!.isNotEmpty
         ? decodePolyline(order.encodedPolyline!)
-        : (_simPhase == SimFlowPhase.pickup ? _simPickupRoute : _simDeliveryRoute);
+        : (isFinished
+            ? const <LatLng>[]
+            : (_simPhase == SimFlowPhase.pickup ? _simPickupRoute : _simDeliveryRoute));
         
     final routePoints = _getTailRoute(rawRoutePoints, riderPoint ?? _simRiderPoint);
 

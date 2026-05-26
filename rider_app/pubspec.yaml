@@ -39,6 +39,10 @@ dependencies:
   intl: ^0.20.2                       # i18n & date formatting
   logger: ^2.5.0                      # Structured logging (เทียบ ILogger ใน .NET)
 
+  # --- Firebase / Push Notifications ---
+  firebase_core: ^3.1.0
+  firebase_messaging: ^15.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

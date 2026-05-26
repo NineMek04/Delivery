@@ -144,5 +144,44 @@ namespace BackendApi.Controllers.MasterData
 
             return CreatedAtAction(nameof(GetById), new { id = entity.Id }, result);
         }
+
+        /// <summary>
+        /// อัปเดตข้อมูลร้านค้า — รับ ShopDto แต่อัปเดตเฉพาะฟิลด์ที่ได้รับอนุญาต
+        /// ป้องกันปัญหา Z dimension และการเขียนทับ Read-Only/Init-Only properties เช่น RefNumber
+        /// </summary>
+        [HttpPut("{id}")]
+        public override async Task<ActionResult<ShopDto>> Update(
+            string id,
+            [FromBody] ShopDto dto,
+            CancellationToken cancellationToken = default)
+        {
+            var existing = await DB.GetQuery<Shop>()
+                .Include(s => s.MenuItems)
+                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+
+            if (existing is null)
+                return NotFound(ApiResponse.Fail("ไม่พบข้อมูลร้านค้าที่ต้องการแก้ไข", code: "NOT_FOUND"));
+
+            // อัปเดตเฉพาะฟิลด์ที่ปรับปรุงได้
+            existing.Name = dto.Name;
+            existing.MenuName = dto.MenuName;
+            existing.MenuPrice = dto.MenuPrice;
+            existing.IsOpen = dto.IsOpen;
+            existing.PrepTimeMinutes = dto.PrepTimeMinutes;
+            existing.OpeningHours = dto.OpeningHours;
+
+            if (dto.Lat.HasValue && dto.Lng.HasValue)
+            {
+                var factory = NetTopologySuite.NtsGeometryServices.Instance
+                    .CreateGeometryFactory(srid: 4326);
+                existing.Location = factory.CreatePoint(
+                    new NetTopologySuite.Geometries.Coordinate(dto.Lng.Value, dto.Lat.Value));
+            }
+
+            DB.UpdateObject(existing);
+            await DB.CommitChangesAsync(cancellationToken);
+
+            return Ok(existing.Adapt<ShopDto>());
+        }
     }
 }

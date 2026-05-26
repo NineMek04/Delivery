@@ -4,25 +4,44 @@ import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, RefreshCcw, Search, Pencil, Trash2, X, Check, Plus, Menu } from 'lucide-angular';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { StoreService, MenuItem } from '../../core/services/store.service';
+import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
 import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-shops',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, DataTableComponent],
   templateUrl: './shops.component.html',
   styleUrl: './shops.component.scss'
 })
 export class ShopsComponent implements OnInit {
   readonly title = 'Shop_Management';
   readonly icons = { RefreshCcw, Search, Pencil, Trash2, X, Check, Plus, Menu };
+  readonly Math = Math;
 
   private readonly shopService = inject(ShopService);
   private readonly storeService = inject(StoreService);
 
   shops: ShopDto[] = [];
   isLoading = false;
+  hasError = false;
   query = '';
+  
+  // Pagination
+  currentPage = 1;
+  pageSize = 10;
+  totalCount = 0;
+
+  columns: TableColumn[] = [
+    { field: 'id', header: 'SHOP_ID' },
+    { field: 'name', header: 'NAME' },
+    { field: 'menuName', header: 'MENU' },
+    { field: 'menuItems', header: 'VIEW MENU' },
+    { field: 'menuPrice', header: 'PRICE (฿)' },
+    { field: 'lat', header: 'LATITUDE' },
+    { field: 'lng', header: 'LONGITUDE' },
+    { field: 'createdAt', header: 'CREATED' }
+  ];
 
   // inline edit state
   editingId: string | null = null;
@@ -39,15 +58,29 @@ export class ShopsComponent implements OnInit {
 
   loadShops(): void {
     this.isLoading = true;
-    this.shopService.getAll().subscribe({
-      next: (shops) => {
-        this.shops = shops;
+    this.hasError = false;
+    this.shopService.getAllPaginated(this.currentPage, this.pageSize, this.query).subscribe({
+      next: (res) => {
+        this.shops = res.items;
+        this.totalCount = res.totalCount;
         this.isLoading = false;
       },
       error: () => {
         this.isLoading = false;
+        this.hasError = true;
       }
     });
+  }
+
+  onPageChange(page: number) {
+    this.currentPage = page;
+    this.loadShops();
+  }
+
+  onSearch(query: string) {
+    this.query = query;
+    this.currentPage = 1; // reset to first page on search
+    this.loadShops();
   }
 
   loadMenuItems(shopId: string): void {
@@ -57,8 +90,15 @@ export class ShopsComponent implements OnInit {
         this.menuItems = menus;
         this.isMenuModalOpen = true;
       },
-      error: () => {
-        Swal.fire({ icon: 'error', title: 'โหลดเมนูไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง' });
+      error: (err) => {
+        const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
+        Swal.fire({ 
+          icon: 'error', 
+          title: 'โหลดเมนูไม่สำเร็จ', 
+          text: serverMessage,
+          background: '#141414',
+          color: '#FFFFFF'
+        });
       }
     });
   }
@@ -67,17 +107,6 @@ export class ShopsComponent implements OnInit {
     this.isMenuModalOpen = false;
     this.selectedShopId = null;
     this.menuItems = [];
-  }
-
-  get filteredShops(): ShopDto[] {
-    const q = this.query.trim().toLowerCase();
-    if (!q) return this.shops;
-    return this.shops.filter(s =>
-      (s.id || '').toLowerCase().includes(q) ||
-      (s.trackingCode || '').toLowerCase().includes(q) ||
-      (s.name || '').toLowerCase().includes(q) ||
-      (s.menuName || '').toLowerCase().includes(q)
-    );
   }
 
   // ── Inline Edit ──────────────────────────────────────────────────
@@ -94,24 +123,65 @@ export class ShopsComponent implements OnInit {
 
   saveEdit(shop: ShopDto): void {
     if (!shop.id) return;
-    const payload: Partial<ShopDto> = {
-      name: this.editSnapshot.name,
-      menuName: this.editSnapshot.menuName,
-      menuPrice: this.editSnapshot.menuPrice,
-      lat: shop.lat,
-      lng: shop.lng
-    };
-    this.shopService.update(shop.id, payload).subscribe({
-      next: () => {
-        shop.name = payload.name!;
-        shop.menuName = payload.menuName!;
-        shop.menuPrice = payload.menuPrice!;
-        this.cancelEdit();
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-      },
-      error: () => {
-        Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง' });
-      }
+    
+    Swal.fire({
+      title: 'ยืนยันการแก้ไขร้านค้า?',
+      text: 'คุณต้องการบันทึกการเปลี่ยนแปลงของร้านนี้ใช่หรือไม่',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#00FF66',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'ใช่, บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      background: '#141414',
+      color: '#FFFFFF'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+
+      Swal.fire({
+        title: 'กำลังบันทึก...',
+        allowOutsideClick: false,
+        background: '#141414',
+        color: '#FFFFFF',
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const payload: Partial<ShopDto> = {
+        name: this.editSnapshot.name,
+        menuName: this.editSnapshot.menuName,
+        menuPrice: this.editSnapshot.menuPrice,
+        lat: shop.lat,
+        lng: shop.lng
+      };
+      
+      this.shopService.update(shop.id!, payload).subscribe({
+        next: () => {
+          shop.name = payload.name!;
+          shop.menuName = payload.menuName!;
+          shop.menuPrice = payload.menuPrice!;
+          this.cancelEdit();
+          Swal.fire({ 
+            icon: 'success', 
+            title: 'บันทึกสำเร็จ', 
+            timer: 1500, 
+            showConfirmButton: false,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
+        },
+        error: (err) => {
+          const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
+          Swal.fire({ 
+            icon: 'error', 
+            title: 'บันทึกไม่สำเร็จ', 
+            text: serverMessage,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
+        }
+      });
     });
   }
 
@@ -127,16 +197,43 @@ export class ShopsComponent implements OnInit {
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'ใช่, ลบเลย',
-      cancelButtonText: 'ยกเลิก'
+      cancelButtonText: 'ยกเลิก',
+      background: '#141414',
+      color: '#FFFFFF'
     }).then(result => {
       if (!result.isConfirmed || !shop.id) return;
+
+      Swal.fire({
+        title: 'กำลังลบ...',
+        allowOutsideClick: false,
+        background: '#141414',
+        color: '#FFFFFF',
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
       this.shopService.delete(shop.id).subscribe({
         next: () => {
-          this.shops = this.shops.filter(s => s.id !== shop.id);
-          Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+          this.loadShops(); // Reload from backend to update pagination
+          Swal.fire({ 
+            icon: 'success', 
+            title: 'ลบสำเร็จ', 
+            timer: 1500, 
+            showConfirmButton: false,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
         },
-        error: () => {
-          Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: 'กรุณาลองใหม่อีกครั้ง' });
+        error: (err) => {
+          const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
+          Swal.fire({ 
+            icon: 'error', 
+            title: 'ลบไม่สำเร็จ', 
+            text: serverMessage,
+            background: '#141414',
+            color: '#FFFFFF'
+          });
         }
       });
     });

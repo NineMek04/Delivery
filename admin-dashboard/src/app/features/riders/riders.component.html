@@ -4,16 +4,12 @@
       <h2>{{ title }}</h2>
       <p>Rider fleet status, GPS coordinates, and last activity from BackendApi</p>
     </div>
-    <button type="button" class="primary-action" (click)="loadRiders()">
-      <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
-      Refresh_Fleet
-    </button>
   </div>
 
   <div class="stat-grid">
     <article>
       <span>Total Riders</span>
-      <strong>{{ riders.length }}</strong>
+      <strong>{{ totalCount }}</strong>
       <small>registered in system</small>
     </article>
     <article>
@@ -33,62 +29,77 @@
     </article>
   </div>
 
-  <div class="filter-strip">
-    <label class="search">
-      <lucide-icon [img]="icons.Search" size="16"></lucide-icon>
-      <input type="search" placeholder="search_rider_id_or_name..." [(ngModel)]="query" />
-    </label>
-    <div class="chips">
-      <span>IDLE</span>
-      <span>BUSY</span>
-      <span>RESERVED</span>
-      <span>OFFLINE</span>
-    </div>
-  </div>
+  <app-data-table 
+    [title]="'Rider_Manifest'"
+    [columns]="columns"
+    [data]="riders"
+    [totalCount]="totalCount"
+    [currentPage]="currentPage"
+    [pageSize]="pageSize"
+    [searchQuery]="query"
+    [isLoading]="isLoading"
+    [hasError]="hasError"
+    [hasActions]="true"
+    (pageChange)="onPageChange($event)"
+    (search)="onSearch($event)"
+    (refresh)="loadRiders()"
+    (retry)="loadRiders()">
+    
+    <ng-template #cellTemplate let-item let-col="col">
+      @if (col.field === 'id') {
+        <span class="mono primary">{{ getRiderTrackingCode(item) }}</span>
+      }
+      @else if (col.field === 'name') {
+        @if (editingId === item.id) {
+          <input class="inline-input" [(ngModel)]="editSnapshot.name" />
+        } @else {
+          {{ item.name || '—' }}
+        }
+      }
+      @else if (col.field === 'status') {
+        <span class="status" [class]="getStatusTone(item.status)">{{ item.status || 'UNKNOWN' }}</span>
+      }
+      @else if (col.field === 'lat') {
+        <span class="mono">
+          @if (item.lat != null) {
+            <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
+            {{ formatCoord(item.lat) }}
+          } @else {
+            —
+          }
+        </span>
+      }
+      @else if (col.field === 'lng') {
+        <span class="mono">{{ formatCoord(item.lng) }}</span>
+      }
+      @else if (col.field === 'lastUpdated') {
+        <span class="mono">{{ formatTime(item.lastUpdated) }}</span>
+      }
+      @else {
+        {{ item[col.field] }}
+      }
+    </ng-template>
 
-  <div class="table-card">
-    <div class="table-title">
-      <div class="accent-line"></div>
-      <h3>Rider_Manifest</h3>
-    </div>
-    <div class="table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>RIDER_ID</th>
-            <th>NAME</th>
-            <th>STATUS</th>
-            <th>LATITUDE</th>
-            <th>LONGITUDE</th>
-            <th>LAST_UPDATE</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (rider of filteredRiders; track rider.id) {
-            <tr>
-              <td class="mono primary">{{ getRiderTrackingCode(rider) }}</td>
-              <td>{{ rider.name || '—' }}</td>
-              <td><span class="status" [class]="getStatusTone(rider.status)">{{ rider.status || 'UNKNOWN' }}</span></td>
-              <td class="mono">
-                @if (rider.lat != null) {
-                  <lucide-icon [img]="icons.MapPin" size="12"></lucide-icon>
-                  {{ formatCoord(rider.lat) }}
-                } @else {
-                  —
-                }
-              </td>
-              <td class="mono">{{ formatCoord(rider.lng) }}</td>
-              <td class="mono">{{ formatTime(rider.lastUpdated) }}</td>
-            </tr>
-          }
-          @if (!filteredRiders.length && !isLoading) {
-            <tr>
-              <td colspan="6" class="empty-cell">NO_RIDER_DATA_FROM_API</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-    <footer>Showing {{ filteredRiders.length }} of {{ riders.length }} riders</footer>
-  </div>
+    <ng-template #actionTemplate let-item>
+      @if (editingId === item.id) {
+        <button type="button" class="ghost-action" (click)="saveEdit(item)">
+          <lucide-icon [img]="icons.Check" size="14"></lucide-icon>
+          Save
+        </button>
+        <button type="button" class="muted-action" (click)="cancelEdit()">
+          <lucide-icon [img]="icons.X" size="14"></lucide-icon>
+          Cancel
+        </button>
+      } @else {
+        <button type="button" class="ghost-action" (click)="startEdit(item)">
+          <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
+          Edit
+        </button>
+        <button type="button" class="danger-action" (click)="deleteRider(item)">
+          <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
+          Delete
+        </button>
+      }
+    </ng-template>
+  </app-data-table>
 </section>

@@ -119,18 +119,20 @@
         <h3>Rider Stream</h3>
         <span class="badge">{{ riderRows.length }}</span>
       </div>
-      @for (rider of riderRows; track rider.id) {
-        <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
-          <div class="rider-dot">{{ rider.short }}</div>
-          <div>
-            <strong>{{ rider.label }}</strong>
-            <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
+      <div class="rider-stream-list custom-scrollbar">
+        @for (rider of riderRows; track rider.id) {
+          <div class="rider-row" [class.selected]="rider.id === assignedRiderId">
+            <div class="rider-dot">{{ rider.short }}</div>
+            <div>
+              <strong>{{ rider.label }}</strong>
+              <span>{{ rider.status }} / {{ rider.updatedAt }}</span>
+            </div>
           </div>
-        </div>
-      }
-      @if (!riderRows.length) {
-        <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
-      }
+        }
+        @if (!riderRows.length) {
+          <div class="empty-panel">WAITING_FOR_SIGNALR_RIDER_LOCATION</div>
+        }
+      </div>
     </section>
   </aside>
 </section>

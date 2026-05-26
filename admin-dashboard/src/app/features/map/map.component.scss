@@ -118,6 +118,25 @@ i {
   }
 }
 
+.panel-block.riders {
+  overflow-y: auto;
+  
+  /* Custom scrollbar for panel */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 102, 0.2);
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 102, 0.4);
+  }
+}
+
 .row-between {
   display: flex;
   align-items: center;

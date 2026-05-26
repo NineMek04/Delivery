@@ -75,7 +75,7 @@
             Retry Dispatch
           </button>
         }
-        @if (order.status !== 'COMPLETED' && order.status !== 'CANCELLED') {
+        @if (['CREATED', 'MATCHING', 'OFFERING', 'ASSIGNED', 'PICKING_UP'].includes(order.status || '')) {
           <button type="button" class="danger-action" (click)="cancelOrder()">
             <lucide-icon [img]="icons.X" size="14"></lucide-icon>
             Cancel Order

@@ -19,7 +19,7 @@ import { RiderDto } from '../../api/generated/model/rider-dto';
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   icons = { Plus, Truck, AlertTriangle, Warehouse, User, ChevronRight, ArrowUpRight, ArrowDownRight };
-  readonly title = 'Operational_Status';
+  readonly title = 'Smart Delivery Routing System';
 
   private readonly orderService = inject(OrderService);
   private readonly riderService = inject(RiderService);

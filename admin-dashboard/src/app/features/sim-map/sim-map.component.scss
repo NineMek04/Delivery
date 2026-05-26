@@ -324,6 +324,14 @@
   }
 }
 
+.rider-stream-list {
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  margin-top: 8px;
+}
+
 .rider-row {
   display: grid;
   grid-template-columns: 36px 1fr;

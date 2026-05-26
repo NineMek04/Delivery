@@ -81,4 +81,33 @@ public class RidersController : CrudControllerBase<Rider, RiderDto>
 
         return await base.GetById(id, cancellationToken);
     }
+
+    /// <summary>
+    /// อัปเดตข้อมูลไรเดอร์ — อัปเดตเฉพาะฟิลด์ที่แก้ไขได้ เช่น ชื่อ
+    /// ป้องกันปัญหาในการเขียนทับ Read-Only/Init-Only properties เช่น RefNumber
+    /// </summary>
+    [HttpPut("{id}")]
+    public override async Task<ActionResult<RiderDto>> Update(
+        string id,
+        [FromBody] RiderDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = await DB.GetObjectByKeyAsync<Rider>(id, cancellationToken);
+
+        if (existing is null)
+            return NotFound(ApiResponse.Fail("ไม่พบข้อมูลไรเดอร์ที่ต้องการแก้ไข", code: "NOT_FOUND"));
+
+        // อัปเดตเฉพาะฟิลด์ที่อนุญาต
+        existing.Name = dto.Name;
+        
+        if (!string.IsNullOrEmpty(dto.Status) && Enum.TryParse<BackendApi.Core.StateMachines.RiderState>(dto.Status, true, out var parsedState))
+        {
+            existing.State = parsedState;
+        }
+
+        DB.UpdateObject(existing);
+        await DB.CommitChangesAsync(cancellationToken);
+
+        return Ok(existing.Adapt<RiderDto>());
+    }
 }

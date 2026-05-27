@@ -7,10 +7,21 @@
       <p>Real-time order stream, dispatch controls &amp; lifecycle management</p>
     </div>
     @if (newOrderCount > 0) {
-      <div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="danger-action" (click)="deleteAllData()" style="padding: 0 16px; min-height: 32px; font-weight: 800; font-size: 11px;">
+          <lucide-icon [img]="icons.X" size="14" style="margin-right: 6px;"></lucide-icon>
+          Delete All Data
+        </button>
         <button type="button" class="ghost-action" (click)="loadOrders()" style="color: #fbbf24; background: rgba(251, 191, 36, 0.05); border-color: rgba(251, 191, 36, 0.24); padding: 0 16px; min-height: 32px; font-weight: 800; font-size: 11px;">
           <lucide-icon [img]="icons.Bell" size="14" style="margin-right: 6px;"></lucide-icon>
           {{ newOrderCount }} New
+        </button>
+      </div>
+    } @else {
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="danger-action" (click)="deleteAllData()" style="padding: 0 16px; min-height: 32px; font-weight: 800; font-size: 11px;">
+          <lucide-icon [img]="icons.X" size="14" style="margin-right: 6px;"></lucide-icon>
+          Delete All Data
         </button>
       </div>
     }

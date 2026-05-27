@@ -246,6 +246,30 @@ export class OrdersComponent implements OnInit {
     this.currentPage = 1;
   }
 
+  deleteAllData() {
+    Swal.fire({
+      title: 'Are you sure?',
+      text: "You are about to delete ALL orders! This cannot be undone.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#475569',
+      confirmButtonText: 'Yes, delete all!'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        this.orderService.deleteAll().subscribe({
+          next: () => {
+            Swal.fire('Deleted!', 'All orders have been deleted.', 'success');
+            this.loadOrders();
+          },
+          error: (err) => {
+            Swal.fire('Error', 'Failed to delete orders: ' + (err.error?.message || err.message), 'error');
+          }
+        });
+      }
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Filter panel
   // ─────────────────────────────────────────────────────────────────────────

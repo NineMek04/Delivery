@@ -20,4 +20,6 @@ public interface IOrderService
     Task<(int StatusCode, ApiResponse<OrderDto> Response)> CancelOrderAsync(string id, CancellationToken cancellationToken);
     
     Task<(int StatusCode, ApiResponse Response)> RetryDispatchAsync(string id, CancellationToken cancellationToken);
+    
+    Task<(int StatusCode, ApiResponse Response)> DeleteAllOrdersAsync(CancellationToken cancellationToken);
 }

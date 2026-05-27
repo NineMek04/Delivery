@@ -494,4 +494,10 @@ public class OrderService : IOrderService
 
         return (StatusCodes.Status200OK, ApiResponse.Ok("สั่ง Dispatch ใหม่เรียบร้อย ระบบกำลังค้นหาไรเดอร์ให้ใหม่..."));
     }
+
+    public async Task<(int StatusCode, ApiResponse Response)> DeleteAllOrdersAsync(CancellationToken cancellationToken)
+    {
+        await _db.GetQuery<Order>().ExecuteDeleteAsync(cancellationToken);
+        return (StatusCodes.Status200OK, ApiResponse.Ok("ลบข้อมูลออเดอร์ทั้งหมดสำเร็จ"));
+    }
 }

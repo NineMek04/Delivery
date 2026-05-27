@@ -110,4 +110,14 @@ public class RidersController : CrudControllerBase<Rider, RiderDto>
 
         return Ok(existing.Adapt<RiderDto>());
     }
+
+    /// <summary>
+    /// ลบข้อมูลไรเดอร์ทั้งหมด (สำหรับ Simulator)
+    /// </summary>
+    [HttpDelete("all")]
+    public async Task<ActionResult<ApiResponse>> DeleteAll(CancellationToken cancellationToken = default)
+    {
+        await DB.GetQuery<Rider>().ExecuteDeleteAsync(cancellationToken);
+        return Ok(ApiResponse.Ok("ลบข้อมูลไรเดอร์ทั้งหมดสำเร็จ"));
+    }
 }

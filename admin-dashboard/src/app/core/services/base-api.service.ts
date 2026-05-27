@@ -85,6 +85,13 @@ export abstract class BaseApiService<T> {
   }
 
   /**
+   * ลบข้อมูลทั้งหมด (สำหรับ Simulator)
+   */
+  public deleteAll(): Observable<any> {
+    return req<any>(`${this.endpoint}/all`).delete();
+  }
+
+  /**
    * ดึงข้อมูลแบบ custom endpoint (เช่น /menu-items/shop/{shopId})
    */
   public getByEndpoint(endpoint: string): Observable<any> {

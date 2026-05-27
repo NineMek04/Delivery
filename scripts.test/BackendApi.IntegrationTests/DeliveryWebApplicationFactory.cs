@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Testcontainers.PostgreSql;
+using Testcontainers.RabbitMq;
 
 namespace BackendApi.IntegrationTests;
 
@@ -17,6 +18,7 @@ namespace BackendApi.IntegrationTests;
 public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container;
+    private readonly RabbitMqContainer _rabbitMqContainer;
 
     public DeliveryWebApplicationFactory()
     {
@@ -31,11 +33,17 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
             .WithUsername("postgres")
             .WithPassword("postgres")
             .Build();
+
+        _rabbitMqContainer = new RabbitMqBuilder()
+            .WithImage("rabbitmq:3-management-alpine")
+            .WithUsername("guest")
+            .WithPassword("guest")
+            .Build();
     }
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
+        await Task.WhenAll(_container.StartAsync(), _rabbitMqContainer.StartAsync());
 
         // Create PostGIS extension before EF Core migration
         await using var conn = new NpgsqlConnection(_container.GetConnectionString());
@@ -48,7 +56,7 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
-        await _container.DisposeAsync();
+        await Task.WhenAll(_container.DisposeAsync().AsTask(), _rabbitMqContainer.DisposeAsync().AsTask());
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -65,7 +73,11 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
                 { "Jwt:Audience", "TestAudience" },
                 { "Jwt:ExpirationMinutes", "60" },
                 { "RateLimiting:Global:PermitLimit", "99999" },
-                { "RateLimiting:Auth:PermitLimit", "99999" }
+                { "RateLimiting:Auth:PermitLimit", "99999" },
+                { "MessageBroker:Host", _rabbitMqContainer.Hostname },
+                { "MessageBroker:Port", _rabbitMqContainer.GetMappedPublicPort(5672).ToString() },
+                { "MessageBroker:Username", "guest" },
+                { "MessageBroker:Password", "guest" }
             });
         });
 

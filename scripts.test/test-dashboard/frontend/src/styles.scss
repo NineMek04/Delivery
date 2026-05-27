@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap');
+
+// Cyberpunk CSS Custom Properties (Design Tokens)
+:root {
+  --font-primary: 'Outfit', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+
+  // Curated harmonized HSL color palette
+  --bg-deep: hsl(230, 25%, 8%);
+  --bg-surface: hsla(230, 25%, 15%, 0.65);
+  --bg-card: hsla(230, 25%, 18%, 0.45);
+  --border-glass: hsla(230, 25%, 35%, 0.25);
+  
+  --color-primary: hsl(190, 100%, 50%); // Cyan glow
+  --color-primary-rgb: 0, 229, 255;
+  --color-secondary: hsl(315, 100%, 55%); // Magenta glow
+  --color-secondary-rgb: 255, 0, 191;
+  --color-success: hsl(145, 90%, 50%); // Emerald glow
+  --color-danger: hsl(355, 90%, 55%); // Crimson
+  --color-warning: hsl(45, 100%, 50%); // Amber
+  --color-muted: hsl(230, 15%, 65%);
+  --color-text: hsl(0, 0%, 96%);
+
+  --shadow-neon-cyan: 0 0 10px hsla(190, 100%, 50%, 0.3), 0 0 20px hsla(190, 100%, 50%, 0.1);
+  --shadow-neon-magenta: 0 0 10px hsla(315, 100%, 55%, 0.3), 0 0 20px hsla(315, 100%, 55%, 0.1);
+  
+  --transition-smooth: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-primary);
+  background-color: var(--bg-deep);
+  color: var(--color-text);
+  overflow-x: hidden;
+  height: 100vh;
+}
+
+// Glowing Custom Scrollbars
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-glass);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+  box-shadow: var(--shadow-neon-cyan);
+}
+
+// Global Glassmorphism utilities
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  transition: var(--transition-smooth);
+}
+
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: var(--transition-smooth);
+}
+
+.glass-card:hover {
+  border-color: hsla(190, 100%, 50%, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(0, 229, 255, 0.05);
+}
+
+// WebGL/Canvas Live Terminal styling
+.xterm {
+  padding: 10px;
+  border-radius: 8px;
+  background-color: #0b0e14 !important;
+}
+
+.xterm-viewport {
+  background-color: #0b0e14 !important;
+}

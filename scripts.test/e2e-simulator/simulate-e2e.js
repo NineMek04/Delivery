@@ -457,6 +457,13 @@ async function main() {
 
   const order = await createOrder(shop, dropoff);
   log('Order', `Created ${(order.id || order.Id || '').slice(0, 8)}. AI dispatch scan should now appear on the map.`);
+  
+  if (process.env.DELIVERY_SIM_SCENARIO === 'BATCH') {
+    const dropoff2 = randomPointAround({ lat: shop.lat, lng: shop.lng }, randomFloat(1.3, 4.0));
+    const order2 = await createOrder(shop, dropoff2);
+    log('Order', `Created BATCH sibling ${(order2.id || order2.Id || '').slice(0, 8)}.`);
+  }
+  
   log('Order', `Menu ready for simulated pickup: ${shop.menuName}`);
 
   setTimeoutGuard(60);

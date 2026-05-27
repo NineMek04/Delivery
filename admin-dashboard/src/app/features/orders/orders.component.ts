@@ -49,6 +49,7 @@ export class OrdersComponent implements OnInit {
 
   columns: TableColumn[] = [
     { field: 'id', header: 'ORDER_ID', isSortable: true },
+    { field: 'batch', header: 'BATCH' },
     { field: 'pickup', header: 'PICKUP' },
     { field: 'dropoff', header: 'DROPOFF' },
     { field: 'rider', header: 'RIDER', isSortable: true },
@@ -322,6 +323,13 @@ export class OrdersComponent implements OnInit {
 
   isRecentlyUpdated(id?: string | null): boolean {
     return !!id && this.recentlyUpdated.has(id);
+  }
+
+  getSiblingOrders(order: OrderDto): OrderDto[] {
+    if (!order.batchGroupId) return [];
+    return this.allOrders
+      .filter(o => o.batchGroupId === order.batchGroupId && o.id !== order.id)
+      .sort((a, b) => (a.batchSequence ?? 0) - (b.batchSequence ?? 0));
   }
 
   // ─────────────────────────────────────────────────────────────────────────

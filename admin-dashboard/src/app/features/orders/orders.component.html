@@ -131,6 +131,15 @@
       @if (col.field === 'id') {
         <span class="mono primary">{{ getOrderLabel(item) }}</span>
       }
+      @else if (col.field === 'batch') {
+        @if (item.batchGroupId) {
+          <span class="badge" style="background: rgba(167, 139, 250, 0.1); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.2); padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+            x{{ item.batchSize || '?' }} ({{ item.batchSequence }})
+          </span>
+        } @else {
+          <span style="color: #64748b; font-size: 11px;">Solo</span>
+        }
+      }
       @else if (col.field === 'pickup') {
         <span class="mono">
           <lucide-icon [img]="icons.MapPin" size="12" style="margin-right: 4px; color: var(--color-status-error);"></lucide-icon>
@@ -185,7 +194,7 @@
 
   <!-- ── Order Detail Modal ─────────────────────────────────────────────── -->
   @if (showDetailModal && selectedOrder) {
-    <app-order-detail [order]="selectedOrder" (close)="closeOrderDetail()"></app-order-detail>
+    <app-order-detail [order]="selectedOrder" [siblingOrders]="getSiblingOrders(selectedOrder)" (close)="closeOrderDetail()"></app-order-detail>
   }
 
 </section>

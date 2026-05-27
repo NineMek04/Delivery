@@ -89,6 +89,7 @@ public static class ServiceSetup
         services.AddScoped<DispatchAdminNotifier>();
         services.AddScoped<DispatchOfferHandler>();
         services.AddScoped<DispatchService>();
+        services.AddScoped<BatchEvaluator>();
         services.AddScoped<OrderNotificationService>();
         services.AddScoped<ITrackingSearchService, TrackingSearchService>();
         services.AddScoped<IOrderService, OrderService>();

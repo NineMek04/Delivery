@@ -41,6 +41,17 @@ namespace BackendApi.Models.DTOs
 
         /// <summary>ระยะเวลาเดินทางจริงโดยประมาณ (วินาที)</summary>
         public double RouteDurationSeconds { get; set; }
+
+        // ── Batch / Multi-stop ──────────────────────────────────────
+
+        /// <summary>รหัสกลุ่มพ่วง (null = ออเดอร์เดี่ยว)</summary>
+        public string? BatchGroupId { get; set; }
+
+        /// <summary>ลำดับจัดส่งภายในกลุ่ม (0 = เดี่ยว, 1+ = ลำดับในกลุ่ม)</summary>
+        public int BatchSequence { get; set; }
+
+        /// <summary>จำนวนออเดอร์ทั้งหมดในกลุ่ม (0 หรือ 1 = เดี่ยว)</summary>
+        public int BatchSize { get; set; }
     }
 
     /// <summary>

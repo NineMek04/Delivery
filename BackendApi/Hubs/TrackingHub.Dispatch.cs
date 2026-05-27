@@ -27,6 +27,6 @@ public partial class TrackingHub
         var riderId = await GetRiderIdAsync();
         if (riderId is null) return;
 
-        await _offerHandler.RejectOrTimeoutAsync(orderId, riderId, offerId);
+        await _offerHandler.RejectOrTimeoutAsync(offerId, riderId);
     }
 }

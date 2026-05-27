@@ -43,11 +43,15 @@ def rank_candidates(order: Dict[str, Any], candidates: List[Dict[str, Any]], max
             if not is_same_direction(rider_bearing, order_bearing, tolerance_degrees=60):
                 direction_penalty = 20 # Penalty for going opposite ways
 
+        # Batch-aware penalty/bonus logic (Phase 6)
+        is_batch = order.get("is_batch", False)
+        batch_adjustment = -5 if is_batch and len(current_tasks) == 0 else 0 # Prefer IDLE riders for batches
+        
         # 4. Final Score Calculation (Lower is better)
         # Distance is in km. Let's say 1 km = 5 points.
         distance_score = distance_to_pickup * 5
         
-        total_score = distance_score + workload_score + direction_penalty
+        total_score = distance_score + workload_score + direction_penalty + batch_adjustment
 
         # Estimate ETA using rider's real-time velocity (from 5-point moving average)
         rider_speed = candidate.get("speed_kmh", 20.0)  # Default 20 km/h

@@ -23,6 +23,36 @@ const RIDER_CREDS = {
   role: 'Rider'
 };
 
+const outputFile = process.argv[2]; // e.g. /tmp/results.json
+const stats = {
+  passed: 0,
+  failed: 0,
+  details: []
+};
+
+function logTest(name, status, details = "", inputs = "N/A") {
+  if (status === "PASS") stats.passed++;
+  else stats.failed++;
+  
+  stats.details.push({
+    name,
+    location: "e2e-simulator/test-flutter-compat.js",
+    inputs,
+    status,
+    durationMs: 0,
+    error: status === "FAIL" ? details : null
+  });
+}
+
+function finishProcess(code) {
+  if (outputFile) {
+    const fs = require('fs');
+    fs.writeFileSync(outputFile, JSON.stringify({ testCases: stats.details }, null, 2));
+    console.log(`[JSON] Detailed test report saved to ${outputFile}`);
+  }
+  process.exit(code);
+}
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function loginOrRegisterRider() {
@@ -146,6 +176,10 @@ async function runTest() {
   console.log('VERIFYING TEST RESULTS');
   console.log('==================================================');
   
+  logTest("Location Broadcast Received", locationBroadcastReceived ? "PASS" : "FAIL", "Admin received location update", "SignalR: RiderLocationUpdated");
+  logTest("Status Broadcast Received", statusBroadcastReceived ? "PASS" : "FAIL", "Admin received status update", "SignalR: RiderStatusUpdated");
+  logTest("Status Result Received", statusResultReceived ? "PASS" : "FAIL", "Rider received status acknowledgment", "SignalR: RiderStatusUpdatedResult");
+  
   console.log(`[Assert] Location Broadcast Received by Admin: ${locationBroadcastReceived ? '✅ PASSED' : '❌ FAILED'}`);
   console.log(`[Assert] Status Broadcast Received by Admin: ${statusBroadcastReceived ? '✅ PASSED' : '❌ FAILED'}`);
   console.log(`[Assert] RiderStatusUpdatedResult Received by Caller: ${statusResultReceived ? '✅ PASSED' : '❌ FAILED'}`);
@@ -162,14 +196,15 @@ async function runTest() {
   // Cleanup
   await riderConn.stop();
   await adminConn.stop();
-  process.exit(allPassed ? 0 : 1);
+  finishProcess(allPassed ? 0 : 1);
 }
 
 runTest().catch(error => {
   console.error('\nTest crashed:', error.message);
+  logTest("Flutter Compat Flow", "FAIL", error.message, "runTest()");
   if (error.response) {
     console.error('HTTP Status:', error.response.status);
     console.error('Response:', JSON.stringify(error.response.data, null, 2));
   }
-  process.exit(1);
+  finishProcess(1);
 });

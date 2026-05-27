@@ -120,11 +120,18 @@
           <span class="suite-emoji">
             {{ activeSuite === 'csharp' ? '🛡️' : activeSuite === 'python' ? '🧠' : activeSuite === 'load' ? '⚡' : '🚀' }}
           </span>
-          <div>
+          <div style="flex: 1;">
             <h1>{{ getSuiteName(activeSuite) }}</h1>
-            <p class="muted">
-              Configure parameters, trigger sandbox containers and review structured reports.
-            </p>
+            <div class="suite-desc-box">
+              <div class="desc-row">
+                <span class="desc-label">📁 ไฟล์ที่เทส:</span>
+                <span class="desc-value">{{ getSuiteDescription(activeSuite).files }}</span>
+              </div>
+              <div class="desc-row">
+                <span class="desc-label">🔍 สิ่งที่เช็ค:</span>
+                <span class="desc-value">{{ getSuiteDescription(activeSuite).check }}</span>
+              </div>
+            </div>
           </div>
         </div>
         

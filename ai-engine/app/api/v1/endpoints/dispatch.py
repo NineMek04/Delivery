@@ -13,8 +13,8 @@ async def rank_dispatch_candidates(request: DispatchRankRequest):
         return {"ranked_candidates": []}
 
     # Convert Pydantic models to dict for the scoring function
-    order_dict = request.order.dict()
-    candidates_list = [c.dict() for c in request.candidates]
+    order_dict = request.order.model_dump()
+    candidates_list = [c.model_dump() for c in request.candidates]
 
     ranked = rank_candidates(order_dict, candidates_list)
     

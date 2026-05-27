@@ -38,7 +38,7 @@ async function getAdminToken() {
       fullName: "API Stress User",
       role: "Admin",
     });
-    return res.data?.data?.accessToken;
+    return res.data?.value?.accessToken;
   } catch (err) {
     console.error("Failed to get admin token:", err.message);
     process.exit(1);

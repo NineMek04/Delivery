@@ -38,7 +38,6 @@ def test_predict_eta_with_defaults():
     assert data["factors"]["velocity_factor"] == 1.0, "velocity_factor should be 1.0 when no rider speed"
     assert data["factors"]["dispatch_pickup_mins"] == 10.0, "dispatch_pickup should be 10.0 fallback"
     print("  ✅ PASSED")
-    return data
 
 
 def test_predict_eta_with_rider_speed():
@@ -68,7 +67,6 @@ def test_predict_eta_with_rider_speed():
     assert data["factors"]["velocity_factor"] != 1.0, "velocity_factor should not be 1.0 when rider speed provided"
     assert data["factors"]["rider_speed_kmh"] == 25.0
     print("  ✅ PASSED")
-    return data
 
 
 def test_predict_eta_with_osrm_pickup():
@@ -100,7 +98,6 @@ def test_predict_eta_with_osrm_pickup():
     assert data["factors"]["dispatch_pickup_mins"] == 5.0, f"Expected 5.0, got {data['factors']['dispatch_pickup_mins']}"
     assert data["factors"]["osrm_pickup_duration_seconds"] == 180
     print("  ✅ PASSED")
-    return data
 
 
 def test_predict_eta_slow_rider():

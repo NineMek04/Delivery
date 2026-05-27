@@ -20,13 +20,13 @@ public record TestIntegrationEvent : IntegrationEvent
 
 public class TestIntegrationEventHandler : IIntegrationEventHandler<TestIntegrationEvent>
 {
-    public static bool WasCalled { get; private set; }
+    public static int CallCount { get; private set; }
     public static string? ReceivedData { get; private set; }
     public static TaskCompletionSource<bool> Tcs = new();
 
     public Task Handle(TestIntegrationEvent @event)
     {
-        WasCalled = true;
+        CallCount++;
         ReceivedData = @event.Data;
         Tcs.TrySetResult(true);
         return Task.CompletedTask;
@@ -34,8 +34,40 @@ public class TestIntegrationEventHandler : IIntegrationEventHandler<TestIntegrat
 
     public static void Reset()
     {
-        WasCalled = false;
+        CallCount = 0;
         ReceivedData = null;
+        Tcs = new TaskCompletionSource<bool>();
+    }
+}
+
+public record ThrowingIntegrationEvent : IntegrationEvent
+{
+    public string Data { get; init; } = null!;
+
+    public ThrowingIntegrationEvent() { }
+
+    [JsonConstructor]
+    public ThrowingIntegrationEvent(string data)
+    {
+        Data = data;
+    }
+}
+
+public class ThrowingIntegrationEventHandler : IIntegrationEventHandler<ThrowingIntegrationEvent>
+{
+    public static bool WasCalled { get; private set; }
+    public static TaskCompletionSource<bool> Tcs = new();
+
+    public Task Handle(ThrowingIntegrationEvent @event)
+    {
+        WasCalled = true;
+        Tcs.TrySetResult(true);
+        throw new InvalidOperationException("Simulated event handler failure for DLQ verification");
+    }
+
+    public static void Reset()
+    {
+        WasCalled = false;
         Tcs = new TaskCompletionSource<bool>();
     }
 }
@@ -85,7 +117,91 @@ public class EventBusTests : IAsyncLifetime
         );
 
         Assert.Same(TestIntegrationEventHandler.Tcs.Task, completed);
-        Assert.True(TestIntegrationEventHandler.WasCalled);
+        Assert.Equal(1, TestIntegrationEventHandler.CallCount);
         Assert.Equal(expectedData, TestIntegrationEventHandler.ReceivedData);
     }
+
+    [Fact]
+    public async Task EventBus_Idempotency_SameEventProcessedOnce()
+    {
+        // Arrange
+        var testFactory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.AddTransient<TestIntegrationEventHandler>();
+            });
+        });
+
+        var eventBus = testFactory.Services.GetRequiredService<IEventBus>();
+        TestIntegrationEventHandler.Reset();
+        eventBus.Subscribe<TestIntegrationEvent, TestIntegrationEventHandler>();
+
+        var eventId = Guid.NewGuid();
+        var data = $"Idempotent-Test-Data-{Guid.NewGuid():N}";
+        var integrationEvent = new TestIntegrationEvent(data) { Id = eventId };
+
+        // Act - Publish same event twice
+        await eventBus.PublishAsync(integrationEvent);
+        await eventBus.PublishAsync(integrationEvent);
+
+        // Wait for potential dual processing
+        await Task.WhenAny(
+            TestIntegrationEventHandler.Tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(3))
+        );
+
+        // Allow another brief moment for second execution attempt to finish if any
+        await Task.Delay(500);
+
+        // Assert - CallCount should be strictly 1
+        Assert.Equal(1, TestIntegrationEventHandler.CallCount);
+    }
+
+    [Fact]
+    public async Task EventBus_HandlerThrows_EventHandledGracefully()
+    {
+        // Arrange
+        var testFactory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.AddTransient<ThrowingIntegrationEventHandler>();
+                services.AddTransient<TestIntegrationEventHandler>();
+            });
+        });
+
+        var eventBus = testFactory.Services.GetRequiredService<IEventBus>();
+        
+        ThrowingIntegrationEventHandler.Reset();
+        TestIntegrationEventHandler.Reset();
+
+        eventBus.Subscribe<ThrowingIntegrationEvent, ThrowingIntegrationEventHandler>();
+        eventBus.Subscribe<TestIntegrationEvent, TestIntegrationEventHandler>();
+
+        // Act - Publish throwing event and then a normal one to verify event bus survival
+        var throwEvent = new ThrowingIntegrationEvent("Boom");
+        var normalEvent = new TestIntegrationEvent("Survive");
+
+        await eventBus.PublishAsync(throwEvent);
+
+        // Wait for the throwing event handler to execute
+        var throwCompleted = await Task.WhenAny(
+            ThrowingIntegrationEventHandler.Tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5))
+        );
+        Assert.Same(ThrowingIntegrationEventHandler.Tcs.Task, throwCompleted);
+        Assert.True(ThrowingIntegrationEventHandler.WasCalled);
+
+        // Now publish the normal event to ensure the bus is healthy and auto-recovered
+        await eventBus.PublishAsync(normalEvent);
+
+        var normalCompleted = await Task.WhenAny(
+            TestIntegrationEventHandler.Tcs.Task,
+            Task.Delay(TimeSpan.FromSeconds(5))
+        );
+        Assert.Same(TestIntegrationEventHandler.Tcs.Task, normalCompleted);
+        Assert.Equal(1, TestIntegrationEventHandler.CallCount);
+    }
 }
+

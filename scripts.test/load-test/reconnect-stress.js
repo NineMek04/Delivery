@@ -44,7 +44,7 @@ async function registerRider(index) {
       fullName: `Reconnect Rider ${index}`,
       role: "Rider",
     });
-    return res.data?.data?.accessToken;
+    return res.data?.value?.accessToken;
   } catch (err) {
     console.error(`[Rider ${index}] Registration failed: ${err.message}`);
     return null;

@@ -55,7 +55,7 @@ async function getAdminToken() {
       fullName: "Dispatch Stress User",
       role: "Admin",
     });
-    return res.data?.data?.accessToken;
+    return res.data?.value?.accessToken;
   } catch (err) {
     console.error("Failed to get admin token:", err.message);
     process.exit(1);
@@ -88,7 +88,7 @@ async function createOrder(token, index) {
     const latency = Date.now() - start;
     stats.latencies.push(latency);
     stats.created++;
-    return res.data?.data;
+    return res.data?.value;
   } catch (err) {
     const latency = Date.now() - start;
     stats.latencies.push(latency);

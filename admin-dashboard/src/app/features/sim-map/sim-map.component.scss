@@ -143,7 +143,10 @@
   flex-direction: column;
   gap: 16px;
 
-  h3 { margin: 0; }
+  h3 {
+    margin: 0;
+  }
+
   h4 {
     margin: 0 0 8px;
     font-size: 11px;
@@ -182,7 +185,10 @@
     cursor: pointer;
     font-size: 16px;
     padding: 0 4px;
-    &:hover { color: #fff; }
+
+    &:hover {
+      color: #fff;
+    }
   }
 }
 
@@ -213,14 +219,25 @@
     height: 10px;
     border-radius: 50%;
     display: inline-block;
-    
-    &.idle { background: #22c55e; }
-    &.delivering { background: #f97316; }
-    &.offline { background: #64748b; }
+
+    &.idle {
+      background: #22c55e;
+    }
+
+    &.delivering {
+      background: #f97316;
+    }
+
+    &.offline {
+      background: #64748b;
+    }
   }
-  
-  &:hover { color: #fff; }
+
+  &:hover {
+    color: #fff;
+  }
 }
+
 // ─────────────────────────────────────────────────────────────────────────
 
 .route-card {
@@ -277,10 +294,19 @@
   padding: 14px;
   display: grid;
   gap: 8px;
+  align-items: center;
 
   h3 {
     margin: 0;
     color: #f8fafc;
+  }
+
+  .candidate-list {
+    display: grid;
+    gap: 8px;
+    max-height: 45vh;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   article {
@@ -339,8 +365,10 @@
     color: #f8fafc;
     font: 900 12px var(--font-mono);
     cursor: pointer;
-    
-    &:hover { background: rgba(30, 41, 59, 0.94); }
+
+    &:hover {
+      background: rgba(30, 41, 59, 0.94);
+    }
   }
 }
 
@@ -380,12 +408,14 @@
   padding: 4px 8px;
 }
 
-.timeline-section, .rider-stream-section {
+.timeline-section,
+.rider-stream-section {
   flex: 1;
   min-height: 250px;
 }
 
-.timeline, .rider-list-container {
+.timeline,
+.rider-list-container {
   display: grid;
   gap: 12px;
   margin-top: 16px;
@@ -408,9 +438,17 @@
       background: #64748b;
     }
 
-    &.scan i { background: #38bdf8; }
-    &.success i { background: #22c55e; }
-    &.warning i { background: #f59e0b; }
+    &.scan i {
+      background: #38bdf8;
+    }
+
+    &.success i {
+      background: #22c55e;
+    }
+
+    &.warning i {
+      background: #f59e0b;
+    }
 
     strong {
       display: block;
@@ -479,9 +517,17 @@
   background: #64748b; // Default offline
   color: #f8fafc;
   font: 900 11px var(--font-mono);
-  
-  &.idle, &.available { background: #22c55e; }
-  &.delivering, &.picking_up, &.busy { background: #f97316; }
+
+  &.idle,
+  &.available {
+    background: #22c55e;
+  }
+
+  &.delivering,
+  &.picking_up,
+  &.busy {
+    background: #f97316;
+  }
 }
 
 .empty-panel {
@@ -518,8 +564,14 @@
       background: #22c55e;
       box-shadow: 0 0 0 7px rgba(34, 197, 94, 0.2), 0 10px 28px rgba(15, 23, 42, 0.4);
     }
-    &.shop { background: #ea580c; }
-    &.dropoff { background: #0f766e; }
+
+    &.shop {
+      background: #ea580c;
+    }
+
+    &.dropoff {
+      background: #0f766e;
+    }
   }
 
   .scan-candidate-marker {
@@ -531,8 +583,15 @@
   }
 
   @keyframes radarPulse {
-    0% { stroke-width: 1px; opacity: 0.9; }
-    100% { stroke-width: 7px; opacity: 0.18; }
+    0% {
+      stroke-width: 1px;
+      opacity: 0.9;
+    }
+
+    100% {
+      stroke-width: 7px;
+      opacity: 0.18;
+    }
   }
 
   // Cluster & Popup Styles
@@ -540,16 +599,20 @@
     background-clip: padding-box;
     border-radius: 20px;
   }
-  
+
   .cluster-icon {
     transition: all 0.2s ease-in-out;
-    &:hover { transform: scale(1.1); }
+
+    &:hover {
+      transform: scale(1.1);
+    }
   }
 
-  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-tip {
     background: #1e293b;
     color: #f8fafc;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   }
 
   .rider-popup {
@@ -582,7 +645,7 @@
     justify-content: center;
     font-weight: 800;
     color: #fff;
-    border: 2px solid rgba(255,255,255,0.2);
+    border: 2px solid rgba(255, 255, 255, 0.2);
   }
 
   .rp-name {
@@ -598,7 +661,8 @@
     letter-spacing: 0.5px;
   }
 
-  .rp-coords, .rp-phone {
+  .rp-coords,
+  .rp-phone {
     font-family: var(--font-mono);
     font-size: 11px;
     color: #94a3b8;
@@ -624,9 +688,17 @@
     color: #fff;
     transition: opacity 0.2s;
 
-    &:hover { opacity: 0.8; }
-    &.accept { background: #22c55e; }
-    &.reject { background: #ef4444; }
+    &:hover {
+      opacity: 0.8;
+    }
+
+    &.accept {
+      background: #22c55e;
+    }
+
+    &.reject {
+      background: #ef4444;
+    }
   }
 }
 
@@ -648,6 +720,15 @@
     right: 18px;
   }
 
-  .candidate-board { display: none; }
-  .map-controls { right: 18px; top: auto; bottom: 220px; } // Adjust on mobile
+  .candidate-board {
+    display: none;
+  }
+
+  .map-controls {
+    right: 18px;
+    top: auto;
+    bottom: 220px;
+  }
+
+  // Adjust on mobile
 }

@@ -115,27 +115,29 @@
         <h3>AI Candidate Ranking</h3>
         <span>{{ candidateRows.length }} riders</span>
       </div>
-      @for (candidate of candidateRows; track candidate.riderId) {
-      <article [class.winner]="candidate.riderId === assignedRiderId">
-        <b>#{{ candidate.rank }}</b>
-        <div>
-          <strong>{{ candidate.label }}</strong>
-          <span>{{ candidate.distanceKm | number:'1.2-2' }} km from pickup</span>
-          @if (candidate.totalEtaMinutes !== undefined || candidate.score !== undefined) {
-          <span
-            style="color: #38bdf8; font-size: 10px; font-weight: 600; display: block; margin-top: 4px; line-height: 1.4;">
-            🤖 ถึงมือลูกค้า: ~{{ candidate.totalEtaMinutes }} นาที
+      <div class="candidate-list">
+        @for (candidate of candidateRows; track candidate.riderId) {
+        <article [class.winner]="candidate.riderId === assignedRiderId">
+          <b>#{{ candidate.rank }}</b>
+          <div>
+            <strong>{{ candidate.label }}</strong>
+            <span>{{ candidate.distanceKm | number:'1.2-2' }} km from pickup</span>
+            @if (candidate.totalEtaMinutes !== undefined || candidate.score !== undefined) {
             <span
-              style="color: rgba(248, 250, 252, 0.75); display: block; font-size: 9px; font-weight: 500; margin-top: 1px;">
-              (ไรเดอร์→ร้าน: {{ candidate.etaMinutes }} น. + ร้าน→ลูกค้า: {{ candidate.deliveryEtaMinutes }} น.) |
-              Score: {{ candidate.score | number:'1.1-1' }}
+              style="color: #38bdf8; font-size: 10px; font-weight: 600; display: block; margin-top: 4px; line-height: 1.4;">
+              🤖 ถึงมือลูกค้า: ~{{ candidate.totalEtaMinutes }} นาที
+              <span
+                style="color: rgba(248, 250, 252, 0.75); display: block; font-size: 9px; font-weight: 500; margin-top: 1px;">
+                (ไรเดอร์→ร้าน: {{ candidate.etaMinutes }} น. + ร้าน→ลูกค้า: {{ candidate.deliveryEtaMinutes }} น.) |
+                Score: {{ candidate.score | number:'1.1-1' }}
+              </span>
             </span>
-          </span>
-          }
-        </div>
-        <em>{{ candidate.riderId === assignedRiderId ? 'SELECTED' : 'READY' }}</em>
-      </article>
-      }
+            }
+          </div>
+          <em>{{ candidate.riderId === assignedRiderId ? 'SELECTED' : 'READY' }}</em>
+        </article>
+        }
+      </div>
     </section>
     }
 

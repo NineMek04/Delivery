@@ -68,7 +68,11 @@
       <div class="header-right">
         <button class="icon-btn notification-btn">
           <lucide-icon [img]="icons.Bell" size="18"></lucide-icon>
-          <span class="notification-dot"></span>
+          @if (toastService.history().length > 0) {
+            <span class="notification-badge">
+              {{ toastService.history().length > 99 ? '99+' : toastService.history().length }}
+            </span>
+          }
         </button>
         <div class="divider"></div>
         <div class="profile-group">
@@ -88,4 +92,6 @@
       <router-outlet></router-outlet>
     </div>
   </main>
+
+  <app-toast></app-toast>
 </div>

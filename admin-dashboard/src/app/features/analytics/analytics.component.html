@@ -7,17 +7,17 @@
     </div>
     
     <div class="hud-telemetry">
-      <div class="telemetry-item">
-        <span class="label">GPS_THROUGHPUT</span>
-        <span class="value cyan-glow">{{ telemetryUpdatesPerSecond }} Hz</span>
+      <div class="date-picker-wrap">
+        <input type="date" [(ngModel)]="dateFrom" class="date-input" />
+        <span class="date-sep">-</span>
+        <input type="date" [(ngModel)]="dateTo" class="date-input" />
       </div>
+      <button class="btn-ghost-action" (click)="exportCsv()">CSV</button>
+      <button class="btn-ghost-action" (click)="exportPdf()">PDF</button>
+      
       <div class="telemetry-item">
         <span class="label">ACTIVE_CONNS</span>
         <span class="value green-glow">{{ telemetryActiveRiders }} Live</span>
-      </div>
-      <div class="telemetry-item">
-        <span class="label">DISPATCH_QUEUE</span>
-        <span class="value amber-glow">{{ telemetryQueueSize }} jobs</span>
       </div>
       <button type="button" class="btn-neon-action" (click)="loadAnalytics()" [class.spinning]="isLoading">
         {{ isLoading ? 'Syncing...' : 'REFRESH_TELEM' }}
@@ -71,12 +71,33 @@
           <span class="badge blue">Rolling 7 Days</span>
         </div>
         <div class="chart-container">
-          <canvas baseChart
-            [data]="trendChartData"
-            [options]="trendChartOptions"
-            type="line"
-            aria-label="Order volume throughput trend line chart">
-          </canvas>
+          <apx-chart
+            [series]="trendSeries"
+            [chart]="trendChart"
+            [xaxis]="trendXAxis"
+            [yaxis]="trendYAxis"
+            [stroke]="trendStroke"
+            [tooltip]="trendTooltip"
+            [legend]="trendLegend">
+          </apx-chart>
+        </div>
+      </article>
+
+      <!-- Revenue Bar Chart Panel -->
+      <article class="dashboard-panel trend-panel">
+        <div class="panel-header">
+          <h3>Daily_Revenue</h3>
+          <span class="badge blue">Simulated</span>
+        </div>
+        <div class="chart-container">
+          <apx-chart
+            [series]="revSeries"
+            [chart]="revChart"
+            [xaxis]="revXAxis"
+            [yaxis]="trendYAxis"
+            [tooltip]="trendTooltip"
+            [colors]="revColors">
+          </apx-chart>
         </div>
       </article>
 
@@ -114,12 +135,15 @@
         </div>
         <div class="donut-container">
           <div class="chart-wrapper-donut">
-            <canvas baseChart
-              [data]="utilizationChartData"
-              [options]="utilizationChartOptions"
-              type="doughnut"
-              aria-label="Rider utilization status doughnut chart">
-            </canvas>
+            <apx-chart
+              [series]="utilSeries"
+              [chart]="utilChart"
+              [labels]="utilLabels"
+              [colors]="utilColors"
+              [legend]="utilLegend"
+              [stroke]="utilStroke"
+              [plotOptions]="utilPlotOptions">
+            </apx-chart>
           </div>
         </div>
         <div class="utilization-stats">

@@ -3,14 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X } from 'lucide-angular';
 import { RiderService } from '../../core/services/rider.service';
+import { AnalyticsService, RiderPerformanceDto } from '../../core/services/analytics.service';
 import { RiderDto } from '../../api/generated/model/rider-dto';
 import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
+import { RiderEditModalComponent } from './rider-edit-modal/rider-edit-modal.component';
 import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-riders',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, DataTableComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule, DataTableComponent, RiderEditModalComponent],
   templateUrl: './riders.component.html',
   styleUrl: './riders.component.scss'
 })
@@ -19,8 +21,10 @@ export class RidersComponent implements OnInit {
   readonly icons = { RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X };
 
   private readonly riderService = inject(RiderService);
+  private readonly analyticsService = inject(AnalyticsService);
 
   riders: RiderDto[] = [];
+  topRiders: RiderPerformanceDto[] = [];
   isLoading = false;
   hasError = false;
   query = '';
@@ -33,15 +37,17 @@ export class RidersComponent implements OnInit {
   columns: TableColumn[] = [
     { field: 'id', header: 'RIDER_ID' },
     { field: 'name', header: 'NAME' },
+    { field: 'phone', header: 'PHONE' },
+    { field: 'rating', header: 'RATING' },
     { field: 'status', header: 'STATUS' },
     { field: 'lat', header: 'LATITUDE' },
     { field: 'lng', header: 'LONGITUDE' },
     { field: 'lastUpdated', header: 'LAST_UPDATE' }
   ];
 
-  // inline edit state
-  editingId: string | null = null;
-  editSnapshot: Partial<RiderDto> = {};
+  // modal edit state
+  isEditModalOpen = false;
+  selectedRider: RiderDto | null = null;
 
   // For stats, we store counts based on current page data. 
   // Ideally, total stats should come from backend, but we'll compute from current page for simplicity
@@ -57,6 +63,13 @@ export class RidersComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadRiders();
+    this.loadTopRiders();
+  }
+
+  loadTopRiders(): void {
+    this.analyticsService.getTopRiders(3).subscribe({
+      next: (data) => this.topRiders = data
+    });
   }
 
   loadRiders(): void {
@@ -86,73 +99,60 @@ export class RidersComponent implements OnInit {
     this.loadRiders();
   }
 
-  // ── Inline Edit ──────────────────────────────────────────────────
+  // ── Quick Toggle ──────────────────────────────────────────────────
+  toggleStatus(rider: RiderDto) {
+    if (!rider.id) return;
+    const newStatus = rider.status === 'IDLE' ? 'UNAVAILABLE' : 'IDLE';
+    const payload: Partial<RiderDto> = { status: newStatus };
+    this.riderService.update(rider.id, payload).subscribe({
+      next: () => { rider.status = newStatus; },
+      error: () => { Swal.fire('Error', 'Failed to update status', 'error'); }
+    });
+  }
+
+  // ── Modal Edit ──────────────────────────────────────────────────
 
   startEdit(rider: RiderDto): void {
-    this.editingId = rider.id ?? null;
-    this.editSnapshot = { name: rider.name };
+    this.selectedRider = rider;
+    this.isEditModalOpen = true;
   }
 
-  cancelEdit(): void {
-    this.editingId = null;
-    this.editSnapshot = {};
+  closeEditModal(): void {
+    this.isEditModalOpen = false;
+    this.selectedRider = null;
   }
 
-  saveEdit(rider: RiderDto): void {
-    if (!rider.id) return;
-
+  saveModalEdit(updatedData: RiderDto): void {
+    if (!updatedData.id) return;
+    
     Swal.fire({
-      title: 'ยืนยันการแก้ไขข้อมูลไรเดอร์?',
-      text: 'คุณต้องการบันทึกการเปลี่ยนแปลงชื่อไรเดอร์นี้ใช่หรือไม่',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#00FF66',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'ใช่, บันทึก',
-      cancelButtonText: 'ยกเลิก',
+      title: 'กำลังบันทึก...',
+      allowOutsideClick: false,
       background: '#141414',
-      color: '#FFFFFF'
-    }).then(result => {
-      if (!result.isConfirmed) return;
+      color: '#FFFFFF',
+      didOpen: () => Swal.showLoading()
+    });
 
-      Swal.fire({
-        title: 'กำลังบันทึก...',
-        allowOutsideClick: false,
-        background: '#141414',
-        color: '#FFFFFF',
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
+    const payload: Partial<RiderDto> = {
+      name: updatedData.name,
+      status: updatedData.status,
+      phone: updatedData.phone
+    };
 
-      const payload: Partial<RiderDto> = {
-        name: this.editSnapshot.name,
-        status: rider.status
-      };
-      this.riderService.update(rider.id!, payload).subscribe({
-        next: () => {
-          rider.name = payload.name;
-          this.cancelEdit();
-          Swal.fire({ 
-            icon: 'success', 
-            title: 'บันทึกสำเร็จ', 
-            timer: 1500, 
-            showConfirmButton: false,
-            background: '#141414',
-            color: '#FFFFFF'
-          });
-        },
-        error: (err) => {
-          const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
-          Swal.fire({ 
-            icon: 'error', 
-            title: 'บันทึกไม่สำเร็จ', 
-            text: serverMessage,
-            background: '#141414',
-            color: '#FFFFFF'
-          });
+    this.riderService.update(updatedData.id, payload).subscribe({
+      next: () => {
+        // update local list
+        const idx = this.riders.findIndex(r => r.id === updatedData.id);
+        if (idx !== -1) {
+          this.riders[idx] = { ...this.riders[idx], ...updatedData };
         }
-      });
+        this.closeEditModal();
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false, background: '#141414', color: '#FFFFFF' });
+      },
+      error: (err) => {
+        const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
+        Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: serverMessage, background: '#141414', color: '#FFFFFF' });
+      }
     });
   }
 

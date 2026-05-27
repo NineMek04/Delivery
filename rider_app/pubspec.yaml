@@ -43,6 +43,13 @@ dependencies:
   firebase_core: ^3.1.0
   firebase_messaging: ^15.0.1
 
+  # --- New UI Features ---
+  image_picker: ^1.1.2
+  signature: ^5.4.1
+  audioplayers: ^6.1.0
+  vibration: ^1.9.0
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

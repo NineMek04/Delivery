@@ -16,6 +16,7 @@ import {
   ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X
 } from 'lucide-angular';
 import { OrderDetailComponent } from './order-detail/order-detail.component';
+import { DispatchQueueComponent } from './dispatch-queue/dispatch-queue.component';
 
 type SortDir = 'asc' | 'desc' | null;
 interface SortState { field: keyof OrderDto | 'rider'; dir: SortDir; }
@@ -35,7 +36,7 @@ interface FilterState {
   standalone:  true,
   changeDetection: ChangeDetectionStrategy.Default,
   imports: [
-    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent
+    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DispatchQueueComponent
   ],
   templateUrl: './orders.component.html',
   styleUrl:    './orders.component.scss'

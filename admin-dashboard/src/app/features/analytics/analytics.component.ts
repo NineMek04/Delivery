@@ -8,9 +8,22 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BaseChartDirective } from 'ng2-charts';
-import { ChartConfiguration } from 'chart.js';
-import { Subscription, forkJoin, interval } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import {
+  NgApexchartsModule,
+  ApexAxisChartSeries,
+  ApexChart,
+  ApexXAxis,
+  ApexStroke,
+  ApexDataLabels,
+  ApexYAxis,
+  ApexLegend,
+  ApexTooltip,
+  ApexNonAxisChartSeries,
+  ApexPlotOptions
+} from 'ng-apexcharts';
+import { Subscription, forkJoin } from 'rxjs';
+import jsPDF from 'jspdf';
 import * as L from 'leaflet';
 import {
   AnalyticsService,
@@ -42,7 +55,7 @@ L.Marker.prototype.options.icon = iconDefault;
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule, BaseChartDirective],
+  imports: [CommonModule, FormsModule, NgApexchartsModule],
   templateUrl: './analytics.component.html',
   styleUrl: './analytics.component.scss',
 })
@@ -69,126 +82,36 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   private lastRidersOffline = -1;
   private lastAvgDeliveries = -1.0;
 
+  dateFrom: string = '';
+  dateTo: string = '';
+
   private map!: L.Map;
   private heatmapCircles: L.Circle[] = [];
   private readonly THAILAND_CENTER: L.LatLngTuple = [17.4138, 102.7872]; // Center around Udon Thani OSRM coverage
 
-  // ── Delivery Trend Chart configuration ──────────────────────────
-  public trendChartData: ChartConfiguration<'line'>['data'] = {
-    labels: [],
-    datasets: [
-      {
-        data: [],
-        label: 'Total Orders',
-        fill: true,
-        tension: 0.4,
-        borderColor: '#00E5FF', // Neon Blue
-        backgroundColor: 'rgba(0, 229, 255, 0.05)',
-        pointBackgroundColor: '#00E5FF',
-        pointBorderColor: '#000',
-        pointHoverBackgroundColor: '#fff',
-        pointHoverBorderColor: '#00E5FF',
-      },
-      {
-        data: [],
-        label: 'Completed Orders',
-        fill: true,
-        tension: 0.4,
-        borderColor: '#00FF66', // Neon Green
-        backgroundColor: 'rgba(0, 255, 102, 0.05)',
-        pointBackgroundColor: '#00FF66',
-        pointBorderColor: '#000',
-        pointHoverBackgroundColor: '#fff',
-        pointHoverBorderColor: '#00FF66',
-      },
-    ],
-  };
+  // ── ApexCharts Line/Bar options ──────────────────────────
+  public trendSeries: ApexAxisChartSeries = [];
+  public trendChart: ApexChart = { type: 'line', height: 350, toolbar: { show: false }, background: 'transparent' };
+  public trendXAxis: ApexXAxis = { type: 'category', categories: [], labels: { style: { colors: '#888' } } };
+  public trendYAxis: ApexYAxis = { labels: { style: { colors: '#888' } } };
+  public trendStroke: ApexStroke = { curve: 'smooth', width: 3 };
+  public trendTooltip: ApexTooltip = { theme: 'dark' };
+  public trendLegend: ApexLegend = { labels: { colors: '#888' } };
 
-  public trendChartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: { color: '#222222', drawTicks: false },
-        border: { display: false },
-        ticks: {
-          color: '#888888',
-          font: { family: 'JetBrains Mono', size: 10 },
-        },
-      },
-      x: {
-        grid: { display: false },
-        border: { display: false },
-        ticks: {
-          color: '#888888',
-          font: { family: 'JetBrains Mono', size: 10 },
-        },
-      },
-    },
-    plugins: {
-      legend: {
-        display: true,
-        position: 'top',
-        labels: {
-          color: '#888888',
-          font: { family: 'JetBrains Mono', size: 10 },
-        },
-      },
-      tooltip: {
-        backgroundColor: '#141414',
-        titleColor: '#00FF66',
-        bodyColor: '#fff',
-        borderColor: '#222222',
-        borderWidth: 1,
-        titleFont: { family: 'JetBrains Mono' },
-        bodyFont: { family: 'JetBrains Mono' },
-      },
-    },
-  };
+  // ── ApexCharts Pie options ──────────────────────────
+  public utilSeries: ApexNonAxisChartSeries = [0, 0, 0];
+  public utilChart: ApexChart = { type: 'donut', height: 300, background: 'transparent' };
+  public utilLabels: string[] = ['Busy', 'Idle', 'Offline'];
+  public utilColors: string[] = ['#FFC107', '#00FF66', '#6C757D'];
+  public utilLegend: ApexLegend = { position: 'bottom', labels: { colors: '#888' } };
+  public utilStroke: ApexStroke = { colors: ['#141414'] };
+  public utilPlotOptions: ApexPlotOptions = { pie: { donut: { size: '70%' } } };
 
-  // ── Rider Utilization Chart configuration ───────────────────────
-  public utilizationChartData: ChartConfiguration<'doughnut'>['data'] = {
-    labels: ['Busy', 'Idle', 'Offline'],
-    datasets: [
-      {
-        data: [0, 0, 0],
-        backgroundColor: [
-          '#FFC107', // Busy - Amber
-          '#00FF66', // Idle - Neon Green
-          '#6C757D', // Offline - Slate Gray
-        ],
-        hoverBackgroundColor: ['#FFD54F', '#33FF88', '#8A959E'],
-        borderColor: '#141414',
-        borderWidth: 3,
-      },
-    ],
-  };
-
-  public utilizationChartOptions: ChartConfiguration<'doughnut'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '70%',
-    plugins: {
-      legend: {
-        display: true,
-        position: 'bottom',
-        labels: {
-          color: '#888888',
-          font: { family: 'JetBrains Mono', size: 10 },
-        },
-      },
-      tooltip: {
-        backgroundColor: '#141414',
-        titleColor: '#00FF66',
-        bodyColor: '#fff',
-        borderColor: '#222222',
-        borderWidth: 1,
-        titleFont: { family: 'JetBrains Mono' },
-        bodyFont: { family: 'JetBrains Mono' },
-      },
-    },
-  };
+  // ── Revenue Bar Chart ──────────────────────────
+  public revSeries: ApexAxisChartSeries = [];
+  public revChart: ApexChart = { type: 'bar', height: 350, toolbar: { show: false }, background: 'transparent' };
+  public revXAxis: ApexXAxis = { type: 'category', categories: [], labels: { style: { colors: '#888' } } };
+  public revColors: string[] = ['#00E5FF'];
 
   ngOnInit(): void {
     // Connect to real-time SignalR network
@@ -296,19 +219,16 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       const totalData = sortedTrends.map((t) => t.totalOrders);
       const completedData = sortedTrends.map((t) => t.completedOrders);
 
-      this.trendChartData = {
-        labels: labels,
-        datasets: [
-          {
-            ...this.trendChartData.datasets[0],
-            data: totalData,
-          },
-          {
-            ...this.trendChartData.datasets[1],
-            data: completedData,
-          },
-        ],
-      };
+      this.trendXAxis = { ...this.trendXAxis, categories: labels };
+      this.trendSeries = [
+        { name: 'Total Orders', data: totalData, color: '#00E5FF' },
+        { name: 'Completed Orders', data: completedData, color: '#00FF66' }
+      ];
+
+      // Simulated Revenue Data (multiply completed by avg fee ~50thb)
+      const revData = completedData.map(c => c * 50);
+      this.revXAxis = { ...this.revXAxis, categories: labels };
+      this.revSeries = [{ name: 'Revenue', data: revData, color: '#00E5FF' }];
     }
   }
 
@@ -333,15 +253,7 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.lastRidersOffline = offline;
       this.lastAvgDeliveries = avg;
 
-      this.utilizationChartData = {
-        labels: ['Busy', 'Idle', 'Offline'],
-        datasets: [
-          {
-            ...this.utilizationChartData.datasets[0],
-            data: [busy, idle, offline],
-          },
-        ],
-      };
+      this.utilSeries = [busy, idle, offline];
     }
   }
 
@@ -450,5 +362,30 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get telemetryQueueSize(): number {
     return this.telemetry ? this.telemetry.dispatchQueueSize : 0;
+  }
+
+  // ── Exports ──────────────────────────────────────────────────
+  exportCsv(): void {
+    const csvContent = "data:text/csv;charset=utf-8," + 
+      "Date,Total Orders,Completed Orders\n" +
+      this.orderTrends.map(t => `${t.date},${t.totalOrders},${t.completedOrders}`).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "analytics_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  exportPdf(): void {
+    const pdf = new jsPDF();
+    pdf.text("Delivery Analytics Report", 20, 20);
+    let y = 30;
+    this.orderTrends.forEach(t => {
+      pdf.text(`${t.date}: ${t.totalOrders} total / ${t.completedOrders} completed`, 20, y);
+      y += 10;
+    });
+    pdf.save("analytics_report.pdf");
   }
 }

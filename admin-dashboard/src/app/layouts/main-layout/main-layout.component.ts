@@ -10,15 +10,19 @@ interface NavItem {
   icon: any;
 }
 
+import { ToastComponent } from '../../core/components/toast/toast.component';
+import { ToastService } from '../../core/services/toast.service';
+
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, LucideAngularModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, LucideAngularModule, ToastComponent],
   templateUrl: './main-layout.component.html',
   styleUrl: './main-layout.component.scss'
 })
 export class MainLayoutComponent {
   public authService = inject(AuthService);
+  public toastService = inject(ToastService);
 
   isSidebarOpen = true;
   name = this.authService.getUserData()?.FullName ?? 'Admin'

@@ -1,6 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LucideAngularModule, RefreshCcw, Search, Pencil, Trash2, X, Check, Plus, Menu } from 'lucide-angular';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { StoreService, MenuItem } from '../../core/services/store.service';
@@ -21,6 +22,7 @@ export class ShopsComponent implements OnInit {
 
   private readonly shopService = inject(ShopService);
   private readonly storeService = inject(StoreService);
+  private readonly destroyRef = inject(DestroyRef);
 
   shops: ShopDto[] = [];
   isLoading = false;
@@ -59,7 +61,9 @@ export class ShopsComponent implements OnInit {
   loadShops(): void {
     this.isLoading = true;
     this.hasError = false;
-    this.shopService.getAllPaginated(this.currentPage, this.pageSize, this.query).subscribe({
+    this.shopService.getAllPaginated(this.currentPage, this.pageSize, this.query).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (res) => {
         this.shops = res.items;
         this.totalCount = res.totalCount;
@@ -107,7 +111,9 @@ export class ShopsComponent implements OnInit {
 
   loadMenuItems(shopId: string): void {
     this.selectedShopId = shopId;
-    this.storeService.loadMenusFromApi(shopId).subscribe({
+    this.storeService.loadMenusFromApi(shopId).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (menus) => {
         this.menuItems = menus;
         this.isMenuModalOpen = true;
@@ -178,7 +184,9 @@ export class ShopsComponent implements OnInit {
         lng: shop.lng
       };
       
-      this.shopService.update(shop.id!, payload).subscribe({
+      this.shopService.update(shop.id!, payload).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           shop.name = payload.name!;
           shop.menuName = payload.menuName!;
@@ -235,7 +243,9 @@ export class ShopsComponent implements OnInit {
         }
       });
 
-      this.shopService.delete(shop.id).subscribe({
+      this.shopService.delete(shop.id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           this.loadShops(); // Reload from backend to update pagination
           Swal.fire({ 

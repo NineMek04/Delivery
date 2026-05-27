@@ -1,9 +1,10 @@
 import {
-  Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy
+  Component, OnInit, inject, ChangeDetectorRef, ChangeDetectionStrategy, DestroyRef
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OrderService } from '../../core/services/order.service';
 import { RiderService } from '../../core/services/rider.service';
 import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
@@ -42,7 +43,7 @@ interface FilterState {
   templateUrl: './orders.component.html',
   styleUrl:    './orders.component.scss'
 })
-export class OrdersComponent implements OnInit, OnDestroy {
+export class OrdersComponent implements OnInit {
   readonly title = 'Order_Operations';
   readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin };
 
@@ -61,7 +62,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   private riderService   = inject(RiderService);
   private trackingService = inject(TrackingSignalRService);
   private cdr = inject(ChangeDetectorRef);
-  private sub = new Subscription();
+  private destroyRef = inject(DestroyRef);
 
   // ── Data ─────────────────────────────────────────────────────────────────
   allOrders:  OrderDto[] = [];
@@ -104,30 +105,28 @@ export class OrdersComponent implements OnInit, OnDestroy {
   // ─────────────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    this.riderService.getAll(1, 500).subscribe(r => this.riders = r);
+    this.riderService.getAll(1, 500).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(r => this.riders = r);
     this.loadOrders();
 
     // SignalR: start connection and subscribe
     this.trackingService.startConnection();
-    this.sub.add(
-      this.trackingService.orderStatusChanged$.subscribe(({ orderId, status }) => {
-        const order = this.allOrders.find(o => o.id === orderId);
-        if (order) {
-          order.status = status;
-          this.recentlyUpdated.add(orderId);
-          setTimeout(() => { this.recentlyUpdated.delete(orderId); this.cdr.markForCheck(); }, 3000);
-        } else {
-          // New order arrived — reload and bump badge
-          this.newOrderCount++;
-          this.loadOrders();
-        }
-        this.cdr.markForCheck();
-      })
-    );
-  }
-
-  ngOnDestroy(): void {
-    this.sub.unsubscribe();
+    this.trackingService.orderStatusChanged$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(({ orderId, status }) => {
+      const order = this.allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = status;
+        this.recentlyUpdated.add(orderId);
+        setTimeout(() => { this.recentlyUpdated.delete(orderId); this.cdr.markForCheck(); }, 3000);
+      } else {
+        // New order arrived — reload and bump badge
+        this.newOrderCount++;
+        this.loadOrders();
+      }
+      this.cdr.markForCheck();
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -141,7 +140,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     // Fetch all pages to support local filtering/sorting.
     // Use a large pageSize so we don't need pagination calls.
-    this.orderService.getAll(1, 500).subscribe({
+    this.orderService.getAll(1, 500).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: orders => {
         this.allOrders = orders;
         this.currentPage = 1;
@@ -359,7 +360,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }).then(result => {
       if (!result.isConfirmed) return;
       Swal.fire({ title: 'กำลังยกเลิก...', allowOutsideClick: false, background: '#1e293b', color: '#f8fafc', didOpen: () => Swal.showLoading() });
-      this.orderService.cancelOrder(id).subscribe({
+      this.orderService.cancelOrder(id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           Swal.fire({ icon:'success', title:'ยกเลิกสำเร็จ', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' });
           this.loadOrders();
@@ -388,7 +391,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }).then(result => {
       if (!result.isConfirmed) return;
       Swal.fire({ title: 'กำลัง Dispatch...', allowOutsideClick: false, background: '#1e293b', color: '#f8fafc', didOpen: () => Swal.showLoading() });
-      this.orderService.retryDispatch(id).subscribe({
+      this.orderService.retryDispatch(id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           Swal.fire({ icon:'success', title:'Dispatch ใหม่สำเร็จ', text:'ระบบกำลังหาไรเดอร์', background:'#1e293b', color:'#f8fafc' });
           this.loadOrders();

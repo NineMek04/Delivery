@@ -83,6 +83,7 @@ public static class ServiceSetup
         services.AddScoped<RedisLockService>();
         services.AddScoped<RiderPresenceService>();
         services.AddScoped<StateMachineService>();
+        services.AddScoped<IRiderPresenceManager, RiderPresenceManager>();
         services.AddScoped<DispatchCandidateRanker>();
         services.AddScoped<DispatchRiderNotifier>();
         services.AddScoped<DispatchAdminNotifier>();

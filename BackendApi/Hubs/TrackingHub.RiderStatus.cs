@@ -20,77 +20,28 @@ public partial class TrackingHub
             return false;
         }
 
-        var cleaned = status?.Trim() ?? "";
-        RiderState targetState;
-        
-        // Defensive String Parsing: รองรับ AVAILABLE/IDLE, OFFLINE, DELIVERING/BUSY
-        if (string.Equals(cleaned, "AVAILABLE", StringComparison.OrdinalIgnoreCase))
+        var result = await _presenceManager.HandleRiderStatusUpdateAsync(riderId, status);
+        if (result.Success && result.State is not null)
         {
-            targetState = RiderState.IDLE;
-        }
-        else if (string.Equals(cleaned, "DELIVERING", StringComparison.OrdinalIgnoreCase))
-        {
-            targetState = RiderState.BUSY;
-        }
-        else if (Enum.TryParse<RiderState>(cleaned, true, out var parsed))
-        {
-            targetState = parsed;
-        }
-        else
-        {
-            _logger.LogWarning("Unknown status requested for Rider {RiderId}: {Status}", riderId, status);
-            await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = false, Message = $"Unknown status: {status}" });
-            return false;
-        }
-
-        var rider = await _dbContext.Riders.FindAsync(riderId);
-        if (rider is null)
-        {
-            _logger.LogWarning("Rider {RiderId} not found in database.", riderId);
-            return false;
-        }
-
-        // ✅ Fix: No-op guard — ถ้า state เดิมตรงกับ target แล้ว ไม่ต้อง transition
-        // ป้องกัน IDLE→IDLE หรือ OFFLINE→OFFLINE ที่เกิดได้เมื่อ app reconnect
-        if (rider.State == targetState)
-        {
-            _logger.LogDebug("Rider {RiderId} already in state {State} — no-op", riderId, targetState);
-            await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = true, Status = targetState.ToString() });
-            return true;
-        }
-
-        var oldState = rider.State;
-        var success = await _stateMachine.TransitionRiderAsync(rider, targetState);
-
-        if (success)
-        {
-            // ซิงค์ Redis Presence Cache
-            if (targetState == RiderState.OFFLINE)
+            if (result.PreviousState is not null)
             {
-                await _presenceService.RemoveRiderAsync(riderId);
+                // Broadcast ไปยังกลุ่ม Admin (Telemetry Sync)
+                await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
+                {
+                    RiderId = riderId,
+                    NewStatus = result.State.ToString(),
+                    PreviousStatus = result.PreviousState.ToString(),
+                    Reason = "explicit_update",
+                    Timestamp = DateTime.UtcNow
+                });
             }
-            else
-            {
-                await _presenceService.UpdateHeartbeatAsync(riderId);
-            }
-
-            // Broadcast ไปยังกลุ่ม Admin (Telemetry Sync)
-            await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
-            {
-                RiderId = riderId,
-                NewStatus = targetState.ToString(),
-                PreviousStatus = oldState.ToString(),
-                Reason = "explicit_update",
-                Timestamp = DateTime.UtcNow
-            });
 
             // ส่งผลลัพธ์กลับไปยัง Caller
-            await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = true, Status = targetState.ToString() });
+            await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = true, Status = result.State.ToString() });
             return true;
         }
-        
-        _logger.LogWarning("Illegal state transition requested for Rider {RiderId} from {From} to {To}", riderId, oldState, targetState);
-        await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = false, Message = $"Illegal status transition from {oldState} to {targetState}" });
+
+        await Clients.Caller.SendAsync("RiderStatusUpdatedResult", new { Success = false, Message = result.Message ?? "Illegal status transition" });
         return false;
     }
 

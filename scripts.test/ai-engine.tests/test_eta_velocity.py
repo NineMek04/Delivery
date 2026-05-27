@@ -1,14 +1,15 @@
 """
 Test: OSRM + Rider Velocity → ETA Calculation
 ทดสอบ AI Engine predict-eta endpoint ที่ปรับปรุงแล้ว
-รันจาก root: python scripts/test_eta_velocity.py
+Run from root: python -m pytest scripts.test/ai-engine.tests/test_eta_velocity.py
 """
 import sys
 import json
 import httpx
+import os
 from datetime import datetime, timezone
 
-AI_ENGINE_URL = "http://localhost:8000"
+AI_ENGINE_URL = os.getenv("AI_ENGINE_URL", "http://localhost:8000")
 
 def test_predict_eta_with_defaults():
     """ทดสอบ predict-eta โดยไม่ส่ง rider_speed_kmh → ใช้ fallback ค่าเดิม"""

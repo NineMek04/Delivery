@@ -36,6 +36,36 @@ let offerAccepted = false;
 let deliveryStarted = false;
 let riderConnections = [];
 
+const outputFile = process.argv[2]; // e.g. /tmp/results.json
+const stats = {
+  passed: 0,
+  failed: 0,
+  details: []
+};
+
+function logTest(name, status, details = "", inputs = "N/A") {
+  if (status === "PASS") stats.passed++;
+  else stats.failed++;
+  
+  stats.details.push({
+    name,
+    location: "e2e-simulator/simulate-e2e.js",
+    inputs,
+    status,
+    durationMs: 0,
+    error: status === "FAIL" ? details : null
+  });
+}
+
+function finishProcess(code) {
+  if (outputFile) {
+    const fs = require('fs');
+    fs.writeFileSync(outputFile, JSON.stringify({ testCases: stats.details }, null, 2));
+    console.log(`[JSON] Detailed test report saved to ${outputFile}`);
+  }
+  process.exit(code);
+}
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function randomInt(min, max) {
@@ -356,7 +386,8 @@ async function runDelivery(conn, rider, offer) {
 
   await sleep(3000);
   await Promise.allSettled(riderConnections.map(item => item.conn.stop()));
-  process.exit(0);
+  logTest("E2E Delivery Lifecycle", "PASS", "Delivery completed successfully", `Rider=${rider.name}, Order=${orderId}`);
+  finishProcess(0);
 }
 
 async function connectRider(rider) {
@@ -416,7 +447,9 @@ async function connectRider(rider) {
 async function checkHealth() {
   try {
     await axios.get(HEALTH_URL, { timeout: 2000 });
+    logTest("Backend Health", "PASS", "Service is up", HEALTH_URL);
   } catch (error) {
+    logTest("Backend Health", "FAIL", error.message, HEALTH_URL);
     throw new Error(`Backend health check failed at ${HEALTH_URL}: ${error.message}`);
   }
 }
@@ -424,8 +457,9 @@ async function checkHealth() {
 function setTimeoutGuard(seconds) {
   setTimeout(() => {
     if (!offerAccepted) {
+      logTest("AI Dispatch Timer", "FAIL", `No dispatch offer after ${seconds}s.`, `seconds=${seconds}`);
       log('Timeout', `No dispatch offer after ${seconds}s. Check backend, Redis presence, AI service, and rider states.`);
-      process.exit(1);
+      finishProcess(1);
     }
   }, seconds * 1000);
 }
@@ -440,10 +474,12 @@ async function main() {
 
   const admin = await login(ADMIN_CREDS.email, ADMIN_CREDS.password);
   adminToken = admin.token;
+  logTest("Admin Login", "PASS", "Admin authenticated", `Email=${ADMIN_CREDS.email}`);
   log('Auth', 'Admin authenticated');
 
   const shop = await createShop();
   const dropoff = randomPointAround({ lat: shop.lat, lng: shop.lng }, randomFloat(1.3, 4.0));
+  logTest("Create Shop", "PASS", "Shop created successfully", `Shop=${shop.name}`);
   log('Shop', `${shop.name} | ${shop.menuName} (${shop.menuPrice} THB) at ${shop.lat.toFixed(5)}, ${shop.lng.toFixed(5)}`);
   log('Dropoff', `${dropoff.lat.toFixed(5)}, ${dropoff.lng.toFixed(5)}`);
 
@@ -456,6 +492,7 @@ async function main() {
   await sleep(2000);
 
   const order = await createOrder(shop, dropoff);
+  logTest("Create Order", "PASS", "Order created", `OrderId=${order.id || order.Id}`);
   log('Order', `Created ${(order.id || order.Id || '').slice(0, 8)}. AI dispatch scan should now appear on the map.`);
   
   if (process.env.DELIVERY_SIM_SCENARIO === 'BATCH') {
@@ -471,9 +508,10 @@ async function main() {
 
 main().catch(error => {
   console.error('\nSimulation crashed:', error.message);
+  logTest("E2E Simulation Flow", "FAIL", error.message, "main()");
   if (error.response) {
     console.error('HTTP Status:', error.response.status);
     console.error('Response:', JSON.stringify(error.response.data, null, 2));
   }
-  process.exit(1);
+  finishProcess(1);
 });

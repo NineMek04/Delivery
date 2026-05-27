@@ -25,19 +25,30 @@ const stats = {
   details: [],
 };
 
+const outputFile = process.argv[2]; // e.g. /tmp/results.json
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function logStep(name, status, details = "") {
+function logStep(name, status, details = "", inputs = "N/A") {
+  let errorMsg = null;
   if (status === "PASS") {
     stats.passed++;
     console.log(`  [PASS] ${name} ${details ? `— ${details}` : ""}`);
   } else {
     stats.failed++;
     console.log(`  [FAIL] ❌ ${name} ${details ? `— ${details}` : ""}`);
+    errorMsg = details;
   }
-  stats.details.push({ name, status, details });
+  stats.details.push({ 
+    name, 
+    location: "load-test/resilience-stress.js", 
+    inputs, 
+    status, 
+    durationMs: 0, 
+    error: errorMsg 
+  });
 }
 
 async function registerUser(email, role, name) {
@@ -125,12 +136,12 @@ async function main() {
     await Promise.all(promises);
 
     if (hasHeaderInAll && correlationIds.size === concurrentRequests) {
-      logStep("CorrelationId Propagation", "PASS", "100% of concurrent requests preserved unique Correlation IDs");
+      logStep("CorrelationId Propagation", "PASS", "100% of concurrent requests preserved unique Correlation IDs", `concurrentRequests=${concurrentRequests}`);
     } else {
-      logStep("CorrelationId Propagation", "FAIL", `Preserved: ${correlationIds.size}/${concurrentRequests}`);
+      logStep("CorrelationId Propagation", "FAIL", `Preserved: ${correlationIds.size}/${concurrentRequests}`, `concurrentRequests=${concurrentRequests}`);
     }
   } catch (err) {
-    logStep("CorrelationId Propagation", "FAIL", err.message);
+    logStep("CorrelationId Propagation", "FAIL", err.message, `concurrentRequests=50`);
   }
 
   // -------------------------------------------------------------
@@ -163,12 +174,12 @@ async function main() {
     const has500 = results.some(r => r.status === "rejected" && r.reason?.response?.status === 500);
 
     if (!has500) {
-      logStep("Double-Submit Idempotency", "PASS", "Duplicate requests handled gracefully without database deadlocks/500 errors");
+      logStep("Double-Submit Idempotency", "PASS", "Duplicate requests handled gracefully without database deadlocks/500 errors", `categoryPayload=${JSON.stringify(categoryPayload)}`);
     } else {
-      logStep("Double-Submit Idempotency", "FAIL", "Duplicate submit triggered 500 Internal Server Error");
+      logStep("Double-Submit Idempotency", "FAIL", "Duplicate submit triggered 500 Internal Server Error", `categoryPayload=${JSON.stringify(categoryPayload)}`);
     }
   } catch (err) {
-    logStep("Double-Submit Idempotency", "FAIL", err.message);
+    logStep("Double-Submit Idempotency", "FAIL", err.message, "Double-Submit");
   }
 
   // -------------------------------------------------------------
@@ -196,9 +207,9 @@ async function main() {
     }
     
     await Promise.all(updates);
-    logStep("Rider Location Flooding", "PASS", "Successfully processed 20 concurrent GPS updates via SignalR");
+    logStep("Rider Location Flooding", "PASS", "Successfully processed 20 concurrent GPS updates via SignalR", "Updates=20");
   } catch (err) {
-    logStep("SignalR Stress Operations", "FAIL", err.message);
+    logStep("SignalR Stress Operations", "FAIL", err.message, "SignalR Connection");
   }
 
   // -------------------------------------------------------------
@@ -230,9 +241,9 @@ async function main() {
     await Promise.all([callA, callB, callC]);
     await sleep(1000); // Wait for callbacks
 
-    logStep("Lock Contention Resilience", "PASS", `Processed ${results.length} concurrent accept attempts safely without crashing the event bus`);
+    logStep("Lock Contention Resilience", "PASS", `Processed ${results.length} concurrent accept attempts safely without crashing the event bus`, `dummyOfferId=${dummyOfferId}, count=3`);
   } catch (err) {
-    logStep("Lock Contention Resilience", "FAIL", err.message);
+    logStep("Lock Contention Resilience", "FAIL", err.message, `Lock Contention`);
   }
 
   if (connection) {
@@ -250,6 +261,12 @@ async function main() {
   console.log(`  Failed:          ${stats.failed}`);
   console.log(`  Resilience Rate: ${((stats.passed / (stats.passed + stats.failed)) * 100).toFixed(1)}%`);
   console.log("═══════════════════════════════════════════════\n");
+
+  if (outputFile) {
+    const fs = require('fs');
+    fs.writeFileSync(outputFile, JSON.stringify({ testCases: stats.details }, null, 2));
+    console.log(`[JSON] Detailed test report saved to ${outputFile}`);
+  }
 
   process.exit(stats.failed > 0 ? 1 : 0);
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -96,13 +97,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
+              HapticFeedback.lightImpact();
               ref.read(homeNotifierProvider.notifier).loadDashboard();
               ref.read(deliveryNotifierProvider.notifier).loadOrders();
             },
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: _logout,
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _logout();
+            },
           ),
         ],
       ),
@@ -163,9 +168,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                               Switch(
                                 value: home.isOnline,
+                                activeColor: Colors.greenAccent,
                                 onChanged: home.isTransitioning
                                     ? null
                                     : (v) async {
+                                        HapticFeedback.mediumImpact();
                                         try {
                                           await ref
                                               .read(homeNotifierProvider.notifier)
@@ -197,28 +204,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          _stat(context, 'งานที่ได้รับ', '${home.assignedOrderCount}', Icons.assignment),
-                          const SizedBox(width: 12),
-                          _stat(context, 'ส่งสำเร็จ', '${home.completedOrderCount}', Icons.check_circle),
-                          const SizedBox(width: 12),
-                          _stat(
-                            context,
-                            'ระยะทาง',
-                            '${home.totalDistanceKm.toStringAsFixed(1)} km',
-                            Icons.route,
-                          ),
+                          _stat(context, 'งานที่ได้รับ', '${home.assignedOrderCount}', Icons.assignment, Colors.blue),
+                          const SizedBox(width: 8),
+                          _stat(context, 'ส่งสำเร็จ', '${home.completedOrderCount}', Icons.check_circle, Colors.green),
+                          const SizedBox(width: 8),
+                          _stat(context, 'รายได้', '฿450', Icons.account_balance_wallet, Colors.orange),
                         ],
                       ),
                       const SizedBox(height: 24),
                       if (delivery.activeOrder != null) ...[
                         Text('งานปัจจุบัน', style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 8),
-                        ListTile(
-                          leading: const Icon(Icons.local_shipping),
-                          title: Text(delivery.activeOrder!.trackingCode ?? 'Order'),
-                          subtitle: Text(delivery.activeOrder!.status),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.goNamed('activeDelivery'),
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(16),
+                            leading: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.1), shape: BoxShape.circle),
+                              child: const Icon(Icons.local_shipping, color: Colors.blueAccent),
+                            ),
+                            title: Text(
+                              delivery.activeOrder!.trackingCode ?? 'Order',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(delivery.activeOrder!.status, style: TextStyle(color: Colors.grey[600])),
+                              ],
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              // context.goNamed('route_tracking', pathParameters: {'id': delivery.activeOrder!.id});
+                              context.goNamed('activeDelivery');
+                            },
+                          ),
                         ),
                       ] else ...[
                         const SizedBox(height: 32),
@@ -257,16 +281,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _stat(BuildContext context, String label, String value, IconData icon) {
+  Widget _stat(BuildContext context, String label, String value, IconData icon, Color color) {
     return Expanded(
       child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
           child: Column(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              Icon(icon, color: color, size: 28),
               const SizedBox(height: 8),
-              Text(value, style: Theme.of(context).textTheme.titleLarge),
+              Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
               Text(label, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
             ],
           ),

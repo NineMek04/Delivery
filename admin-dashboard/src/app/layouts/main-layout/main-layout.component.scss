@@ -233,15 +233,22 @@
 .notification-btn {
   position: relative;
 
-  .notification-dot {
+  .notification-badge {
     position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 8px;
-    height: 8px;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
     background-color: var(--color-status-error);
-    border-radius: 50%;
+    border-radius: 8px;
     box-shadow: 0 0 0 2px var(--color-surface-card);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 

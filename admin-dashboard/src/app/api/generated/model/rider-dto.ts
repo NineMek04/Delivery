@@ -41,5 +41,13 @@ export interface RiderDto {
      * เวลาที่อัปเดตตำแหน่งล่าสุด
      */
     lastUpdated?: string;
+    /**
+     * เบอร์โทรศัพท์ (UI Mock)
+     */
+    phone?: string;
+    /**
+     * คะแนน (UI Mock)
+     */
+    rating?: number;
 }
 

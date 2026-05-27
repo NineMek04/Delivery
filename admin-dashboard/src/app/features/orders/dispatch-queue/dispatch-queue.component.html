@@ -1,0 +1,40 @@
+<div class="dispatch-queue-container" *ngIf="activeOffers.length > 0 || activeScans.length > 0">
+  <div class="dq-header">
+    <h3><lucide-icon [img]="ClockIcon" size="18"></lucide-icon> Active Dispatch Queue</h3>
+  </div>
+  
+  <div class="dq-lists">
+    <!-- Active Scans -->
+    <div class="dq-list" *ngIf="activeScans.length > 0">
+      <h4>Scanning for Riders...</h4>
+      <div class="dq-item scanning" *ngFor="let scan of activeScans">
+        <div class="dq-item-main">
+          <span class="dq-order-id">{{ scan.order?.id | slice:0:8 }}</span>
+          <span class="dq-status">Searching radius {{ scan.searchRadiusKm }}km</span>
+        </div>
+        <div class="dq-item-meta">
+          Found {{ scan.nearbyRiders?.length || 0 }} candidates
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Offers -->
+    <div class="dq-list" *ngIf="activeOffers.length > 0">
+      <h4>Pending Offers (30s timeout)</h4>
+      <div class="dq-item offering" *ngFor="let offer of activeOffers">
+        <div class="dq-item-main">
+          <span class="dq-order-id">{{ offer.order?.id | slice:0:8 }}</span>
+          <div class="countdown" [class.danger]="offer.timeLeft <= 10">
+            {{ offer.timeLeft }}s
+          </div>
+        </div>
+        <div class="dq-item-meta">
+          Offered to Rider: {{ offer.riderId | slice:0:8 }}
+        </div>
+        <div class="dq-actions">
+          <button class="btn-force" (click)="forceAssign(offer)">Force Assign</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

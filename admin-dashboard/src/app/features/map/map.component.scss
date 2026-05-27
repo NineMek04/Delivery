@@ -41,6 +41,38 @@
   span {
     display: flex;
     align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+
+  .filter-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    &.active {
+      border-color: var(--color-brand-primary);
+      color: var(--color-brand-primary);
+      background: rgba(0, 255, 102, 0.1);
+    }
+  }
+
+  span {
+    display: flex;
+    align-items: center;
     gap: 8px;
     color: var(--color-text-muted);
     font-size: 12px;

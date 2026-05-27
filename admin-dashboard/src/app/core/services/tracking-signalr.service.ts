@@ -4,6 +4,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { RealtimeTelemetryDto, RiderUtilizationDto } from './analytics.service';
+import { ToastService } from './toast.service';
 
 export interface RiderLocationUpdate {
   riderId: string;
@@ -62,7 +63,10 @@ export class TrackingSignalRService {
   private _telemetryUpdated = new BehaviorSubject<{ telemetry: RealtimeTelemetryDto; utilization: RiderUtilizationDto } | null>(null);
   public telemetryUpdated$ = this._telemetryUpdated.asObservable();
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private toastService: ToastService
+  ) {}
 
   public getRiderLocations(): Map<string, RiderLocationUpdate> {
     return this._riderLocations.getValue();
@@ -198,7 +202,16 @@ export class TrackingSignalRService {
     const newAlert = {
       title, text, tone, time: new Date().toLocaleTimeString()
     };
-    // Keep only last 10 alerts
+    
+    // Map tone to toast type
+    let type: 'success' | 'error' | 'warning' | 'info' = 'info';
+    if (tone === 'success') type = 'success';
+    if (tone === 'danger') type = 'error';
+    if (tone === 'warning') type = 'warning';
+    
+    this.toastService.show(title, text, type);
+
+    // Keep only last 10 alerts for local observable fallback
     this._alerts.next([newAlert, ...currentAlerts].slice(0, 10));
   }
 }

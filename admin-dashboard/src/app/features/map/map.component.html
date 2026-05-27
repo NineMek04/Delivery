@@ -15,9 +15,10 @@
     <!-- แผงสถานะ Fleet ของไรเดอร์ -->
     <div class="fleet-status">
       <strong>Fleet_Status</strong>
-      <span><i class="green-dot"></i>Available ({{ availableCount }})</span>
-      <span><i class="blue-dot"></i>Delivering ({{ deliveringCount }})</span>
-      <span><i class="gray-dot"></i>Offline ({{ offlineCount }})</span>
+      <button class="filter-btn" [class.active]="filterStatus === 'ALL'" (click)="setFilterStatus('ALL')">All</button>
+      <button class="filter-btn" [class.active]="filterStatus === 'IDLE'" (click)="setFilterStatus('IDLE')"><i class="green-dot"></i>Available ({{ availableCount }})</button>
+      <button class="filter-btn" [class.active]="filterStatus === 'DELIVERING'" (click)="setFilterStatus('DELIVERING')"><i class="blue-dot"></i>Delivering ({{ deliveringCount }})</button>
+      <button class="filter-btn" [class.active]="filterStatus === 'OFFLINE'" (click)="setFilterStatus('OFFLINE')"><i class="gray-dot"></i>Offline ({{ offlineCount }})</button>
     </div>
 
     <div class="map-controls">
@@ -65,6 +66,11 @@
           </form>
         </div>
       </div>
+    }
+
+    <!-- Order Detail Modal (Click Pin) -->
+    @if (showOrderDetailModal && selectedOrder) {
+      <app-order-detail [order]="selectedOrder" (close)="closeOrderDetails()"></app-order-detail>
     }
   </div>
 

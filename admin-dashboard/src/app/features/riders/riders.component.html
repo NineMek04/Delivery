@@ -29,6 +29,23 @@
     </article>
   </div>
 
+  <!-- Top Performers Section -->
+  <div class="top-riders-section" *ngIf="topRiders.length > 0">
+    <div class="section-subtitle">Top Performers</div>
+    <div class="top-riders-grid">
+      <article *ngFor="let tr of topRiders">
+        <div class="tr-info">
+          <strong>{{ tr.name || 'Rider' }}</strong>
+          <span>{{ tr.completedDeliveries }} Deliveries</span>
+        </div>
+        <div class="tr-stats">
+          <small>Avg. {{ tr.averageDeliveryTimeMinutes }} min</small>
+          <small class="primary">฿{{ tr.totalEarned }}</small>
+        </div>
+      </article>
+    </div>
+  </div>
+
   <app-data-table 
     [title]="'Rider_Manifest'"
     [columns]="columns"
@@ -50,11 +67,15 @@
         <span class="mono primary">{{ getRiderTrackingCode(item) }}</span>
       }
       @else if (col.field === 'name') {
-        @if (editingId === item.id) {
-          <input class="inline-input" [(ngModel)]="editSnapshot.name" />
-        } @else {
-          {{ item.name || '—' }}
-        }
+        {{ item.name || '—' }}
+      }
+      @else if (col.field === 'phone') {
+        <span class="mono">{{ item.phone || '—' }}</span>
+      }
+      @else if (col.field === 'rating') {
+        <span class="rating-cell">
+          ★ {{ item.rating || '5.0' }}
+        </span>
       }
       @else if (col.field === 'status') {
         <span class="status" [class]="getStatusTone(item.status)">{{ item.status || 'UNKNOWN' }}</span>
@@ -81,25 +102,25 @@
     </ng-template>
 
     <ng-template #actionTemplate let-item>
-      @if (editingId === item.id) {
-        <button type="button" class="ghost-action" (click)="saveEdit(item)">
-          <lucide-icon [img]="icons.Check" size="14"></lucide-icon>
-          Save
-        </button>
-        <button type="button" class="muted-action" (click)="cancelEdit()">
-          <lucide-icon [img]="icons.X" size="14"></lucide-icon>
-          Cancel
-        </button>
-      } @else {
-        <button type="button" class="ghost-action" (click)="startEdit(item)">
-          <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
-          Edit
-        </button>
-        <button type="button" class="danger-action" (click)="deleteRider(item)">
-          <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
-          Delete
-        </button>
-      }
+      <button type="button" class="ghost-action" (click)="toggleStatus(item)" [title]="item.status === 'IDLE' ? 'Set Unavailable' : 'Set Idle'">
+        <lucide-icon [img]="icons.RefreshCcw" size="14"></lucide-icon>
+        Toggle
+      </button>
+      <button type="button" class="ghost-action" (click)="startEdit(item)">
+        <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
+        Edit
+      </button>
+      <button type="button" class="danger-action" (click)="deleteRider(item)">
+        <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
+        Delete
+      </button>
     </ng-template>
   </app-data-table>
+
+  <app-rider-edit-modal 
+    [isOpen]="isEditModalOpen" 
+    [rider]="selectedRider"
+    (closed)="closeEditModal()" 
+    (saved)="saveModalEdit($event)">
+  </app-rider-edit-modal>
 </section>

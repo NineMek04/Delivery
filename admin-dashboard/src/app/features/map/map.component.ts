@@ -5,8 +5,11 @@ import * as L from 'leaflet';
 import { DispatchScanStarted, TrackingSignalRService, RiderLocationUpdate } from '../../core/services/tracking-signalr.service';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { RiderService } from '../../core/services/rider.service';
+import { OrderService } from '../../core/services/order.service';
 import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
+import { OrderDetailComponent } from '../orders/order-detail/order-detail.component';
+import { OrderDto } from '../../api/generated/model/order-dto';
 
 // Fix Leaflet default icons issue
 const iconRetinaUrl = 'assets/marker-icon-2x.png';
@@ -30,7 +33,7 @@ import { MapDrawingService } from './services/map-drawing.service';
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, OrderDetailComponent],
   providers: [MapMathService, MapDrawingService],
   templateUrl: './map.component.html',
   styleUrl: './map.component.scss'
@@ -52,6 +55,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private trackingService = inject(TrackingSignalRService);
   private shopService = inject(ShopService);
   private riderService = inject(RiderService);
+  private orderService = inject(OrderService);
   private math = inject(MapMathService);
   public draw = inject(MapDrawingService);
   private subscriptions: Subscription = new Subscription();
@@ -66,9 +70,15 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private activeShopMarker: L.Marker | null = null;
   private activeCustomerMarker: L.Marker | null = null;
   private pickupRouteLine: L.Polyline | null = null;
-  private deliveryRouteLine: L.Polyline | null = null;
   private activeRadarCircle: L.Circle | null = null;
   private candidateMarkers: L.CircleMarker[] = [];
+
+  // Order Markers and Polylines
+  private orderMarkers: L.Marker[] = [];
+  private orderPolylines: L.Polyline[] = [];
+  public selectedOrder: OrderDto | null = null;
+  public showOrderDetailModal = false;
+  public filterStatus: string = 'ALL';
 
   // ── คุณลักษณะระบบร้านค้า (Shop Registration Features) ──
   public isAddShopMode = false;
@@ -120,6 +130,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.draw.markerType = 'dashboard';
     this.loadExistingShops();
     this.loadExistingRiders();
+    this.loadActiveOrders();
   }
 
   ngOnDestroy(): void {
@@ -322,6 +333,71 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     });
   }
 
+  private loadActiveOrders(): void {
+    this.orderService.getAll(1, 100).subscribe({
+      next: (orders) => {
+        const active = orders.filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status || ''));
+        this.drawOrdersOnMap(active);
+      }
+    });
+  }
+
+  private drawOrdersOnMap(orders: OrderDto[]): void {
+    if (!this.map) return;
+
+    this.orderMarkers.forEach(m => m.remove());
+    this.orderPolylines.forEach(p => p.remove());
+    this.orderMarkers = [];
+    this.orderPolylines = [];
+
+    orders.forEach(order => {
+      // Draw pickup (Shop) if not drawn
+      if (order.pickupLat && order.pickupLng) {
+        const pMarker = L.marker([order.pickupLat, order.pickupLng], {
+          icon: L.divIcon({
+            className: 'order-pickup-marker',
+            html: `<div style="background:#ea580c;width:20px;height:20px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:10px;">🏪</div>`,
+            iconSize: [20,20]
+          })
+        }).addTo(this.map);
+        pMarker.on('click', () => this.openOrderDetails(order));
+        this.orderMarkers.push(pMarker);
+      }
+      
+      // Draw dropoff (Customer)
+      if (order.dropoffLat && order.dropoffLng) {
+        const dMarker = L.marker([order.dropoffLat, order.dropoffLng], {
+          icon: L.divIcon({
+            className: 'order-dropoff-marker',
+            html: `<div style="background:#3b82f6;width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:12px;">🏠</div>`,
+            iconSize: [24,24]
+          })
+        }).addTo(this.map);
+        dMarker.on('click', () => this.openOrderDetails(order));
+        this.orderMarkers.push(dMarker);
+      }
+
+      // Draw polyline connecting pickup and dropoff
+      if (order.pickupLat && order.pickupLng && order.dropoffLat && order.dropoffLng) {
+        const poly = L.polyline(
+          [[order.pickupLat, order.pickupLng], [order.dropoffLat, order.dropoffLng]], 
+          { color: '#8b5cf6', weight: 3, dashArray: '5, 10', opacity: 0.7 }
+        ).addTo(this.map);
+        this.orderPolylines.push(poly);
+      }
+    });
+  }
+
+  openOrderDetails(order: OrderDto): void {
+    this.selectedOrder = order;
+    this.showOrderDetailModal = true;
+  }
+
+  closeOrderDetails(): void {
+    this.selectedOrder = null;
+    this.showOrderDetailModal = false;
+  }
+
   private addShopToMap(shop: ShopDto): void {
     if (!this.map || !shop.lat || !shop.lng) return;
 
@@ -403,6 +479,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private updateRiderList(locationMap: Map<string, RiderLocationUpdate>): void {
     const list: any[] = [];
     locationMap.forEach((loc, riderId) => {
+      if (this.filterStatus !== 'ALL' && loc.status !== this.filterStatus) return;
+
       const isWinner = riderId === this.assignedRiderId;
       list.push({
         name: `Rider ${riderId.substring(0, 5).toUpperCase()}`,
@@ -415,5 +493,14 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       });
     });
     this.riders = list;
+  }
+
+  setFilterStatus(status: string): void {
+    this.filterStatus = status;
+    // trigger update
+    if (this.riders.length > 0) {
+      // re-trigger the map
+      this.loadExistingRiders();
+    }
   }
 }

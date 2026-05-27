@@ -266,6 +266,37 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  getSuiteDescription(suiteKey: string): { files: string, check: string } {
+    switch (suiteKey) {
+      case 'csharp': 
+        return {
+          files: 'scripts.test/BackendApi.IntegrationTests/',
+          check: 'การทำงานของ Business Logic, การยิง Database (ผ่าน Testcontainers), การยิง API Endpoint, และ Message Queues (RabbitMQ/MediatR) ทุกจุดว่าทำงานถูกต้องตามกติกาของ Bounded Context ไหม'
+        };
+      case 'python': 
+        return {
+          files: 'scripts.test/ai-engine.tests/',
+          check: 'โมเดลคำนวณระยะทางของ Google OR-Tools, การจัดกลุ่มเส้นทาง (VRP), และการจำกัดน้ำหนักและเงื่อนไขของออเดอร์ก่อนจะเสนอให้ Rider'
+        };
+      case 'load': 
+        return {
+          files: 'scripts.test/load-test/resilience-stress.js',
+          check: 'การทนทานต่อการรุมยิง (Concurrency), การทำ Idempotency ป้องกันกดออเดอร์ซ้ำซ้อน, Lock Contention, ความเสถียรตอนยิง GPS ถล่มเข้า SignalR และการส่งต่อ CorrelationId ใน Logs แบบ 100%'
+        };
+      case 'simulator': 
+        return {
+          files: 'scripts.test/e2e-simulator/simulate-e2e.js และ test-flutter-compat.js',
+          check: 'ครอบคลุมวงจรชีวิต 1 ออเดอร์เต็มรูปแบบ ตั้งแต่ Admin สร้างออเดอร์ > AI ค้นหา Rider ที่ใกล้ที่สุด > Rider กดรับงาน > Rider เดินทางไปรับ-ส่งของตาม OSRM > รวมถึงมิติ Flutter Compatibility ที่เช็คว่าแอปมือถือสามารถยิงอัปเดตสถานะเข้า SignalR Hub ของเราและตอบกลับได้ถูกต้องหรือไม่'
+        };
+      case 'overall':
+      default:
+        return {
+          files: 'ทุกโฟลเดอร์ใน scripts.test/',
+          check: 'สรุปภาพรวมและอัตราความสำเร็จ (Success Rate) จากทุกส่วนของระบบ (Backend, AI, Load, E2E Simulator)'
+        };
+    }
+  }
+
   get dashboardStats() {
     const completed = this.sessions.filter(session => session.summary);
     const totals = completed.reduce(

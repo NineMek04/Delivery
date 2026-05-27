@@ -283,7 +283,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding: 1rem 1.5rem;
   gap: 1.5rem;
 
   .suite-info {
@@ -304,6 +304,33 @@
         font-size: 22px;
         font-weight: 800;
         letter-spacing: 0.5px;
+      }
+
+      .suite-desc-box {
+        margin-top: 0.75rem;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border-glass);
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-size: 11px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+
+        .desc-row {
+          display: flex;
+          gap: 0.5rem;
+
+          .desc-label {
+            color: var(--color-primary);
+            white-space: nowrap;
+            font-weight: bold;
+          }
+          .desc-value {
+            color: var(--color-muted);
+            line-height: 1.4;
+          }
+        }
       }
     }
   }
@@ -690,8 +717,9 @@
 
   .terminal-wrapper {
     flex: 1;
-    min-height: 400px;
+    min-height: 250px;
     background: #090c10;
+    overflow-y: auto;
   }
 }
 
@@ -727,9 +755,10 @@
 
   .chart-container {
     position: relative;
-    height: 400px;
+    flex: 1;
+    min-height: 250px;
     width: 100%;
-    padding: 1rem;
+    padding: 0.5rem 1rem 1rem 1rem;
     display: flex;
     justify-content: center;
     align-items: center;

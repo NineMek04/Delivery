@@ -33,7 +33,7 @@
       "name": "E2E Simulators (Node.js)",
       "dockerImage": "node:20-alpine",
       "hostCommand": "node scripts.test/e2e-simulator/simulate-e2e.js",
-      "dockerCommand": "sh -c \"cd scripts.test/e2e-simulator && npm install && DELIVERY_API_URL=http://backend/api/v1 DELIVERY_HUB_URL=http://backend/hubs/tracking DELIVERY_HEALTH_URL=http://backend/health DELIVERY_OSRM_URL=http://osrm:5000 node simulate-e2e.js /tmp/results.json\"",
+      "dockerCommand": "sh -c \"cd scripts.test/e2e-simulator && npm install && export DELIVERY_API_URL=http://backend/api/v1 DELIVERY_HUB_URL=http://backend/hubs/tracking DELIVERY_HEALTH_URL=http://backend/health DELIVERY_OSRM_URL=http://osrm:5000 && node simulate-e2e.js /tmp/r1.json && node test-flutter-compat.js /tmp/r2.json && node -e \\\"const fs=require('fs'); const a=fs.existsSync('/tmp/r1.json')?JSON.parse(fs.readFileSync('/tmp/r1.json')).testCases:[]; const b=fs.existsSync('/tmp/r2.json')?JSON.parse(fs.readFileSync('/tmp/r2.json')).testCases:[]; fs.writeFileSync('/tmp/results.json', JSON.stringify({testCases: [...a, ...b]}));\\\"\"",
       "timeoutSeconds": 600
     }
   }

@@ -54,7 +54,7 @@ async function loginAsRider(index) {
       role: "Rider",
     });
 
-    return regRes.data?.data?.accessToken;
+    return regRes.data?.value?.accessToken;
   } catch (err) {
     console.error(`[Rider ${index}] Registration failed: ${err.message}`);
     return null;

@@ -7,7 +7,8 @@
     "test:signalr": "node signalr-stress.js",
     "test:api": "node api-stress.js",
     "test:dispatch": "node dispatch-stress.js",
-    "test:reconnect": "node reconnect-stress.js"
+    "test:reconnect": "node reconnect-stress.js",
+    "test:resilience": "node resilience-stress.js"
   },
   "keywords": [],
   "author": "",

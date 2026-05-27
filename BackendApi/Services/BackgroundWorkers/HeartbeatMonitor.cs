@@ -71,6 +71,7 @@ public class HeartbeatMonitor : BackgroundService
 
         foreach (var rider in activeRiders)
         {
+            if (ct.IsCancellationRequested) break;
             var lastHeartbeat = await presenceService.GetLastHeartbeatAsync(rider.Id);
 
             if (lastHeartbeat is null || (now - lastHeartbeat.Value).TotalSeconds > heartbeatTimeout)
@@ -108,6 +109,7 @@ public class HeartbeatMonitor : BackgroundService
 
         foreach (var rider in staleRiders)
         {
+            if (ct.IsCancellationRequested) break;
             var lastHeartbeat = await presenceService.GetLastHeartbeatAsync(rider.Id);
             var staleDuration = lastHeartbeat.HasValue
                 ? (now - lastHeartbeat.Value).TotalSeconds

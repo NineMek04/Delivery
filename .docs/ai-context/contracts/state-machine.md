@@ -87,39 +87,48 @@ Any state ──(Admin cancel)──► CANCELLED ← terminal
 ### States
 
 ```
-OFFLINE      → ไม่ได้เชื่อมต่อ (SignalR disconnected)
-IDLE         → Online พร้อมรับงาน
-OFFERED      → กำลังพิจารณา Offer (TTL 30s)
-ASSIGNED     → รับงานแล้ว กำลังไปรับของ
-PICKING_UP   → เดินทางไปร้าน
-DELIVERING   → กำลังส่งของ
+OFFLINE      → ปิดแอป / ออกจากระบบ (SignalR disconnected)
+IDLE         → ว่างงาน พร้อมรับงาน
+RESERVED     → ถูกจองชั่วคราว (ยิง Offer ไปแล้ว รอตอบรับ 30 วิ)
+BUSY         → กำลังวิ่งงาน (ASSIGNED/PICKING_UP/DELIVERING ใน Order)
+STALE        → เน็ตหลุด / ไม่ส่ง heartbeat เกินเวลาที่กำหนด
 ```
 
 ### Transition Diagram
 
 ```
-OFFLINE ◄──────────────────────────────────────────────────────┐
-  │                                                             │
-  ▼ (SignalR connect)                                          │
-IDLE ◄──────────────────────────────────────────────────── DELIVERING
-  │                          (Order COMPLETED)                  │
-  ▼ (Offer received)                                           │
-OFFERED ──(30s timeout / Reject)──► IDLE                      │
-  │                                                            │
-  ▼ (Accept offer)                                            │
-ASSIGNED                                                       │
-  │                                                            │
-  ▼ (UpdateStatus PICKING_UP)                                  │
-PICKING_UP                                                     │
-  │                                                            │
-  ▼ (UpdateStatus DELIVERING)                                  │
-DELIVERING ─────────────────────────────────────────────────────┘
-              (UpdateStatus COMPLETED → auto-release → IDLE)
+OFFLINE ──(เปิดแอป)──► IDLE
+IDLE ──(ถูกจองตัว)──► RESERVED
+IDLE ──(ปิดแอป)──► OFFLINE
+IDLE ──(เน็ตหลุด)──► STALE
+RESERVED ──(กดรับ)──► BUSY
+RESERVED ──(ปฏิเสธ/Timeout)──► IDLE
+RESERVED ──(เน็ตหลุด)──► STALE
+BUSY ──(ส่งเสร็จ)──► IDLE
+BUSY ──(ส่งเสร็จ+ปิดแอป)──► OFFLINE
+BUSY ──(เน็ตหลุด)──► STALE
+STALE ──(เน็ตกลับมา+ไม่มีงาน)──► IDLE
+STALE ──(เน็ตกลับมา+ยังมีงาน)──► BUSY
+STALE ──(เน็ตหลุดนานเกิน)──► OFFLINE
 ```
 
-### Auto-release Rule
-เมื่อ Order เป็น `COMPLETED`: Rider กลับไป `IDLE` อัตโนมัติ  
-เมื่อ Order เป็น `CANCELLED` ระหว่าง `ASSIGNED/PICKING_UP/DELIVERING`: Rider กลับไป `IDLE`
+### Valid Transitions (RiderStateRules)
+
+| From | To | Trigger | Actor |
+|---|---|---|---|
+| `OFFLINE` | `IDLE` | Connect to SignalR / Open App | Rider |
+| `IDLE` | `RESERVED` | Send dispatch offer to rider | System |
+| `IDLE` | `OFFLINE` | Disconnect / Close App | Rider |
+| `IDLE` | `STALE` | Missing heartbeat | System (HeartbeatMonitor) |
+| `RESERVED` | `BUSY` | Accept dispatch offer | Rider |
+| `RESERVED` | `IDLE` | Reject offer / Offer timeout | Rider / System |
+| `RESERVED` | `STALE` | Missing heartbeat | System (HeartbeatMonitor) |
+| `BUSY` | `IDLE` | Order completed / cancelled | System (StateMachineService) |
+| `BUSY` | `OFFLINE` | Order completed + Disconnect | Rider / System |
+| `BUSY` | `STALE` | Missing heartbeat | System (HeartbeatMonitor) |
+| `STALE` | `IDLE` | Reconnect with no active work | Rider |
+| `STALE` | `BUSY` | Reconnect with active work | Rider |
+| `STALE` | `OFFLINE` | Disconnected beyond threshold | System (HeartbeatMonitor) |
 
 ---
 
@@ -128,11 +137,11 @@ DELIVERING ───────────────────────
 ```
 T+0s:  DispatchService ส่ง Offer → Rider group
        Redis: SET offer:{orderId} = {riderId, version} EX 30
-       Redis: SET presence:rider:{riderId} = "OFFERED" EX 30
+       Redis: SET presence:rider:{riderId} = "RESERVED" EX 30
        Order State: OFFERING
 
 T+0-30s: รอ Rider ตอบรับ
-  ├─ Accept → Order: ASSIGNED, Rider: ASSIGNED, Redis lock released
+  ├─ Accept → Order: ASSIGNED, Rider: BUSY, Redis lock released
   └─ Reject → ค้นหา Rider คนถัดไปทันที
 
 T+30s: DispatchTimeoutWorker ตรวจสอบ
@@ -149,11 +158,11 @@ T+30s: DispatchTimeoutWorker ตรวจสอบ
 
 ```
 ทุก N วินาที:
-  foreach IDLE/OFFERED Rider:
+  foreach IDLE/RESERVED/BUSY Rider:
     if Redis presence:rider:{id} หมดอายุ (ไม่ได้ส่ง GPS):
-      → Rider State = OFFLINE
+      → Rider State = STALE / OFFLINE
       → ลบออกจาก dispatch pool
-      → Broadcast Rider offline ไปยัง "admins"
+      → Broadcast Rider status ไปยัง "admins"
 ```
 
 ---
@@ -181,11 +190,11 @@ public enum RiderState
 {
     OFFLINE,
     IDLE,
-    OFFERED,
-    ASSIGNED,
-    PICKING_UP,
-    DELIVERING
+    RESERVED,
+    BUSY,
+    STALE
 }
 ```
 
-> ⚠️ **ห้ามใช้:** `PENDING`, `DELIVERED`, `BUSY`, `ACTIVE` — ไม่มีใน codebase
+> ⚠️ **ห้ามใช้:** `PENDING`, `DELIVERED`, `OFFERED`, `ASSIGNED`, `PICKING_UP`, `DELIVERING` (สำหรับ Rider) — ให้ใช้ตาม enum นี้
+

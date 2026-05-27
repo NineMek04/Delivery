@@ -32,6 +32,7 @@ namespace BackendApi.Data
         public DbSet<MenuCategory> MenuCategories { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<FcmToken> FcmTokens { get; set; }
+        public DbSet<ProcessedEvent> ProcessedEvents { get; set; }
 
         public override int SaveChanges()
         {
@@ -99,6 +100,10 @@ namespace BackendApi.Data
         {
             // บังคับให้สร้าง Extension PostGIS ในฐานข้อมูล
             modelBuilder.HasPostgresExtension("postgis");
+
+            // ProcessedEvents — composite primary key for Idempotency
+            modelBuilder.Entity<ProcessedEvent>()
+                .HasKey(pe => new { pe.EventId, pe.HandlerName });
 
             // RiderLocationHistories — ไม่ลงทะเบียน Index ผ่าน EF Core Fluent API
             // เพราะตารางนี้เป็น Partitioned Table หลัง Migration Phase3EnterpriseSpatialScaling

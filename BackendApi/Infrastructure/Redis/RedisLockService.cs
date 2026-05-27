@@ -34,27 +34,35 @@ public class RedisLockService
     /// <param name="riderId">Rider ที่ต้องการจอง</param>
     /// <param name="offerId">Offer ID สำหรับ idempotency</param>
     /// <param name="timeout">ระยะเวลาจอง (default 30 วินาที)</param>
-    /// <returns>true ถ้าจองสำเร็จ, false ถ้ามีคนอื่นจองอยู่แล้ว</returns>
+    /// <returns>true ถ้าจองสำเร็จ, false ถ้ามีคนอื่นจองอยู่แล้วหรือเชื่อมต่อ Redis ไม่ได้</returns>
     public async Task<bool> TryAcquireRiderLockAsync(string riderId, string offerId, TimeSpan timeout)
     {
         var key = RiderLockKey(riderId);
-        var acquired = await _db.StringSetAsync(key, offerId, timeout, When.NotExists);
-
-        if (acquired)
+        try
         {
-            _logger.LogInformation(
-                "Lock acquired: Rider {RiderId} reserved by offer {OfferId} for {Timeout}s",
-                riderId, offerId, timeout.TotalSeconds);
-        }
-        else
-        {
-            var currentHolder = await _db.StringGetAsync(key);
-            _logger.LogDebug(
-                "Lock failed: Rider {RiderId} already locked by {CurrentHolder}",
-                riderId, currentHolder);
-        }
+            var acquired = await _db.StringSetAsync(key, offerId, timeout, When.NotExists);
 
-        return acquired;
+            if (acquired)
+            {
+                _logger.LogInformation(
+                    "Lock acquired: Rider {RiderId} reserved by offer {OfferId} for {Timeout}s",
+                    riderId, offerId, timeout.TotalSeconds);
+            }
+            else
+            {
+                var currentHolder = await _db.StringGetAsync(key);
+                _logger.LogDebug(
+                    "Lock failed: Rider {RiderId} already locked by {CurrentHolder}",
+                    riderId, currentHolder);
+            }
+
+            return acquired;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "Redis unavailable — Lock failed to acquire for Rider {RiderId} (offer {OfferId}) due to connection exception", riderId, offerId);
+            return false;
+        }
     }
 
     /// <summary>
@@ -63,23 +71,31 @@ public class RedisLockService
     public async Task<bool> ReleaseLockAsync(string riderId, string offerId)
     {
         var key = RiderLockKey(riderId);
-        var result = (int)await _db.ScriptEvaluateAsync(
-            ReleaseLockScript,
-            new RedisKey[] { key },
-            new RedisValue[] { offerId });
-
-        if (result == 1)
+        try
         {
-            _logger.LogInformation("Lock released: Rider {RiderId} (offer {OfferId})", riderId, offerId);
-        }
-        else
-        {
-            _logger.LogWarning(
-                "Lock release failed: Rider {RiderId} — offer {OfferId} does not match current holder",
-                riderId, offerId);
-        }
+            var result = (int)await _db.ScriptEvaluateAsync(
+                ReleaseLockScript,
+                new RedisKey[] { key },
+                new RedisValue[] { offerId });
 
-        return result == 1;
+            if (result == 1)
+            {
+                _logger.LogInformation("Lock released: Rider {RiderId} (offer {OfferId})", riderId, offerId);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Lock release failed: Rider {RiderId} — offer {OfferId} does not match current holder",
+                    riderId, offerId);
+            }
+
+            return result == 1;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Redis unavailable — Failed to release lock for Rider {RiderId} (offer {OfferId}) due to connection exception", riderId, offerId);
+            return false;
+        }
     }
 
     /// <summary>
@@ -88,8 +104,16 @@ public class RedisLockService
     public async Task<string?> GetLockHolderAsync(string riderId)
     {
         var key = RiderLockKey(riderId);
-        var value = await _db.StringGetAsync(key);
-        return value.HasValue ? value.ToString() : null;
+        try
+        {
+            var value = await _db.StringGetAsync(key);
+            return value.HasValue ? value.ToString() : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis unavailable — Failed to get lock holder for Rider {RiderId}", riderId);
+            return null;
+        }
     }
 
     /// <summary>
@@ -97,7 +121,15 @@ public class RedisLockService
     /// </summary>
     public async Task<bool> IsLockedAsync(string riderId)
     {
-        return await _db.KeyExistsAsync(RiderLockKey(riderId));
+        try
+        {
+            return await _db.KeyExistsAsync(RiderLockKey(riderId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis unavailable — Failed to check lock status for Rider {RiderId}", riderId);
+            return false;
+        }
     }
 
     private static string RiderLockKey(string riderId) => $"dispatch:lock:rider:{riderId}";

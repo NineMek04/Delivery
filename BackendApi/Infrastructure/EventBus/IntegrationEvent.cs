@@ -13,6 +13,9 @@ public record IntegrationEvent
     [JsonPropertyName("CreationDate")]
     public DateTime CreationDate { get; init; }
 
+    [JsonPropertyName("CorrelationId")]
+    public string? CorrelationId { get; init; }
+
     public IntegrationEvent()
     {
         Id = Guid.NewGuid();
@@ -20,9 +23,10 @@ public record IntegrationEvent
     }
 
     [JsonConstructor]
-    public IntegrationEvent(Guid id, DateTime creationDate)
+    public IntegrationEvent(Guid id, DateTime creationDate, string? correlationId = null)
     {
         Id = id;
         CreationDate = creationDate;
+        CorrelationId = correlationId;
     }
 }

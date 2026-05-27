@@ -58,6 +58,7 @@ public class DispatchTimeoutWorker : BackgroundService
 
         foreach (var order in expiredOrders)
         {
+            if (ct.IsCancellationRequested) break;
             if (order.AssignedRiderId is null || order.CurrentOfferId is null)
                 continue;
 

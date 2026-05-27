@@ -39,6 +39,7 @@ services:
       context: ./BackendApi
       dockerfile: Dockerfile
     container_name: delivery-backend
+    restart: unless-stopped
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=${POSTGRES_PASSWORD}
@@ -103,6 +104,13 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # 5. ระบบแดชบอร์ดแอดมิน (Angular)
   frontend:
@@ -115,6 +123,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    restart: unless-stopped
 
   # 6. ระบบแอปพลิเคชันสำหรับไรเดอร์ (Flutter Web)
   rider-app:
@@ -127,6 +136,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    restart: unless-stopped
   # 7. ระบบคำนวณเส้นทางถนน Dijkstra (Offline OSRM Server)
   osrm:
     image: osrm/osrm-backend
@@ -150,6 +160,7 @@ services:
     depends_on:
       - backend
       - frontend
+    restart: unless-stopped
 
   # 9. Seq (Centralized Logging)
   seq:
@@ -163,6 +174,12 @@ services:
       - "8082:80"
     volumes:
       - seq_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # 10. Prometheus (Metrics)
   prometheus:
@@ -172,6 +189,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+    restart: unless-stopped
 
   # 11. Grafana (Dashboard)
   grafana:
@@ -181,6 +199,7 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+    restart: unless-stopped
 
   # 12. RabbitMQ Message Broker (Real-time Event Architecture)
   rabbitmq:

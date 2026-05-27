@@ -63,29 +63,32 @@ public class DispatchOfferHandler
 
         try
         {
-            var order = await _dbContext.Orders
-                .FirstOrDefaultAsync(o =>
+            var orders = await _dbContext.Orders
+                .Where(o =>
                     o.CurrentOfferId == offerId &&
                     o.AssignedRiderId == riderId &&
-                    o.State == OrderState.OFFERING);
+                    o.State == OrderState.OFFERING)
+                .ToListAsync();
 
-            if (order is null)
+            if (orders.Count == 0)
             {
                 _logger.LogWarning("Accept failed: Offer {OfferId} not found or invalid state", offerId);
                 return false;
             }
 
+            var firstOrder = orders.First();
+
             // Validate version (ป้องกัน stale accept)
-            if (order.OfferVersion != version)
+            if (firstOrder.OfferVersion != version)
             {
                 _logger.LogWarning(
                     "Accept failed: version mismatch — expected {Expected}, got {Got}",
-                    order.OfferVersion, version);
+                    firstOrder.OfferVersion, version);
                 return false;
             }
 
             // ตรวจ expiration
-            if (order.OfferExpiresAt.HasValue && DateTime.UtcNow > order.OfferExpiresAt.Value)
+            if (firstOrder.OfferExpiresAt.HasValue && DateTime.UtcNow > firstOrder.OfferExpiresAt.Value)
             {
                 _logger.LogWarning("Accept failed: Offer {OfferId} has expired", offerId);
                 return false;
@@ -93,26 +96,36 @@ public class DispatchOfferHandler
 
             try
             {
-                // เปลี่ยนสถานะออเดอร์
-                if (!await _stateMachine.TransitionOrderAsync(order, OrderState.ASSIGNED))
-                    return false;
+                // เปลี่ยนสถานะทุกออเดอร์
+                foreach (var order in orders)
+                {
+                    if (!await _stateMachine.TransitionOrderAsync(order, OrderState.ASSIGNED))
+                        return false;
+                }
 
-                if (!await _stateMachine.TransitionRiderAsync(riderId, RiderState.BUSY))
-                    return false;
+                var rider = await _dbContext.Riders.FindAsync(riderId);
+                if (rider != null && rider.State != RiderState.BUSY)
+                {
+                    if (!await _stateMachine.TransitionRiderAsync(riderId, RiderState.BUSY))
+                        return false;
+                }
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                _logger.LogError(ex, "Concurrency collision detected while Rider {RiderId} was accepting offer {OfferId} for Order {OrderId}", 
-                    riderId, offerId, order.Id);
+                _logger.LogError(ex, "Concurrency collision detected while Rider {RiderId} was accepting offer {OfferId}", 
+                    riderId, offerId);
                 return false; // Concurrency conflict handled safely
             }
 
             // แจ้ง Admin Dashboard
-            await _adminNotifier.NotifyOrderAssignedAsync(order.Id, riderId, order.AssignedAt);
+            foreach (var order in orders)
+            {
+                await _adminNotifier.NotifyOrderAssignedAsync(order.Id, riderId, order.AssignedAt);
+            }
 
             _logger.LogInformation(
-                "Order {OrderId} assigned to Rider {RiderId} via offer {OfferId}",
-                order.Id, riderId, offerId);
+                "Orders {OrderCount} assigned to Rider {RiderId} via offer {OfferId}",
+                orders.Count, riderId, offerId);
 
             return true;
         }
@@ -126,25 +139,43 @@ public class DispatchOfferHandler
     /// <summary>
     /// Rider กดปฏิเสธ / Timeout → ปลดล็อค → Re-dispatch
     /// </summary>
-    public async Task RejectOrTimeoutAsync(string orderId, string riderId, string offerId)
+    public async Task RejectOrTimeoutAsync(string offerId, string riderId)
     {
         // ปลดล็อค Rider
         await _lockService.ReleaseLockAsync(riderId, offerId);
-        await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
+        
+        var rider = await _dbContext.Riders.FindAsync(riderId);
+        if (rider != null && rider.State == RiderState.RESERVED)
+        {
+            await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
+        }
 
-        // เปลี่ยน Order กลับเป็น MATCHING → หาคนใหม่
-        var order = await _dbContext.Orders.FindAsync(orderId);
-        if (order is null || order.State != OrderState.OFFERING) return;
+        // เปลี่ยน Order กลุ่มนี้กลับเป็น MATCHING → หาคนใหม่
+        var orders = await _dbContext.Orders
+            .Where(o => o.CurrentOfferId == offerId && o.State == OrderState.OFFERING)
+            .OrderBy(o => o.BatchSequence)
+            .ToListAsync();
+            
+        if (orders.Count == 0) return;
 
-        if (await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
+        bool allTransitioned = true;
+        foreach (var order in orders)
+        {
+            if (!await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
+            {
+                allTransitioned = false;
+            }
+        }
+
+        if (allTransitioned)
         {
             _logger.LogInformation(
-                "Order {OrderId} re-dispatching after rejection/timeout from Rider {RiderId}",
-                orderId, riderId);
+                "Orders ({Count}) re-dispatching after rejection/timeout from Rider {RiderId}",
+                orders.Count, riderId);
 
             // Re-dispatch: หาคนถัดไป — resolve DispatchService via DI เพื่อหลีกเลี่ยง circular dependency
             var dispatchService = _serviceProvider.GetRequiredService<DispatchService>();
-            await dispatchService.FindAndOfferAsync(order);
+            await dispatchService.FindAndOfferAsync(orders);
         }
     }
 }

@@ -25,6 +25,7 @@ import Swal from 'sweetalert2';
 })
 export class OrderDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input({ required: true }) order!: OrderDto;
+  @Input() siblingOrders: OrderDto[] = [];
   @Output() close = new EventEmitter<void>();
 
   @ViewChild('miniMap', { static: false }) miniMapEl?: ElementRef<HTMLElement>;

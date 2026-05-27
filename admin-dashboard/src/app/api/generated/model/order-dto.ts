@@ -36,4 +36,7 @@ export interface OrderDto {
      * เวลาที่ส่งเสร็จสิ้น
      */
     completedAt?: string | null;
+    batchGroupId?: string | null;
+    batchSequence?: number;
+    batchSize?: number;
 }

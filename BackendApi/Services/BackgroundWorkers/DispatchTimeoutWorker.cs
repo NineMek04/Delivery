@@ -67,7 +67,7 @@ public class DispatchTimeoutWorker : BackgroundService
                 order.Id, order.AssignedRiderId, order.CurrentOfferId);
 
             await offerHandler.RejectOrTimeoutAsync(
-                order.Id, order.AssignedRiderId, order.CurrentOfferId);
+                order.CurrentOfferId, order.AssignedRiderId);
         }
 
         if (expiredOrders.Count > 0)

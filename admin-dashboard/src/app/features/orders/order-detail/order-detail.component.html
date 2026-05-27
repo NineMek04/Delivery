@@ -122,6 +122,28 @@
               <span class="coord-val">{{ formatCoord(order.dropoffLng) }}</span>
             </div>
           </div>
+
+          @if (order.batchGroupId) {
+            <div class="info-section" style="grid-column: 1 / -1;">
+              <div class="section-label">
+                <lucide-icon [img]="icons.Plus" size="13"></lucide-icon> Batch Group: {{ shortId(order.batchGroupId) }} (Sequence {{ order.batchSequence }} of {{ order.batchSize }})
+              </div>
+              @if (siblingOrders.length > 0) {
+                <div class="info-rows" style="margin-top: 8px;">
+                  @for (sib of siblingOrders; track sib.id) {
+                    <div class="info-row" style="background: rgba(167, 139, 250, 0.05); border: 1px solid rgba(167, 139, 250, 0.2); border-radius: 4px; padding: 8px;">
+                      <div style="display: flex; justify-content: space-between; width: 100%;">
+                        <span style="color: #a78bfa; font-family: monospace;">Seq {{ sib.batchSequence }} - {{ sib.trackingCode ?? shortId(sib.id) }}</span>
+                        <span class="status-badge" [class]="getStatusTone(sib.status)" style="font-size: 10px; padding: 2px 4px;">{{ sib.status }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p style="font-size: 12px; color: #64748b; margin-top: 8px;">Loading siblings...</p>
+              }
+            </div>
+          }
         </div>
       }
 

@@ -1,6 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LucideAngularModule, RefreshCcw, Search, Pencil, Trash2, X, Check, Plus, Menu } from 'lucide-angular';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { StoreService, MenuItem } from '../../core/services/store.service';
@@ -21,6 +22,7 @@ export class ShopsComponent implements OnInit {
 
   private readonly shopService = inject(ShopService);
   private readonly storeService = inject(StoreService);
+  private readonly destroyRef = inject(DestroyRef);
 
   shops: ShopDto[] = [];
   isLoading = false;
@@ -33,14 +35,14 @@ export class ShopsComponent implements OnInit {
   totalCount = 0;
 
   columns: TableColumn[] = [
-    { field: 'id', header: 'SHOP_ID' },
-    { field: 'name', header: 'NAME' },
+    { field: 'id', header: 'SHOP_ID', isSortable: true },
+    { field: 'name', header: 'NAME', isSortable: true },
     { field: 'menuName', header: 'MENU' },
     { field: 'menuItems', header: 'VIEW MENU' },
-    { field: 'menuPrice', header: 'PRICE (฿)' },
+    { field: 'menuPrice', header: 'PRICE (฿)', isSortable: true },
     { field: 'lat', header: 'LATITUDE' },
     { field: 'lng', header: 'LONGITUDE' },
-    { field: 'createdAt', header: 'CREATED' }
+    { field: 'createdAt', header: 'CREATED', isSortable: true }
   ];
 
   // inline edit state
@@ -59,7 +61,9 @@ export class ShopsComponent implements OnInit {
   loadShops(): void {
     this.isLoading = true;
     this.hasError = false;
-    this.shopService.getAllPaginated(this.currentPage, this.pageSize, this.query).subscribe({
+    this.shopService.getAllPaginated(this.currentPage, this.pageSize, this.query).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (res) => {
         this.shops = res.items;
         this.totalCount = res.totalCount;
@@ -83,9 +87,33 @@ export class ShopsComponent implements OnInit {
     this.loadShops();
   }
 
+  onSortChange(event: {field: string | null, dir: 'asc'|'desc'|null}) {
+    if (!event.dir || !event.field) {
+      this.loadShops(); // reset to default server order
+      return;
+    }
+    
+    this.shops.sort((a, b) => {
+      let valA: any = a[event.field as keyof ShopDto];
+      let valB: any = b[event.field as keyof ShopDto];
+      
+      if (valA == null) valA = '';
+      if (valB == null) valB = '';
+      
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      
+      if (valA < valB) return event.dir === 'asc' ? -1 : 1;
+      if (valA > valB) return event.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
   loadMenuItems(shopId: string): void {
     this.selectedShopId = shopId;
-    this.storeService.loadMenusFromApi(shopId).subscribe({
+    this.storeService.loadMenusFromApi(shopId).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (menus) => {
         this.menuItems = menus;
         this.isMenuModalOpen = true;
@@ -156,7 +184,9 @@ export class ShopsComponent implements OnInit {
         lng: shop.lng
       };
       
-      this.shopService.update(shop.id!, payload).subscribe({
+      this.shopService.update(shop.id!, payload).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           shop.name = payload.name!;
           shop.menuName = payload.menuName!;
@@ -213,7 +243,9 @@ export class ShopsComponent implements OnInit {
         }
       });
 
-      this.shopService.delete(shop.id).subscribe({
+      this.shopService.delete(shop.id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           this.loadShops(); // Reload from backend to update pagination
           Swal.fire({ 

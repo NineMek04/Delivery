@@ -198,7 +198,31 @@ public class OrderService : IOrderService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
-                await dispatchSvc.StartDispatchAsync(savedOrder.Id);
+                var batchEvaluator = scope.ServiceProvider.GetRequiredService<BatchEvaluator>();
+                var db = scope.ServiceProvider.GetRequiredService<BackendApi.Data.ApplicationDbContext>();
+
+                // ดึง Order ใน Scope ใหม่
+                var orderEntity = await db.Orders.FindAsync(savedOrder.Id);
+                if (orderEntity == null) return;
+
+                // 1. ลองจับกลุ่ม Pre-dispatch Batching
+                var batchId = await batchEvaluator.TryGroupAsync(orderEntity);
+
+                if (batchId != null)
+                {
+                    await dispatchSvc.StartBatchDispatchAsync(batchId);
+                }
+                else
+                {
+                    // 2. ลองแทรกงานให้ Rider ที่กำลังไปรับของ (Dynamic Injection)
+                    var injected = await dispatchSvc.TryInjectOrderAsync(orderEntity.Id);
+                    
+                    if (!injected)
+                    {
+                        // 3. เริ่ม Dispatch แบบเดี่ยวปกติ
+                        await dispatchSvc.StartDispatchAsync(orderEntity.Id);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -333,6 +357,26 @@ public class OrderService : IOrderService
         if (!Enum.TryParse<Core.StateMachines.OrderState>(dto.Status, true, out var newState))
         {
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail($"Invalid status '{dto.Status}'"));
+        }
+
+        // ตรวจสอบลำดับการจัดส่งถ้าเป็นงานพ่วง (Batch)
+        if (order.BatchGroupId != null)
+        {
+            // ถ้าเปลี่ยนเป็น DELIVERING (ไปส่ง) หรือ COMPLETED ต้องรอจุดก่อนหน้าทำรายการเสร็จก่อน
+            if (newState == Core.StateMachines.OrderState.DELIVERING || newState == Core.StateMachines.OrderState.COMPLETED)
+            {
+                var incompletePriorOrders = await _db.GetQuery<Order>()
+                    .Where(o => o.BatchGroupId == order.BatchGroupId 
+                             && o.BatchSequence < order.BatchSequence 
+                             && o.State != Core.StateMachines.OrderState.COMPLETED 
+                             && o.State != Core.StateMachines.OrderState.CANCELLED)
+                    .AnyAsync(cancellationToken);
+
+                if (incompletePriorOrders)
+                {
+                    return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("กรุณาจัดส่งออเดอร์ลำดับก่อนหน้าให้เสร็จสิ้นก่อน"));
+                }
+            }
         }
 
         var success = await _stateMachine.TransitionOrderAsync(order, newState);

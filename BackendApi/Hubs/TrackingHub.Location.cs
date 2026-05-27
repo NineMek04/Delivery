@@ -15,15 +15,7 @@ public partial class TrackingHub
         var riderId = await GetRiderIdAsync();
         if (riderId is null) return;
 
-        await _presenceService.UpdateHeartbeatAsync(riderId);
-
-        // ดึงสถานะปัจจุบันกลับมาให้ Rider เผื่อหลุดและกลับมา (State Sync)
-        var rider = await _dbContext.Riders.FindAsync(riderId);
-        if (rider is not null && rider.State == RiderState.STALE)
-        {
-            var newState = await HasActiveJobAsync(riderId) ? RiderState.BUSY : RiderState.IDLE;
-            await _stateMachine.TransitionRiderAsync(rider, newState);
-        }
+        await _presenceManager.HandleRiderHeartbeatAsync(riderId);
     }
 
     public async Task UpdateLocation(double lat, double lng, double accuracy, [FromServices] TelemetryService telemetryService)

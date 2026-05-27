@@ -84,35 +84,108 @@ public class DispatchService
             return false;
 
         // ค้นหา Rider ที่อยู่ใกล้
-        await FindAndOfferAsync(order);
+        await FindAndOfferAsync(new List<Order> { order });
 
         return true;
     }
 
     /// <summary>
+    /// เริ่มกระบวนการหา Rider สำหรับ Order แบบพ่วง (Batch)
+    /// </summary>
+    public async Task<bool> StartBatchDispatchAsync(string batchGroupId)
+    {
+        var orders = await _dbContext.Orders
+            .Where(o => o.BatchGroupId == batchGroupId && o.State == OrderState.CREATED)
+            .OrderBy(o => o.BatchSequence)
+            .ToListAsync();
+
+        if (orders.Count == 0) return false;
+
+        foreach (var order in orders)
+        {
+            await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING);
+        }
+
+        await FindAndOfferAsync(orders);
+        return true;
+    }
+
+    /// <summary>
+    /// พยายามแทรกออเดอร์ใหม่ให้ Rider ที่กำลังไปรับของ (Dynamic Injection)
+    /// </summary>
+    public async Task<bool> TryInjectOrderAsync(string orderId)
+    {
+        var order = await _dbContext.Orders.FindAsync(orderId);
+        if (order is null || order.State != OrderState.CREATED) return false;
+
+        // ดึงไรเดอร์ที่กำลัง PICKING_UP
+        var busyRiders = await _dbContext.Riders
+            .Where(r => r.State == RiderState.BUSY)
+            .ToListAsync();
+
+        foreach (var rider in busyRiders)
+        {
+            // ตรวจสอบว่า rider มีออเดอร์ในมือที่กำลัง PICKING_UP และยังรับเพิ่มได้ (batch < 3)
+            var activeOrders = await _dbContext.Orders
+                .Where(o => o.AssignedRiderId == rider.Id && (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP))
+                .ToListAsync();
+
+            if (activeOrders.Count == 0 || activeOrders.Count >= 3) continue;
+
+            // ตรวจสอบ Compatibility (Same Shop) - เพื่อความเรียบง่ายในเฟสแรก รองรับเฉพาะร้านเดียวกัน
+            if (activeOrders.Any(o => o.ShopId == order.ShopId))
+            {
+                var batchId = activeOrders.First().BatchGroupId ?? $"BATCH-{Guid.NewGuid():N}"[..16];
+                
+                // จับกลุ่ม
+                if (activeOrders.First().BatchGroupId == null)
+                {
+                    foreach (var ao in activeOrders)
+                    {
+                        ao.BatchGroupId = batchId;
+                        ao.BatchSequence = 1;
+                    }
+                }
+                order.BatchGroupId = batchId;
+                order.BatchSequence = activeOrders.Count + 1;
+                await _dbContext.SaveChangesAsync();
+
+                // ยิง Injection Offer ให้ Rider คนนี้
+                await TryOfferToRiderAsync(new List<Order> { order }, rider.Id, isInjection: true);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// ค้นหา Rider ที่ใกล้ที่สุดและยิง Offer ไปให้
     /// </summary>
-    public async Task FindAndOfferAsync(Order order)
+    public async Task FindAndOfferAsync(List<Order> orders)
     {
-        if (order.PickupLocation is null)
+        if (orders == null || orders.Count == 0) return;
+        var firstOrder = orders.First();
+
+        if (firstOrder.PickupLocation is null)
         {
-            _logger.LogWarning("Order {OrderId} has no pickup location", order.Id);
+            _logger.LogWarning("Order {OrderId} has no pickup location", firstOrder.Id);
             return;
         }
 
         var searchRadiusKm = _config.GetValue("Dispatch:SearchRadiusKm", 10);
-        var pickupLat = order.PickupLocation.Y;
-        var pickupLng = order.PickupLocation.X;
+        var pickupLat = firstOrder.PickupLocation.Y;
+        var pickupLng = firstOrder.PickupLocation.X;
 
         // 1. ดึง Nearby Riders จาก Redis GEORADIUS
         var nearbyRiders = await _presenceService.GetNearbyRidersAsync(pickupLat, pickupLng, searchRadiusKm);
 
-        await _adminNotifier.NotifyDispatchScanStartedAsync(order, pickupLat, pickupLng, searchRadiusKm, nearbyRiders);
+        await _adminNotifier.NotifyDispatchScanStartedAsync(firstOrder, pickupLat, pickupLng, searchRadiusKm, nearbyRiders);
 
         if (nearbyRiders.Length == 0)
         {
             _logger.LogWarning("No nearby riders found for order {OrderId} within {Radius}km",
-                order.Id, searchRadiusKm);
+                firstOrder.Id, searchRadiusKm);
             return;
         }
 
@@ -142,57 +215,65 @@ public class DispatchService
 
         if (candidates.Count == 0)
         {
-            _logger.LogWarning("No idle riders available for order {OrderId}", order.Id);
+            _logger.LogWarning("No idle riders available for order {OrderId}", firstOrder.Id);
             return;
         }
 
         // 3. ส่ง Candidates ไป AI Engine สำหรับ Scoring (Phase A)
-        var rankedCandidates = await _ranker.RankCandidatesAsync(order, candidates, ridersDict);
+        var rankedCandidates = await _ranker.RankCandidatesAsync(firstOrder, candidates, ridersDict);
 
-        await _adminNotifier.NotifyCandidatesRankedAsync(order, rankedCandidates);
+        await _adminNotifier.NotifyCandidatesRankedAsync(firstOrder, rankedCandidates);
 
         // 4. ลองจอง Rider ทีละคนตามลำดับ
         foreach (var candidate in rankedCandidates)
         {
-            var success = await TryOfferToRiderAsync(order, candidate.RiderId);
+            var success = await TryOfferToRiderAsync(orders, candidate.RiderId);
             if (success) return; // จองได้แล้ว
         }
 
-        _logger.LogWarning("Could not lock any rider for order {OrderId}", order.Id);
+        _logger.LogWarning("Could not lock any rider for order {OrderId}", firstOrder.Id);
     }
 
     /// <summary>
     /// ยิง Offer ไปให้ Rider พร้อม Lock + Timer
     /// </summary>
-    private async Task<bool> TryOfferToRiderAsync(Order order, string riderId)
+    private async Task<bool> TryOfferToRiderAsync(List<Order> orders, string riderId, bool isInjection = false)
     {
         var offerTimeout = _config.GetValue("Dispatch:OfferTimeoutSeconds", 30);
         var offerId = $"OFF-{Guid.NewGuid():N}"[..16];
         var timeout = TimeSpan.FromSeconds(offerTimeout);
 
-        // จอง Rider ด้วย Redis Lock
+        // จอง Rider ด้วย Redis Lock (ยกเว้นกรณีที่เป็น injection ซึ่งไรเดอร์ BUSY อยู่แล้ว จะไม่ต้องล็อคใน state IDLE)
         if (!await _lockService.TryAcquireRiderLockAsync(riderId, offerId, timeout))
             return false;
 
-        // เปลี่ยนสถานะ Rider → RESERVED
-        if (!await _stateMachine.TransitionRiderAsync(riderId, RiderState.RESERVED))
+        // เปลี่ยนสถานะ Rider → RESERVED (ข้ามถ้าเป็น injection เพราะกำลัง BUSY)
+        if (!isInjection)
         {
-            await _lockService.ReleaseLockAsync(riderId, offerId);
-            return false;
+            if (!await _stateMachine.TransitionRiderAsync(riderId, RiderState.RESERVED))
+            {
+                await _lockService.ReleaseLockAsync(riderId, offerId);
+                return false;
+            }
         }
 
         // อัปเดต Order ด้วย Offer info
-        order.CurrentOfferId = offerId;
-        order.OfferVersion++;
-        order.OfferExpiresAt = DateTime.UtcNow.Add(timeout);
-        order.AssignedRiderId = riderId;
-
-        if (!await _stateMachine.TransitionOrderAsync(order, OrderState.OFFERING))
+        foreach (var order in orders)
         {
-            await _lockService.ReleaseLockAsync(riderId, offerId);
-            await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
-            return false;
+            order.CurrentOfferId = offerId;
+            order.OfferVersion++;
+            order.OfferExpiresAt = DateTime.UtcNow.Add(timeout);
+            order.AssignedRiderId = riderId;
+
+            if (!await _stateMachine.TransitionOrderAsync(order, OrderState.OFFERING))
+            {
+                await _lockService.ReleaseLockAsync(riderId, offerId);
+                if (!isInjection) await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
+                return false;
+            }
         }
+
+        var firstOrder = orders.First();
 
         // คำนวณเส้นทาง Rider → Pickup
         string? pickupPolyline = null;
@@ -200,15 +281,15 @@ public class DispatchService
         double? pickupRouteDurationSeconds = null;
         var riderLocation = await _presenceService.GetLastKnownLocationAsync(riderId);
 
-        if (riderLocation is not null && order.PickupLocation is not null)
+        if (riderLocation is not null && firstOrder.PickupLocation is not null)
         {
             try
             {
                 var pickupRoute = await _routingService.GetRouteDetailsAsync(
                     riderLocation.Value.Lat,
                     riderLocation.Value.Lng,
-                    order.PickupLocation.Y,
-                    order.PickupLocation.X);
+                    firstOrder.PickupLocation.Y,
+                    firstOrder.PickupLocation.X);
 
                 pickupPolyline = pickupRoute.Polyline;
                 pickupRouteDistanceMeters = pickupRoute.DistanceMeters;
@@ -220,51 +301,53 @@ public class DispatchService
                     ex,
                     "Failed to calculate pickup route for Rider {RiderId} and Order {OrderId}. Falling back to straight line on clients.",
                     riderId,
-                    order.Id);
+                    firstOrder.Id);
             }
         }
 
-        // Re-calculate ETA ด้วย OSRM pickup duration + Rider velocity จริง
-        if (pickupRouteDurationSeconds.HasValue && order.RouteDurationSeconds > 0)
+        // Re-calculate ETA ด้วย OSRM pickup duration + Rider velocity จริง (อัปเดตแค่ order แรกก่อน หรือทั้งหมดถ้าต้องการ)
+        if (pickupRouteDurationSeconds.HasValue && firstOrder.RouteDurationSeconds > 0)
         {
             try
             {
                 var riderSpeed = await _presenceService.GetRiderSpeedAsync(riderId);
-                var etaRequest = new PredictEtaRequestDto
+                foreach (var order in orders)
                 {
-                    PickupLat = order.PickupLocation?.Y ?? 0,
-                    PickupLng = order.PickupLocation?.X ?? 0,
-                    DropoffLat = order.DropoffLocation?.Y ?? 0,
-                    DropoffLng = order.DropoffLocation?.X ?? 0,
-                    RouteDistanceMeters = order.RouteDistanceMeters,
-                    RouteDurationSeconds = order.RouteDurationSeconds,
-                    CurrentTime = DateTime.UtcNow.ToString("O"),
-                    RiderSpeedKmh = riderSpeed > 0 ? riderSpeed : null,
-                    OsrmPickupDurationSeconds = pickupRouteDurationSeconds.Value
-                };
+                    var etaRequest = new PredictEtaRequestDto
+                    {
+                        PickupLat = order.PickupLocation?.Y ?? 0,
+                        PickupLng = order.PickupLocation?.X ?? 0,
+                        DropoffLat = order.DropoffLocation?.Y ?? 0,
+                        DropoffLng = order.DropoffLocation?.X ?? 0,
+                        RouteDistanceMeters = order.RouteDistanceMeters,
+                        RouteDurationSeconds = order.RouteDurationSeconds,
+                        CurrentTime = DateTime.UtcNow.ToString("O"),
+                        RiderSpeedKmh = riderSpeed > 0 ? riderSpeed : null,
+                        OsrmPickupDurationSeconds = pickupRouteDurationSeconds.Value
+                    };
 
-                var etaResult = await _aiService.PredictEtaAsync(etaRequest);
-                if (etaResult != null && DateTime.TryParse(etaResult.EtaDatetime, out var newEta))
-                {
-                    order.ExpectedDeliveryTime = newEta;
-                    _logger.LogInformation(
-                        "ETA re-calculated for Order {OrderId} with Rider {RiderId}: {EtaMinutes} min (speed: {Speed} km/h, pickup: {Pickup}s)",
-                        order.Id, riderId, etaResult.EtaMinutes, riderSpeed, pickupRouteDurationSeconds.Value);
+                    var etaResult = await _aiService.PredictEtaAsync(etaRequest);
+                    if (etaResult != null && DateTime.TryParse(etaResult.EtaDatetime, out var newEta))
+                    {
+                        order.ExpectedDeliveryTime = newEta;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to re-calculate ETA for Order {OrderId} with Rider {RiderId}. Using original ETA.",
-                    order.Id, riderId);
+                _logger.LogWarning(ex, "Failed to re-calculate ETA for Orders with Rider {RiderId}. Using original ETA.", riderId);
             }
         }
 
         var offerPayload = new
         {
             OfferId = offerId,
-            Version = order.OfferVersion,
-            ExpiresAt = order.OfferExpiresAt,
+            Version = firstOrder.OfferVersion,
+            ExpiresAt = firstOrder.OfferExpiresAt,
             RiderId = riderId,
+            IsBatch = orders.Count > 1,
+            IsInjection = isInjection,
+            BatchGroupId = firstOrder.BatchGroupId,
             PickupRoute = new
             {
                 EncodedPolyline = pickupPolyline,
@@ -272,21 +355,24 @@ public class DispatchService
                 DurationSeconds = pickupRouteDurationSeconds,
                 StartLat = riderLocation?.Lat,
                 StartLng = riderLocation?.Lng,
-                EndLat = order.PickupLocation?.Y,
-                EndLng = order.PickupLocation?.X
+                EndLat = firstOrder.PickupLocation?.Y,
+                EndLng = firstOrder.PickupLocation?.X
             },
-            Order = new
+            Orders = orders.Select(o => new
             {
-                order.Id,
-                PickupLat = order.PickupLocation?.Y,
-                PickupLng = order.PickupLocation?.X,
-                DropoffLat = order.DropoffLocation?.Y,
-                DropoffLng = order.DropoffLocation?.X,
-                order.SlaLimitMinutes,
-                DistanceKm = order.DistanceKm,
-                DeliveryFee = order.DeliveryFee,
-                EncodedPolyline = order.EncodedPolyline
-            }
+                o.Id,
+                PickupLat = o.PickupLocation?.Y,
+                PickupLng = o.PickupLocation?.X,
+                DropoffLat = o.DropoffLocation?.Y,
+                DropoffLng = o.DropoffLocation?.X,
+                o.SlaLimitMinutes,
+                DistanceKm = o.DistanceKm,
+                DeliveryFee = o.DeliveryFee,
+                EncodedPolyline = o.EncodedPolyline,
+                Sequence = o.BatchSequence
+            }).ToList(),
+            TotalDeliveryFee = orders.Sum(o => o.DeliveryFee),
+            TotalDistanceKm = orders.Sum(o => o.DistanceKm)
         };
 
         // ส่ง Offer ไปให้ Rider ผ่าน SignalR
@@ -296,11 +382,11 @@ public class DispatchService
         await _adminNotifier.NotifyOfferSentAsync(offerPayload);
 
         // Trigger FCM push notification to Rider in background
-        _riderNotifier.SendFcmOfferNotificationInBackground(riderId, order.Id, offerId, order.DeliveryFee, order.DistanceKm);
+        _riderNotifier.SendFcmOfferNotificationInBackground(riderId, firstOrder.Id, offerId, orders.Sum(o => o.DeliveryFee), orders.Sum(o => o.DistanceKm));
 
         _logger.LogInformation(
-            "Offer {OfferId} (v{Version}) sent to Rider {RiderId} for Order {OrderId} — expires in {Timeout}s",
-            offerId, order.OfferVersion, riderId, order.Id, offerTimeout);
+            "Offer {OfferId} sent to Rider {RiderId} for {Count} Orders (Batch: {BatchId}) — expires in {Timeout}s",
+            offerId, riderId, orders.Count, firstOrder.BatchGroupId, offerTimeout);
 
         return true;
     }

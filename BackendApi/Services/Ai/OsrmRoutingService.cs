@@ -200,5 +200,75 @@ namespace BackendApi.Services.Ai
                 return (lat, lng); // fallback to original point
             }
         }
+
+        /// <summary>
+        /// ใช้ OSRM /trip API เพื่อแก้ปัญหา TSP (Traveling Salesperson Problem) สำหรับจัดลำดับจุดส่งหลายจุด
+        /// รับพิกัดเริ่มต้น (Pickup) และจุดส่ง (Dropoffs) เรียงลำดับที่เหมาะสมที่สุด
+        /// </summary>
+        public async Task<List<int>> GetOptimizedTripSequenceAsync(List<(double Lat, double Lng)> points)
+        {
+            if (points.Count <= 2)
+            {
+                var seq = new List<int>();
+                for (int i = 0; i < points.Count; i++) seq.Add(i);
+                return seq;
+            }
+
+            var retryPolicy = Policy
+                .Handle<Exception>()
+                .WaitAndRetryAsync(1, retryAttempt => TimeSpan.FromMilliseconds(100));
+
+            var resilientPolicy = Policy.WrapAsync(retryPolicy, _circuitBreakerPolicy);
+
+            return await resilientPolicy.ExecuteAsync(async () =>
+            {
+                var coordinatesStr = string.Join(";", points.Select(p => 
+                    $"{p.Lng.ToString(System.Globalization.CultureInfo.InvariantCulture)},{p.Lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
+
+                // source=first means start at the pickup point, roundtrip=false means we don't return to pickup
+                var url = $"{_localOsrmUrl}/trip/v1/driving/{coordinatesStr}?source=first&roundtrip=false";
+                
+                HttpResponseMessage response;
+                try
+                {
+                    response = await _httpClient.GetAsync(url);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Local OSRM trip request failed. Trying Public OSRM.");
+                    var publicUrl = $"http://router.project-osrm.org/trip/v1/driving/{coordinatesStr}?source=first&roundtrip=false";
+                    response = await _httpClient.GetAsync(publicUrl);
+                }
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var document = JsonDocument.Parse(json);
+                    var root = document.RootElement;
+                    
+                    if (root.TryGetProperty("waypoints", out var waypoints))
+                    {
+                        var originalIndexes = new List<int>();
+                        foreach (var waypoint in waypoints.EnumerateArray())
+                        {
+                            var originalIndex = waypoint.GetProperty("waypoint_index").GetInt32();
+                            originalIndexes.Add(originalIndex);
+                        }
+                        
+                        // waypoints array describes the stops in the order they are visited.
+                        // However, OSRM sets waypoint_index to indicate the ORIGINAL input index.
+                        // Example: If visited order is input[0], input[2], input[1], the array has:
+                        // waypoint_index = 0, 2, 1
+                        
+                        return originalIndexes;
+                    }
+                }
+
+                _logger.LogWarning("OSRM trip returned unsuccessful status: {Status}. Falling back to sequential.", response.StatusCode);
+                var fallback = new List<int>();
+                for (int i = 0; i < points.Count; i++) fallback.Add(i);
+                return fallback;
+            });
+        }
     }
 }

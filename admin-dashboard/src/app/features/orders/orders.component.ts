@@ -1,9 +1,10 @@
 import {
-  Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy
+  Component, OnInit, inject, ChangeDetectorRef, ChangeDetectionStrategy, DestroyRef
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OrderService } from '../../core/services/order.service';
 import { RiderService } from '../../core/services/rider.service';
 import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
@@ -13,10 +14,11 @@ import Swal from 'sweetalert2';
 import {
   LucideAngularModule,
   RefreshCcw, Search, XCircle, RotateCcw, Info,
-  ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X
+  ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin
 } from 'lucide-angular';
 import { OrderDetailComponent } from './order-detail/order-detail.component';
 import { DispatchQueueComponent } from './dispatch-queue/dispatch-queue.component';
+import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
 
 type SortDir = 'asc' | 'desc' | null;
 interface SortState { field: keyof OrderDto | 'rider'; dir: SortDir; }
@@ -36,20 +38,32 @@ interface FilterState {
   standalone:  true,
   changeDetection: ChangeDetectionStrategy.Default,
   imports: [
-    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DispatchQueueComponent
+    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DispatchQueueComponent, DataTableComponent
   ],
   templateUrl: './orders.component.html',
   styleUrl:    './orders.component.scss'
 })
-export class OrdersComponent implements OnInit, OnDestroy {
+export class OrdersComponent implements OnInit {
   readonly title = 'Order_Operations';
-  readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X };
+  readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin };
+
+  columns: TableColumn[] = [
+    { field: 'id', header: 'ORDER_ID', isSortable: true },
+    { field: 'batch', header: 'BATCH' },
+    { field: 'pickup', header: 'PICKUP' },
+    { field: 'dropoff', header: 'DROPOFF' },
+    { field: 'rider', header: 'RIDER', isSortable: true },
+    { field: 'status', header: 'STATUS', isSortable: true },
+    { field: 'distanceKm', header: 'DIST.', isSortable: true },
+    { field: 'deliveryFee', header: 'FEE', isSortable: true },
+    { field: 'createdAt', header: 'CREATED', isSortable: true }
+  ];
 
   private orderService   = inject(OrderService);
   private riderService   = inject(RiderService);
   private trackingService = inject(TrackingSignalRService);
   private cdr = inject(ChangeDetectorRef);
-  private sub = new Subscription();
+  private destroyRef = inject(DestroyRef);
 
   // ── Data ─────────────────────────────────────────────────────────────────
   allOrders:  OrderDto[] = [];
@@ -92,30 +106,28 @@ export class OrdersComponent implements OnInit, OnDestroy {
   // ─────────────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    this.riderService.getAll(1, 500).subscribe(r => this.riders = r);
+    this.riderService.getAll(1, 500).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(r => this.riders = r);
     this.loadOrders();
 
     // SignalR: start connection and subscribe
     this.trackingService.startConnection();
-    this.sub.add(
-      this.trackingService.orderStatusChanged$.subscribe(({ orderId, status }) => {
-        const order = this.allOrders.find(o => o.id === orderId);
-        if (order) {
-          order.status = status;
-          this.recentlyUpdated.add(orderId);
-          setTimeout(() => { this.recentlyUpdated.delete(orderId); this.cdr.markForCheck(); }, 3000);
-        } else {
-          // New order arrived — reload and bump badge
-          this.newOrderCount++;
-          this.loadOrders();
-        }
-        this.cdr.markForCheck();
-      })
-    );
-  }
-
-  ngOnDestroy(): void {
-    this.sub.unsubscribe();
+    this.trackingService.orderStatusChanged$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(({ orderId, status }) => {
+      const order = this.allOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = status;
+        this.recentlyUpdated.add(orderId);
+        setTimeout(() => { this.recentlyUpdated.delete(orderId); this.cdr.markForCheck(); }, 3000);
+      } else {
+        // New order arrived — reload and bump badge
+        this.newOrderCount++;
+        this.loadOrders();
+      }
+      this.cdr.markForCheck();
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -129,7 +141,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
     // Fetch all pages to support local filtering/sorting.
     // Use a large pageSize so we don't need pagination calls.
-    this.orderService.getAll(1, 500).subscribe({
+    this.orderService.getAll(1, 500).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: orders => {
         this.allOrders = orders;
         this.currentPage = 1;
@@ -210,38 +224,26 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return this.filteredOrders.slice(start, start + this.pageSize);
   }
 
-  get totalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredOrders.length / this.pageSize));
-  }
-
-  get pages(): number[] {
-    const total = this.totalPages;
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-    const p = this.currentPage;
-    const set = new Set([1, 2, p - 1, p, p + 1, total - 1, total].filter(n => n >= 1 && n <= total));
-    return Array.from(set).sort((a, b) => a - b);
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
-  // Sorting
+  // Table event handlers & Pagination
   // ─────────────────────────────────────────────────────────────────────────
 
-  setSort(field: SortState['field']): void {
-    if (this.sort.field === field) {
-      this.sort = { field, dir: this.sort.dir === 'asc' ? 'desc' : this.sort.dir === 'desc' ? null : 'asc' };
-    } else {
-      this.sort = { field, dir: 'asc' };
-    }
+  onPageChange(page: number) {
+    this.currentPage = page;
+  }
+
+  onSearch(query: string) {
+    this.filters.search = query;
     this.currentPage = 1;
   }
 
-  getSortIcon(field: SortState['field']): any {
-    if (this.sort.field !== field || !this.sort.dir) return this.icons.ChevronsUpDown;
-    return this.sort.dir === 'asc' ? this.icons.ChevronUp : this.icons.ChevronDown;
-  }
-
-  isSortActive(field: SortState['field']): boolean {
-    return this.sort.field === field && !!this.sort.dir;
+  onSortChange(event: {field: string | null, dir: 'asc'|'desc'|null}) {
+    if (!event.field || !event.dir) {
+      this.sort = { field: 'createdAt', dir: 'desc' };
+    } else {
+      this.sort = { field: event.field as keyof OrderDto | 'rider', dir: event.dir };
+    }
+    this.currentPage = 1;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -274,15 +276,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return n;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Pagination
-  // ─────────────────────────────────────────────────────────────────────────
+  formatCoord(val?: number | null): string {
+    return val != null ? val.toFixed(4) : '—';
+  }
 
-  goToPage(page: number | string): void {
-    const p = Number(page);
-    if (!isNaN(p) && p >= 1 && p <= this.totalPages) {
-      this.currentPage = p;
-    }
+  formatDistance(val?: number | null): string {
+    return val != null ? `${val.toFixed(1)} km` : '—';
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -326,6 +325,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return !!id && this.recentlyUpdated.has(id);
   }
 
+  getSiblingOrders(order: OrderDto): OrderDto[] {
+    if (!order.batchGroupId) return [];
+    return this.allOrders
+      .filter(o => o.batchGroupId === order.batchGroupId && o.id !== order.id)
+      .sort((a, b) => (a.batchSequence ?? 0) - (b.batchSequence ?? 0));
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Modal
   // ─────────────────────────────────────────────────────────────────────────
@@ -362,7 +368,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }).then(result => {
       if (!result.isConfirmed) return;
       Swal.fire({ title: 'กำลังยกเลิก...', allowOutsideClick: false, background: '#1e293b', color: '#f8fafc', didOpen: () => Swal.showLoading() });
-      this.orderService.cancelOrder(id).subscribe({
+      this.orderService.cancelOrder(id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           Swal.fire({ icon:'success', title:'ยกเลิกสำเร็จ', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' });
           this.loadOrders();
@@ -391,7 +399,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }).then(result => {
       if (!result.isConfirmed) return;
       Swal.fire({ title: 'กำลัง Dispatch...', allowOutsideClick: false, background: '#1e293b', color: '#f8fafc', didOpen: () => Swal.showLoading() });
-      this.orderService.retryDispatch(id).subscribe({
+      this.orderService.retryDispatch(id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         next: () => {
           Swal.fire({ icon:'success', title:'Dispatch ใหม่สำเร็จ', text:'ระบบกำลังหาไรเดอร์', background:'#1e293b', color:'#f8fafc' });
           this.loadOrders();

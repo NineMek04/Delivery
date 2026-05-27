@@ -23,7 +23,16 @@
       <thead>
         <tr>
           @for (col of columns; track col.field) {
-            <th>{{ col.header }}</th>
+            <th [class.sortable]="col.isSortable" (click)="col.isSortable ? onSort(col.field) : null">
+              <div class="th-content">
+                {{ col.header }}
+                @if (col.isSortable) {
+                  <lucide-icon *ngIf="sortField !== col.field || !sortDir" [img]="ChevronsUpDownIcon" size="12" class="sort-icon"></lucide-icon>
+                  <lucide-icon *ngIf="sortField === col.field && sortDir === 'asc'" [img]="ChevronUpIcon" size="12" class="sort-icon active"></lucide-icon>
+                  <lucide-icon *ngIf="sortField === col.field && sortDir === 'desc'" [img]="ChevronDownIcon" size="12" class="sort-icon active"></lucide-icon>
+                }
+              </div>
+            </th>
           }
           @if (hasActions) {
             <th>ACTIONS</th>

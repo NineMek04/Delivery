@@ -1,71 +1,49 @@
 <section class="orders-page">
 
   <!-- ── Page Header ──────────────────────────────────────────────────── -->
-  <div class="page-header">
-    <div class="header-left">
-      <h2 class="page-title">{{ title }}</h2>
-      <p class="page-sub">Real-time order stream, dispatch controls &amp; lifecycle management</p>
+  <div class="section-header">
+    <div>
+      <h2>{{ title }}</h2>
+      <p>Real-time order stream, dispatch controls &amp; lifecycle management</p>
     </div>
-    <div class="header-actions">
-      @if (newOrderCount > 0) {
-        <button class="notif-btn" (click)="loadOrders()">
-          <lucide-icon [img]="icons.Bell" size="16"></lucide-icon>
+    @if (newOrderCount > 0) {
+      <div>
+        <button type="button" class="ghost-action" (click)="loadOrders()" style="color: #fbbf24; background: rgba(251, 191, 36, 0.05); border-color: rgba(251, 191, 36, 0.24); padding: 0 16px; min-height: 32px; font-weight: 800; font-size: 11px;">
+          <lucide-icon [img]="icons.Bell" size="14" style="margin-right: 6px;"></lucide-icon>
           {{ newOrderCount }} New
         </button>
-      }
-      <button class="icon-btn" (click)="loadOrders()" [disabled]="isLoading">
-        <lucide-icon [img]="icons.RefreshCcw" size="16"></lucide-icon>
-        Refresh
-      </button>
-    </div>
+      </div>
+    }
   </div>
 
   <!-- ── KPI Strip ──────────────────────────────────────────────────────── -->
-  <div class="kpi-strip">
-    <div class="kpi-card">
-      <span class="kpi-label">Total Loaded</span>
-      <strong class="kpi-value">{{ allOrders.length }}</strong>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-label">Filtered</span>
-      <strong class="kpi-value">{{ filteredOrders.length }}</strong>
-    </div>
-    <div class="kpi-card warn">
-      <span class="kpi-label">Pending Dispatch</span>
-      <strong class="kpi-value">{{ pendingCount }}</strong>
-    </div>
-    <div class="kpi-card success">
-      <span class="kpi-label">Completed</span>
-      <strong class="kpi-value">{{ completedCount }}</strong>
-    </div>
-    <div class="kpi-card info">
-      <span class="kpi-label">Revenue (Completed)</span>
-      <strong class="kpi-value">{{ totalFees | currency:'THB':'symbol-narrow':'1.0-0' }}</strong>
-    </div>
+  <div class="stat-grid">
+    <article>
+      <span>Total Loaded</span>
+      <strong>{{ allOrders.length }}</strong>
+      <small>loaded in dashboard</small>
+    </article>
+    <article>
+      <span>Filtered</span>
+      <strong>{{ filteredOrders.length }}</strong>
+      <small>matching criteria</small>
+    </article>
+    <article>
+      <span>Pending Dispatch</span>
+      <strong class="warning">{{ pendingCount }}</strong>
+      <small>awaiting rider match</small>
+    </article>
+    <article>
+      <span>Revenue</span>
+      <strong class="primary">฿{{ totalFees | number:'1.0-0' }}</strong>
+      <small>earnings from completed orders</small>
+    </article>
   </div>
 
   <!-- ── Filter Bar ─────────────────────────────────────────────────────── -->
-  <div class="filter-bar">
-    <!-- Search -->
-    <div class="search-wrap">
-      <lucide-icon [img]="icons.Search" size="15" class="search-icon"></lucide-icon>
-      <input
-        type="text"
-        class="search-input"
-        placeholder="Search Order ID or tracking code..."
-        [(ngModel)]="filters.search"
-        (ngModelChange)="currentPage = 1"
-      >
-      @if (filters.search) {
-        <button class="clear-search" (click)="filters.search = ''; currentPage = 1">
-          <lucide-icon [img]="icons.X" size="13"></lucide-icon>
-        </button>
-      }
-    </div>
-
-    <!-- Filter toggle button -->
-    <button class="filter-toggle-btn" [class.active]="filterPanelOpen" (click)="filterPanelOpen = !filterPanelOpen">
-      <lucide-icon [img]="icons.Filter" size="15"></lucide-icon>
+  <div class="filter-bar-container">
+    <button type="button" class="muted-action" [class.active]="filterPanelOpen" (click)="filterPanelOpen = !filterPanelOpen" [style.color]="filterPanelOpen ? 'var(--color-brand-primary)' : ''" [style.borderColor]="filterPanelOpen ? 'var(--color-brand-primary)' : ''">
+      <lucide-icon [img]="icons.Filter" size="14" style="margin-right: 6px;"></lucide-icon>
       Filters
       @if (activeFilterCount > 0) {
         <span class="filter-badge">{{ activeFilterCount }}</span>
@@ -73,30 +51,24 @@
     </button>
 
     @if (activeFilterCount > 0) {
-      <button class="clear-btn" (click)="clearFilters()">
-        <lucide-icon [img]="icons.X" size="13"></lucide-icon>
+      <button type="button" class="danger-action" (click)="clearFilters()">
+        <lucide-icon [img]="icons.X" size="14" style="margin-right: 6px;"></lucide-icon>
         Clear All
       </button>
     }
-
-    <span class="result-count">{{ filteredOrders.length }} orders</span>
   </div>
 
   <!-- ── Expandable Filter Panel ────────────────────────────────────────── -->
   @if (filterPanelOpen) {
     <div class="filter-panel">
-
       <!-- Status chips -->
       <div class="filter-section">
         <label class="filter-label">Status</label>
         <div class="status-chips">
           @for (s of allStatuses; track s) {
-            <button
-              class="chip"
-              [class.active]="isStatusSelected(s)"
-              [class]="'chip ' + getStatusTone(s) + (isStatusSelected(s) ? ' active' : '')"
-              (click)="toggleStatus(s)"
-            >{{ s }}</button>
+            <button type="button" class="chip" [class]="'chip ' + getStatusTone(s) + (isStatusSelected(s) ? ' active' : '')" (click)="toggleStatus(s)">
+              {{ s }}
+            </button>
           }
         </div>
       </div>
@@ -117,7 +89,7 @@
         <select class="filter-input" [(ngModel)]="filters.riderId" (ngModelChange)="currentPage=1">
           <option value="">All Riders</option>
           @for (r of riders; track r.id) {
-            <option [value]="r.id">{{ r.trackingCode ?? r.id }}</option>
+            <option [value]="r.id">{{ r.trackingCode ?? shortId(r.id) }}</option>
           }
         </select>
       </div>
@@ -137,171 +109,92 @@
   <!-- ── Dispatch Queue Monitor ───────────────────────────────────────────── -->
   <app-dispatch-queue></app-dispatch-queue>
 
-  <!-- ── Table ──────────────────────────────────────────────────────────── -->
-  <div class="table-shell">
-
-    @if (isLoading) {
-      <div class="state-overlay">
-        <div class="spinner"></div>
-        <p>Loading orders...</p>
-      </div>
-    }
-
-    @if (!isLoading && hasError) {
-      <div class="state-overlay error">
-        <p>⚠️ Failed to load orders.</p>
-        <button class="icon-btn" (click)="loadOrders()">Retry</button>
-      </div>
-    }
-
-    @if (!isLoading && !hasError && !pagedOrders.length) {
-      <div class="state-overlay">
-        <p class="empty-text">📭 No orders match your current filters.</p>
-        <button class="clear-btn" (click)="clearFilters()">Clear Filters</button>
-      </div>
-    }
-
-    <div class="table-scroll">
-      <table class="order-table">
-        <thead>
-          <tr>
-            <th class="sortable" (click)="setSort('trackingCode')">
-              Order ID <lucide-icon [img]="getSortIcon('trackingCode')" size="12" [class.sort-active]="isSortActive('trackingCode')"></lucide-icon>
-            </th>
-            <th>Pickup</th>
-            <th>Dropoff</th>
-            <th class="sortable" (click)="setSort('rider')">
-              Rider <lucide-icon [img]="getSortIcon('rider')" size="12" [class.sort-active]="isSortActive('rider')"></lucide-icon>
-            </th>
-            <th class="sortable" (click)="setSort('status')">
-              Status <lucide-icon [img]="getSortIcon('status')" size="12" [class.sort-active]="isSortActive('status')"></lucide-icon>
-            </th>
-            <th class="sortable num" (click)="setSort('distanceKm')">
-              Dist. <lucide-icon [img]="getSortIcon('distanceKm')" size="12" [class.sort-active]="isSortActive('distanceKm')"></lucide-icon>
-            </th>
-            <th class="sortable num" (click)="setSort('deliveryFee')">
-              Fee <lucide-icon [img]="getSortIcon('deliveryFee')" size="12" [class.sort-active]="isSortActive('deliveryFee')"></lucide-icon>
-            </th>
-            <th class="sortable" (click)="setSort('createdAt')">
-              Created <lucide-icon [img]="getSortIcon('createdAt')" size="12" [class.sort-active]="isSortActive('createdAt')"></lucide-icon>
-            </th>
-            <th class="col-actions">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (order of pagedOrders; track order.id) {
-            <tr
-              class="order-row"
-              [class.flash-update]="isRecentlyUpdated(order.id)"
-              [class.row-cancelled]="order.status === 'CANCELLED'"
-              [class.row-completed]="order.status === 'COMPLETED'"
-            >
-              <!-- Order ID -->
-              <td>
-                <span class="order-id">{{ getOrderLabel(order) }}</span>
-              </td>
-
-              <!-- Pickup -->
-              <td>
-                <span class="coord-cell">
-                  {{ order.pickupLat | number:'1.4-4' }}, {{ order.pickupLng | number:'1.4-4' }}
-                </span>
-              </td>
-
-              <!-- Dropoff -->
-              <td>
-                <span class="coord-cell">
-                  {{ order.dropoffLat | number:'1.4-4' }}, {{ order.dropoffLng | number:'1.4-4' }}
-                </span>
-              </td>
-
-              <!-- Rider -->
-              <td>
-                <span class="rider-cell">{{ getRiderLabel(order.assignedRiderId) }}</span>
-              </td>
-
-              <!-- Status -->
-              <td>
-                <span class="status-badge" [class]="getStatusTone(order.status)">
-                  {{ order.status ?? 'UNKNOWN' }}
-                </span>
-              </td>
-
-              <!-- Distance -->
-              <td class="num">{{ order.distanceKm | number:'1.1-1' }} km</td>
-
-              <!-- Fee -->
-              <td class="num">{{ order.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }}</td>
-
-              <!-- Created At -->
-              <td class="date-cell">{{ formatDate(order.createdAt) }}</td>
-
-              <!-- Actions -->
-              <td class="col-actions">
-                <button class="action-btn view" (click)="openOrderDetail(order)" title="View Details">
-                  <lucide-icon [img]="icons.Info" size="13"></lucide-icon>
-                  View
-                </button>
-                @if (['CREATED','MATCHING'].includes(order.status ?? '')) {
-                  <button class="action-btn retry" (click)="retryDispatch(order.id)" title="Retry Dispatch">
-                    <lucide-icon [img]="icons.RotateCcw" size="13"></lucide-icon>
-                    Retry
-                  </button>
-                }
-                @if (['CREATED','MATCHING','OFFERING','ASSIGNED','PICKING_UP'].includes(order.status ?? '')) {
-                  <button class="action-btn cancel" (click)="cancelOrder(order.id)" title="Cancel Order">
-                    <lucide-icon [img]="icons.XCircle" size="13"></lucide-icon>
-                    Cancel
-                  </button>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ── Pagination ────────────────────────────────────────────────────── -->
-    @if (!isLoading && filteredOrders.length > pageSize) {
-      <div class="pagination">
-        <button class="page-btn" [disabled]="currentPage === 1" (click)="goToPage(currentPage - 1)">‹ Prev</button>
-
-        @for (p of pages; track p; let i = $index) {
-          @if (i > 0 && p - pages[i - 1] > 1) {
-            <span class="page-ellipsis">…</span>
-          }
-          <button
-            class="page-btn"
-            [class.active]="p === currentPage"
-            (click)="goToPage(p)"
-          >{{ p }}</button>
+  <!-- ── Data Table ─────────────────────────────────────────────────────── -->
+  <app-data-table 
+    [title]="'Order_Manifest'"
+    [columns]="columns"
+    [data]="pagedOrders"
+    [totalCount]="filteredOrders.length"
+    [currentPage]="currentPage"
+    [pageSize]="pageSize"
+    [searchQuery]="filters.search"
+    [isLoading]="isLoading"
+    [hasError]="hasError"
+    [hasActions]="true"
+    (pageChange)="onPageChange($event)"
+    (search)="onSearch($event)"
+    (sortChange)="onSortChange($event)"
+    (refresh)="loadOrders()"
+    (retry)="loadOrders()">
+    
+    <ng-template #cellTemplate let-item let-col="col">
+      @if (col.field === 'id') {
+        <span class="mono primary">{{ getOrderLabel(item) }}</span>
+      }
+      @else if (col.field === 'batch') {
+        @if (item.batchGroupId) {
+          <span class="badge" style="background: rgba(167, 139, 250, 0.1); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.2); padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+            x{{ item.batchSize || '?' }} ({{ item.batchSequence }})
+          </span>
+        } @else {
+          <span style="color: #64748b; font-size: 11px;">Solo</span>
         }
+      }
+      @else if (col.field === 'pickup') {
+        <span class="mono">
+          <lucide-icon [img]="icons.MapPin" size="12" style="margin-right: 4px; color: var(--color-status-error);"></lucide-icon>
+          {{ formatCoord(item.pickupLat) }}, {{ formatCoord(item.pickupLng) }}
+        </span>
+      }
+      @else if (col.field === 'dropoff') {
+        <span class="mono">
+          <lucide-icon [img]="icons.MapPin" size="12" style="margin-right: 4px; color: #a78bfa;"></lucide-icon>
+          {{ formatCoord(item.dropoffLat) }}, {{ formatCoord(item.dropoffLng) }}
+        </span>
+      }
+      @else if (col.field === 'rider') {
+        <span class="mono">{{ getRiderLabel(item.assignedRiderId) }}</span>
+      }
+      @else if (col.field === 'status') {
+        <span class="status" [class]="getStatusTone(item.status)">{{ item.status || 'UNKNOWN' }}</span>
+      }
+      @else if (col.field === 'distanceKm') {
+        <span class="mono">{{ formatDistance(item.distanceKm) }}</span>
+      }
+      @else if (col.field === 'deliveryFee') {
+        <span class="mono primary">฿{{ item.deliveryFee | number:'1.0-0' }}</span>
+      }
+      @else if (col.field === 'createdAt') {
+        <span class="mono">{{ formatDate(item.createdAt) }}</span>
+      }
+      @else {
+        {{ item[col.field] }}
+      }
+    </ng-template>
 
-        <button class="page-btn" [disabled]="currentPage === totalPages" (click)="goToPage(currentPage + 1)">Next ›</button>
-
-        <div class="page-info">
-          Page <strong>{{ currentPage }}</strong> of <strong>{{ totalPages }}</strong>
-          &nbsp;·&nbsp; {{ filteredOrders.length }} total
-        </div>
-
-        <div class="jump-wrap">
-          <span>Go to:</span>
-          <input
-            type="number"
-            class="jump-input"
-            [min]="1"
-            [max]="totalPages"
-            [value]="currentPage"
-            (keyup.enter)="goToPage(+$any($event.target).value)"
-          >
-        </div>
-      </div>
-    }
-  </div>
+    <ng-template #actionTemplate let-item>
+      <button type="button" class="ghost-action" (click)="openOrderDetail(item)" title="View Details">
+        <lucide-icon [img]="icons.Info" size="14"></lucide-icon>
+        Info
+      </button>
+      @if (['CREATED','MATCHING'].includes(item.status ?? '')) {
+        <button type="button" class="ghost-action" (click)="retryDispatch(item.id)" title="Retry Dispatch" style="color: var(--color-brand-primary); border-color: rgba(0, 255, 102, 0.24); background: rgba(0, 255, 102, 0.05);">
+          <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
+          Retry
+        </button>
+      }
+      @if (['CREATED','MATCHING','OFFERING','ASSIGNED','PICKING_UP'].includes(item.status ?? '')) {
+        <button type="button" class="danger-action" (click)="cancelOrder(item.id)" title="Cancel Order">
+          <lucide-icon [img]="icons.XCircle" size="14"></lucide-icon>
+          Cancel
+        </button>
+      }
+    </ng-template>
+  </app-data-table>
 
   <!-- ── Order Detail Modal ─────────────────────────────────────────────── -->
   @if (showDetailModal && selectedOrder) {
-    <app-order-detail [order]="selectedOrder" (close)="closeOrderDetail()"></app-order-detail>
+    <app-order-detail [order]="selectedOrder" [siblingOrders]="getSiblingOrders(selectedOrder)" (close)="closeOrderDetail()"></app-order-detail>
   }
 
 </section>

@@ -5,6 +5,7 @@ using BackendApi.Infrastructure.Redis;
 using BackendApi.Security;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Telemetry;
+using BackendApi.Services.Tracking;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
 using Microsoft.AspNetCore.Authorization;
@@ -25,12 +26,10 @@ namespace BackendApi.Hubs;
 [Authorize]
 public partial class TrackingHub : Hub
 {
-    private readonly ApplicationDbContext _dbContext;
-    private readonly RiderPresenceService _presenceService;
+    private readonly IRiderPresenceManager _presenceManager;
     private readonly GpsSyncBuffer _gpsBuffer;
     private readonly DispatchService _dispatchService;
     private readonly DispatchOfferHandler _offerHandler;
-    private readonly StateMachineService _stateMachine;
     private readonly IConfiguration _config;
     private readonly IEventBus _eventBus;
     private readonly TelemetryAggregator _aggregator;
@@ -40,23 +39,19 @@ public partial class TrackingHub : Hub
     private static string RiderGroup(string riderId) => $"rider:{riderId}";
 
     public TrackingHub(
-        ApplicationDbContext dbContext,
-        RiderPresenceService presenceService,
+        IRiderPresenceManager presenceManager,
         GpsSyncBuffer gpsBuffer,
         DispatchService dispatchService,
         DispatchOfferHandler offerHandler,
-        StateMachineService stateMachine,
         IConfiguration config,
         IEventBus eventBus,
         TelemetryAggregator aggregator,
         ILogger<TrackingHub> logger)
     {
-        _dbContext = dbContext;
-        _presenceService = presenceService;
+        _presenceManager = presenceManager;
         _gpsBuffer = gpsBuffer;
         _dispatchService = dispatchService;
         _offerHandler = offerHandler;
-        _stateMachine = stateMachine;
         _config = config;
         _eventBus = eventBus;
         _aggregator = aggregator;
@@ -82,31 +77,16 @@ public partial class TrackingHub : Hub
         }
         else if (role == AuthConstants.RiderRole)
         {
-            var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
-            if (user?.RiderId is not null)
+            var connectResult = await _presenceManager.HandleRiderConnectAsync(userId);
+            if (connectResult is not null)
             {
-                await Groups.AddToGroupAsync(Context.ConnectionId, RiderGroup(user.RiderId));
-                await _presenceService.UpdateHeartbeatAsync(user.RiderId);
-
-                var rider = await _dbContext.Riders.FindAsync(user.RiderId);
-                if (rider is null) return;
-
-                if (rider.State == RiderState.OFFLINE)
-                {
-                    await _stateMachine.TransitionRiderAsync(rider, RiderState.IDLE);
-                }
-                else if (rider.State == RiderState.STALE)
-                {
-                    // กู้คืนสถานะ
-                    var newState = await HasActiveJobAsync(rider.Id) ? RiderState.BUSY : RiderState.IDLE;
-                    await _stateMachine.TransitionRiderAsync(rider, newState);
-                }
+                await Groups.AddToGroupAsync(Context.ConnectionId, RiderGroup(connectResult.RiderId));
 
                 // แจ้ง Admin Dashboard ว่ามีไรเดอร์ออนไลน์ใหม่
                 await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
                 {
-                    RiderId = user.RiderId,
-                    NewStatus = rider.State.ToString(),
+                    RiderId = connectResult.RiderId,
+                    NewStatus = connectResult.State.ToString(),
                     Timestamp = DateTime.UtcNow
                 });
             }
@@ -137,38 +117,26 @@ public partial class TrackingHub : Hub
 
         if (role == AuthConstants.RiderRole && userId is not null)
         {
-            var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
-            if (user?.RiderId is not null)
+            var disconnectResult = await _presenceManager.HandleRiderConnectionDisconnectAsync(userId);
+            if (disconnectResult is not null)
             {
-                var rider = await _dbContext.Riders.FindAsync(user.RiderId);
-                if (rider is not null && rider.State != RiderState.OFFLINE)
+                _logger.LogWarning(
+                    "Rider {RiderId} disconnected unexpectedly ({OldState} → STALE). Waiting for reconnect or heartbeat timeout.",
+                    disconnectResult.RiderId, disconnectResult.PreviousState);
+
+                // แจ้ง Admin Dashboard ว่าไรเดอร์หลุด
+                await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
                 {
-                    var oldState = rider.State;
-
-                    // เปลี่ยนเป็น STALE ทันที เพื่อหลีกเลี่ยงไม่ให้ถูก dispatch ใหม่
-                    var transitioned = await _stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
-
-                    if (transitioned)
-                    {
-                        _logger.LogWarning(
-                            "Rider {RiderId} disconnected unexpectedly ({OldState} → STALE). Waiting for reconnect or heartbeat timeout.",
-                            user.RiderId, oldState);
-
-                        // แจ้ง Admin Dashboard ว่าไรเดอร์หลุด
-                        await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
-                        {
-                            RiderId = user.RiderId,
-                            NewStatus = RiderState.STALE.ToString(),
-                            PreviousStatus = oldState.ToString(),
-                            Reason = "network_disconnect",
-                            Timestamp = DateTime.UtcNow
-                        });
-                    }
-                }
-                else
-                {
-                    _logger.LogInformation("Rider {RiderId} SignalR disconnected (already OFFLINE).", user.RiderId);
-                }
+                    RiderId = disconnectResult.RiderId,
+                    NewStatus = RiderState.STALE.ToString(),
+                    PreviousStatus = disconnectResult.PreviousState?.ToString(),
+                    Reason = "network_disconnect",
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                _logger.LogInformation("Rider User {UserId} SignalR disconnected (no active rider session or already OFFLINE).", userId);
             }
         }
 
@@ -184,15 +152,7 @@ public partial class TrackingHub : Hub
 
         if (userId is null || role != AuthConstants.RiderRole) return null;
 
-        var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
-        return user?.RiderId;
-    }
-
-    private async Task<bool> HasActiveJobAsync(string riderId)
-    {
-        return await _dbContext.Orders.AnyAsync(o => 
-            o.AssignedRiderId == riderId && 
-            (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+        return await _presenceManager.GetRiderIdByUserIdAsync(userId);
     }
 
     private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)

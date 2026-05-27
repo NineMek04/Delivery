@@ -35,14 +35,14 @@ export class RidersComponent implements OnInit {
   totalCount = 0;
 
   columns: TableColumn[] = [
-    { field: 'id', header: 'RIDER_ID' },
-    { field: 'name', header: 'NAME' },
+    { field: 'id', header: 'RIDER_ID', isSortable: true },
+    { field: 'name', header: 'NAME', isSortable: true },
     { field: 'phone', header: 'PHONE' },
-    { field: 'rating', header: 'RATING' },
-    { field: 'status', header: 'STATUS' },
+    { field: 'rating', header: 'RATING', isSortable: true },
+    { field: 'status', header: 'STATUS', isSortable: true },
     { field: 'lat', header: 'LATITUDE' },
     { field: 'lng', header: 'LONGITUDE' },
-    { field: 'lastUpdated', header: 'LAST_UPDATE' }
+    { field: 'lastUpdated', header: 'LAST_UPDATE', isSortable: true }
   ];
 
   // modal edit state
@@ -97,6 +97,28 @@ export class RidersComponent implements OnInit {
     this.query = query;
     this.currentPage = 1;
     this.loadRiders();
+  }
+
+  onSortChange(event: {field: string | null, dir: 'asc'|'desc'|null}) {
+    if (!event.dir || !event.field) {
+      this.loadRiders(); // reset to default server order
+      return;
+    }
+    
+    this.riders.sort((a, b) => {
+      let valA: any = a[event.field as keyof RiderDto];
+      let valB: any = b[event.field as keyof RiderDto];
+      
+      if (valA == null) valA = '';
+      if (valB == null) valB = '';
+      
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      
+      if (valA < valB) return event.dir === 'asc' ? -1 : 1;
+      if (valA > valB) return event.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
   }
 
   // ── Quick Toggle ──────────────────────────────────────────────────

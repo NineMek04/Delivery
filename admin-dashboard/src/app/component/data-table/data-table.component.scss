@@ -279,3 +279,28 @@ tr:hover td {
   }
 }
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+  
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.th-content {
+  display: inline-block;
+  
+  .sort-icon {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 4px;
+    color: var(--color-text-muted);
+    
+    &.active {
+      color: var(--color-brand-primary);
+    }
+  }
+}
+

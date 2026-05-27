@@ -48,64 +48,90 @@ import { LucideAngularModule, Info, CheckCircle, AlertTriangle, XCircle, X } fro
       display: flex;
       align-items: flex-start;
       gap: 12px;
-      background: var(--surface);
-      border: 1px solid var(--border-color);
+      background: var(--color-surface-card);
+      border: 1px solid var(--color-surface-line);
+      border-left: 4px solid var(--color-surface-line);
       border-radius: 8px;
       padding: 16px;
       min-width: 300px;
       max-width: 400px;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-      animation: slideIn 0.3s ease-out forwards;
-      color: var(--text-primary);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      color: var(--color-text-primary);
+      backdrop-filter: blur(10px);
     }
 
-    .toast.success .toast-icon { color: var(--success); }
-    .toast.error .toast-icon { color: var(--danger); }
-    .toast.warning .toast-icon { color: var(--warning); }
-    .toast.info .toast-icon { color: var(--info); }
+    .toast.success {
+      background: rgba(0, 255, 102, 0.08);
+      border-color: rgba(0, 255, 102, 0.2);
+      border-left-color: var(--color-status-success);
+    }
+    .toast.success .toast-icon { color: var(--color-status-success); }
+
+    .toast.error {
+      background: rgba(255, 51, 51, 0.08);
+      border-color: rgba(255, 51, 51, 0.2);
+      border-left-color: var(--color-status-error);
+    }
+    .toast.error .toast-icon { color: var(--color-status-error); }
+
+    .toast.warning {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.2);
+      border-left-color: var(--color-status-warning);
+    }
+    .toast.warning .toast-icon { color: var(--color-status-warning); }
+
+    .toast.info {
+      background: rgba(0, 153, 255, 0.08);
+      border-color: rgba(0, 153, 255, 0.2);
+      border-left-color: #0099ff;
+    }
+    .toast.info .toast-icon { color: #0099ff; }
 
     .toast-content {
       flex: 1;
     }
 
     .toast-title {
-      font-weight: 600;
+      font-weight: 700;
       font-size: 0.95rem;
       margin-bottom: 4px;
+      letter-spacing: 0.02em;
     }
 
     .toast-message {
       font-size: 0.85rem;
-      color: var(--text-secondary);
-      line-height: 1.4;
+      color: var(--color-text-muted);
+      line-height: 1.5;
     }
 
     .toast-close {
       background: none;
       border: none;
-      color: var(--text-muted);
+      color: var(--color-text-muted);
       cursor: pointer;
-      padding: 2px;
+      padding: 4px;
       border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: color 0.2s, background-color 0.2s;
+      transition: all 0.2s ease;
     }
 
     .toast-close:hover {
-      color: var(--text-primary);
-      background-color: var(--bg-hover);
+      color: var(--color-text-primary);
+      background-color: rgba(255, 255, 255, 0.1);
     }
 
     @keyframes slideIn {
       from {
         opacity: 0;
-        transform: translateX(100%);
+        transform: translateX(120%) scale(0.9);
       }
       to {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateX(0) scale(1);
       }
     }
   `]

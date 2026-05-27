@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, ContentChild, TemplateRef, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideAngularModule, Search, RefreshCcw, AlertTriangle } from 'lucide-angular';
+import { LucideAngularModule, Search, RefreshCcw, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-angular';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
@@ -23,6 +23,9 @@ export class DataTableComponent implements OnInit, OnDestroy {
   readonly searchIcon = Search;
   readonly refreshIcon = RefreshCcw;
   readonly errorIcon = AlertTriangle;
+  readonly ChevronUpIcon = ChevronUp;
+  readonly ChevronDownIcon = ChevronDown;
+  readonly ChevronsUpDownIcon = ChevronsUpDown;
   readonly Math = Math;
 
   @Input() title: string = 'Data Table';
@@ -41,12 +44,16 @@ export class DataTableComponent implements OnInit, OnDestroy {
   @Output() search = new EventEmitter<string>();
   @Output() refresh = new EventEmitter<void>();
   @Output() retry = new EventEmitter<void>();
+  @Output() sortChange = new EventEmitter<{field: string | null, dir: 'asc'|'desc'|null}>();
 
   @ContentChild('cellTemplate') cellTemplate?: TemplateRef<any>;
   @ContentChild('actionTemplate') actionTemplate?: TemplateRef<any>;
 
   private searchSubject = new Subject<string>();
   private searchSubscription?: Subscription;
+  
+  sortField: string | null = null;
+  sortDir: 'asc' | 'desc' | null = null;
 
   ngOnInit(): void {
     this.searchSubscription = this.searchSubject.pipe(
@@ -72,6 +79,17 @@ export class DataTableComponent implements OnInit, OnDestroy {
   onSearchChange(query: string) {
     this.searchQuery = query;
     this.searchSubject.next(query);
+  }
+
+  onSort(field: string) {
+    if (this.sortField === field) {
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : (this.sortDir === 'desc' ? null : 'asc');
+      if (!this.sortDir) this.sortField = null;
+    } else {
+      this.sortField = field;
+      this.sortDir = 'asc';
+    }
+    this.sortChange.emit({ field: this.sortField, dir: this.sortDir });
   }
 
   // Generates page numbers for professional pagination e.g., 1 2 3 ... 10

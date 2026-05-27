@@ -33,14 +33,14 @@ export class ShopsComponent implements OnInit {
   totalCount = 0;
 
   columns: TableColumn[] = [
-    { field: 'id', header: 'SHOP_ID' },
-    { field: 'name', header: 'NAME' },
+    { field: 'id', header: 'SHOP_ID', isSortable: true },
+    { field: 'name', header: 'NAME', isSortable: true },
     { field: 'menuName', header: 'MENU' },
     { field: 'menuItems', header: 'VIEW MENU' },
-    { field: 'menuPrice', header: 'PRICE (฿)' },
+    { field: 'menuPrice', header: 'PRICE (฿)', isSortable: true },
     { field: 'lat', header: 'LATITUDE' },
     { field: 'lng', header: 'LONGITUDE' },
-    { field: 'createdAt', header: 'CREATED' }
+    { field: 'createdAt', header: 'CREATED', isSortable: true }
   ];
 
   // inline edit state
@@ -81,6 +81,28 @@ export class ShopsComponent implements OnInit {
     this.query = query;
     this.currentPage = 1; // reset to first page on search
     this.loadShops();
+  }
+
+  onSortChange(event: {field: string | null, dir: 'asc'|'desc'|null}) {
+    if (!event.dir || !event.field) {
+      this.loadShops(); // reset to default server order
+      return;
+    }
+    
+    this.shops.sort((a, b) => {
+      let valA: any = a[event.field as keyof ShopDto];
+      let valB: any = b[event.field as keyof ShopDto];
+      
+      if (valA == null) valA = '';
+      if (valB == null) valB = '';
+      
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      
+      if (valA < valB) return event.dir === 'asc' ? -1 : 1;
+      if (valA > valB) return event.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
   }
 
   loadMenuItems(shopId: string): void {

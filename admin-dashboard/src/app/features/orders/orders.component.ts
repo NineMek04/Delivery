@@ -13,10 +13,11 @@ import Swal from 'sweetalert2';
 import {
   LucideAngularModule,
   RefreshCcw, Search, XCircle, RotateCcw, Info,
-  ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X
+  ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin
 } from 'lucide-angular';
 import { OrderDetailComponent } from './order-detail/order-detail.component';
 import { DispatchQueueComponent } from './dispatch-queue/dispatch-queue.component';
+import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
 
 type SortDir = 'asc' | 'desc' | null;
 interface SortState { field: keyof OrderDto | 'rider'; dir: SortDir; }
@@ -36,14 +37,25 @@ interface FilterState {
   standalone:  true,
   changeDetection: ChangeDetectionStrategy.Default,
   imports: [
-    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DispatchQueueComponent
+    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DispatchQueueComponent, DataTableComponent
   ],
   templateUrl: './orders.component.html',
   styleUrl:    './orders.component.scss'
 })
 export class OrdersComponent implements OnInit, OnDestroy {
   readonly title = 'Order_Operations';
-  readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X };
+  readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin };
+
+  columns: TableColumn[] = [
+    { field: 'id', header: 'ORDER_ID', isSortable: true },
+    { field: 'pickup', header: 'PICKUP' },
+    { field: 'dropoff', header: 'DROPOFF' },
+    { field: 'rider', header: 'RIDER', isSortable: true },
+    { field: 'status', header: 'STATUS', isSortable: true },
+    { field: 'distanceKm', header: 'DIST.', isSortable: true },
+    { field: 'deliveryFee', header: 'FEE', isSortable: true },
+    { field: 'createdAt', header: 'CREATED', isSortable: true }
+  ];
 
   private orderService   = inject(OrderService);
   private riderService   = inject(RiderService);
@@ -210,38 +222,26 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return this.filteredOrders.slice(start, start + this.pageSize);
   }
 
-  get totalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredOrders.length / this.pageSize));
-  }
-
-  get pages(): number[] {
-    const total = this.totalPages;
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-    const p = this.currentPage;
-    const set = new Set([1, 2, p - 1, p, p + 1, total - 1, total].filter(n => n >= 1 && n <= total));
-    return Array.from(set).sort((a, b) => a - b);
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
-  // Sorting
+  // Table event handlers & Pagination
   // ─────────────────────────────────────────────────────────────────────────
 
-  setSort(field: SortState['field']): void {
-    if (this.sort.field === field) {
-      this.sort = { field, dir: this.sort.dir === 'asc' ? 'desc' : this.sort.dir === 'desc' ? null : 'asc' };
-    } else {
-      this.sort = { field, dir: 'asc' };
-    }
+  onPageChange(page: number) {
+    this.currentPage = page;
+  }
+
+  onSearch(query: string) {
+    this.filters.search = query;
     this.currentPage = 1;
   }
 
-  getSortIcon(field: SortState['field']): any {
-    if (this.sort.field !== field || !this.sort.dir) return this.icons.ChevronsUpDown;
-    return this.sort.dir === 'asc' ? this.icons.ChevronUp : this.icons.ChevronDown;
-  }
-
-  isSortActive(field: SortState['field']): boolean {
-    return this.sort.field === field && !!this.sort.dir;
+  onSortChange(event: {field: string | null, dir: 'asc'|'desc'|null}) {
+    if (!event.field || !event.dir) {
+      this.sort = { field: 'createdAt', dir: 'desc' };
+    } else {
+      this.sort = { field: event.field as keyof OrderDto | 'rider', dir: event.dir };
+    }
+    this.currentPage = 1;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -274,15 +274,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return n;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Pagination
-  // ─────────────────────────────────────────────────────────────────────────
+  formatCoord(val?: number | null): string {
+    return val != null ? val.toFixed(4) : '—';
+  }
 
-  goToPage(page: number | string): void {
-    const p = Number(page);
-    if (!isNaN(p) && p >= 1 && p <= this.totalPages) {
-      this.currentPage = p;
-    }
+  formatDistance(val?: number | null): string {
+    return val != null ? `${val.toFixed(1)} km` : '—';
   }
 
   // ─────────────────────────────────────────────────────────────────────────

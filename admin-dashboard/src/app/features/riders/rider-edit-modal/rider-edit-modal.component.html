@@ -1,0 +1,35 @@
+<div class="modal-overlay" *ngIf="isOpen" (click)="close()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Edit Rider</h3>
+      <button type="button" class="close-btn" (click)="close()">
+        <lucide-icon [img]="XIcon" size="20"></lucide-icon>
+      </button>
+    </div>
+    
+    <div class="modal-body" *ngIf="editModel">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" [(ngModel)]="editModel.name" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="text" [(ngModel)]="editModel.phone" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select [(ngModel)]="editModel.status" class="form-control">
+          <option value="IDLE">IDLE</option>
+          <option value="UNAVAILABLE">UNAVAILABLE</option>
+          <option value="OFFLINE">OFFLINE</option>
+          <option value="BUSY">BUSY</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="muted-action" (click)="close()">Cancel</button>
+      <button type="button" class="primary-action" (click)="save()">Save Changes</button>
+    </div>
+  </div>
+</div>

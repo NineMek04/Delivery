@@ -308,11 +308,11 @@ export class StoreService {
     }
 
     const currentCart = this._cart.getValue();
-    
+
     // Generate unique identifier for this item config (based on selected option combinations)
     const optionsHash = JSON.stringify(selectedOptions);
-    const existingIndex = currentCart.findIndex(c => 
-      c.menuItem.id === item.id && 
+    const existingIndex = currentCart.findIndex(c =>
+      c.menuItem.id === item.id &&
       JSON.stringify(c.selectedOptions) === optionsHash &&
       c.notes === notes
     );

@@ -161,6 +161,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           : const Text('เข้าสู่ระบบ'),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'ยังไม่มีบัญชีผู้ใช้งาน?',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/register'),
+                        child: const Text('สมัครสมาชิก'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

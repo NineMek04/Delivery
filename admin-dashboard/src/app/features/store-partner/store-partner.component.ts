@@ -3,21 +3,21 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators, FormArray } from '@angular/forms';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
-import { 
-  LucideAngularModule, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  Edit3, 
-  Check, 
-  X, 
-  Compass, 
-  Utensils, 
-  Warehouse, 
-  Clock, 
-  DollarSign, 
-  Tag, 
-  ListPlus, 
+import {
+  LucideAngularModule,
+  Plus,
+  Minus,
+  Trash2,
+  Edit3,
+  Check,
+  X,
+  Compass,
+  Utensils,
+  Warehouse,
+  Clock,
+  DollarSign,
+  Tag,
+  ListPlus,
   BellRing
 } from 'lucide-angular';
 import { ShopService, ShopDto } from '../../core/services/shop.service';
@@ -85,7 +85,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
 
   // Icons
   icons = {
-    Plus, Minus, Trash2, Edit3, Check, X, Compass, Utensils, 
+    Plus, Minus, Trash2, Edit3, Check, X, Compass, Utensils,
     Warehouse, Clock, DollarSign, Tag, ListPlus, BellRing
   };
 
@@ -192,10 +192,10 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
       options: []
     });
     this.optionsArray.clear();
-    
+
     // Seed 1 default option group like "Add-on Topping" to make form friendly
     this.addOptionGroup();
-    
+
     this.showMenuModal = true;
   }
 
@@ -241,7 +241,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
       // Edit mode
       const updatedItem: MenuItem = val as MenuItem;
       this.storeService.updateMenuItem(shopId, updatedItem);
-      
+
       Swal.fire({
         icon: 'success',
         title: 'แก้ไขเมนูสำเร็จ!',
@@ -274,7 +274,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
 
   deleteMenuItem(itemId: string) {
     if (!this.selectedShop || !this.selectedShop.id) return;
-    
+
     Swal.fire({
       title: 'ยืนยันการลบเมนู?',
       text: 'คุณแน่ใจว่าต้องการลบเมนูนี้ออกจากร้านค้าพันธมิตร?',
@@ -288,7 +288,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
       if (result.isConfirmed) {
         this.storeService.deleteMenuItem(this.selectedShop!.id!, itemId);
         this.menus = this.storeService.getShopMenus(this.selectedShop!.id!);
-        
+
         Swal.fire({
           icon: 'success',
           title: 'ลบเมนูเรียบร้อย!',
@@ -392,7 +392,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
     try {
       // Audio Synth fallback chime so no external file dependency is broken!
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
+
       const playTone = (freq: number, start: number, duration: number) => {
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
@@ -419,7 +419,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
     this.storeService.acceptOrderByStore(order.id, order.customerId).subscribe({
       next: () => {
         this.loading = false;
-        
+
         // Update local state to accepted/preparing
         const index = this.incomingOrders.findIndex(o => o.id === order.id);
         if (index !== -1) {

@@ -33,6 +33,30 @@ class AuthApiService {
     }
   }
 
+  Future<AuthResponse> register({
+    required String email,
+    required String password,
+    required String fullName,
+    required String role,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.authEndpoint}/register',
+        data: {
+          'Email': email,
+          'Password': password,
+          'FullName': fullName,
+          'Role': role,
+        },
+      );
+      final parsed = parseApiResponse(response.data, AuthResponse.fromJson);
+      ensureSuccess(parsed);
+      return parsed.value!;
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
+
   Future<AuthResponse> refresh(String refreshToken) async {
     try {
       final response = await _dio.post(

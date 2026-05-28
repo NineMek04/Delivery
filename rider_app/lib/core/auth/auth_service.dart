@@ -119,7 +119,9 @@ class AuthService extends Notifier<AuthStatus> {
   String? get userName => decodedToken?[AuthConstants.claimName];
 
   /// ดึง User Role จาก token claims.
-  String? get userRole => decodedToken?[AuthConstants.claimRole];
+  String? get userRole => 
+      decodedToken?[AuthConstants.claimRole] ?? 
+      decodedToken?['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
 
   /// ดึง Email จาก token claims.
   String? get userEmail => decodedToken?[AuthConstants.claimEmail];

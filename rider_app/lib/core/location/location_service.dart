@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,49 +26,93 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 /// ```
 class LocationService extends Notifier<LocationState> {
   StreamSubscription<Position>? _positionSubscription;
+  Timer? _mockTimer;
   final List<Position> _locationHistory = [];
 
   @override
   LocationState build() {
     ref.onDispose(() {
       _positionSubscription?.cancel();
+      _mockTimer?.cancel();
     });
     return const LocationState();
   }
 
   /// ตรวจสอบ permissions และเริ่ม GPS tracking.
   Future<bool> startTracking() async {
-    // ── 1. ตรวจสอบ Location Service เปิดอยู่ ──────────────────────
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _logger.w('📍 Location services are disabled');
-      state = state.copyWith(
-        error: 'Location services are disabled. Please enable GPS.',
-      );
-      return false;
+    if (kIsWeb) {
+      _logger.i('🌐 Web Platform detected. Attempting to start GPS (with Mock fallback)...');
+      try {
+        // ลองดึงสิทธิ์และพิกัดจริงบน Web แบบปลอดภัยที่สุด
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (serviceEnabled) {
+          var permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+
+          if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+            final position = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.high,
+              ),
+            );
+
+            // ถ้าผ่านหมดและได้ตำแหน่งมา ให้ใช้ตำแหน่งจริง
+            state = LocationState(
+              latitude: position.latitude,
+              longitude: position.longitude,
+              accuracy: position.accuracy,
+              heading: _normalizeHeading(_readHeading(position)),
+              isTracking: true,
+              lastUpdated: DateTime.now(),
+            );
+
+            _startRealStream();
+            return true;
+          }
+        }
+      } catch (e) {
+        _logger.w('⚠️ Geolocator check failed on Web. Falling back to Mock GPS stream: $e');
+      }
+
+      // ถ้าไม่มีสิทธิ์ หรือเกิด Exception (รวมถึง Null check crash ภายใน geolocator_web) -> ใช้ Mock GPS
+      _startMockStream();
+      return true;
     }
 
-    // ── 2. ตรวจสอบ Permissions ────────────────────────────────────
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        _logger.w('📍 Location permission denied');
-        state = state.copyWith(error: 'Location permission denied.');
+    // ── สำหรับ Mobile App จริง (Android / iOS) ──────────────────────
+    try {
+      // ── 1. ตรวจสอบ Location Service เปิดอยู่ ──────────────────────
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _logger.w('📍 Location services are disabled');
+        state = state.copyWith(
+          error: 'Location services are disabled. Please enable GPS.',
+        );
         return false;
       }
-    }
 
-    if (permission == LocationPermission.deniedForever) {
-      _logger.w('📍 Location permission permanently denied');
-      state = state.copyWith(
-        error: 'Location permission permanently denied. Please enable in Settings.',
-      );
-      return false;
-    }
+      // ── 2. ตรวจสอบ Permissions ────────────────────────────────────
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _logger.w('📍 Location permission denied');
+          state = state.copyWith(error: 'Location permission denied.');
+          return false;
+        }
+      }
 
-    // ── 3. ดึงตำแหน่งเริ่มต้น ─────────────────────────────────────
-    try {
+      if (permission == LocationPermission.deniedForever) {
+        _logger.w('📍 Location permission permanently denied');
+        state = state.copyWith(
+          error: 'Location permission permanently denied. Please enable in Settings.',
+        );
+        return false;
+      }
+
+      // ── 3. ดึงตำแหน่งเริ่มต้น ─────────────────────────────────────
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -79,7 +124,7 @@ class LocationService extends Notifier<LocationState> {
           latitude: position.latitude,
           longitude: position.longitude,
           accuracy: position.accuracy,
-          heading: _normalizeHeading(position.heading),
+          heading: _normalizeHeading(_readHeading(position)),
           isTracking: true,
           lastUpdated: DateTime.now(),
         );
@@ -97,7 +142,15 @@ class LocationService extends Notifier<LocationState> {
       _logger.e('❌ Failed to get initial position', error: e);
     }
 
-    // ── 4. เริ่ม stream ตำแหน่ง ─────────────────────────────────────
+    _startRealStream();
+    return true;
+  }
+
+  void _startRealStream() {
+    _positionSubscription?.cancel();
+    _mockTimer?.cancel();
+    _mockTimer = null;
+
     LocationSettings locationSettings;
 
     if (defaultTargetPlatform == TargetPlatform.android) {
@@ -139,13 +192,73 @@ class LocationService extends Notifier<LocationState> {
     );
 
     _logger.i('🛰️ GPS tracking started (filter: ${Environment.gpsDistanceFilter}m)');
-    return true;
+  }
+
+  void _startMockStream() {
+    _positionSubscription?.cancel();
+    _mockTimer?.cancel();
+
+    _logger.i('🤖 Starting Mock GPS Stream for Web (Demo Mode)');
+    
+    // พิกัดศูนย์กลางอุดรธานี
+    double currentLat = 17.4138;
+    double currentLng = 102.7872;
+    double angle = 0.0;
+
+    state = LocationState(
+      latitude: currentLat,
+      longitude: currentLng,
+      accuracy: 10.0,
+      heading: 0.0,
+      isTracking: true,
+      lastUpdated: DateTime.now(),
+    );
+
+    // ส่งตำแหน่งเริ่มต้นทันที
+    final signalRService = ref.read(signalRServiceProvider.notifier);
+    signalRService.sendLocationUpdate(
+      lat: currentLat,
+      lng: currentLng,
+      accuracy: 10.0,
+    );
+
+    // จำลองตำแหน่งขยับเป็นวงกลมเล็กๆ ทุก 5 วินาทีเพื่อให้เห็นบนแผนที่ว่ากำลังออนไลน์และเคลื่อนไหว
+    _mockTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!state.isTracking) {
+        timer.cancel();
+        return;
+      }
+      
+      // ขยับเล็กน้อย 0.0003 (~30 เมตร)
+      angle += 0.1;
+      final latOffset = 0.0003 * math.sin(angle);
+      final lngOffset = 0.0003 * math.cos(angle);
+      
+      final nextLat = currentLat + latOffset;
+      final nextLng = currentLng + lngOffset;
+
+      state = state.copyWith(
+        latitude: nextLat,
+        longitude: nextLng,
+        accuracy: 10.0,
+        heading: (angle * 180 / math.pi) % 360,
+        lastUpdated: DateTime.now(),
+      );
+
+      signalRService.sendLocationUpdate(
+        lat: nextLat,
+        lng: nextLng,
+        accuracy: 10.0,
+      );
+    });
   }
 
   /// หยุด GPS tracking.
   Future<void> stopTracking() async {
     await _positionSubscription?.cancel();
     _positionSubscription = null;
+    _mockTimer?.cancel();
+    _mockTimer = null;
     state = state.copyWith(isTracking: false);
     _logger.i('🛑 GPS tracking stopped');
   }
@@ -180,7 +293,7 @@ class LocationService extends Notifier<LocationState> {
       latitude: avgLat,
       longitude: avgLng,
       accuracy: avgAccuracy,
-      heading: _normalizeHeading(position.heading),
+      heading: _normalizeHeading(_readHeading(position)),
       lastUpdated: DateTime.now(),
       error: null,
     );
@@ -194,9 +307,18 @@ class LocationService extends Notifier<LocationState> {
     );
   }
 
-  double? _normalizeHeading(double heading) {
-    if (!heading.isFinite || heading < 0) return null;
+  double? _normalizeHeading(double? heading) {
+    if (heading == null || !heading.isFinite || heading < 0) return null;
     return heading % 360;
+  }
+
+  double? _readHeading(Position position) {
+    try {
+      final dynamic pos = position;
+      return pos.heading as double?;
+    } catch (_) {
+      return null;
+    }
   }
 }
 

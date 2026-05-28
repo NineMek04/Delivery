@@ -50,6 +50,7 @@ class UserInfo {
   final String role;
   final String? riderId;
   final String? trackingCode;
+  final String? shopId;
 
   const UserInfo({
     required this.id,
@@ -58,6 +59,7 @@ class UserInfo {
     required this.role,
     this.riderId,
     this.trackingCode,
+    this.shopId,
   });
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
@@ -75,6 +77,8 @@ class UserInfo {
       trackingCode:
           readField<String>(json, 'TrackingCode') ??
           readField<String>(json, 'trackingCode'),
+      shopId:
+          readField<String>(json, 'ShopId') ?? readField<String>(json, 'shopId'),
     );
   }
 
@@ -85,5 +89,6 @@ class UserInfo {
     'Role': role,
     if (riderId != null) 'RiderId': riderId,
     if (trackingCode != null) 'TrackingCode': trackingCode,
+    if (shopId != null) 'ShopId': shopId,
   };
 }

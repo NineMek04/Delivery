@@ -30,4 +30,7 @@ class AuthConstants {
 
   /// ตรงกับ policy "Rider" ใน BackendApi
   static const String roleRider = 'Rider';
+
+  /// ตรงกับ role "StorePartner" ใน BackendApi
+  static const String roleStorePartner = 'StorePartner';
 }

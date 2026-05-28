@@ -82,6 +82,7 @@ public class UserInfo
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string? RiderId { get; set; }
+    public string? ShopId { get; set; }
 }
 
 /// <summary>

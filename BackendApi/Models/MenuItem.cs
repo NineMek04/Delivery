@@ -27,7 +27,6 @@ namespace BackendApi.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal Price { get; set; }
 
-        [MaxLength(500)]
         public string? ImageUrl { get; set; }
 
         [Required]

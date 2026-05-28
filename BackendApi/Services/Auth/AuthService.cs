@@ -144,6 +144,20 @@ public sealed class AuthService : IAuthService
             _dbContext.Riders.Add(rider);
         }
 
+        if (role.Equals(AuthConstants.StorePartnerRole, StringComparison.OrdinalIgnoreCase))
+        {
+            var shop = new Shop
+            {
+                Name = user.FullName,
+                MenuName = "เมนูยอดนิยม",
+                MenuPrice = 0,
+                IsOpen = false
+            };
+
+            user.ShopId = shop.Id;
+            _dbContext.Shops.Add(shop);
+        }
+
         _dbContext.Users.Add(user);
 
         var response = GenerateAuthResponse(user);
@@ -348,7 +362,8 @@ public sealed class AuthService : IAuthService
             Email = user.Email,
             FullName = user.FullName,
             Role = user.Role,
-            RiderId = user.RiderId
+            RiderId = user.RiderId,
+            ShopId = user.ShopId
         };
 
     private static string NormalizeEmail(string email) =>

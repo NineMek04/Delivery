@@ -29,6 +29,7 @@ public static class ApplicationSetup
         }
 
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseWebSockets();
         app.UseRouting();
         app.UseHttpMetrics(); // Prometheus HTTP metrics
         app.UseCors(ServiceSetup.ClientCorsPolicy);

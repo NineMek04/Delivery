@@ -23,7 +23,6 @@ namespace BackendApi.Hubs;
 ///   - TrackingHub.RiderStatus.cs → Status (UpdateRiderStatus, UpdateStatus)
 ///   - TrackingHub.Dispatch.cs → Offers (AcceptOffer, RejectOffer)
 /// </summary>
-[Authorize]
 public partial class TrackingHub : Hub
 {
     private readonly IRiderPresenceManager _presenceManager;
@@ -67,6 +66,17 @@ public partial class TrackingHub : Hub
 
         if (role is null || userId is null)
         {
+            // Allow anonymous connections from localhost for the local testing E2E map
+            var httpContext = Context.GetHttpContext();
+            var host = httpContext?.Request.Host.Host;
+            var isLocal = host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0";
+            if (isLocal)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
+                await base.OnConnectedAsync();
+                return;
+            }
+
             Context.Abort();
             return;
         }

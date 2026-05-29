@@ -187,6 +187,8 @@ class LocalDatabaseService {
     }
   }
 
+
+
   bool _isActiveStatus(String status) {
     final s = status.toUpperCase();
     return s == 'OFFERING' || s == 'ASSIGNED' || s == 'PICKING_UP' || s == 'DELIVERING' || s == 'MATCHING';

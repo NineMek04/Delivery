@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
 import '../config/environment.dart';
 import '../signalr/signalr_service.dart';
+import 'gps_buffer_service.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -40,6 +41,7 @@ class LocationService extends Notifier<LocationState> {
 
   /// ตรวจสอบ permissions และเริ่ม GPS tracking.
   Future<bool> startTracking() async {
+    ref.read(gpsBufferServiceProvider).startSyncTimer();
     if (kIsWeb) {
       _logger.i('🌐 Web Platform detected. Attempting to start GPS (with Mock fallback)...');
       try {
@@ -255,6 +257,7 @@ class LocationService extends Notifier<LocationState> {
 
   /// หยุด GPS tracking.
   Future<void> stopTracking() async {
+    ref.read(gpsBufferServiceProvider).stopSyncTimer();
     await _positionSubscription?.cancel();
     _positionSubscription = null;
     _mockTimer?.cancel();
@@ -298,13 +301,8 @@ class LocationService extends Notifier<LocationState> {
       error: null,
     );
 
-    // ส่งพิกัดไปยัง Backend ผ่าน SignalR
-    final signalRService = ref.read(signalRServiceProvider.notifier);
-    signalRService.sendLocationUpdate(
-      lat: avgLat,
-      lng: avgLng,
-      accuracy: avgAccuracy,
-    );
+    // ส่งพิกัดไปยัง Local DB Buffer สำหรับ Offline Buffering และ Batch Ingestion
+    ref.read(gpsBufferServiceProvider).bufferLocation(avgLat, avgLng, avgAccuracy);
   }
 
   double? _normalizeHeading(double? heading) {

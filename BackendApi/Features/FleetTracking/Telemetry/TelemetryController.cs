@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using BackendApi.Core;
 using BackendApi.Core.Models;
@@ -74,6 +75,45 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         }
 
         /// <summary>
+        /// Level 2 REST Endpoint for sending batch GPS coordinate updates (Offline Buffering / Batch Ingestion).
+        /// Performs server-side rate-limiting at the Batch-Level (1 Request = 1 Hit).
+        /// Appends X-Recommended-Ping header to command the mobile client's tracking frequency.
+        /// </summary>
+        [HttpPost("gps/batch")]
+        public async Task<ActionResult<ApiResponse<string>>> PostGpsBatch([FromBody] List<GpsBatchPointRequest> requests)
+        {
+            if (requests == null || requests.Count == 0)
+            {
+                return BadRequest(ApiResponse<string>.Fail("Request batch cannot be null or empty."));
+            }
+
+            var riderId = CurrentUserId;
+            if (string.IsNullOrEmpty(riderId))
+            {
+                return Unauthorized(ApiResponse<string>.Fail("Rider ID could not be identified."));
+            }
+
+            int currentQueueSize = _publisher.PendingQueueCount;
+            bool rateLimited = await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize);
+            int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
+
+            // Level 2 Fallback: Command mobile interval via custom HTTP response header
+            Response.Headers["X-Recommended-Ping"] = recommendedInterval.ToString();
+
+            if (rateLimited)
+            {
+                // Return 202 Accepted: Keep points locally and retry later
+                return StatusCode(StatusCodes.Status202Accepted, 
+                    ApiResponse<string>.Ok("Batch received but throttled by rate limit. Please retry later."));
+            }
+
+            // Normal batch ingestion path
+            await _telemetryService.ProcessLocationBatchAsync(riderId, requests);
+
+            return Ok(ApiResponse<string>.Ok("Batch accepted and processed."));
+        }
+
+        /// <summary>
         /// Level 3 Endpoint (Config On-Startup).
         /// Mobile clients call this upon launching to sync initial default interval seconds.
         /// </summary>
@@ -99,6 +139,15 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public double Accuracy { get; set; }
+        public DateTime? Timestamp { get; set; }
+    }
+
+    public class GpsBatchPointRequest
+    {
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public double Accuracy { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 
     public class MobileConfigResponse

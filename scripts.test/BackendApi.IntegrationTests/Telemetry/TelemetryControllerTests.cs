@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -166,6 +167,91 @@ namespace BackendApi.IntegrationTests
             Assert.True(body.Success);
             Assert.True(body.Value.IntervalSeconds >= 3);
             Assert.True(body.Value.ServerTime > DateTime.UtcNow.AddMinutes(-5));
+        }
+
+        [Fact]
+        public async Task PostGpsBatch_WithoutAuth_Returns401Unauthorized()
+        {
+            // Arrange
+            var payload = new List<GpsBatchPointRequest>
+            {
+                new GpsBatchPointRequest { Latitude = 13.7563, Longitude = 100.5018, Accuracy = 10.0, Timestamp = DateTime.UtcNow.AddSeconds(-10) },
+                new GpsBatchPointRequest { Latitude = 13.7564, Longitude = 100.5019, Accuracy = 10.0, Timestamp = DateTime.UtcNow }
+            };
+
+            // Act
+            var response = await _client.PostAsJsonAsync("/api/telemetry/gps/batch", payload);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostGpsBatch_WithAuth_Returns200OK_And_IncludesRecommendedPingHeader()
+        {
+            // Arrange
+            var payload = new List<GpsBatchPointRequest>
+            {
+                new GpsBatchPointRequest { Latitude = 13.7563, Longitude = 100.5018, Accuracy = 5.0, Timestamp = DateTime.UtcNow.AddSeconds(-10) },
+                new GpsBatchPointRequest { Latitude = 13.7564, Longitude = 100.5019, Accuracy = 5.0, Timestamp = DateTime.UtcNow }
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps/batch")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+
+            // Act
+            var response = await _client.SendAsync(request);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            // Verify X-Recommended-Ping header is present
+            Assert.True(response.Headers.Contains("X-Recommended-Ping"));
+            var pingHeader = response.Headers.GetValues("X-Recommended-Ping").FirstOrDefault();
+            Assert.False(string.IsNullOrWhiteSpace(pingHeader));
+            Assert.True(int.TryParse(pingHeader, out int recommendedPing));
+            Assert.True(recommendedPing >= 3);
+        }
+
+        [Fact]
+        public async Task PostGpsBatch_WhenRateLimited_Returns202Accepted()
+        {
+            // Arrange
+            var payload = new List<GpsBatchPointRequest>
+            {
+                new GpsBatchPointRequest { Latitude = 13.7563, Longitude = 100.5018, Accuracy = 5.0, Timestamp = DateTime.UtcNow.AddSeconds(-10) },
+                new GpsBatchPointRequest { Latitude = 13.7564, Longitude = 100.5019, Accuracy = 5.0, Timestamp = DateTime.UtcNow }
+            };
+
+            // Helper to make an authenticated batch request
+            Func<Task<HttpResponseMessage>> sendRequest = async () =>
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps/batch")
+                {
+                    Content = JsonContent.Create(payload)
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                return await _client.SendAsync(request);
+            };
+
+            // Act
+            // 1st request -> should pass (200 OK)
+            var response1 = await sendRequest();
+            Assert.Equal(HttpStatusCode.OK, response1.StatusCode);
+
+            // 2nd request immediately after -> should be rate limited (202 Accepted)
+            var response2 = await sendRequest();
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Accepted, response2.StatusCode);
+            Assert.True(response2.Headers.Contains("X-Recommended-Ping"));
+            
+            var body = await response2.Content.ReadFromJsonAsync<ApiResponse<string>>();
+            Assert.NotNull(body);
+            Assert.Contains("throttled", body.Value, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

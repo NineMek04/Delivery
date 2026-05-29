@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BackendApi.Data;
@@ -58,7 +59,13 @@ namespace BackendApi.Services.Telemetry
         /// <summary>
         /// ประมวลผลและกระจายพิกัด GPS เรียลไทม์
         /// </summary>
-        public async Task ProcessLocationUpdateAsync(string riderId, double lat, double lng, double accuracy)
+        public async Task ProcessLocationUpdateAsync(
+            string riderId, 
+            double lat, 
+            double lng, 
+            double accuracy, 
+            DateTime? timestamp = null, 
+            bool bypassRateLimit = false)
         {
             if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
@@ -67,18 +74,21 @@ namespace BackendApi.Services.Telemetry
 
             // 1.5. Level 1 Server-Side Rate Limiting (Safety net for SignalR or unthrottled REST inputs)
             var currentQueueSize = _gpsPublisher.PendingQueueCount;
-            if (await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize))
+            if (!bypassRateLimit)
             {
-                int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
-                await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("AdjustPingRate", new
+                if (await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize))
                 {
-                    IntervalSeconds = recommendedInterval,
-                    Timestamp = DateTime.UtcNow
-                });
-                return;
+                    int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
+                    await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("AdjustPingRate", new
+                    {
+                        IntervalSeconds = recommendedInterval,
+                        Timestamp = DateTime.UtcNow
+                    });
+                    return;
+                }
             }
 
-            var now = DateTime.UtcNow;
+            var now = timestamp ?? DateTime.UtcNow;
 
             // 2. ทำ Snap-to-Road พิกัดให้ยึดติดกับโครงข่ายถนนผ่าน OSRM
             var (snappedLat, snappedLng) = await _routingService.SnapToRoadAsync(lat, lng);
@@ -224,6 +234,42 @@ namespace BackendApi.Services.Telemetry
                     await _dbContext.SaveChangesAsync();
                 }
             }
+        }
+
+        /// <summary>
+        /// ประมวลผลและกระจายพิกัด GPS เป็นกลุ่ม (Batch) จาก Offline Buffering
+        /// </summary>
+        public async Task ProcessLocationBatchAsync(string riderId, List<GpsBatchPointRequest> batchPoints)
+        {
+            if (batchPoints == null || batchPoints.Count == 0) return;
+
+            // 1. กรองจุดที่คลาดเคลื่อนเบื้องต้น (Drift Protection) และขอบเขตพิกัด
+            var validPoints = batchPoints
+                .Where(p => p.Latitude >= -90 && p.Latitude <= 90 && p.Longitude >= -180 && p.Longitude <= 180 && p.Accuracy <= 50)
+                .OrderBy(p => p.Timestamp) // เรียงลำดับตามเวลาแบบเรียงขึ้น (Ascending)
+                .ToList();
+
+            if (validPoints.Count == 0) return;
+
+            // 2. แยกจุดล่าสุด (Latest Point) ออกจากพิกัดย้อนหลัง (Historical Points)
+            var latestPoint = validPoints.Last();
+            var historicalPoints = validPoints.Take(validPoints.Count - 1).ToList();
+
+            // 3. จัดการข้อมูลย้อนหลัง (Historical Points): ส่งตรงเข้า RabbitMQ เป็นข้อมูลดิบ (Raw Lat/Lng) เพื่อประหยัดทรัพยากร
+            foreach (var point in historicalPoints)
+            {
+                _gpsPublisher.Publish(new TrackPoint(riderId, point.Latitude, point.Longitude, point.Timestamp));
+            }
+
+            // 4. จัดการจุดล่าสุด (Latest Point): ประมวลผลลอจิกเต็มรูปแบบใน Hot Path (ผ่าน OSRM, Redis Presence, SignalR, DB Throttle)
+            // ทำการ bypassRateLimit = true เนื่องจากผ่านการเช็คระดับ Batch-Level มาแล้วจาก Controller
+            await ProcessLocationUpdateAsync(
+                riderId, 
+                latestPoint.Latitude, 
+                latestPoint.Longitude, 
+                latestPoint.Accuracy, 
+                latestPoint.Timestamp, 
+                bypassRateLimit: true);
         }
 
         private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)

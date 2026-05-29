@@ -326,6 +326,7 @@ public class OrderService : IOrderService
             return (StatusCodes.Status401Unauthorized, ApiResponse<List<OrderDto>>.Fail("Rider profile not linked to this user."));
 
         var orders = await _db.GetQuery<Order>(asNoTracking: true)
+            .Include(o => o.Items)
             .Where(o => o.AssignedRiderId == user.RiderId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(cancellationToken);

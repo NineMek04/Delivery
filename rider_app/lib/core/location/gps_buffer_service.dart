@@ -197,4 +197,17 @@ class GpsBufferService {
       _isSyncing = false;
     }
   }
+
+  /// Clears all buffered GPS points from Isar database to prevent data contamination across user sessions.
+  Future<void> clearBuffer() async {
+    try {
+      final isar = await _getIsar();
+      await isar.writeTxn(() async {
+        await isar.gpsPoints.clear();
+      });
+      _logger.i('🧹 Successfully cleared Isar offline GPS buffer.');
+    } catch (e) {
+      _logger.e('❌ Failed to clear GPS buffer in Isar', error: e);
+    }
+  }
 }

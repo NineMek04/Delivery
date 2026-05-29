@@ -12,6 +12,7 @@ import '../api/api_helpers.dart';
 import '../config/app_constants.dart';
 import '../config/environment.dart';
 import 'auth_constants.dart';
+import '../location/gps_buffer_service.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -285,6 +286,9 @@ class AuthService extends Notifier<AuthStatus> {
     try {
       await ref.read(localDatabaseServiceProvider).clearAllData();
     } catch (_) {}
+    try {
+      await ref.read(gpsBufferServiceProvider).clearBuffer();
+    } catch (_) {}
     await _storage.delete(key: AppConstants.accessTokenKey);
     await _storage.delete(key: AppConstants.refreshTokenKey);
     await _storage.delete(key: AppConstants.userDataKey);
@@ -460,6 +464,9 @@ class AuthService extends Notifier<AuthStatus> {
     _stopTokenClocking();
     try {
       await ref.read(localDatabaseServiceProvider).clearAllData();
+    } catch (_) {}
+    try {
+      await ref.read(gpsBufferServiceProvider).clearBuffer();
     } catch (_) {}
     await _storage.delete(key: AppConstants.accessTokenKey);
     await _storage.delete(key: AppConstants.refreshTokenKey);

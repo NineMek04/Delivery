@@ -41,11 +41,11 @@ public class RiderPresenceService
             var batch = _db.CreateBatch();
 
             // GEOADD สำหรับ spatial query (GEORADIUS)
-            batch.GeoAddAsync(GeoKey, lng, lat, riderId);
+            _ = batch.GeoAddAsync(GeoKey, lng, lat, riderId);
 
             // Hash สำหรับเก็บรายละเอียด (timestamp, lat, lng, speed_kmh)
             var gpsKey = GpsPrefix + riderId;
-            batch.HashSetAsync(gpsKey, new[]
+            _ = batch.HashSetAsync(gpsKey, new[]
             {
                 new HashEntry("lat", lat),
                 new HashEntry("lng", lng),
@@ -57,9 +57,9 @@ public class RiderPresenceService
             if (speedKmh > 0)
             {
                 var bufferKey = SpeedBufferPrefix + riderId;
-                batch.ListRightPushAsync(bufferKey, speedKmh);
-                batch.ListTrimAsync(bufferKey, -SpeedBufferSize, -1); // เก็บแค่ 5 จุดล่าสุด
-                batch.KeyExpireAsync(bufferKey, TimeSpan.FromMinutes(5));
+                _ = batch.ListRightPushAsync(bufferKey, speedKmh);
+                _ = batch.ListTrimAsync(bufferKey, -SpeedBufferSize, -1); // เก็บแค่ 5 จุดล่าสุด
+                _ = batch.KeyExpireAsync(bufferKey, TimeSpan.FromMinutes(5));
             }
 
             batch.Execute();
@@ -206,9 +206,9 @@ public class RiderPresenceService
         {
             var batch = _db.CreateBatch();
 
-            batch.GeoRemoveAsync(GeoKey, riderId);
-            batch.KeyDeleteAsync(GpsPrefix + riderId);
-            batch.KeyDeleteAsync(HeartbeatPrefix + riderId);
+            _ = batch.GeoRemoveAsync(GeoKey, riderId);
+            _ = batch.KeyDeleteAsync(GpsPrefix + riderId);
+            _ = batch.KeyDeleteAsync(HeartbeatPrefix + riderId);
 
             batch.Execute();
             await Task.CompletedTask;

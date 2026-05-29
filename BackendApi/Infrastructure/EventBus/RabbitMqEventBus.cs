@@ -171,17 +171,19 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
         EnsureConnection();
 
+        var channel = _channel!;
+
         var queueName = $"delivery_queue_{eventName}";
         var dlxExchange = $"{ExchangeName}_dlx";
         var dlqQueue = $"{queueName}_dlq";
 
         // Declare Dead Letter Exchange + Queue
-        _channel!.ExchangeDeclare(dlxExchange, "direct", durable: true);
-        _channel.QueueDeclare(dlqQueue, durable: true, exclusive: false, autoDelete: false);
-        _channel.QueueBind(dlqQueue, dlxExchange, eventName);
+        channel.ExchangeDeclare(dlxExchange, "direct", durable: true);
+        channel.QueueDeclare(dlqQueue, durable: true, exclusive: false, autoDelete: false);
+        channel.QueueBind(dlqQueue, dlxExchange, eventName);
 
         // Declare Main Queue with x-dead-letter-exchange configuration
-        _channel.QueueDeclare(
+        channel.QueueDeclare(
             queue: queueName,
             durable: true,
             exclusive: false,
@@ -193,13 +195,13 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             }
         );
 
-        _channel.QueueBind(
+        channel.QueueBind(
             queue: queueName,
             exchange: ExchangeName,
             routingKey: eventName
         );
 
-        var consumer = new AsyncEventingBasicConsumer(_channel);
+        var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.Received += async (sender, eventArgs) =>
         {
             var eventNameReceived = eventArgs.BasicProperties.Type ?? eventName;
@@ -246,26 +248,26 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                 if (retryCount >= 5)
                 {
                     _logger.LogError("Message for event {EventName} exceeded max retries ({Retries}). Sending to DLQ.", eventNameReceived, retryCount);
-                    _channel!.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: false);
+                    channel.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: false);
                     return;
                 }
 
                 try
                 {
                     await ProcessEventAsync(eventNameReceived, message);
-                    _channel!.BasicAck(eventArgs.DeliveryTag, multiple: false);
+                    channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error processing integration event {EventName} via consumer. Attempt {Attempt} of 5.", eventNameReceived, retryCount + 1);
                     
                     // Increment retry count via header and requeue
-                    IncrementRetryAndRequeue(_channel!, eventArgs);
+                    IncrementRetryAndRequeue(channel, eventArgs);
                 }
             }
         };
 
-        _channel.BasicConsume(
+        channel.BasicConsume(
             queue: queueName,
             autoAck: false,
             consumer: consumer
@@ -303,15 +305,23 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
         _logger.LogInformation("Re-publishing failed event {EventName} for retry attempt {RetryAttempt}", properties.Type, currentRetry);
         
-        channel.BasicPublish(
-            exchange: ExchangeName,
-            routingKey: eventArgs.RoutingKey,
-            mandatory: true,
-            basicProperties: properties,
-            body: eventArgs.Body
-        );
+        try
+        {
+            channel.BasicPublish(
+                exchange: ExchangeName,
+                routingKey: eventArgs.RoutingKey,
+                mandatory: true,
+                basicProperties: properties,
+                body: eventArgs.Body
+            );
 
-        channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
+            channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish retry attempt {RetryAttempt} for event {EventName}. Requeuing original message on the queue.", currentRetry, properties.Type);
+            channel.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: true);
+        }
     }
 
     private async Task ProcessEventAsync(string eventName, string message)

@@ -124,7 +124,7 @@ public class TelemetryBroadcastWorker : BackgroundService
         var oneHourAgo = DateTime.UtcNow.AddHours(-1);
         var recentOrders = await dbContext.Orders.AsNoTracking()
             .Where(o => o.CreatedAt >= oneHourAgo && o.PickupLocation != null)
-            .Select(o => new { Lat = o.PickupLocation.Y, Lng = o.PickupLocation.X })
+            .Select(o => new { Lat = o.PickupLocation!.Y, Lng = o.PickupLocation!.X })
             .ToListAsync(ct);
 
         var hotspots = recentOrders

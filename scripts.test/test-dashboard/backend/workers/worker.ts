@@ -5,6 +5,8 @@ import { runTestInDocker, cancelDockerTest } from '../services/docker-execution'
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
 import { parseStringPromise } from 'xml2js';
+import { LogParserService } from '../services/log-parser.service';
+
 
 dotenv.config();
 
@@ -359,11 +361,23 @@ const worker = new Worker(
          };
       }
 
+      let metrics = null;
+      if (suiteType.startsWith('load')) {
+        metrics = LogParserService.parseLoadTestMetrics(collectedLogs);
+        if (metrics) {
+          metrics.durationMs = durationMs;
+          // Store historical metrics in Redis for trend analysis
+          await pubClient.lpush('metrics:history:load', JSON.stringify(metrics));
+          await pubClient.ltrim('metrics:history:load', 0, 99); // Keep last 100 runs
+        }
+      }
+
       ArtifactService.saveReport(sessionId, {
         sessionId,
         suiteType,
         status: 'COMPLETED',
         summary,
+        metrics,
         testCases,
         completedAt: new Date().toISOString(),
       });

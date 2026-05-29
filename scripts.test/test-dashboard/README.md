@@ -75,6 +75,27 @@ graph TD
     A -- "16. Draw Chart.js" --> L[Browser Canvas]:::frontend
 ```
 
+### Phase 5: Data-Driven Observability & Metrics
+
+To capture real-time performance metrics during load and stress tests, the system utilizes a `LogParserService` inside the backend worker to continuously monitor STDOUT streams from the ephemeral containers.
+
+```mermaid
+graph TD
+    classDef frontend fill:#dd0031,stroke:#c3002f,stroke-width:2px,color:#fff
+    classDef backend fill:#68a063,stroke:#3c873a,stroke-width:2px,color:#fff
+    classDef storage fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+
+    A[Sandbox Stream]:::backend -- "Buffer" --> B[LogParserService<br/>(regex processing)]:::backend
+    B -- "Extract (RPS, Latency, Errors)" --> C[Redis / Artifacts]:::storage
+    C -- "Socket.IO Broadcast" --> D[Angular UI<br/>(MetricsChartComponent)]:::frontend
+    D -- "Render via Chart.js" --> E[Gauge & Line Charts]:::frontend
+```
+
+**Key mechanisms**:
+1. **Log Batching & Throttling:** Handled by `api-server/server.ts` to accumulate high-frequency log messages and emit them in 500ms batches, preventing the Angular UI from freezing during massive log storms (e.g., 5,000+ RPS).
+2. **Terminal Highlighting:** `LiveTerminalComponent` uses Regex patterns to automatically inject ANSI color codes for keywords such as `Error`, `Timeout`, `Passed`, and `BREAKING POINT`.
+3. **Regex Metric Parsing:** `LogParserService` scans for standardized patterns (`Current RPS: XXX`, `p95 Latency: XXX ms`) and updates the `TestSession.metrics` payload for Chart.js to render.
+
 ## Start
 
 1. Start infra from repo root:

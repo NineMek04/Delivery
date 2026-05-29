@@ -74,36 +74,8 @@
     </div>
   </div>
 
-  <!-- Load Test widget -->
-  <div class="load-test-card">
-    <div class="card-title-row">
-      <span class="bold-title">⚡ Load Test (Node.js)</span>
-      <span class="version-badge">v2.1</span>
-    </div>
-    <div class="stress-row">
-      <span class="stress-label">Concurrency/Stress</span>
-      <span class="stress-value spike-text">Spike: {{ loadStatsForUi.rps }}</span>
-    </div>
-    <!-- Bar chart placeholder -->
-    <div class="styled-bar-chart">
-      <div class="bar-item" style="height: 20%"></div>
-      <div class="bar-item" style="height: 25%"></div>
-      <div class="bar-item" style="height: 35%"></div>
-      <div class="bar-item" style="height: 30%"></div>
-      <div class="bar-item highlighted-red" style="height: 65%"></div>
-      <div class="bar-item highlighted-red" style="height: 85%"></div>
-      <div class="bar-item highlighted-red" style="height: 70%"></div>
-      <div class="bar-item" style="height: 40%"></div>
-      <div class="bar-item" style="height: 30%"></div>
-    </div>
-    <!-- Idempotency Check box -->
-    <div class="idempotency-box" [class.passed]="loadStatsForUi.passed">
-      <span class="box-title">Idempotency Check</span>
-      <div class="box-status">
-        <span class="check-icon">✓</span> 100% Passed (10k requests)
-      </div>
-    </div>
-  </div>
+  <!-- Load Test Metrics Chart Widget -->
+  <app-metrics-chart style="flex: 1; display: flex; flex-direction: column;" [metrics]="loadMetrics"></app-metrics-chart>
 </div>
 
 <!-- Bottom Row: 3 Suite Cards with Real Data Binding -->

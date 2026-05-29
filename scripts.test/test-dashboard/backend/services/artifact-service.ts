@@ -13,8 +13,10 @@ export interface TestSession {
   logFile: string;
   reportFile?: string;
   summary?: TestSummary;
+  metrics?: any;
   error?: string;
 }
+
 
 export interface TestSummary {
   suiteType: string;
@@ -117,6 +119,7 @@ export const ArtifactService = {
     this.updateSession(sessionId, {
       reportFile: path.join(sessionId, 'report.json'),
       summary: reportData.summary,
+      metrics: reportData.metrics,
     });
   },
 

@@ -105,10 +105,29 @@ export class LiveTerminalComponent implements OnInit, OnChanges, OnDestroy {
     // Clean and properly format lines for terminal
     const lines = text.split('\n');
     lines.forEach((line, index) => {
+      let formattedLine = line;
+      
+      // Highlight Keywords (Phase 3)
+      if (formattedLine.includes('Error') || formattedLine.includes('FAIL')) {
+        formattedLine = formattedLine.replace(/(Error|FAIL)/gi, '\x1b[1;31m$1\x1b[0m');
+      }
+      if (formattedLine.includes('Timeout')) {
+        formattedLine = formattedLine.replace(/(Timeout)/gi, '\x1b[1;33m$1\x1b[0m');
+      }
+      if (formattedLine.includes('0.00%')) {
+        formattedLine = formattedLine.replace(/(0\.00%)/g, '\x1b[1;32m$1\x1b[0m');
+      }
+      if (formattedLine.includes('Success') || formattedLine.includes('Passed')) {
+        formattedLine = formattedLine.replace(/(Success|Passed)/gi, '\x1b[1;32m$1\x1b[0m');
+      }
+      if (formattedLine.includes('BREAKING POINT')) {
+        formattedLine = formattedLine.replace(/(BREAKING POINT)/gi, '\x1b[1;41m\x1b[1;37m $1 \x1b[0m');
+      }
+
       if (index === lines.length - 1) {
-        this.terminal.write(line);
+        this.terminal.write(formattedLine);
       } else {
-        this.terminal.writeln(line);
+        this.terminal.writeln(formattedLine);
       }
     });
   }

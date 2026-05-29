@@ -67,6 +67,7 @@
         [pythonCases]="pythonCases"
         [loadCases]="loadCases"
         [simulatorCases]="simulatorCases"
+        [loadMetrics]="latestLoadSession?.metrics || null"
         (suiteSelected)="selectSuite($event)">
       </app-overall-overview>
 

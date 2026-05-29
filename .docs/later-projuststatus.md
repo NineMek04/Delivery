@@ -826,3 +826,22 @@ OsrmSnapWorker: ดึงคิวพิกัดดิบ -> ส่งไปท
 
 ---
 **สถาปัตยกรรม Smart Delivery Routing ของคุณ บัดนี้ได้รับการ Hardening และ Stress Tested จนผ่านขีดข้อจำกัดระดับ Enterprise Grade ครบถ้วนทุกมิติ พร้อมลุยงานหนักจริงในระบบโปรดักชันแล้วครับ!** 🏆💯
+
+📊 13. เฟส 5: Data-Driven Observability (Testing Dashboard)
+ในเฟสล่าสุด ได้ทำการต่อยอดระบบ Testing Dashboard ให้รองรับการมอนิเตอร์และวิเคราะห์ผลแบบเรียลไทม์ขณะเกิด Heavy Load & Extreme Stress โดยมีรายละเอียดดังนี้:
+
+1. ขยายขีดความสามารถ Backend & Worker
+LogParserService: เพิ่มระบบดักจับข้อมูล Metrics เชิงตัวเลขผ่าน Regex (เช่น RPS, Latency, Error Rate) สกัดออกจาก stdout ของ resilience-stress.js ขณะรันใน Docker
+Data Persistence: จัดเก็บ Metric Object ลงใน Artifacts json และยิง Push เข้า Redis Queue/History
+Sandbox Policy: เพิ่ม load-breaking-point, load-massive-batch, และ load-chaos-reconnect ลงใน sandbox-policy.json เพื่อปลดล็อคการรัน Extreme Tests แบบใหม่
+2. ยกระดับ UI Frontend (Chart.js)
+สร้าง MetricsChartComponent เพื่อใช้แสดงผลเชิงกราฟฟิก:
+Gauge Chart: แสดงเข็มมาตรวัด RPS แบบเรียลไทม์ และเปลี่ยนสีเป็นแดงเมื่อชนเพดาน System Capacity (เช่น 5,000 RPS)
+Line Chart: พล็อตกราฟเปรียบเทียบแนวโน้ม (Trend) ระหว่าง จำนวน Requests/sec และ Latency
+นำคอมโพเนนต์นี้ไปฝังใน OverallOverviewComponent และเชื่อมต่อข้อมูลจริงจาก latestLoadSession.metrics
+3. ปรับจูน Real-time Streaming & Live Terminal (Socket.IO)
+Log Batching/Throttling: เพื่อแก้ปัญหา Browser ค้าง (UI Freezes) เวลายิง Load Test ระดับ 5,000+ RPS ได้เปลี่ยนจังหวะการยิง Event log ใน server.ts ให้ทำ Buffer และ Batching แล้วปล่อยออกทุกๆ 500ms
+Terminal Highlighting: เพิ่ม Logic ดักจับคำสำคัญใน LiveTerminalComponent เช่น Error, Timeout, Passed, 0.00%, BREAKING POINT แล้วพ่น ANSI Color codes ลงใน Xterm ให้เห็นไฮไลท์สีอย่างชัดเจน
+4. Automation & Documentation
+ปรับปรุง start-local.ps1 ให้เช็คและสร้าง Container สำหรับ test-dashboard-redis ขึ้นมาโดยอัตโนมัติหากยังไม่รัน ป้องกันปัญหา Pub/Sub ล่ม
+เพิ่ม Flow Chart สถาปัตยกรรมระดับ Phase 5 Data-Driven Flow ใน README.md แสดงกลไกการส่งข้อมูล Metrics ตลอดเส้นทางตั้งแต่ Docker Sandbox -> Node API -> Socket.IO -> Angular UI

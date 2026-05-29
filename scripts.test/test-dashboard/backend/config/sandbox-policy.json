@@ -29,6 +29,27 @@
       "dockerCommand": "sh -c \"cd scripts.test/load-test && npm install && API_URL=http://backend node resilience-stress.js /tmp/results.json\"",
       "timeoutSeconds": 600
     },
+    "load-breaking-point": {
+      "name": "Breaking Point Stress Test",
+      "dockerImage": "node:20-alpine",
+      "hostCommand": "node scripts.test/load-test/breaking-point-stress.js",
+      "dockerCommand": "sh -c \"cd scripts.test/load-test && npm install axios && API_URL=http://backend node breaking-point-stress.js\"",
+      "timeoutSeconds": 900
+    },
+    "load-massive-batch": {
+      "name": "Massive Batch Dispatch Test",
+      "dockerImage": "node:20-alpine",
+      "hostCommand": "node scripts.test/load-test/massive-batch-dispatch.js",
+      "dockerCommand": "sh -c \"cd scripts.test/load-test && npm install axios && API_URL=http://backend node massive-batch-dispatch.js\"",
+      "timeoutSeconds": 600
+    },
+    "load-chaos-reconnect": {
+      "name": "Chaos Reconnect Resilience Test",
+      "dockerImage": "node:20-alpine",
+      "hostCommand": "node scripts.test/load-test/chaos-reconnect.js",
+      "dockerCommand": "sh -c \"cd scripts.test/load-test && npm install axios @microsoft/signalr && API_URL=http://backend node chaos-reconnect.js\"",
+      "timeoutSeconds": 600
+    },
     "simulator": {
       "name": "E2E Simulators (Node.js)",
       "dockerImage": "node:20-alpine",

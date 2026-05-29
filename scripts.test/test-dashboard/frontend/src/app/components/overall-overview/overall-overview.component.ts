@@ -1,14 +1,15 @@
 import { Component, Input, Output, EventEmitter, ViewChild, ElementRef, OnChanges, SimpleChanges, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Chart, registerables } from 'chart.js';
-import { TestCase } from '../../test-dashboard.model';
+import { TestCase, LoadTestMetrics } from '../../test-dashboard.model';
+import { MetricsChartComponent } from '../metrics-chart/metrics-chart.component';
 
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-overall-overview',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MetricsChartComponent],
   templateUrl: './overall-overview.component.html',
   styleUrl: './overall-overview.component.scss'
 })
@@ -19,6 +20,7 @@ export class OverallOverviewComponent implements OnChanges, AfterViewInit, OnDes
   @Input() pythonCases: TestCase[] = [];
   @Input() loadCases: TestCase[] = [];
   @Input() simulatorCases: TestCase[] = [];
+  @Input() loadMetrics: LoadTestMetrics | null = null;
 
   // Memoized UI Data to prevent infinite change detection
   csharpCasesForUi: any[] = [];

@@ -38,6 +38,20 @@ subClient.on('connect', () => {
   console.log(`[API Server] Redis subscriber connected to ${REDIS_HOST}:${REDIS_PORT}`);
 });
 
+// State for log batching / throttling
+const logBuffers: Record<string, string> = {};
+const BATCH_INTERVAL_MS = 500;
+
+// Batch emit logs every 500ms to prevent UI freezing
+setInterval(() => {
+  for (const sessionId of Object.keys(logBuffers)) {
+    if (logBuffers[sessionId]) {
+      io.to(`session:${sessionId}`).emit('log', logBuffers[sessionId]);
+      logBuffers[sessionId] = ''; // clear buffer after emitting
+    }
+  }
+}, BATCH_INTERVAL_MS);
+
 // Listen for Redis pub/sub messages and broadcast them over Socket.io
 subClient.on('message', (channel, message) => {
   const parts = channel.split(':');
@@ -46,9 +60,24 @@ subClient.on('message', (channel, message) => {
     const eventType = parts[2]; // 'logs' or 'status'
 
     if (eventType === 'logs') {
-      io.to(`session:${sessionId}`).emit('log', message);
+      // Buffer the log chunk instead of immediate emit
+      if (!logBuffers[sessionId]) {
+        logBuffers[sessionId] = '';
+      }
+      logBuffers[sessionId] += message;
     } else if (eventType === 'status') {
       io.to(`session:${sessionId}`).emit('status', JSON.parse(message));
+      // Cleanup buffer on end statuses
+      try {
+        const parsed = JSON.parse(message);
+        if (['COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT'].includes(parsed.status)) {
+           // Flush remaining logs immediately
+           if (logBuffers[sessionId]) {
+             io.to(`session:${sessionId}`).emit('log', logBuffers[sessionId]);
+             delete logBuffers[sessionId];
+           }
+        }
+      } catch (e) {}
     }
   }
 });

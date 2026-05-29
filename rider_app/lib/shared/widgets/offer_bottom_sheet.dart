@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:vibration/vibration.dart';
 
 import '../../core/config/environment.dart';
 import '../../models/dispatch_offer.dart';
@@ -45,14 +47,17 @@ class OfferBottomSheet extends StatefulWidget {
 class _OfferBottomSheetState extends State<OfferBottomSheet> {
   late int _secondsLeft;
   Timer? _timer;
+  AudioPlayer? _audioPlayer;
 
   @override
   void initState() {
     super.initState();
     _secondsLeft = _initialSeconds();
+    _startAlerts();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_secondsLeft <= 1) {
         _timer?.cancel();
+        _stopAlerts();
         if (mounted) {
           Navigator.of(context).pop();
           widget.onReject();
@@ -61,6 +66,30 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
       }
       setState(() => _secondsLeft--);
     });
+  }
+
+  void _startAlerts() async {
+    try {
+      _audioPlayer = AudioPlayer();
+      await _audioPlayer?.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/911/911-200.wav'));
+      _audioPlayer?.setReleaseMode(ReleaseMode.loop);
+    } catch (_) {}
+
+    try {
+      if (await Vibration.hasVibrator() ?? false) {
+        Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0);
+      }
+    } catch (_) {}
+  }
+
+  void _stopAlerts() {
+    try {
+      _audioPlayer?.stop();
+      _audioPlayer?.dispose();
+    } catch (_) {}
+    try {
+      Vibration.cancel();
+    } catch (_) {}
   }
 
   int _initialSeconds() {
@@ -74,6 +103,7 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
   @override
   void dispose() {
     _timer?.cancel();
+    _stopAlerts();
     super.dispose();
   }
 
@@ -122,6 +152,7 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
           ElevatedButton(
             onPressed: () {
               _timer?.cancel();
+              _stopAlerts();
               Navigator.of(context).pop();
               widget.onAccept();
             },
@@ -131,6 +162,7 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
           OutlinedButton(
             onPressed: () {
               _timer?.cancel();
+              _stopAlerts();
               Navigator.of(context).pop();
               widget.onReject();
             },

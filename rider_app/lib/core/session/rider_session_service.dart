@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/delivery/providers/delivery_provider.dart';
 import '../../models/dispatch_offer.dart';
 import '../config/app_constants.dart';
+import '../database/local_database_service.dart';
 import '../location/location_service.dart';
 import '../signalr/signalr_service.dart';
 
@@ -19,6 +20,8 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   @override
   RiderSessionState build() {
     ref.onDispose(_disposeSubscriptions);
+
+    _loadSessionState();
 
     // ฟังเหตุการณ์ Reconnect ของ SignalR เพื่อตั้งค่าออนไลน์คนขับคืนมาอัตโนมัติ
     ref.listen<SignalRConnectionState>(signalRServiceProvider, (previous, next) async {
@@ -39,9 +42,24 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     return const RiderSessionState();
   }
 
+  Future<void> _loadSessionState() async {
+    try {
+      final db = ref.read(localDatabaseServiceProvider);
+      final isOnline = await db.getIsOnline();
+      
+      if (isOnline) {
+        _logger.i('🔌 Restoring online rider session state from local database');
+        state = state.copyWith(isOnline: true);
+        Future.microtask(() => goOnline());
+      }
+    } catch (e) {
+      _logger.e('Failed to load rider session state from local database', error: e);
+    }
+  }
+
   /// Go online: connect SignalR, set IDLE, start GPS.
   Future<void> goOnline() async {
-    if (state.isOnline) return;
+    if (state.isOnline && !state.isTransitioning) return;
 
     state = state.copyWith(isTransitioning: true, error: null);
 
@@ -65,6 +83,9 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         isTransitioning: false,
         error: null,
       );
+      
+      // Save status to database
+      await ref.read(localDatabaseServiceProvider).saveIsOnline(true);
       _logger.i('Rider session online');
     } catch (e) {
       await _tearDown();
@@ -73,6 +94,9 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         isTransitioning: false,
         error: e.toString(),
       );
+      
+      // Save status to database
+      await ref.read(localDatabaseServiceProvider).saveIsOnline(false);
       rethrow;
     }
   }
@@ -91,12 +115,16 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       await _tearDown();
 
       state = const RiderSessionState(isOnline: false, isTransitioning: false);
+      
+      // Save status to database
+      await ref.read(localDatabaseServiceProvider).saveIsOnline(false);
       _logger.i('Rider session offline');
     } catch (e) {
       state = state.copyWith(isTransitioning: false, error: e.toString());
       rethrow;
     }
   }
+
 
   void setIncomingOffer(DispatchOffer? offer) {
     state = state.copyWith(incomingOffer: offer);

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_helpers.dart';
 import '../../../core/api/services/order_api_service.dart';
 import '../../../core/config/app_constants.dart';
+import '../../../core/database/local_database_service.dart';
 import '../../../models/order.dart';
 
 const _activeStatuses = {
@@ -26,7 +27,24 @@ final deliveryNotifierProvider =
 class DeliveryNotifier extends Notifier<DeliveryState> {
   @override
   DeliveryState build() {
+    _loadCachedOrders();
     return const DeliveryState();
+  }
+
+  Future<void> _loadCachedOrders() async {
+    try {
+      final db = ref.read(localDatabaseServiceProvider);
+      final active = await db.getActiveOrders();
+      final completed = await db.getCompletedOrders();
+
+      if (active.isNotEmpty || completed.isNotEmpty) {
+        state = state.copyWith(
+          activeOrders: active,
+          completedOrders: completed,
+          activeOrder: active.isNotEmpty ? active.first : null,
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> loadOrders() async {
@@ -41,6 +59,9 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
       final completed = orders
           .where((o) => _completedStatuses.contains(o.status.toUpperCase()))
           .toList();
+
+      // Save to local database
+      await ref.read(localDatabaseServiceProvider).saveOrders(orders);
 
       state = state.copyWith(
         isLoading: false,
@@ -63,6 +84,9 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
         orderId: orderId,
         status: newStatus,
       );
+
+      // Save updated order to local database
+      await ref.read(localDatabaseServiceProvider).saveOrder(updated);
 
       final active = List<OrderDto>.from(state.activeOrders);
       final completed = List<OrderDto>.from(state.completedOrders);
@@ -88,6 +112,7 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
       state = state.copyWith(isUpdating: false, error: e.toString());
     }
   }
+
 
   Future<void> markPickingUp(String orderId) =>
       updateOrderStatus(orderId, 'PICKING_UP');

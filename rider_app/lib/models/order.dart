@@ -103,6 +103,28 @@ class OrderDto {
       completedAt: completedRaw != null ? DateTime.tryParse(completedRaw) : null,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'Id': id,
+    'Status': status,
+    if (pickupLat != null) 'PickupLat': pickupLat,
+    if (pickupLng != null) 'PickupLng': pickupLng,
+    if (dropoffLat != null) 'DropoffLat': dropoffLat,
+    if (dropoffLng != null) 'DropoffLng': dropoffLng,
+    if (expectedDeliveryTime != null) 'ExpectedDeliveryTime': expectedDeliveryTime?.toIso8601String(),
+    if (assignedRiderId != null) 'AssignedRiderId': assignedRiderId,
+    if (customerId != null) 'CustomerId': customerId,
+    if (shopId != null) 'ShopId': shopId,
+    'DistanceKm': distanceKm,
+    'DeliveryFee': deliveryFee,
+    if (trackingCode != null) 'TrackingCode': trackingCode,
+    if (refNumber != null) 'RefNumber': refNumber,
+    if (encodedPolyline != null) 'EncodedPolyline': encodedPolyline,
+    'Items': items.map((i) => i.toJson()).toList(),
+    if (createdAt != null) 'CreatedAt': createdAt?.toIso8601String(),
+    if (assignedAt != null) 'AssignedAt': assignedAt?.toIso8601String(),
+    if (completedAt != null) 'CompletedAt': completedAt?.toIso8601String(),
+  };
 }
 
 class OrderItemDto {
@@ -138,6 +160,17 @@ class OrderItemDto {
       totalPrice: _toDouble(readField(json, 'TotalPrice') ?? readField(json, 'totalPrice')) ?? 0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'Id': id,
+    'MenuItemId': menuItemId,
+    'Name': name,
+    'UnitPrice': unitPrice,
+    'Quantity': quantity,
+    if (notes != null) 'Notes': notes,
+    if (optionsDescription != null) 'OptionsDescription': optionsDescription,
+    'TotalPrice': totalPrice,
+  };
 }
 
 double? _toDouble(dynamic value) {

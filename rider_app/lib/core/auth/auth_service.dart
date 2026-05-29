@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'safe_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:logger/logger.dart';
+import '../database/local_database_service.dart';
 import '../../models/auth_response.dart';
 import '../api/api_helpers.dart';
 import '../config/app_constants.dart';
@@ -281,6 +282,9 @@ class AuthService extends Notifier<AuthStatus> {
   /// เทียบ Angular: `logout()`
   Future<void> logout() async {
     _stopTokenClocking();
+    try {
+      await ref.read(localDatabaseServiceProvider).clearAllData();
+    } catch (_) {}
     await _storage.delete(key: AppConstants.accessTokenKey);
     await _storage.delete(key: AppConstants.refreshTokenKey);
     await _storage.delete(key: AppConstants.userDataKey);
@@ -454,6 +458,9 @@ class AuthService extends Notifier<AuthStatus> {
   /// Force logout — ลบ tokens ทั้งหมดโดยไม่ต้องเรียก API logout
   Future<void> _forceLogout() async {
     _stopTokenClocking();
+    try {
+      await ref.read(localDatabaseServiceProvider).clearAllData();
+    } catch (_) {}
     await _storage.delete(key: AppConstants.accessTokenKey);
     await _storage.delete(key: AppConstants.refreshTokenKey);
     await _storage.delete(key: AppConstants.userDataKey);

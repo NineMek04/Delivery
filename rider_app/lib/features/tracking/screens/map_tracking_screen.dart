@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/signalr/signalr_service.dart';
 import '../../../core/auth/auth_service.dart';
@@ -97,6 +98,29 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   void _centerOn(LatLng? point) {
     if (point == null) return;
     _mapController.move(point, 15);
+  }
+
+  Future<void> _launchMaps(LatLng target, String label) async {
+    final googleUrl = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=${target.latitude},${target.longitude}&travelmode=two_wheeler');
+    final appleUrl = Uri.parse(
+        'maps://?q=${target.latitude},${target.longitude}');
+
+    try {
+      if (await canLaunchUrl(googleUrl)) {
+        await launchUrl(googleUrl, mode: LaunchMode.externalApplication);
+      } else if (await canLaunchUrl(appleUrl)) {
+        await launchUrl(appleUrl, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch maps application';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ไม่สามารถเปิดแผนที่นำทางได้: $e')),
+        );
+      }
+    }
   }
 
   void _bindSimStreams() {
@@ -345,6 +369,11 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.directions, color: Color(0xFF1A73E8), size: 28),
+              tooltip: 'เปิดแผนที่นำทางภายนอก',
+              onPressed: () => _launchMaps(target!, targetName),
             ),
           ],
         ),

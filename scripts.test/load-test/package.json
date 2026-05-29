@@ -16,6 +16,7 @@
   "type": "commonjs",
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
+    "amqplib": "^2.0.1",
     "axios": "^1.16.1"
   }
 }

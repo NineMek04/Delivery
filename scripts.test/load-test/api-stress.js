@@ -2,10 +2,12 @@
  * api-stress.js — HTTP API load testing
  *
  * Usage:
- *   node api-stress.js [--concurrent 10] [--requests 200] [--endpoint orders]
+ *   node api-stress.js [--concurrent 10] [--requests 200] [--endpoint telemetry/gps/batch]
  *
  * Environment:
  *   API_URL — Backend URL (default: http://localhost:5000)
+ *
+ * Note: Simulates batch HTTP GPS telemetry for Rider Apps.
  */
 
 const axios = require("axios");
@@ -20,7 +22,7 @@ function getArg(name, defaultValue) {
 
 const CONCURRENT = parseInt(getArg("concurrent", "200"), 10);
 const TOTAL_REQUESTS = parseInt(getArg("requests", "5000"), 10);
-const ENDPOINT = getArg("endpoint", "orders");
+const ENDPOINT = getArg("endpoint", "telemetry/gps/batch");
 
 const stats = {
   success: 0,
@@ -29,31 +31,42 @@ const stats = {
   statusCodes: {},
 };
 
-async function getAdminToken() {
-  const email = `api_stress_${Date.now()}@test.com`;
+async function getRiderToken() {
+  const email = `api_stress_${Date.now()}_${Math.random().toString(36).substring(7)}@test.com`;
   try {
     const res = await axios.post(`${API_URL}/api/v1/auth/register`, {
       email,
       password: "StressTest123!",
-      fullName: "API Stress User",
-      role: "Admin",
+      fullName: "API Stress Rider",
+      role: "Rider",
     });
     return res.data?.value?.accessToken;
   } catch (err) {
-    console.error("Failed to get admin token:", err.message);
+    console.error("Failed to get rider token:", err.message);
     process.exit(1);
   }
 }
 
 async function makeRequest(token, index) {
   const start = Date.now();
-  const url = `${API_URL}/api/v1/${ENDPOINT}?page=1&pageSize=10`;
+  // Ensure the URL matches the .NET route exactly (api/telemetry vs api/v1/telemetry)
+  const isTelemetry = ENDPOINT.includes("telemetry");
+  const url = isTelemetry ? `${API_URL}/api/${ENDPOINT}` : `${API_URL}/api/v1/${ENDPOINT}?page=1&pageSize=10`;
+
+  // Create a batch payload of 5 points
+  const payload = isTelemetry ? Array.from({ length: 5 }).map((_, i) => ({
+    Latitude: 13.7 + (Math.random() * 0.01),
+    Longitude: 100.5 + (Math.random() * 0.01),
+    Accuracy: 10.0,
+    Timestamp: new Date().toISOString()
+  })) : null;
 
   try {
-    const res = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 10000,
-    });
+    const reqPromise = isTelemetry
+      ? axios.post(url, payload, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 })
+      : axios.get(url, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 });
+      
+    const res = await reqPromise;
     const latency = Date.now() - start;
     stats.latencies.push(latency);
     stats.success++;
@@ -84,13 +97,13 @@ async function runBatch(token, batchSize) {
 async function main() {
   console.log("═══════════════════════════════════════════════");
   console.log("  HTTP API Stress Test");
-  console.log(`  Target: ${API_URL}/api/v1/${ENDPOINT}`);
+  console.log(`  Target: ${ENDPOINT.includes("telemetry") ? `${API_URL}/api/${ENDPOINT}` : `${API_URL}/api/v1/${ENDPOINT}`}`);
   console.log(`  Concurrent: ${CONCURRENT}`);
   console.log(`  Total Requests: ${TOTAL_REQUESTS}`);
   console.log("═══════════════════════════════════════════════\n");
 
-  const token = await getAdminToken();
-  console.log("  Admin token acquired.\n");
+  const token = await getRiderToken();
+  console.log("  Rider token acquired.\n");
 
   const startTime = Date.now();
   let sent = 0;

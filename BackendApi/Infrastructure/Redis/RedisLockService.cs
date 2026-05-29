@@ -35,7 +35,7 @@ public class RedisLockService
     /// <param name="offerId">Offer ID สำหรับ idempotency</param>
     /// <param name="timeout">ระยะเวลาจอง (default 30 วินาที)</param>
     /// <returns>true ถ้าจองสำเร็จ, false ถ้ามีคนอื่นจองอยู่แล้วหรือเชื่อมต่อ Redis ไม่ได้</returns>
-    public async Task<bool> TryAcquireRiderLockAsync(string riderId, string offerId, TimeSpan timeout)
+    public virtual async Task<bool> TryAcquireRiderLockAsync(string riderId, string offerId, TimeSpan timeout)
     {
         var key = RiderLockKey(riderId);
         try
@@ -68,7 +68,7 @@ public class RedisLockService
     /// <summary>
     /// ปลดล็อค Rider — ตรวจสอบ offerId ก่อนลบเพื่อป้องกันลบ lock ของคนอื่น
     /// </summary>
-    public async Task<bool> ReleaseLockAsync(string riderId, string offerId)
+    public virtual async Task<bool> ReleaseLockAsync(string riderId, string offerId)
     {
         var key = RiderLockKey(riderId);
         try
@@ -101,7 +101,7 @@ public class RedisLockService
     /// <summary>
     /// ตรวจสอบว่า Rider ถูกจองอยู่หรือไม่
     /// </summary>
-    public async Task<string?> GetLockHolderAsync(string riderId)
+    public virtual async Task<string?> GetLockHolderAsync(string riderId)
     {
         var key = RiderLockKey(riderId);
         try
@@ -119,7 +119,7 @@ public class RedisLockService
     /// <summary>
     /// ตรวจสอบว่า Rider ถูกจองอยู่หรือไม่
     /// </summary>
-    public async Task<bool> IsLockedAsync(string riderId)
+    public virtual async Task<bool> IsLockedAsync(string riderId)
     {
         try
         {

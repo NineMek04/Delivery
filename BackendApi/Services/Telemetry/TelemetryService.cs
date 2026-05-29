@@ -78,12 +78,6 @@ namespace BackendApi.Services.Telemetry
             {
                 if (await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize))
                 {
-                    int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
-                    await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("AdjustPingRate", new
-                    {
-                        IntervalSeconds = recommendedInterval,
-                        Timestamp = DateTime.UtcNow
-                    });
                     return;
                 }
             }
@@ -259,15 +253,7 @@ namespace BackendApi.Services.Telemetry
                     new HashEntry("lng", snappedLng),
                     new HashEntry("ticks", now.Ticks)
                 });
-
-                // Adaptive Client Rate: สั่งแอปไรเดอร์ปรับความถี่ยิง GPS ตาม Backpressure ของ RabbitMQ Queue
-                int recommendedIntervalSeconds = _rateLimiter.GetRecommendedInterval(currentQueueSize);
-
-                await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("AdjustPingRate", new
-                {
-                    IntervalSeconds = recommendedIntervalSeconds,
-                    Timestamp = DateTime.UtcNow
-                });
+                await db.KeyExpireAsync(lastBroadcastKey, TimeSpan.FromHours(24));
             }
 
             // 9. ปรับปรุงฐานข้อมูลหลัก (PostgreSQL) แบบ Throttled (ทุก 10 วินาที)

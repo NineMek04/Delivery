@@ -183,7 +183,7 @@ namespace BackendApi.Services.BackgroundWorkers
                 new HashEntry("lng", snappedLng),
                 new HashEntry("updated_at", now.ToString("o"))
             });
-            await db.KeyExpireAsync(snappedGpsKey, TimeSpan.FromMinutes(5));
+            await db.KeyExpireAsync(snappedGpsKey, TimeSpan.FromHours(24));
 
             // Record snap timestamp
             var currentPointUnix = (point.Timestamp - DateTime.UnixEpoch).TotalSeconds;

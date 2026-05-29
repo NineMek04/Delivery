@@ -37,7 +37,7 @@ public class StateMachineService
     /// <summary>
     /// เปลี่ยนสถานะ Order พร้อม validate transition
     /// </summary>
-    public async Task<bool> TransitionOrderAsync(string orderId, OrderState newState)
+    public virtual async Task<bool> TransitionOrderAsync(string orderId, OrderState newState)
     {
         var order = await _dbContext.Orders.FindAsync(orderId);
         if (order is null)
@@ -52,7 +52,7 @@ public class StateMachineService
     /// <summary>
     /// เปลี่ยนสถานะ Order (overload ที่รับ entity ตรง)
     /// </summary>
-    public async Task<bool> TransitionOrderAsync(Order order, OrderState newState)
+    public virtual async Task<bool> TransitionOrderAsync(Order order, OrderState newState)
     {
         if (!OrderStateRules.IsValidTransition(order.State, newState))
         {
@@ -134,7 +134,7 @@ public class StateMachineService
     /// <summary>
     /// เปลี่ยนสถานะ Rider พร้อม validate transition
     /// </summary>
-    public async Task<bool> TransitionRiderAsync(string riderId, RiderState newState)
+    public virtual async Task<bool> TransitionRiderAsync(string riderId, RiderState newState)
     {
         var rider = await _dbContext.Riders.FindAsync(riderId);
         if (rider is null)
@@ -149,7 +149,7 @@ public class StateMachineService
     /// <summary>
     /// เปลี่ยนสถานะ Rider (overload ที่รับ entity ตรง)
     /// </summary>
-    public async Task<bool> TransitionRiderAsync(Rider rider, RiderState newState)
+    public virtual async Task<bool> TransitionRiderAsync(Rider rider, RiderState newState)
     {
         if (!RiderStateRules.IsValidTransition(rider.State, newState))
         {

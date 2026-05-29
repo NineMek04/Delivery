@@ -24,7 +24,7 @@ public class DispatchAdminNotifier
     /// <summary>
     /// แจ้ง Admin ว่าเริ่มสแกน Rider ใกล้เคียง
     /// </summary>
-    public async Task NotifyDispatchScanStartedAsync(
+    public virtual async Task NotifyDispatchScanStartedAsync(
         Order order, double pickupLat, double pickupLng, int searchRadiusKm, GeoRadiusResult[] nearbyRiders)
     {
         await _hubContext.Clients.Group("admins").SendAsync("DispatchScanStarted", new
@@ -47,7 +47,7 @@ public class DispatchAdminNotifier
     /// <summary>
     /// แจ้ง Admin ว่า Candidates ถูกจัดอันดับแล้ว
     /// </summary>
-    public async Task NotifyCandidatesRankedAsync(Order order, List<RankedCandidate> rankedCandidates)
+    public virtual async Task NotifyCandidatesRankedAsync(Order order, List<RankedCandidate> rankedCandidates)
     {
         await _hubContext.Clients.Group("admins").SendAsync("DispatchCandidatesRanked", new
         {
@@ -67,7 +67,7 @@ public class DispatchAdminNotifier
     /// <summary>
     /// แจ้ง Admin ว่า Offer ถูกส่งไปให้ Rider แล้ว
     /// </summary>
-    public async Task NotifyOfferSentAsync(object offerPayload)
+    public virtual async Task NotifyOfferSentAsync(object offerPayload)
     {
         await _hubContext.Clients.Group("admins").SendAsync("DispatchOfferSent", offerPayload);
     }
@@ -75,7 +75,7 @@ public class DispatchAdminNotifier
     /// <summary>
     /// แจ้ง Admin ว่า Order ถูก Assign ให้ Rider แล้ว
     /// </summary>
-    public async Task NotifyOrderAssignedAsync(string orderId, string riderId, DateTime? assignedAt)
+    public virtual async Task NotifyOrderAssignedAsync(string orderId, string riderId, DateTime? assignedAt)
     {
         await _hubContext.Clients.Group("admins").SendAsync("OrderAssigned", new
         {

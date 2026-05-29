@@ -31,7 +31,7 @@ public class DispatchRiderNotifier
     /// <summary>
     /// ส่ง Offer ไปให้ Rider ผ่าน SignalR
     /// </summary>
-    public async Task SendOfferToRiderAsync(string riderId, object offerPayload)
+    public virtual async Task SendOfferToRiderAsync(string riderId, object offerPayload)
     {
         await _hubContext.Clients.Group($"rider:{riderId}")
             .SendAsync("OfferReceived", offerPayload);
@@ -40,7 +40,7 @@ public class DispatchRiderNotifier
     /// <summary>
     /// ส่ง FCM Push Notification ไปให้ Rider (fire-and-forget)
     /// </summary>
-    public void SendFcmOfferNotificationInBackground(string riderId, string orderId, string offerId, decimal deliveryFee, double distanceKm)
+    public virtual void SendFcmOfferNotificationInBackground(string riderId, string orderId, string offerId, decimal deliveryFee, double distanceKm)
     {
         _ = Task.Run(async () =>
         {

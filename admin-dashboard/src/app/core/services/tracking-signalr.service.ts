@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { RealtimeTelemetryDto, RiderUtilizationDto } from './analytics.service';
 import { ToastService } from './toast.service';
@@ -10,6 +11,10 @@ export interface RiderLocationUpdate {
   riderId: string;
   latitude: number;
   longitude: number;
+  snappedLat?: number;
+  snappedLng?: number;
+  isSnapped?: boolean;
+  speedKmh?: number;
   status: string; // "IDLE", "DELIVERING", "PICKING_UP", etc.
   timestamp: string;
 }
@@ -65,8 +70,35 @@ export class TrackingSignalRService {
 
   constructor(
     private authService: AuthService,
-    private toastService: ToastService
+    private toastService: ToastService,
+    private http: HttpClient
   ) {}
+
+  public fetchInitialLocations(): void {
+    const url = environment.config.baseConfig.apiUrl.replace('/api/v1', '') + '/api/v1/rider-locations';
+    this.http.get<any>(url).subscribe({
+      next: (response) => {
+        if (response?.isSuccess && Array.isArray(response.data)) {
+          const currentMap = this._riderLocations.getValue();
+          for (const rider of response.data) {
+            currentMap.set(rider.riderId || rider.RiderId, {
+              riderId: rider.riderId || rider.RiderId,
+              latitude: rider.lat ?? rider.Lat ?? 0,
+              longitude: rider.lng ?? rider.Lng ?? 0,
+              snappedLat: rider.snappedLat ?? rider.SnappedLat,
+              snappedLng: rider.snappedLng ?? rider.SnappedLng,
+              isSnapped: rider.isSnapped ?? rider.IsSnapped ?? false,
+              speedKmh: rider.speedKmh ?? rider.SpeedKmh ?? 0,
+              status: rider.status ?? rider.Status ?? 'OFFLINE',
+              timestamp: rider.updatedAt ?? rider.UpdatedAt ?? new Date().toISOString()
+            });
+          }
+          this._riderLocations.next(new Map(currentMap));
+        }
+      },
+      error: (err) => console.error('Failed to fetch initial rider locations from Redis API', err)
+    });
+  }
 
   public getRiderLocations(): Map<string, RiderLocationUpdate> {
     return this._riderLocations.getValue();
@@ -146,6 +178,9 @@ export class TrackingSignalRService {
         riderId: data.riderId || data.RiderId,
         latitude: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)),
         longitude: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        snappedLat: data.snappedLat != null ? data.snappedLat : (data.SnappedLat != null ? data.SnappedLat : undefined),
+        snappedLng: data.snappedLng != null ? data.snappedLng : (data.SnappedLng != null ? data.SnappedLng : undefined),
+        isSnapped: data.isSnapped != null ? data.isSnapped : (data.IsSnapped != null ? data.IsSnapped : false),
         status: data.status || data.Status || 'OFFLINE',
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
       };
@@ -164,6 +199,9 @@ export class TrackingSignalRService {
         riderId: riderId,
         latitude: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)),
         longitude: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        snappedLat: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)), // Map Snapped update overrides
+        snappedLng: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        isSnapped: true,
         status: data.status || data.Status || existing?.status || 'OFFLINE',
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
       };

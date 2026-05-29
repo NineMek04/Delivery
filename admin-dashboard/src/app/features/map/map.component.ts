@@ -1,5 +1,6 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ElementRef, ViewChild, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ElementRef, ViewChild, inject, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
 import { DispatchScanStarted, TrackingSignalRService, RiderLocationUpdate } from '../../core/services/tracking-signalr.service';
@@ -58,6 +59,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private orderService = inject(OrderService);
   private math = inject(MapMathService);
   public draw = inject(MapDrawingService);
+  private http = inject(HttpClient);
+  private zone = inject(NgZone);
   private subscriptions: Subscription = new Subscription();
 
   public alerts: any[] = [];
@@ -72,6 +75,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private pickupRouteLine: L.Polyline | null = null;
   private activeRadarCircle: L.Circle | null = null;
   private candidateMarkers: L.CircleMarker[] = [];
+  private currentRiderRoutePolyline: L.Polyline | null = null;
 
   // Order Markers and Polylines
   private orderMarkers: L.Marker[] = [];
@@ -106,7 +110,13 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnInit(): void {
+    (window as any).angularComponentReference = {
+      zone: this.zone,
+      showRiderRoute: (id: string) => this.showRiderRoute(id)
+    };
+    
     this.trackingService.startConnection();
+    this.trackingService.fetchInitialLocations();
 
     this.subscriptions.add(
       this.trackingService.alerts$.subscribe(newAlerts => {
@@ -129,7 +139,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.draw.initializeMap(this.map);
     this.draw.markerType = 'dashboard';
     this.loadExistingShops();
-    this.loadExistingRiders();
     this.loadActiveOrders();
   }
 
@@ -139,6 +148,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.map) {
       this.map.remove();
     }
+    delete (window as any).angularComponentReference;
   }
 
   private initMap(): void {
@@ -308,34 +318,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private loadExistingRiders(): void {
-    this.riderService.getByEndpoint('/rider-locations').subscribe({
-      next: (res) => {
-        const riders = res?.value || [];
-        const initialMap = new Map<string, RiderLocationUpdate>();
-        
-        riders.forEach((rider: any) => {
-          if (rider.lat != null && rider.lng != null && rider.riderId) {
-            // Use snapped location if available
-            const lat = rider.isSnapped ? rider.snappedLat : rider.lat;
-            const lng = rider.isSnapped ? rider.snappedLng : rider.lng;
-            
-            initialMap.set(rider.riderId, {
-              riderId: rider.riderId,
-              latitude: lat,
-              longitude: lng,
-              status: rider.status || 'OFFLINE',
-              timestamp: rider.updatedAt || new Date().toISOString()
-            });
-          }
-        });
-        
-        this.updateMapMarkers(initialMap);
-        this.updateRiderList(initialMap);
-      },
-      error: (err) => {
-        console.error('Failed to load existing mock riders from Redis:', err);
-      }
-    });
+    // Deprecated in favor of this.trackingService.fetchInitialLocations()
   }
 
   private loadActiveOrders(): void {
@@ -453,14 +436,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           <span style="font-size: 11px; color: #4b5563; line-height: 1.5;">
             <b>สถานะ:</b> ${loc.status}<br>
             <b>พิกัด:</b> ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}<br>
-            <b>อัปเดต:</b> ${new Date(loc.timestamp).toLocaleTimeString()}
+            <b>อัปเดต:</b> ${new Date(loc.timestamp).toLocaleTimeString()}<br>
+            <b>ความเร็ว:</b> ${loc.speedKmh ? loc.speedKmh.toFixed(1) : 0} km/h<br>
+            <b>เกาะถนน:</b> ${loc.isSnapped ? '✅ ใช่' : '❌ ไม่'}
           </span>
+          <hr style="margin: 6px 0; border: 0; border-top: 1px solid #e5e7eb;">
+          <button style="width: 100%; background: #3b82f6; color: white; border: none; padding: 4px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="window.angularComponentReference.zone.run(() => { window.angularComponentReference.showRiderRoute('${loc.riderId}'); })">ดูเส้นทางย้อนหลัง</button>
         </div>
       `;
 
       if (marker) {
         // Animate marker smoothly with 300ms continuous gliding!
-        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, () => {
+        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, loc.isSnapped, () => {
           if (this.simAutoFollow && isWinner && this.activeOrder) {
             const bounds = L.latLngBounds([
               next,
@@ -471,7 +458,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         });
         marker.setPopupContent(popupContent);
       } else {
-        const created = L.marker(next, { icon: this.draw.createRiderIcon(riderId, this.assignedRiderId, 0, loc.status) })
+        const created = L.marker(next, { icon: this.draw.createRiderIcon(riderId, this.assignedRiderId, 0, loc.status, loc.isSnapped) })
           .bindPopup(popupContent)
           .addTo(this.map);
 
@@ -504,8 +491,52 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.filterStatus = status;
     // trigger update
     if (this.riders.length > 0) {
-      // re-trigger the map
-      this.loadExistingRiders();
+      // update map
+      this.updateRiderList(this.trackingService.getRiderLocations());
     }
+  }
+
+  showRiderRoute(riderId: string): void {
+    if (!riderId) return;
+    const url = `/api/v1/rider-locations/${riderId}/history`;
+    this.http.get<any>(url).subscribe({
+      next: (response) => {
+        if (response?.isSuccess && Array.isArray(response.data) && response.data.length > 0) {
+          if (this.currentRiderRoutePolyline) {
+            this.currentRiderRoutePolyline.remove();
+          }
+          const coords = response.data.map((pt: any) => L.latLng(pt.lat || pt.Lat, pt.lng || pt.Lng));
+          this.currentRiderRoutePolyline = L.polyline(coords, {
+            color: '#3b82f6',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '5, 10'
+          }).addTo(this.map);
+          this.map.fitBounds(this.currentRiderRoutePolyline.getBounds(), { padding: [50, 50] });
+          Swal.fire({
+            title: 'Rider Route',
+            text: `Showing history for rider ${riderId.substring(0, 6)}`,
+            icon: 'info',
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
+          });
+        } else {
+          Swal.fire({
+            title: 'No Data',
+            text: 'No history found for this rider.',
+            icon: 'warning',
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
+          });
+        }
+      },
+      error: (err) => {
+        console.error('Failed to fetch rider history:', err);
+      }
+    });
   }
 }

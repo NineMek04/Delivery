@@ -190,7 +190,7 @@ public class DispatchService
         }
 
         // 2. กรองเฉพาะ Rider ที่ IDLE (ไม่ถูกจอง/ไม่มีงาน)
-        var candidates = new List<(string RiderId, double DistanceKm)>();
+        var candidates = new List<(string RiderId, double DistanceKm, double Lat, double Lng)>();
         
         var riderIds = nearbyRiders.Select(r => r.Member.ToString()).ToList();
         var ridersDict = await _dbContext.Riders
@@ -210,7 +210,7 @@ public class DispatchService
             if (await _lockService.IsLockedAsync(riderId))
                 continue;
 
-            candidates.Add((riderId, result.Distance ?? 0));
+            candidates.Add((riderId, result.Distance ?? 0, result.Position?.Latitude ?? 0, result.Position?.Longitude ?? 0));
         }
 
         if (candidates.Count == 0)

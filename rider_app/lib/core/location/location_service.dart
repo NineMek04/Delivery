@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
 import '../config/environment.dart';
-import '../signalr/signalr_service.dart';
 import 'gps_buffer_service.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
@@ -217,12 +216,8 @@ class LocationService extends Notifier<LocationState> {
     );
 
     // ส่งตำแหน่งเริ่มต้นทันที
-    final signalRService = ref.read(signalRServiceProvider.notifier);
-    signalRService.sendLocationUpdate(
-      lat: currentLat,
-      lng: currentLng,
-      accuracy: 10.0,
-    );
+    final bufferService = ref.read(gpsBufferServiceProvider);
+    bufferService.bufferLocation(currentLat, currentLng, 10.0);
 
     // จำลองตำแหน่งขยับเป็นวงกลมเล็กๆ ทุก 5 วินาทีเพื่อให้เห็นบนแผนที่ว่ากำลังออนไลน์และเคลื่อนไหว
     _mockTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
@@ -247,11 +242,7 @@ class LocationService extends Notifier<LocationState> {
         lastUpdated: DateTime.now(),
       );
 
-      signalRService.sendLocationUpdate(
-        lat: nextLat,
-        lng: nextLng,
-        accuracy: 10.0,
-      );
+      bufferService.bufferLocation(nextLat, nextLng, 10.0);
     });
   }
 

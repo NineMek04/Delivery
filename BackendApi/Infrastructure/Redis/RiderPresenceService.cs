@@ -34,7 +34,7 @@ public class RiderPresenceService
     /// <summary>
     /// อัปเดตพิกัด GPS ของ Rider ใน Redis (GEOADD + Hash + Speed Buffer)
     /// </summary>
-    public async Task UpdateGpsAsync(string riderId, double lat, double lng, double speedKmh = 0.0)
+    public virtual async Task UpdateGpsAsync(string riderId, double lat, double lng, double speedKmh = 0.0)
     {
         try
         {
@@ -77,7 +77,7 @@ public class RiderPresenceService
     /// <summary>
     /// อัปเดต Heartbeat ของ Rider (แยกจาก GPS)
     /// </summary>
-    public async Task UpdateHeartbeatAsync(string riderId)
+    public virtual async Task UpdateHeartbeatAsync(string riderId)
     {
         try
         {
@@ -93,7 +93,7 @@ public class RiderPresenceService
     /// <summary>
     /// ดึง Rider ที่อยู่ใกล้จุดที่กำหนดภายในรัศมี (GEORADIUS)
     /// </summary>
-    public async Task<GeoRadiusResult[]> GetNearbyRidersAsync(double lat, double lng, double radiusKm)
+    public virtual async Task<GeoRadiusResult[]> GetNearbyRidersAsync(double lat, double lng, double radiusKm)
     {
         try
         {
@@ -115,7 +115,7 @@ public class RiderPresenceService
     /// <summary>
     /// ดึงตำแหน่ง GPS ล่าสุดของ Rider จาก Redis
     /// </summary>
-    public async Task<(double Lat, double Lng, DateTime UpdatedAt)?> GetLastKnownLocationAsync(string riderId)
+    public virtual async Task<(double Lat, double Lng, DateTime UpdatedAt)?> GetLastKnownLocationAsync(string riderId)
     {
         try
         {
@@ -141,7 +141,7 @@ public class RiderPresenceService
     /// ดึงค่าความเร็วเฉลี่ยของ Rider จาก 5-point Moving Average buffer ใน Redis
     /// Fallback: ดึงจาก Hash field speed_kmh (instant speed)
     /// </summary>
-    public async Task<double> GetRiderSpeedAsync(string riderId)
+    public virtual async Task<double> GetRiderSpeedAsync(string riderId)
     {
         try
         {

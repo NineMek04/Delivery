@@ -29,7 +29,7 @@ public class DispatchCandidateRanker
     /// ส่งรายชื่อ Candidates ไปให้ AI Engine เพื่อให้คะแนนและจัดอันดับ (Phase A Heuristic)
     /// </summary>
     public async Task<List<RankedCandidate>> RankCandidatesAsync(
-        Order order, List<(string RiderId, double DistanceKm)> candidates, Dictionary<string, Rider> ridersDict)
+        Order order, List<(string RiderId, double DistanceKm, double Lat, double Lng)> candidates, Dictionary<string, Rider> ridersDict)
     {
         try
         {
@@ -42,8 +42,8 @@ public class DispatchCandidateRanker
                     candidateDtos.Add(new DispatchCandidateDto
                     {
                         RiderId = c.RiderId,
-                        Lat = rider?.CurrentLocation?.Y ?? 0,
-                        Lng = rider?.CurrentLocation?.X ?? 0,
+                        Lat = c.Lat,
+                        Lng = c.Lng,
                         SpeedKmh = riderSpeed > 0 ? riderSpeed : 20.0, // Default 20 km/h
                         CurrentTasks = new List<Dictionary<string, object>>()
                     });

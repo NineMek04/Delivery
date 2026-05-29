@@ -188,8 +188,11 @@ export class MapDrawingService implements OnDestroy {
   // Status-coded Icons
   // ─────────────────────────────────────────────────────────────────────────
 
-  public createStatusIcon(riderId: string, status: RiderStatus, bearing = 0): L.DivIcon {
-    const color  = STATUS_COLORS[status.toUpperCase()] ?? STATUS_COLORS['OFFLINE'];
+  public createStatusIcon(riderId: string, status: RiderStatus, bearing = 0, isSnapped = true): L.DivIcon {
+    let color  = STATUS_COLORS[status.toUpperCase()] ?? STATUS_COLORS['OFFLINE'];
+    if (!isSnapped) {
+      color = '#9ca3af'; // Gray out unsnapped raw GPS markers
+    }
     const emoji  = status === 'OFFLINE' ? '⚫' : '🛵';
     const pulse  = ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(status.toUpperCase())
       ? `box-shadow: 0 0 0 6px ${color}33, 0 4px 14px rgba(0,0,0,0.4);` : '';
@@ -326,10 +329,10 @@ export class MapDrawingService implements OnDestroy {
   // Original sim-mode API (preserved)
   // ─────────────────────────────────────────────────────────────────────────
 
-  public createRiderIcon(riderId: string, assignedRiderId: string | null, bearing = 0, status = 'IDLE'): L.DivIcon {
+  public createRiderIcon(riderId: string, assignedRiderId: string | null, bearing = 0, status = 'IDLE', isSnapped = true): L.DivIcon {
     const isWinner = riderId === assignedRiderId;
     if (this.markerType === 'dashboard') {
-      return this.createStatusIcon(riderId, status as RiderStatus, bearing);
+      return this.createStatusIcon(riderId, status as RiderStatus, bearing, isSnapped);
     }
     // sim mode
     const winner = isWinner ? ' winner' : '';
@@ -358,6 +361,7 @@ export class MapDrawingService implements OnDestroy {
     marker:          L.Marker,
     next:            L.LatLng,
     status           = 'IDLE',
+    isSnapped        = true,
     onComplete?:     () => void,
   ): void {
     const iconElement = marker.getElement();
@@ -370,7 +374,7 @@ export class MapDrawingService implements OnDestroy {
 
     if (!this.activeAnimationLoops.get(riderId)) {
       this.activeAnimationLoops.set(riderId, true);
-      this.processQueueGlide(riderId, assignedRiderId, marker, status, onComplete);
+      this.processQueueGlide(riderId, assignedRiderId, marker, status, isSnapped, onComplete);
     }
   }
 
@@ -379,6 +383,7 @@ export class MapDrawingService implements OnDestroy {
     assignedRiderId: string | null,
     marker:          L.Marker,
     status:          string,
+    isSnapped:       boolean,
     onComplete?:     () => void,
   ): void {
     const queue = this.riderPositionQueues.get(riderId);
@@ -390,7 +395,7 @@ export class MapDrawingService implements OnDestroy {
     const startPoint  = queue[0];
     const targetPoint = queue[1];
     const startTime   = performance.now();
-    const dynamicDuration = Math.max(120, Math.min(1000, targetPoint.timestamp - startPoint.timestamp));
+    const dynamicDuration = Math.max(120, Math.min(6000, targetPoint.timestamp - startPoint.timestamp));
 
     const startLatLng  = L.latLng(startPoint.lat, startPoint.lng);
     const targetLatLng = L.latLng(targetPoint.lat, targetPoint.lng);
@@ -410,7 +415,7 @@ export class MapDrawingService implements OnDestroy {
       const currentLatLng = L.latLng(currentLat, currentLng);
 
       marker.setLatLng(currentLatLng);
-      marker.setIcon(this.createRiderIcon(riderId, assignedRiderId, bearing, status));
+      marker.setIcon(this.createRiderIcon(riderId, assignedRiderId, bearing, status, isSnapped));
       this.updateIconStyle(marker, riderId, assignedRiderId, status, bearing);
 
       if (progress < 1) {
@@ -419,7 +424,7 @@ export class MapDrawingService implements OnDestroy {
       } else {
         queue.shift();
         if (onComplete) onComplete();
-        this.processQueueGlide(riderId, assignedRiderId, marker, status, onComplete);
+        this.processQueueGlide(riderId, assignedRiderId, marker, status, isSnapped, onComplete);
       }
     };
 

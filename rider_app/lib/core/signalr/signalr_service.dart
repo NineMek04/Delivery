@@ -192,23 +192,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     state = SignalRConnectionState.disconnected;
   }
 
-  /// Hub: UpdateLocation(lat, lng, accuracy)
-  Future<void> sendLocationUpdate({
-    required double lat,
-    required double lng,
-    double accuracy = 10.0,
-  }) async {
-    if (state != SignalRConnectionState.connected) return;
 
-    try {
-      await _hubConnection!.invoke(
-        'UpdateLocation',
-        args: [lat, lng, accuracy],
-      );
-    } catch (e) {
-      _logger.e('Failed to send location update', error: e);
-    }
-  }
 
   /// Hub: UpdateStatus(status).
   Future<bool> updateStatus(String status) async {

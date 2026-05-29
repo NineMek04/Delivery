@@ -35,11 +35,6 @@ export const routes: Routes = [
       },
       {
         path: 'map',
-        loadComponent: () => import('./features/sim-map/sim-map.component').then(m => m.SimMapComponent),
-        data: { title: 'Simulation Fleet Map' }
-      },
-      {
-        path: 'map-live',
         loadComponent: () => import('./features/map/map.component').then(m => m.MapComponent),
         data: { title: 'Live Fleet Map' }
       },

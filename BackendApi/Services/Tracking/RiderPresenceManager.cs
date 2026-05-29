@@ -21,12 +21,12 @@ namespace BackendApi.Services.Tracking
             ApplicationDbContext dbContext,
             RiderPresenceService presenceService,
             StateMachineService stateMachine,
-            ILogger<RiderPresenceManager> logger)
+            ILogger<RiderPresenceManager> _logger2)
         {
             _dbContext = dbContext;
             _presenceService = presenceService;
             _stateMachine = stateMachine;
-            _logger = logger;
+            _logger = _logger2;
         }
 
         public async Task<RiderConnectionResult?> HandleRiderConnectAsync(string userId)

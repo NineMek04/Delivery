@@ -26,7 +26,6 @@ namespace BackendApi.Hubs;
 public partial class TrackingHub : Hub
 {
     private readonly IRiderPresenceManager _presenceManager;
-    private readonly GpsSyncBuffer _gpsBuffer;
     private readonly DispatchService _dispatchService;
     private readonly DispatchOfferHandler _offerHandler;
     private readonly IConfiguration _config;
@@ -39,7 +38,6 @@ public partial class TrackingHub : Hub
 
     public TrackingHub(
         IRiderPresenceManager presenceManager,
-        GpsSyncBuffer gpsBuffer,
         DispatchService dispatchService,
         DispatchOfferHandler offerHandler,
         IConfiguration config,
@@ -48,7 +46,6 @@ public partial class TrackingHub : Hub
         ILogger<TrackingHub> logger)
     {
         _presenceManager = presenceManager;
-        _gpsBuffer = gpsBuffer;
         _dispatchService = dispatchService;
         _offerHandler = offerHandler;
         _config = config;

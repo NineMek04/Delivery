@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using BackendApi.Core.StateMachines;
+using BackendApi.Features.FleetTracking.Telemetry;
 
 namespace BackendApi.Services.Telemetry
 {
@@ -22,7 +23,8 @@ namespace BackendApi.Services.Telemetry
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly RiderPresenceService _presenceService;
-        private readonly GpsSyncBuffer _gpsBuffer;
+        private readonly GpsRedisRateLimiter _rateLimiter;
+        private readonly GpsRabbitMqPublisher _gpsPublisher;
         private readonly TelemetryAggregator _aggregator;
         private readonly OsrmRoutingService _routingService;
         private readonly IHubContext<TrackingHub> _hubContext;
@@ -34,7 +36,8 @@ namespace BackendApi.Services.Telemetry
         public TelemetryService(
             ApplicationDbContext dbContext,
             RiderPresenceService presenceService,
-            GpsSyncBuffer gpsBuffer,
+            GpsRedisRateLimiter rateLimiter,
+            GpsRabbitMqPublisher gpsPublisher,
             TelemetryAggregator aggregator,
             OsrmRoutingService routingService,
             IHubContext<TrackingHub> hubContext,
@@ -43,7 +46,8 @@ namespace BackendApi.Services.Telemetry
         {
             _dbContext = dbContext;
             _presenceService = presenceService;
-            _gpsBuffer = gpsBuffer;
+            _rateLimiter = rateLimiter;
+            _gpsPublisher = gpsPublisher;
             _aggregator = aggregator;
             _routingService = routingService;
             _hubContext = hubContext;
@@ -60,6 +64,19 @@ namespace BackendApi.Services.Telemetry
 
             // 1. กรองความคลาดเคลื่อนเบื้องต้น (Drift Protection)
             if (accuracy > 50) return;
+
+            // 1.5. Level 1 Server-Side Rate Limiting (Safety net for SignalR or unthrottled REST inputs)
+            var currentQueueSize = _gpsPublisher.PendingQueueCount;
+            if (await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize))
+            {
+                int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
+                await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("AdjustPingRate", new
+                {
+                    IntervalSeconds = recommendedInterval,
+                    Timestamp = DateTime.UtcNow
+                });
+                return;
+            }
 
             var now = DateTime.UtcNow;
 
@@ -95,8 +112,8 @@ namespace BackendApi.Services.Telemetry
             // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache
             await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh);
 
-            // 6. บันทึกลง In-memory Buffer เพื่อรอเขียน PostgreSQL แบบ Batch (History Ledger)
-            _gpsBuffer.AddPointAndCheckFlush(riderId, snappedLat, snappedLng);
+            // 6. โยนพิกัดลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร
+            _gpsPublisher.Publish(new TrackPoint(riderId, snappedLat, snappedLng, now));
 
             // 7. เพิ่มตัวนับ GPS Tick สำหรับแสดงอัตราผ่านทางหน้าหลังบ้าน
             _aggregator.IncrementGpsTick();
@@ -180,6 +197,15 @@ namespace BackendApi.Services.Telemetry
                     new HashEntry("lat", snappedLat),
                     new HashEntry("lng", snappedLng),
                     new HashEntry("ticks", now.Ticks)
+                });
+
+                // Adaptive Client Rate: สั่งแอปไรเดอร์ปรับความถี่ยิง GPS ตาม Backpressure ของ RabbitMQ Queue
+                int recommendedIntervalSeconds = _rateLimiter.GetRecommendedInterval(currentQueueSize);
+
+                await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("AdjustPingRate", new
+                {
+                    IntervalSeconds = recommendedIntervalSeconds,
+                    Timestamp = DateTime.UtcNow
                 });
             }
 

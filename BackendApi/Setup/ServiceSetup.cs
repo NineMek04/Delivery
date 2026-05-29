@@ -20,6 +20,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using NetTopologySuite.Geometries;
 using StackExchange.Redis;
+using BackendApi.Features.FleetTracking.Telemetry;
 
 namespace BackendApi.Setup;
 
@@ -79,7 +80,8 @@ public static class ServiceSetup
             ConnectionMultiplexer.Connect(redisConfig));
 
         // --- Dispatch Services ---
-        services.AddSingleton<GpsSyncBuffer>();
+        services.AddSingleton<GpsRedisRateLimiter>();
+        services.AddSingleton<GpsRabbitMqPublisher>();
         services.AddScoped<RedisLockService>();
         services.AddScoped<RiderPresenceService>();
         services.AddScoped<StateMachineService>();
@@ -96,6 +98,7 @@ public static class ServiceSetup
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddSingleton<TelemetryAggregator>();
         services.AddScoped<TelemetryService>();
+        services.AddScoped<GpsHistoryService>();
         services.AddHttpClient();
         services.AddScoped<BackendApi.Services.Notifications.IFcmNotificationService, BackendApi.Services.Notifications.FcmNotificationService>();
 
@@ -108,7 +111,7 @@ public static class ServiceSetup
         // --- Background Workers (The System Janitors) ---
         services.AddHostedService<DispatchTimeoutWorker>();
         services.AddHostedService<HeartbeatMonitor>();
-        services.AddHostedService<GpsSyncWorker>();
+        services.AddHostedService<GpsRabbitMqConsumerWorker>();
         services.AddHostedService<PartitionMaintenanceWorker>();
         services.AddHostedService<TelemetryBroadcastWorker>();
 

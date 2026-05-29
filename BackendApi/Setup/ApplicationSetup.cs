@@ -81,6 +81,7 @@ public static class ApplicationSetup
         eventBus.Subscribe<OrderCreatedIntegrationEvent, OrderCreatedIntegrationEventHandler>();
         eventBus.Subscribe<OrderStatusChangedIntegrationEvent, OrderStatusChangedIntegrationEventHandler>();
         eventBus.Subscribe<RiderLocationUpdatedIntegrationEvent, RiderLocationUpdatedIntegrationEventHandler>();
+        eventBus.Subscribe<RiderStateChangedIntegrationEvent, RiderStateChangedIntegrationEventHandler>();
 
         return app;
     }

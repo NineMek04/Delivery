@@ -154,6 +154,24 @@ export class TrackingSignalRService {
       this._riderLocations.next(new Map(currentMap));
     });
 
+    // Listen to OSRM road-snapped updates
+    this.hubConnection.on('RiderLocationSnapped', (data: any) => {
+      const currentMap = this._riderLocations.getValue();
+      const riderId = data.riderId || data.RiderId;
+      const existing = currentMap.get(riderId);
+      
+      const mappedData: RiderLocationUpdate = {
+        riderId: riderId,
+        latitude: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)),
+        longitude: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        status: data.status || data.Status || existing?.status || 'OFFLINE',
+        timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
+      };
+
+      currentMap.set(mappedData.riderId, mappedData);
+      this._riderLocations.next(new Map(currentMap));
+    });
+
     // OfferReceived — Backend ยิงไปหา Rider โดยตรง (group rider:{id})
     this.hubConnection.on('OfferReceived', (offer: DispatchOffer) => {
       this.addAlert('AI Dispatcher', `Offer sent to rider (Order ${offer.order?.id?.slice(0, 8) || 'Unknown'})`, 'info');

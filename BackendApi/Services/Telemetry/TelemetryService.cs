@@ -126,6 +126,7 @@ namespace BackendApi.Services.Telemetry
 
             // 6. โยนพิกัดลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร
             _gpsPublisher.Publish(new TrackPoint(riderId, snappedLat, snappedLng, now));
+            _gpsPublisher.PublishForSnap(new TrackPoint(riderId, snappedLat, snappedLng, now));
 
             // 7. เพิ่มตัวนับ GPS Tick สำหรับแสดงอัตราผ่านทางหน้าหลังบ้าน
             _aggregator.IncrementGpsTick();
@@ -192,7 +193,8 @@ namespace BackendApi.Services.Telemetry
                     Lat = snappedLat,
                     Lng = snappedLng,
                     Status = riderState,
-                    Timestamp = now
+                    Timestamp = now,
+                    isSnapped = false
                 });
 
                 // B. ค้นหาออเดอร์ที่ค้างอยู่ของไรเดอร์คนนี้เพื่อส่งพิกัดหาแอปลูกค้า (ผ่าน Redis Cache เลี่ยง DB)
@@ -245,7 +247,8 @@ namespace BackendApi.Services.Telemetry
                         Lat = snappedLat,
                         Lng = snappedLng,
                         Status = riderState,
-                        Timestamp = now
+                        Timestamp = now,
+                        isSnapped = false
                     });
                 }
 

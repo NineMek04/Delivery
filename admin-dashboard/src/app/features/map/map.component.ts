@@ -308,18 +308,23 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private loadExistingRiders(): void {
-    this.riderService.getAll(1, 150).subscribe({
-      next: (riders) => {
+    this.riderService.getByEndpoint('/rider-locations').subscribe({
+      next: (res) => {
+        const riders = res?.value || [];
         const initialMap = new Map<string, RiderLocationUpdate>();
         
-        riders.forEach(rider => {
-          if (rider.lat != null && rider.lng != null && rider.id) {
-            initialMap.set(rider.id, {
-              riderId: rider.id,
-              latitude: rider.lat,
-              longitude: rider.lng,
+        riders.forEach((rider: any) => {
+          if (rider.lat != null && rider.lng != null && rider.riderId) {
+            // Use snapped location if available
+            const lat = rider.isSnapped ? rider.snappedLat : rider.lat;
+            const lng = rider.isSnapped ? rider.snappedLng : rider.lng;
+            
+            initialMap.set(rider.riderId, {
+              riderId: rider.riderId,
+              latitude: lat,
+              longitude: lng,
               status: rider.status || 'OFFLINE',
-              timestamp: rider.lastUpdated || new Date().toISOString()
+              timestamp: rider.updatedAt || new Date().toISOString()
             });
           }
         });
@@ -328,7 +333,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         this.updateRiderList(initialMap);
       },
       error: (err) => {
-        console.error('Failed to load existing mock riders:', err);
+        console.error('Failed to load existing mock riders from Redis:', err);
       }
     });
   }

@@ -107,6 +107,7 @@ public static class ServiceSetup
         services.AddTransient<OrderCreatedIntegrationEventHandler>();
         services.AddTransient<OrderStatusChangedIntegrationEventHandler>();
         services.AddTransient<RiderLocationUpdatedIntegrationEventHandler>();
+        services.AddTransient<RiderStateChangedIntegrationEventHandler>();
 
         // --- Background Workers (The System Janitors) ---
         services.AddHostedService<DispatchTimeoutWorker>();
@@ -114,6 +115,7 @@ public static class ServiceSetup
         services.AddHostedService<GpsRabbitMqConsumerWorker>();
         services.AddHostedService<PartitionMaintenanceWorker>();
         services.AddHostedService<TelemetryBroadcastWorker>();
+        services.AddHostedService<OsrmSnapWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

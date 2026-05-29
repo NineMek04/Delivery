@@ -16,6 +16,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
     public class GpsRabbitMqPublisher : IDisposable
     {
         private const string QueueName = "gps_telemetry_queue";
+        private const string SnapQueueName = "gps_snap_queue";
         private readonly IConfiguration _configuration;
         private readonly ILogger<GpsRabbitMqPublisher> _logger;
         private IConnection? _connection;
@@ -33,8 +34,15 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                     FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest
                 });
 
-            // Start the background publisher worker
+            _snapChannelQueue = System.Threading.Channels.Channel.CreateBounded<TrackPoint>(
+                new System.Threading.Channels.BoundedChannelOptions(10000)
+                {
+                    FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest
+                });
+
+            // Start the background publisher workers
             _ = System.Threading.Tasks.Task.Run(ProcessQueueAsync);
+            _ = System.Threading.Tasks.Task.Run(ProcessSnapQueueAsync);
         }
 
         private void EnsureConnection()
@@ -105,7 +113,15 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                     arguments: null
                 );
 
-                _logger.LogInformation("GpsRabbitMqPublisher successfully connected to RabbitMQ and declared queue '{QueueName}'", QueueName);
+                _channel.QueueDeclare(
+                    queue: SnapQueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null
+                );
+
+                _logger.LogInformation("GpsRabbitMqPublisher successfully connected to RabbitMQ and declared queues '{QueueName}' and '{SnapQueueName}'", QueueName, SnapQueueName);
             }
         }
 
@@ -159,6 +175,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// Publishes a GPS TrackPoint to RabbitMQ as a persistent message.
         /// </summary>
         private readonly System.Threading.Channels.Channel<TrackPoint> _channelQueue;
+        private readonly System.Threading.Channels.Channel<TrackPoint> _snapChannelQueue;
         private readonly System.Threading.CancellationTokenSource _cts = new();
 
         private async System.Threading.Tasks.Task ProcessQueueAsync()
@@ -204,10 +221,59 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             }
         }
 
+        private async System.Threading.Tasks.Task ProcessSnapQueueAsync()
+        {
+            while (!_cts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    EnsureConnection();
+                    
+                    await foreach (var point in _snapChannelQueue.Reader.ReadAllAsync(_cts.Token))
+                    {
+                        var message = JsonSerializer.Serialize(point);
+                        var body = Encoding.UTF8.GetBytes(message);
+
+                        lock (_connectionLock)
+                        {
+                            if (_channel == null) break; // Re-ensure connection on next loop
+
+                            var properties = _channel.CreateBasicProperties();
+                            properties.Persistent = true;
+                            properties.Type = nameof(TrackPoint);
+
+                            _channel.BasicPublish(
+                                exchange: "",
+                                routingKey: SnapQueueName,
+                                mandatory: true,
+                                basicProperties: properties,
+                                body: body
+                            );
+                        }
+                    }
+                }
+                catch (System.OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in GpsRabbitMqPublisher background snap worker.");
+                    await System.Threading.Tasks.Task.Delay(1000, _cts.Token);
+                }
+            }
+        }
+
         public void Publish(TrackPoint point)
         {
             // Non-blocking fire-and-forget publish to memory channel
             _channelQueue.Writer.TryWrite(point);
+        }
+
+        public void PublishForSnap(TrackPoint point)
+        {
+            // Non-blocking fire-and-forget publish to snap memory channel
+            _snapChannelQueue.Writer.TryWrite(point);
         }
 
         public void Dispose()

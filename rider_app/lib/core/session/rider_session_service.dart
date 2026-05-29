@@ -64,11 +64,17 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     state = state.copyWith(isTransitioning: true, error: null);
 
     try {
+      _logger.d("goOnline Step 1: Connecting SignalR");
       final signalR = ref.read(signalRServiceProvider.notifier);
       await signalR.connect();
+      
+      _logger.d("goOnline Step 2: Updating Status to AVAILABLE");
       await signalR.updateStatus(AppConstants.statusAvailable);
+      
+      _logger.d("goOnline Step 3: Sending Heartbeat");
       await signalR.sendHeartbeat();
 
+      _logger.d("goOnline Step 4: Starting Location Tracking");
       final locationStarted =
           await ref.read(locationServiceProvider.notifier).startTracking();
       if (!locationStarted) {
@@ -76,18 +82,22 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         throw Exception(locState.error ?? 'Failed to start GPS tracking');
       }
 
+      _logger.d("goOnline Step 5: Listening SignalR Events");
       _listenSignalREvents();
 
+      _logger.d("goOnline Step 6: Setting State to Online");
       state = state.copyWith(
         isOnline: true,
         isTransitioning: false,
         error: null,
       );
       
+      _logger.d("goOnline Step 7: Saving isOnline to Database");
       // Save status to database
       await ref.read(localDatabaseServiceProvider).saveIsOnline(true);
       _logger.i('Rider session online');
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.e('Exception in goOnline: $e', error: e, stackTrace: stackTrace);
       await _tearDown();
       state = state.copyWith(
         isOnline: false,
@@ -95,8 +105,12 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         error: e.toString(),
       );
       
-      // Save status to database
-      await ref.read(localDatabaseServiceProvider).saveIsOnline(false);
+      // Save status to database safely
+      try {
+        await ref.read(localDatabaseServiceProvider).saveIsOnline(false);
+      } catch (dbErr, dbSt) {
+        _logger.e('Failed to save offline status in catch: $dbErr', error: dbErr, stackTrace: dbSt);
+      }
       rethrow;
     }
   }

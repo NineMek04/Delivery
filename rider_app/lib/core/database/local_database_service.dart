@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,10 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
 class LocalDatabaseService {
   Database? _db;
+
+  // Web fallback storage
+  final Map<String, Map<String, dynamic>> _webOrders = {};
+  final Map<String, String> _webSession = {};
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -48,6 +53,19 @@ class LocalDatabaseService {
 
   // Save multiple orders (replaces the ones with the same ID)
   Future<void> saveOrders(List<OrderDto> orders) async {
+    if (kIsWeb) {
+      for (final order in orders) {
+        _webOrders[order.id] = {
+          'id': order.id,
+          'status': order.status,
+          'is_active': _isActiveStatus(order.status) ? 1 : 0,
+          'json_data': jsonEncode(order.toJson()),
+        };
+      }
+      _logger.d('[Web] Saved ${orders.length} orders to memory');
+      return;
+    }
+
     try {
       final db = await database;
       final batch = db.batch();
@@ -77,6 +95,17 @@ class LocalDatabaseService {
 
   // Save/Update a single order
   Future<void> saveOrder(OrderDto order) async {
+    if (kIsWeb) {
+      _webOrders[order.id] = {
+        'id': order.id,
+        'status': order.status,
+        'is_active': _isActiveStatus(order.status) ? 1 : 0,
+        'json_data': jsonEncode(order.toJson()),
+      };
+      _logger.d('[Web] Saved order ${order.id} to memory');
+      return;
+    }
+
     try {
       final db = await database;
       final isActive = _isActiveStatus(order.status) ? 1 : 0;
@@ -100,6 +129,14 @@ class LocalDatabaseService {
 
   // Get all active orders
   Future<List<OrderDto>> getActiveOrders() async {
+    if (kIsWeb) {
+      final active = _webOrders.values
+          .where((m) => m['is_active'] == 1)
+          .map((m) => OrderDto.fromJson(jsonDecode(m['json_data'] as String) as Map<String, dynamic>))
+          .toList();
+      return active;
+    }
+
     try {
       final db = await database;
       final List<Map<String, dynamic>> maps = await db.query(
@@ -120,6 +157,14 @@ class LocalDatabaseService {
 
   // Get completed orders
   Future<List<OrderDto>> getCompletedOrders() async {
+    if (kIsWeb) {
+      final completed = _webOrders.values
+          .where((m) => m['is_active'] == 0)
+          .map((m) => OrderDto.fromJson(jsonDecode(m['json_data'] as String) as Map<String, dynamic>))
+          .toList();
+      return completed;
+    }
+
     try {
       final db = await database;
       final List<Map<String, dynamic>> maps = await db.query(
@@ -140,6 +185,13 @@ class LocalDatabaseService {
 
   // Clear all data (e.g. on logout)
   Future<void> clearAllData() async {
+    if (kIsWeb) {
+      _webOrders.clear();
+      _webSession.clear();
+      _logger.i('[Web] Cleared memory database');
+      return;
+    }
+
     try {
       final db = await database;
       await db.delete('orders');
@@ -152,6 +204,12 @@ class LocalDatabaseService {
 
   // Save online status
   Future<void> saveIsOnline(bool isOnline) async {
+    if (kIsWeb) {
+      _webSession['is_online'] = isOnline.toString();
+      _logger.d('[Web] Saved session status: is_online = $isOnline');
+      return;
+    }
+
     try {
       final db = await database;
       await db.insert(
@@ -170,6 +228,11 @@ class LocalDatabaseService {
 
   // Get online status
   Future<bool> getIsOnline() async {
+    if (kIsWeb) {
+      final val = _webSession['is_online'];
+      return val == 'true';
+    }
+
     try {
       final db = await database;
       final List<Map<String, dynamic>> maps = await db.query(

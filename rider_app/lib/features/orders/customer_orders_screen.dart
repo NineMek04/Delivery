@@ -62,7 +62,7 @@ class _OrderListTile extends StatelessWidget {
           ],
         ),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.pushNamed('tracking', pathParameters: {'orderId': order.id}),
+        onTap: () => context.pushNamed('customerTracking', pathParameters: {'orderId': order.id}),
       ),
     );
   }

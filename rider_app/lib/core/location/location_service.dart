@@ -70,8 +70,12 @@ class LocationService extends Notifier<LocationState> {
               lastUpdated: DateTime.now(),
             );
 
-            _startRealStream();
-            return true;
+            try {
+              _startRealStream();
+              return true;
+            } catch (streamError) {
+              _logger.w('⚠️ Failed to start real GPS stream on Web, falling back to mock: $streamError');
+            }
           }
         }
       } catch (e) {
@@ -155,7 +159,12 @@ class LocationService extends Notifier<LocationState> {
 
     LocationSettings locationSettings;
 
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    if (kIsWeb) {
+      locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: Environment.gpsDistanceFilter,
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
       locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: Environment.gpsDistanceFilter,

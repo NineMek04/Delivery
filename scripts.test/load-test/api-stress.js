@@ -18,8 +18,8 @@ function getArg(name, defaultValue) {
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : defaultValue;
 }
 
-const CONCURRENT = parseInt(getArg("concurrent", "10"), 10);
-const TOTAL_REQUESTS = parseInt(getArg("requests", "200"), 10);
+const CONCURRENT = parseInt(getArg("concurrent", "200"), 10);
+const TOTAL_REQUESTS = parseInt(getArg("requests", "5000"), 10);
 const ENDPOINT = getArg("endpoint", "orders");
 
 const stats = {

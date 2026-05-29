@@ -4,6 +4,8 @@ using BackendApi.Models;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+using Order = BackendApi.Models.Order;
 
 namespace BackendApi.Services.Dispatch;
 
@@ -15,15 +17,18 @@ public class StateMachineService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IEventBus _eventBus;
+    private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<StateMachineService> _logger;
 
     public StateMachineService(
         ApplicationDbContext dbContext, 
         IEventBus eventBus,
+        IConnectionMultiplexer redis,
         ILogger<StateMachineService> logger)
     {
         _dbContext = dbContext;
         _eventBus = eventBus;
+        _redis = redis;
         _logger = logger;
     }
 
@@ -72,6 +77,33 @@ public class StateMachineService
         }
 
         await _dbContext.SaveChangesAsync();
+
+        // Update active order cache for the rider in Redis
+        try
+        {
+            var db = _redis.GetDatabase();
+            if (!string.IsNullOrEmpty(order.AssignedRiderId))
+            {
+                var activeOrderKey = $"riders:active_order:{order.AssignedRiderId}";
+                if (newState == OrderState.ASSIGNED || newState == OrderState.PICKING_UP || newState == OrderState.DELIVERING)
+                {
+                    await db.HashSetAsync(activeOrderKey, new[]
+                    {
+                        new HashEntry("order_id", order.Id),
+                        new HashEntry("customer_id", order.CustomerId ?? string.Empty)
+                    });
+                    await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
+                }
+                else
+                {
+                    await db.KeyDeleteAsync(activeOrderKey);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update active order cache in Redis for Rider {RiderId}", order.AssignedRiderId);
+        }
 
         // Publish Order Status Changed Integration Event asynchronously to RabbitMQ
         try
@@ -131,6 +163,18 @@ public class StateMachineService
         rider.State = newState;
 
         await _dbContext.SaveChangesAsync();
+
+        // Update rider status cache in Redis
+        try
+        {
+            var db = _redis.GetDatabase();
+            var statusCacheKey = $"riders:status:{rider.Id}";
+            await db.StringSetAsync(statusCacheKey, newState.ToString(), TimeSpan.FromHours(24));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update rider status cache in Redis for Rider {RiderId}", rider.Id);
+        }
 
         _logger.LogInformation(
             "Rider {RiderId} transitioned: {From} → {To}",

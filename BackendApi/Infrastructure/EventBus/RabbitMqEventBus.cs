@@ -172,6 +172,7 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         EnsureConnection();
 
         var channel = _channel!;
+        channel.BasicQos(prefetchSize: 0, prefetchCount: 100, global: false);
 
         var queueName = $"delivery_queue_{eventName}";
         var dlxExchange = $"{ExchangeName}_dlx";

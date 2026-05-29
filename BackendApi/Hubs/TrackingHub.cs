@@ -87,6 +87,7 @@ public partial class TrackingHub : Hub
             var connectResult = await _presenceManager.HandleRiderConnectAsync(userId);
             if (connectResult is not null)
             {
+                Context.Items["RiderId"] = connectResult.RiderId;
                 await Groups.AddToGroupAsync(Context.ConnectionId, RiderGroup(connectResult.RiderId));
 
                 // แจ้ง Admin Dashboard ว่ามีไรเดอร์ออนไลน์ใหม่
@@ -154,12 +155,22 @@ public partial class TrackingHub : Hub
 
     private async Task<string?> GetRiderIdAsync()
     {
+        if (Context.Items.TryGetValue("RiderId", out var cachedRiderId) && cachedRiderId is string rId)
+        {
+            return rId;
+        }
+
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
 
         if (userId is null || role != AuthConstants.RiderRole) return null;
 
-        return await _presenceManager.GetRiderIdByUserIdAsync(userId);
+        var riderId = await _presenceManager.GetRiderIdByUserIdAsync(userId);
+        if (riderId is not null)
+        {
+            Context.Items["RiderId"] = riderId;
+        }
+        return riderId;
     }
 
     private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)

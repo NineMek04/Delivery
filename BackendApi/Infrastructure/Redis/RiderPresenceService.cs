@@ -52,6 +52,7 @@ public class RiderPresenceService
                 new HashEntry("updated_at", DateTime.UtcNow.Ticks),
                 new HashEntry("speed_kmh", speedKmh)
             });
+            _ = batch.KeyExpireAsync(gpsKey, TimeSpan.FromHours(24));
 
             // เพิ่มค่าความเร็วลง Speed Buffer (5-point Moving Average)
             if (speedKmh > 0)
@@ -209,6 +210,8 @@ public class RiderPresenceService
             _ = batch.GeoRemoveAsync(GeoKey, riderId);
             _ = batch.KeyDeleteAsync(GpsPrefix + riderId);
             _ = batch.KeyDeleteAsync(HeartbeatPrefix + riderId);
+            _ = batch.KeyDeleteAsync("riders:status:" + riderId);
+            _ = batch.KeyDeleteAsync("riders:active_order:" + riderId);
 
             batch.Execute();
             await Task.CompletedTask;

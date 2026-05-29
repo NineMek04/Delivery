@@ -165,12 +165,22 @@ namespace BackendApi.Services.Telemetry
 
             if (secondsSinceLast >= throttleSeconds)
             {
-                // ดึงสถานะไรเดอร์ปัจจุบัน (จาก DB หรือ cache)
+                // ดึงสถานะไรเดอร์ปัจจุบัน (จาก Redis Cache ก่อน เลี่ยง DB)
                 var riderState = "IDLE";
-                var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == riderId);
-                if (rider is not null)
+                var statusCacheKey = $"riders:status:{riderId}";
+                var cachedState = await db.StringGetAsync(statusCacheKey);
+                if (cachedState.HasValue)
                 {
-                    riderState = rider.State.ToString();
+                    riderState = cachedState.ToString();
+                }
+                else
+                {
+                    var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == riderId);
+                    if (rider is not null)
+                    {
+                        riderState = rider.State.ToString();
+                        await db.StringSetAsync(statusCacheKey, riderState, TimeSpan.FromMinutes(5));
+                    }
                 }
 
                 // A. ส่งพิกัดเรียลไทม์หา Admin Dashboard
@@ -183,15 +193,37 @@ namespace BackendApi.Services.Telemetry
                     Timestamp = now
                 });
 
-                // B. ค้นหาออเดอร์ที่ค้างอยู่ของไรเดอร์คนนี้เพื่อส่งพิกัดหาแอปลูกค้า
-                var activeOrder = await _dbContext.Orders
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(o => o.AssignedRiderId == riderId && 
-                        (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+                // B. ค้นหาออเดอร์ที่ค้างอยู่ของไรเดอร์คนนี้เพื่อส่งพิกัดหาแอปลูกค้า (ผ่าน Redis Cache เลี่ยง DB)
+                string? customerId = null;
+                var activeOrderKey = $"riders:active_order:{riderId}";
+                var cachedOrder = await db.HashGetAllAsync(activeOrderKey);
 
-                if (activeOrder is not null && !string.IsNullOrEmpty(activeOrder.CustomerId))
+                if (cachedOrder.Length > 0)
                 {
-                    await _hubContext.Clients.Group($"customer:{activeOrder.CustomerId}").SendAsync("RiderLocationUpdated", new
+                    customerId = cachedOrder.FirstOrDefault(e => e.Name == "customer_id").Value;
+                }
+                else
+                {
+                    var activeOrder = await _dbContext.Orders
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(o => o.AssignedRiderId == riderId && 
+                            (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+
+                    if (activeOrder is not null)
+                    {
+                        customerId = activeOrder.CustomerId;
+                        await db.HashSetAsync(activeOrderKey, new[]
+                        {
+                            new HashEntry("order_id", activeOrder.Id),
+                            new HashEntry("customer_id", customerId ?? string.Empty)
+                        });
+                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(customerId))
+                {
+                    await _hubContext.Clients.Group($"customer:{customerId}").SendAsync("RiderLocationUpdated", new
                     {
                         RiderId = riderId,
                         Lat = snappedLat,

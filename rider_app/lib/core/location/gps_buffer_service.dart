@@ -117,7 +117,6 @@ class GpsBufferService {
       // Query up to 100 points ordered by chronological ID ascending (FIFO)
       final points = await isar.gpsPoints
           .where()
-          .sortById()
           .limit(100)
           .findAll();
       

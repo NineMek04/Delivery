@@ -1,105 +1,90 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../core/location/location_service.dart';
-import '../../../core/session/rider_session_service.dart';
+import '../../../core/api/services/order_api_service.dart';
 import '../../../core/signalr/signalr_service.dart';
-import '../../../models/route_result.dart';
+import '../../../models/order.dart';
 
-final trackingNotifierProvider =
-    NotifierProvider<TrackingNotifier, TrackingState>(
-  TrackingNotifier.new,
+final activeOrderProvider = NotifierProvider<ActiveOrderNotifier, ActiveOrderState>(
+  ActiveOrderNotifier.new,
 );
 
-/// Tracking state — GPS position + route overlay + session connectivity.
-class TrackingNotifier extends Notifier<TrackingState> {
-  RouteResult? _currentRoute;
+class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
+  StreamSubscription? _statusSubscription;
+  StreamSubscription? _locationSubscription;
 
   @override
-  TrackingState build() {
-    final location = ref.watch(locationServiceProvider);
-    final session = ref.watch(riderSessionServiceProvider);
-    final signalRState = ref.watch(signalRServiceProvider);
-
-    return TrackingState(
-      isTracking: location.isTracking,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      accuracy: location.accuracy,
-      heading: location.heading,
-      lastUpdated: location.lastUpdated,
-      locationError: location.error,
-      isOnline: session.isOnline,
-      signalRConnected: signalRState == SignalRConnectionState.connected,
-      currentRoute: _currentRoute,
-    );
+  ActiveOrderState build() {
+    ref.onDispose(() {
+      _statusSubscription?.cancel();
+      _locationSubscription?.cancel();
+    });
+    return const ActiveOrderState();
   }
 
-  Future<void> startTracking() async {
-    await ref.read(riderSessionServiceProvider.notifier).goOnline();
+  Future<void> watchOrder(String orderId) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final order = await ref.read(orderApiServiceProvider).getById(orderId);
+      state = state.copyWith(isLoading: false, order: order);
+
+      // Listen for SignalR updates
+      _statusSubscription?.cancel();
+      _statusSubscription = ref.read(signalRServiceProvider.notifier).onOrderStatusChanged.listen((event) {
+        if (event.orderId == orderId) {
+          _refreshOrder();
+        }
+      });
+
+      _locationSubscription?.cancel();
+      _locationSubscription = ref.read(signalRServiceProvider.notifier).onRiderLocationUpdated.listen((event) {
+        if (state.order?.assignedRiderId == event.riderId) {
+          state = state.copyWith(riderLat: event.latitude, riderLng: event.longitude);
+        }
+      });
+      
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
   }
 
-  Future<void> stopTracking() async {
-    await ref.read(riderSessionServiceProvider.notifier).goOffline();
-  }
-
-  void updateRoute(RouteResult route) {
-    _currentRoute = route;
-    ref.invalidateSelf();
+  Future<void> _refreshOrder() async {
+    if (state.order == null) return;
+    try {
+      final order = await ref.read(orderApiServiceProvider).getById(state.order!.id);
+      state = state.copyWith(order: order);
+    } catch (_) {}
   }
 }
 
-class TrackingState {
-  final bool isTracking;
-  final double? latitude;
-  final double? longitude;
-  final double? accuracy;
-  final double? heading;
-  final DateTime? lastUpdated;
-  final String? locationError;
-  final bool isOnline;
-  final bool signalRConnected;
-  final RouteResult? currentRoute;
+class ActiveOrderState {
+  final bool isLoading;
   final String? error;
+  final OrderDto? order;
+  final double? riderLat;
+  final double? riderLng;
 
-  const TrackingState({
-    this.isTracking = false,
-    this.latitude,
-    this.longitude,
-    this.accuracy,
-    this.heading,
-    this.lastUpdated,
-    this.locationError,
-    this.isOnline = false,
-    this.signalRConnected = false,
-    this.currentRoute,
+  const ActiveOrderState({
+    this.isLoading = false,
     this.error,
+    this.order,
+    this.riderLat,
+    this.riderLng,
   });
 
-  TrackingState copyWith({
-    bool? isTracking,
-    double? latitude,
-    double? longitude,
-    double? accuracy,
-    double? heading,
-    DateTime? lastUpdated,
-    String? locationError,
-    bool? isOnline,
-    bool? signalRConnected,
-    RouteResult? currentRoute,
+  ActiveOrderState copyWith({
+    bool? isLoading,
     String? error,
+    OrderDto? order,
+    double? riderLat,
+    double? riderLng,
   }) {
-    return TrackingState(
-      isTracking: isTracking ?? this.isTracking,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      accuracy: accuracy ?? this.accuracy,
-      heading: heading ?? this.heading,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-      locationError: locationError,
-      isOnline: isOnline ?? this.isOnline,
-      signalRConnected: signalRConnected ?? this.signalRConnected,
-      currentRoute: currentRoute ?? this.currentRoute,
+    return ActiveOrderState(
+      isLoading: isLoading ?? this.isLoading,
       error: error,
+      order: order ?? this.order,
+      riderLat: riderLat ?? this.riderLat,
+      riderLng: riderLng ?? this.riderLng,
     );
   }
 }

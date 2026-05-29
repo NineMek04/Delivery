@@ -51,10 +51,21 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
+    /// ดูรายการออเดอร์ของลูกค้าที่ล็อกอินอยู่
+    /// </summary>
+    [HttpGet("customer")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetCustomerOrders(CancellationToken cancellationToken)
+    {
+        var (statusCode, response) = await _orderService.GetCustomerOrdersAsync(CurrentUserId, cancellationToken);
+        return StatusCode(statusCode, response);
+    }
+
+    /// <summary>
     /// ดูออเดอร์เดียวตาม ID หรือ Tracking Code
     /// </summary>
     [HttpGet("{id}")]
-    [Authorize(Policy = AuthConstants.OperationsPolicy)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<OrderDto>>> GetOrderById(
         string id,
         CancellationToken cancellationToken)

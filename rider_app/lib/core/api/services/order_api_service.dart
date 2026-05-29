@@ -27,6 +27,17 @@ class OrderApiService {
     }
   }
 
+  Future<List<OrderDto>> getCustomerOrders() async {
+    try {
+      final response = await _dio.get('${AppConstants.ordersEndpoint}/customer');
+      final parsed = parseApiListResponse(response.data, OrderDto.fromJson);
+      ensureSuccess(parsed);
+      return parsed.value ?? [];
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
+
   Future<OrderDto> getById(String id) async {
     try {
       final response = await _dio.get('${AppConstants.ordersEndpoint}/$id');
@@ -46,6 +57,20 @@ class OrderApiService {
       final response = await _dio.patch(
         '${AppConstants.ordersEndpoint}/$orderId/status',
         data: {'Status': status},
+      );
+      final parsed = parseApiResponse(response.data, OrderDto.fromJson);
+      ensureSuccess(parsed);
+      return parsed.value!;
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
+
+  Future<OrderDto> createOrder(CreateOrderDto dto) async {
+    try {
+      final response = await _dio.post(
+        AppConstants.ordersEndpoint,
+        data: dto.toJson(),
       );
       final parsed = parseApiResponse(response.data, OrderDto.fromJson);
       ensureSuccess(parsed);

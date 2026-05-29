@@ -16,6 +16,13 @@ import '../features/store/screens/store_home_screen.dart';
 import '../features/store/screens/store_summary_screen.dart';
 import '../features/store/screens/store_profile_screen.dart';
 
+// Customer imports
+import '../features/stores/store_list_screen.dart';
+import '../features/stores/shop_details_screen.dart';
+import '../features/orders/customer_orders_screen.dart';
+import '../features/profile/screens/customer_profile_screen.dart';
+import '../features/tracking/customer_tracking_screen.dart';
+
 /// Re-run GoRouter redirect when [authServiceProvider] changes.
 final _routerRefreshProvider = Provider<Listenable>((ref) {
   final notifier = ValueNotifier<int>(0);
@@ -39,8 +46,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoginRoute = state.matchedLocation == '/login';
       final isRegisterRoute = state.matchedLocation == '/register';
       final isGuestRoute = isLoginRoute || isRegisterRoute;
+      
       final isStoreRoute = state.matchedLocation.startsWith('/store');
-      final isRiderRoute = !isGuestRoute && !isStoreRoute;
+      final isCustomerRoute = state.matchedLocation.startsWith('/customer');
+      final isRiderRoute = !isGuestRoute && !isStoreRoute && !isCustomerRoute;
 
       if (authState == AuthStatus.loading) {
         return isGuestRoute ? null : '/login';
@@ -54,20 +63,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (role == AuthConstants.roleStorePartner) {
           return '/store';
         }
+        if (role == AuthConstants.roleCustomer) {
+          return '/customer';
+        }
         return '/';
       }
-      // Prevent StorePartner from accessing rider routes
-      if (authState == AuthStatus.authenticated && isRiderRoute) {
+
+      // ── Role-based Access Control (Enforce strict separation) ──
+      if (authState == AuthStatus.authenticated) {
         final role = authNotifier.userRole;
-        if (role == AuthConstants.roleStorePartner) {
-          return '/store';
+
+        // 1. Customer Enforcement
+        if (role == AuthConstants.roleCustomer) {
+          if (!isCustomerRoute) return '/customer';
         }
-      }
-      // Prevent non-StorePartner from accessing store routes
-      if (authState == AuthStatus.authenticated && isStoreRoute) {
-        final role = authNotifier.userRole;
-        if (role != AuthConstants.roleStorePartner) {
-          return '/';
+        // 2. StorePartner Enforcement
+        else if (role == AuthConstants.roleStorePartner) {
+          if (!isStoreRoute) return '/store';
+        }
+        // 3. Rider Enforcement (Default)
+        else {
+          if (!isRiderRoute) return '/';
         }
       }
       return null;
@@ -137,6 +153,45 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+
+      // ── Customer Routes ──────────────────────────────────────────
+      ShellRoute(
+        builder: (context, state, child) => CustomerShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/customer',
+            name: 'customerHome',
+            builder: (context, state) => const StoreListScreen(),
+          ),
+          GoRoute(
+            path: '/customer/shop/:shopId',
+            name: 'customerShopDetails',
+            builder: (context, state) {
+              final shopId = state.pathParameters['shopId']!;
+              return ShopDetailsScreen(shopId: shopId);
+            },
+          ),
+          GoRoute(
+            path: '/customer/orders',
+            name: 'customerOrders',
+            builder: (context, state) => const CustomerOrdersScreen(),
+          ),
+          GoRoute(
+            path: '/customer/profile',
+            name: 'customerProfile',
+            builder: (context, state) => const CustomerProfileScreen(),
+          ),
+        ],
+      ),
+      // Tracking order for customer (Standalone)
+      GoRoute(
+        path: '/customer/tracking/:orderId',
+        name: 'customerTracking',
+        builder: (context, state) {
+          final orderId = state.pathParameters['orderId']!;
+          return CustomerTrackingScreen(orderId: orderId);
+        },
+      ),
     ],
   );
 });
@@ -151,38 +206,41 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _calculateSelectedIndex(context),
-        onDestinationSelected: (index) => _onItemTapped(index, context),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'หน้าหลัก',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.delivery_dining_outlined),
-            selectedIcon: Icon(Icons.delivery_dining),
-            label: 'งานส่ง',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'แผนที่',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: 'ประวัติ',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'โปรไฟล์',
-          ),
-        ],
+    return Theme(
+      data: ThemeData.dark(), // Riders prefer Dark Mode
+      child: Scaffold(
+        body: child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _calculateSelectedIndex(context),
+          onDestinationSelected: (index) => _onItemTapped(index, context),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'หน้าหลัก',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.delivery_dining_outlined),
+              selectedIcon: Icon(Icons.delivery_dining),
+              label: 'งานส่ง',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map),
+              label: 'แผนที่',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.history_outlined),
+              selectedIcon: Icon(Icons.history),
+              label: 'ประวัติ',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'โปรไฟล์',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -214,7 +272,7 @@ class MainShell extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Store Shell — StorePartner Bottom Navigation (3 tabs)
+// Store Shell — StorePartner Bottom Navigation
 // ═══════════════════════════════════════════════════════════════════
 class StoreShell extends StatelessWidget {
   final Widget child;
@@ -265,6 +323,65 @@ class StoreShell extends StatelessWidget {
         context.goNamed('storeSummary');
       case 2:
         context.goNamed('storeProfile');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Customer Shell — Customer Bottom Navigation
+// ═══════════════════════════════════════════════════════════════════
+class CustomerShell extends StatelessWidget {
+  final Widget child;
+
+  const CustomerShell({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.light(), // Customers prefer Light Mode
+      child: Scaffold(
+        body: child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _calculateSelectedIndex(context),
+          onDestinationSelected: (index) => _onItemTapped(index, context),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.restaurant_outlined),
+              selectedIcon: Icon(Icons.restaurant),
+              label: 'ร้านอาหาร',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'ออเดอร์',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'โปรไฟล์',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _calculateSelectedIndex(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    if (location == '/customer') return 0;
+    if (location == '/customer/orders') return 1;
+    if (location == '/customer/profile') return 2;
+    return 0;
+  }
+
+  void _onItemTapped(int index, BuildContext context) {
+    switch (index) {
+      case 0:
+        context.goNamed('customerHome');
+      case 1:
+        context.goNamed('customerOrders');
+      case 2:
+        context.goNamed('customerProfile');
     }
   }
 }

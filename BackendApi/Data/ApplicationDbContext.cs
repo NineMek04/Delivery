@@ -213,6 +213,14 @@ namespace BackendApi.Data
             modelBuilder.Entity<MenuCategory>().Property(mc => mc.RefNumber).UseIdentityByDefaultColumn();
             modelBuilder.Entity<MenuCategory>().HasIndex(mc => mc.RefNumber).IsUnique().HasDatabaseName("IX_MenuCategories_RefNumber");
 
+            var dateTimeConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+                v => v.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : v.ToUniversalTime(),
+                v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+            var nullableDateTimeConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime?, DateTime?>(
+                v => v.HasValue ? (v.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v.Value.ToUniversalTime()) : null,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 if (InheritsFromGenericBase(entityType.ClrType, typeof(BaseEntity<>)) &&
@@ -227,6 +235,18 @@ namespace BackendApi.Data
                 if (typeof(ISoftDeletableEntity).IsAssignableFrom(entityType.ClrType))
                 {
                     modelBuilder.Entity(entityType.ClrType).HasQueryFilter(CreateSoftDeleteFilter(entityType.ClrType));
+                }
+
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime))
+                    {
+                        property.SetValueConverter(dateTimeConverter);
+                    }
+                    else if (property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetValueConverter(nullableDateTimeConverter);
+                    }
                 }
             }
 

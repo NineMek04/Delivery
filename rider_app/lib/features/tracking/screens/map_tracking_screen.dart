@@ -9,6 +9,8 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../core/signalr/signalr_service.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/location/location_service.dart';
+import '../../../core/session/rider_session_service.dart';
 import '../../../models/dispatch_offer.dart';
 import '../../../shared/utils/polyline_util.dart';
 import '../../../shared/widgets/connection_status_bar.dart';
@@ -352,9 +354,10 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tracking = ref.watch(trackingNotifierProvider);
+    final tracking = ref.watch(locationServiceProvider);
     final signalR = ref.watch(signalRServiceProvider);
     final delivery = ref.watch(deliveryNotifierProvider);
+    final session = ref.watch(riderSessionServiceProvider);
 
     final riderPoint = tracking.latitude != null && tracking.longitude != null
         ? LatLng(tracking.latitude!, tracking.longitude!)
@@ -399,7 +402,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
           ConnectionStatusBar(
             signalRState: signalR,
             isGpsTracking: tracking.isTracking,
-            isOnline: tracking.isOnline,
+            isOnline: session.isOnline,
           ),
           Expanded(
             child: Stack(
@@ -559,13 +562,13 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                     const Divider(height: 20),
                   ],
                   Text(
-                    tracking.isOnline ? 'GPS Tracking Active' : 'Offline',
+                    tracking.isTracking ? 'GPS Tracking Active' : 'Offline',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  if (tracking.locationError != null) ...[
+                  if (tracking.error != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      tracking.locationError!,
+                      tracking.error!,
                       style: TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ],
@@ -580,13 +583,13 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                   ElevatedButton.icon(
                     onPressed: () async {
                       try {
-                        if (tracking.isOnline) {
+                        if (tracking.isTracking) {
                           await ref
-                              .read(trackingNotifierProvider.notifier)
+                              .read(locationServiceProvider.notifier)
                               .stopTracking();
                         } else {
                           await ref
-                              .read(trackingNotifierProvider.notifier)
+                              .read(locationServiceProvider.notifier)
                               .startTracking();
                         }
                       } catch (e) {
@@ -599,10 +602,10 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                       }
                     },
                     icon: Icon(
-                      tracking.isOnline ? Icons.gps_off : Icons.gps_fixed,
+                      tracking.isTracking ? Icons.gps_off : Icons.gps_fixed,
                     ),
                     label: Text(
-                      tracking.isOnline ? 'Stop GPS Tracking' : 'Start GPS Tracking',
+                      tracking.isTracking ? 'Stop GPS Tracking' : 'Start GPS Tracking',
                     ),
                   ),
                 ],

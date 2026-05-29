@@ -205,7 +205,13 @@
         เมนูอร่อยแนะนำระดับพรีเมียม
       </h4>
 
-      <div class="cp-menu-grid">
+      <div *ngIf="!loading && shopMenus.length === 0" class="cp-empty" style="margin-top: 24px; padding: 40px; text-align: center; background: rgba(0,0,0,0.02); border-radius: 16px;">
+        <lucide-angular [img]="icons.Utensils" class="cp-empty__icon" style="font-size: 48px; color: #cbd5e1; margin-bottom: 12px;"></lucide-angular>
+        <h4 style="font-size: 18px; font-weight: 600; color: #64748b; margin-bottom: 6px;">ยังไม่มีรายการเมนูอาหารในขณะนี้</h4>
+        <p style="font-size: 14px; color: #94a3b8;">กรุณากลับมาลองตรวจสอบใหม่อีกครั้งภายหลัง</p>
+      </div>
+
+      <div *ngIf="shopMenus.length > 0" class="cp-menu-grid">
         <div *ngFor="let menu of shopMenus" (click)="openProductDetail(menu)" class="cp-menu-card">
           <div class="cp-menu-card__image">
             <img [src]="menu.imageUrl" alt="Dish photo" />

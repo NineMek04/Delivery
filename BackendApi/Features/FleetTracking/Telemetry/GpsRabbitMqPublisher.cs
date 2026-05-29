@@ -27,6 +27,14 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         {
             _configuration = configuration;
             _logger = logger;
+            _channelQueue = System.Threading.Channels.Channel.CreateBounded<TrackPoint>(
+                new System.Threading.Channels.BoundedChannelOptions(10000)
+                {
+                    FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest
+                });
+
+            // Start the background publisher worker
+            _ = System.Threading.Tasks.Task.Run(ProcessQueueAsync);
         }
 
         private void EnsureConnection()
@@ -109,68 +117,104 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             return factory.CreateConnection();
         }
 
+        private int _cachedQueueCount = 0;
+        private DateTime _lastQueueCountTime = DateTime.MinValue;
+
         /// <summary>
         /// Gets the current number of pending messages in the GPS RabbitMQ queue.
-        /// Useful for calculating backpressure and dynamic rate limits.
+        /// Cached for 1 second to prevent blocking the SignalR thread with synchronous TCP calls.
         /// </summary>
         public int PendingQueueCount
         {
             get
             {
-                try
+                var now = DateTime.UtcNow;
+                if ((now - _lastQueueCountTime).TotalSeconds > 1)
                 {
-                    EnsureConnection();
-                    lock (_connectionLock)
+                    _lastQueueCountTime = now;
+                    _ = System.Threading.Tasks.Task.Run(() =>
                     {
-                        if (_channel != null)
+                        try
                         {
-                            return (int)_channel.MessageCount(QueueName);
+                            EnsureConnection();
+                            lock (_connectionLock)
+                            {
+                                if (_channel != null)
+                                {
+                                    _cachedQueueCount = (int)_channel.MessageCount(QueueName);
+                                }
+                            }
                         }
-                    }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to retrieve message count for RabbitMQ queue '{QueueName}'.", QueueName);
+                        }
+                    });
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to retrieve message count for RabbitMQ queue '{QueueName}'.", QueueName);
-                }
-                return 0;
+                return _cachedQueueCount;
             }
         }
 
         /// <summary>
         /// Publishes a GPS TrackPoint to RabbitMQ as a persistent message.
         /// </summary>
+        private readonly System.Threading.Channels.Channel<TrackPoint> _channelQueue;
+        private readonly System.Threading.CancellationTokenSource _cts = new();
+
+        private async System.Threading.Tasks.Task ProcessQueueAsync()
+        {
+            while (!_cts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    EnsureConnection();
+                    
+                    await foreach (var point in _channelQueue.Reader.ReadAllAsync(_cts.Token))
+                    {
+                        var message = JsonSerializer.Serialize(point);
+                        var body = Encoding.UTF8.GetBytes(message);
+
+                        lock (_connectionLock)
+                        {
+                            if (_channel == null) break; // Re-ensure connection on next loop
+
+                            var properties = _channel.CreateBasicProperties();
+                            properties.Persistent = true;
+                            properties.Type = nameof(TrackPoint);
+
+                            _channel.BasicPublish(
+                                exchange: "",
+                                routingKey: QueueName,
+                                mandatory: true,
+                                basicProperties: properties,
+                                body: body
+                            );
+                        }
+                    }
+                }
+                catch (System.OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in GpsRabbitMqPublisher background worker.");
+                    await System.Threading.Tasks.Task.Delay(1000, _cts.Token);
+                }
+            }
+        }
+
         public void Publish(TrackPoint point)
         {
-            EnsureConnection();
-
-            var message = JsonSerializer.Serialize(point);
-            var body = Encoding.UTF8.GetBytes(message);
-
-            lock (_connectionLock)
-            {
-                if (_channel == null)
-                {
-                    throw new InvalidOperationException("RabbitMQ channel is not initialized.");
-                }
-
-                var properties = _channel.CreateBasicProperties();
-                properties.Persistent = true; // Durable (persist to disk)
-                properties.Type = nameof(TrackPoint);
-
-                _channel.BasicPublish(
-                    exchange: "",
-                    routingKey: QueueName,
-                    mandatory: true,
-                    basicProperties: properties,
-                    body: body
-                );
-            }
+            // Non-blocking fire-and-forget publish to memory channel
+            _channelQueue.Writer.TryWrite(point);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
 
+            _cts.Cancel();
             lock (_connectionLock)
             {
                 _channel?.Dispose();

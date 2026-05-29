@@ -97,6 +97,9 @@ async function simulateRider(index, token) {
       await connection.invoke("UpdateLocation", lat, lng, accuracy);
       stats.gpsSent++;
     } catch (err) {
+      if (stats.gpsErrors === 0) {
+        console.error(`[FIRST GPS ERROR]: ${err.message}`);
+      }
       stats.gpsErrors++;
     }
   }, INTERVAL_MS);

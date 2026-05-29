@@ -90,9 +90,11 @@ namespace BackendApi.Services.Telemetry
 
             var now = timestamp ?? DateTime.UtcNow;
 
-            // 2. ทำ Snap-to-Road พิกัดให้ยึดติดกับโครงข่ายถนนผ่าน OSRM
-            var (snappedLat, snappedLng) = await _routingService.SnapToRoadAsync(lat, lng);
-
+            // 2. ข้ามการทำ Snap-to-Road ใน Hot Path ไปก่อนเพื่อป้องกัน Thread Pool Exhaustion
+            // OSRM HTTP Request จะบล็อก Thread และเกิด Timeout (1.5s) หากมีโหลด 500 req/sec
+            // ในสถาปัตยกรรม V4, แอป Rider จะแสดงผล Snap เองที่ฝั่ง Client แล้ว ส่ง raw พิกัดมาได้เลย
+            double snappedLat = lat;
+            double snappedLng = lng;
             // 3. ป้องกันการวาร์ปกระโดดข้ามพิกัดระยะไกล (Teleport Protection)
             var lastGps = await _presenceService.GetLastKnownLocationAsync(riderId);
             if (lastGps is not null)
@@ -200,7 +202,11 @@ namespace BackendApi.Services.Telemetry
 
                 if (cachedOrder.Length > 0)
                 {
-                    customerId = cachedOrder.FirstOrDefault(e => e.Name == "customer_id").Value;
+                    var cachedVal = cachedOrder.FirstOrDefault(e => e.Name == "customer_id").Value;
+                    if (cachedVal != "NONE")
+                    {
+                        customerId = cachedVal;
+                    }
                 }
                 else
                 {
@@ -218,6 +224,16 @@ namespace BackendApi.Services.Telemetry
                             new HashEntry("customer_id", customerId ?? string.Empty)
                         });
                         await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
+                    }
+                    else
+                    {
+                        // Cache the 'No Order' state to prevent DB query spam!
+                        await db.HashSetAsync(activeOrderKey, new[]
+                        {
+                            new HashEntry("order_id", "NONE"),
+                            new HashEntry("customer_id", "NONE")
+                        });
+                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromMinutes(5));
                     }
                 }
 
@@ -252,20 +268,10 @@ namespace BackendApi.Services.Telemetry
             }
 
             // 9. ปรับปรุงฐานข้อมูลหลัก (PostgreSQL) แบบ Throttled (ทุก 10 วินาที)
-            // เพื่อคงความพร้อมทำงานกับระบบอื่น แต่ลด I/O ของ Database ลงมากกว่า 90%
-            var dbThrottleKey = $"telemetry:db_write_throttle:{riderId}";
-            var shouldWriteToDb = await db.StringSetAsync(dbThrottleKey, "locked", TimeSpan.FromSeconds(10), When.NotExists);
-
-            if (shouldWriteToDb)
-            {
-                var riderEntity = await _dbContext.Riders.FindAsync(riderId);
-                if (riderEntity is not null)
-                {
-                    riderEntity.CurrentLocation = new NetTopologySuite.Geometries.Point(snappedLng, snappedLat) { SRID = 4326 };
-                    riderEntity.LastGpsUpdate = now;
-                    await _dbContext.SaveChangesAsync();
-                }
-            }
+            // Legacy DB write has been completely removed from the Hot Path.
+            // The real-time location is now exclusively stored in Redis Presence Cache (Step 5).
+            // Historical tracking data is batch-inserted via RabbitMQ GpsRabbitMqConsumerWorker.
+            // We no longer lock DB threads here to prevent starvation during massive concurrency.
         }
 
         /// <summary>

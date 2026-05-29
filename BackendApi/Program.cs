@@ -16,6 +16,9 @@ try
     Log.Information("Starting Delivery Backend API...");
 
     var builder = WebApplication.CreateBuilder(args);
+    
+    // Prevent ThreadPool Starvation on Thundering Herd (500 riders concurrent Redis awaits)
+    System.Threading.ThreadPool.SetMinThreads(1000, 1000);
 
     // --- 2. Configuration & Environment (.env support) ---
     var dotEnvValues = DotEnvLoader.Load(builder.Environment.ContentRootPath)

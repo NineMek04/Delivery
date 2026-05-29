@@ -16,17 +16,20 @@ namespace BackendApi.Services.Tracking
         private readonly RiderPresenceService _presenceService;
         private readonly StateMachineService _stateMachine;
         private readonly ILogger<RiderPresenceManager> _logger;
+        private readonly IServiceProvider _serviceProvider;
 
         public RiderPresenceManager(
             ApplicationDbContext dbContext,
             RiderPresenceService presenceService,
             StateMachineService stateMachine,
-            ILogger<RiderPresenceManager> _logger2)
+            ILogger<RiderPresenceManager> logger,
+            IServiceProvider serviceProvider)
         {
             _dbContext = dbContext;
             _presenceService = presenceService;
             _stateMachine = stateMachine;
-            _logger = _logger2;
+            _logger = logger;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<RiderConnectionResult?> HandleRiderConnectAsync(string userId)
@@ -36,19 +39,46 @@ namespace BackendApi.Services.Tracking
 
             await _presenceService.UpdateHeartbeatAsync(user.RiderId);
 
-            var rider = await _dbContext.Riders.FindAsync(user.RiderId);
+            var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == user.RiderId);
             if (rider == null) return null;
 
             var oldState = rider.State;
-            if (rider.State == RiderState.OFFLINE)
+            
+            // Fire and forget the state transition to prevent blocking the SignalR Handshake
+            // during massive thundering herds (e.g. 500 connections at once).
+            var riderId = rider.Id;
+            _ = Task.Run(async () =>
             {
-                await _stateMachine.TransitionRiderAsync(rider, RiderState.IDLE);
-            }
-            else if (rider.State == RiderState.STALE)
-            {
-                var newState = await HasActiveJobAsync(rider.Id) ? RiderState.BUSY : RiderState.IDLE;
-                await _stateMachine.TransitionRiderAsync(rider, newState);
-            }
+                try
+                {
+                    // Create a new scope since the Hub's scope will be disposed immediately
+                    using var scope = _serviceProvider.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var sm = scope.ServiceProvider.GetRequiredService<StateMachineService>();
+                    
+                    var r = await db.Riders.FindAsync(riderId);
+                    if (r != null)
+                    {
+                        if (r.State == RiderState.OFFLINE)
+                        {
+                            await sm.TransitionRiderAsync(r, RiderState.IDLE);
+                        }
+                        else if (r.State == RiderState.STALE)
+                        {
+                            var hasActiveJob = await db.Orders.AnyAsync(o => 
+                                o.AssignedRiderId == riderId && 
+                                (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+                                
+                            var newState = hasActiveJob ? RiderState.BUSY : RiderState.IDLE;
+                            await sm.TransitionRiderAsync(r, newState);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background state transition failed for rider {RiderId}", riderId);
+                }
+            });
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
         }
@@ -58,11 +88,31 @@ namespace BackendApi.Services.Tracking
             var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
             if (user?.RiderId == null) return null;
 
-            var rider = await _dbContext.Riders.FindAsync(user.RiderId);
+            var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == user.RiderId);
             if (rider == null || rider.State == RiderState.OFFLINE) return null;
 
             var oldState = rider.State;
-            await _stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
+            var riderId = rider.Id;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var sm = scope.ServiceProvider.GetRequiredService<StateMachineService>();
+                    
+                    var r = await db.Riders.FindAsync(riderId);
+                    if (r != null && r.State != RiderState.OFFLINE)
+                    {
+                        await sm.TransitionRiderAsync(r, RiderState.STALE);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background state transition failed for disconnecting rider {RiderId}", riderId);
+                }
+            });
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
         }

@@ -71,4 +71,30 @@ class MenuItemApiService {
       throw wrapDioError(e).error ?? e;
     }
   }
+
+  /// Get all menu items across all shops (paginated).
+  Future<PaginatedResult<MenuItemDto>> getAll({
+    String? search,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _dio.get(
+        'menuitems',
+        queryParameters: {
+          if (search != null && search.isNotEmpty) 'search': search,
+          'page': page,
+          'pageSize': pageSize,
+        },
+      );
+      final parsed = parseApiResponse(
+        response.data,
+        (json) => PaginatedResult.fromJson(asMap(json), MenuItemDto.fromJson),
+      );
+      ensureSuccess(parsed);
+      return parsed.value!;
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
 }

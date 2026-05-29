@@ -167,8 +167,20 @@ export class CustomerComponent implements OnInit, OnDestroy {
 
   selectShop(shop: ShopDto) {
     this.selectedShop = shop;
-    if (shop.id) {
-      this.shopMenus = this.storeService.getShopMenus(shop.id);
+    const shopId = shop.id;
+    if (shopId) {
+      this.loading = true;
+      this.storeService.loadMenusFromApi(shopId).subscribe({
+        next: (menus) => {
+          this.shopMenus = menus.length > 0 ? menus : this.storeService.getShopMenus(shopId);
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('Failed to load menus from API, falling back to local seeded menus', err);
+          this.shopMenus = this.storeService.getShopMenus(shopId);
+          this.loading = false;
+        }
+      });
     }
   }
 

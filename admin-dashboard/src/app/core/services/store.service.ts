@@ -195,19 +195,19 @@ export class StoreService {
   private mapApiMenuItemToStoreMenuItem(apiItem: any): MenuItem {
     const unwrapped = unwrapValue<any>(apiItem);
     return {
-      id: unwrapped.id || '',
-      name: unwrapped.name || '',
-      description: unwrapped.description || '',
-      price: unwrapped.price || 0,
-      imageUrl: unwrapped.imageUrl || '',
-      options: (unwrapped.options || []).map((opt: any) => ({
-        id: opt.id || '',
-        name: opt.name || '',
-        required: opt.required || false,
-        maxSelections: opt.maxSelections || 0,
-        items: (opt.items || []).map((item: any) => ({
-          name: item.name || '',
-          price: item.price || 0
+      id: unwrapped.id || unwrapped.Id || '',
+      name: unwrapped.name || unwrapped.Name || '',
+      description: unwrapped.description || unwrapped.Description || '',
+      price: unwrapped.price || unwrapped.Price || 0,
+      imageUrl: unwrapped.imageUrl || unwrapped.ImageUrl || '',
+      options: (unwrapped.options || unwrapped.Options || []).map((opt: any) => ({
+        id: opt.id || opt.Id || '',
+        name: opt.name || opt.Name || '',
+        required: opt.required || opt.Required || false,
+        maxSelections: opt.maxSelections || opt.MaxSelections || 0,
+        items: (opt.items || opt.Items || []).map((item: any) => ({
+          name: item.name || item.Name || '',
+          price: item.price || item.Price || 0
         }))
       }))
     };

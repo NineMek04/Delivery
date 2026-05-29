@@ -88,7 +88,9 @@ public class OrderService : IOrderService
         }
 
         // ขอ ETA Prediction จาก AI Engine
-        var expectedDeliveryTime = dto.ExpectedDeliveryTime;
+        var expectedDeliveryTime = dto.ExpectedDeliveryTime.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(dto.ExpectedDeliveryTime, DateTimeKind.Utc)
+            : dto.ExpectedDeliveryTime.ToUniversalTime();
         try
         {
             var etaRequest = new PredictEtaRequestDto
@@ -108,7 +110,9 @@ public class OrderService : IOrderService
             {
                 if (DateTime.TryParse(etaPrediction.EtaDatetime, out var aiExpectedTime))
                 {
-                    expectedDeliveryTime = aiExpectedTime;
+                    expectedDeliveryTime = aiExpectedTime.Kind == DateTimeKind.Unspecified
+                        ? DateTime.SpecifyKind(aiExpectedTime, DateTimeKind.Utc)
+                        : aiExpectedTime.ToUniversalTime();
                 }
             }
         }
@@ -328,6 +332,23 @@ public class OrderService : IOrderService
         var orders = await _db.GetQuery<Order>(asNoTracking: true)
             .Include(o => o.Items)
             .Where(o => o.AssignedRiderId == user.RiderId)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var dtos = _mapper.Map<List<OrderDto>>(orders);
+        return (StatusCodes.Status200OK, ApiResponse<List<OrderDto>>.Ok(dtos));
+    }
+
+    public async Task<(int StatusCode, ApiResponse<List<OrderDto>> Response)> GetCustomerOrdersAsync(
+        string? customerId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(customerId))
+            return (StatusCodes.Status401Unauthorized, ApiResponse<List<OrderDto>>.Fail("User ID not found in token."));
+
+        var orders = await _db.GetQuery<Order>(asNoTracking: true)
+            .Include(o => o.Items)
+            .Where(o => o.CustomerId == customerId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(cancellationToken);
 

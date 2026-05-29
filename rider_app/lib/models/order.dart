@@ -155,6 +155,9 @@ class CreateOrderDto {
   final double dropoffLat;
   final double dropoffLng;
   final DateTime expectedDeliveryTime;
+  final String customerId;
+  final String shopId;
+  final List<CreateOrderItemDto> items;
 
   const CreateOrderDto({
     required this.pickupLat,
@@ -162,6 +165,9 @@ class CreateOrderDto {
     required this.dropoffLat,
     required this.dropoffLng,
     required this.expectedDeliveryTime,
+    required this.customerId,
+    required this.shopId,
+    required this.items,
   });
 
   Map<String, dynamic> toJson() => {
@@ -169,6 +175,30 @@ class CreateOrderDto {
     'PickupLng': pickupLng,
     'DropoffLat': dropoffLat,
     'DropoffLng': dropoffLng,
-    'ExpectedDeliveryTime': expectedDeliveryTime.toIso8601String(),
+    'ExpectedDeliveryTime': expectedDeliveryTime.toUtc().toIso8601String(),
+    'CustomerId': customerId,
+    'ShopId': shopId,
+    'Items': items.map((i) => i.toJson()).toList(),
+  };
+}
+
+class CreateOrderItemDto {
+  final String menuItemId;
+  final int quantity;
+  final String? notes;
+  final String? optionsDescription;
+
+  const CreateOrderItemDto({
+    required this.menuItemId,
+    required this.quantity,
+    this.notes,
+    this.optionsDescription,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'MenuItemId': menuItemId,
+    'Quantity': quantity,
+    if (notes != null) 'Notes': notes,
+    if (optionsDescription != null) 'OptionsDescription': optionsDescription,
   };
 }

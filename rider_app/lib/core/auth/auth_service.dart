@@ -113,10 +113,14 @@ class AuthService extends Notifier<AuthStatus> {
   }
 
   /// ดึง User ID จาก token claims.
-  String? get userId => decodedToken?[AuthConstants.claimUserId];
+  String? get userId => 
+      decodedToken?[AuthConstants.claimUserId] ?? 
+      decodedToken?['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
 
   /// ดึง User Name จาก token claims.
-  String? get userName => decodedToken?[AuthConstants.claimName];
+  String? get userName => 
+      decodedToken?[AuthConstants.claimName] ?? 
+      decodedToken?['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
 
   /// ดึง User Role จาก token claims.
   String? get userRole => 
@@ -124,7 +128,21 @@ class AuthService extends Notifier<AuthStatus> {
       decodedToken?['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
 
   /// ดึง Email จาก token claims.
-  String? get userEmail => decodedToken?[AuthConstants.claimEmail];
+  String? get userEmail => 
+      decodedToken?[AuthConstants.claimEmail] ?? 
+      decodedToken?['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
+
+  /// ดึงข้อมูลผู้ใช้ปัจจุบัน (UserInfo)
+  UserInfo? get currentUser {
+    final claims = decodedToken;
+    if (claims == null) return null;
+    return UserInfo(
+      id: userId ?? '',
+      email: userEmail ?? '',
+      fullName: userName ?? '',
+      role: userRole ?? '',
+    );
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // Token Lifecycle — Set / Refresh / Logout

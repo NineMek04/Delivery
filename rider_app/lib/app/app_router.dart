@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_theme.dart';
 import '../core/auth/auth_constants.dart';
 import '../core/auth/auth_service.dart';
 import '../features/auth/screens/login_screen.dart';
@@ -21,6 +22,8 @@ import '../features/stores/store_list_screen.dart';
 import '../features/stores/shop_details_screen.dart';
 import '../features/orders/customer_orders_screen.dart';
 import '../features/profile/screens/customer_profile_screen.dart';
+import '../features/profile/screens/customer_addresses_screen.dart';
+import '../features/profile/screens/customer_address_map_screen.dart';
 import '../features/tracking/customer_tracking_screen.dart';
 
 /// Re-run GoRouter redirect when [authServiceProvider] changes.
@@ -192,6 +195,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return CustomerTrackingScreen(orderId: orderId);
         },
       ),
+      GoRoute(
+        path: '/customer/addresses',
+        name: 'customerAddresses',
+        builder: (context, state) => const CustomerAddressesScreen(),
+      ),
+      GoRoute(
+        path: '/customer/addresses/map',
+        name: 'customerAddressMap',
+        builder: (context, state) => const CustomerAddressMapScreen(),
+      ),
     ],
   );
 });
@@ -207,7 +220,7 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData.dark(), // Riders prefer Dark Mode
+      data: AppTheme.darkTheme, // Riders prefer Dark Mode (customized green)
       child: Scaffold(
         body: child,
         bottomNavigationBar: NavigationBar(
@@ -281,28 +294,31 @@ class StoreShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _calculateSelectedIndex(context),
-        onDestinationSelected: (index) => _onItemTapped(index, context),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront),
-            label: 'ร้านค้า',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics),
-            label: 'สรุป',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'โปรไฟล์',
-          ),
-        ],
+    return Theme(
+      data: AppTheme.darkTheme,
+      child: Scaffold(
+        body: child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _calculateSelectedIndex(context),
+          onDestinationSelected: (index) => _onItemTapped(index, context),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.storefront_outlined),
+              selectedIcon: Icon(Icons.storefront),
+              label: 'ร้านค้า',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.analytics_outlined),
+              selectedIcon: Icon(Icons.analytics),
+              label: 'สรุป',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'โปรไฟล์',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -338,7 +354,7 @@ class CustomerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: ThemeData.light(), // Customers prefer Light Mode
+      data: AppTheme.lightTheme, // Customers prefer Light Mode (customized green)
       child: Scaffold(
         body: child,
         bottomNavigationBar: NavigationBar(

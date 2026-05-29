@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -51,14 +52,14 @@ class CustomerProfileScreen extends ConsumerWidget {
               icon: Icons.location_on_outlined,
               title: 'ที่อยู่ของฉัน',
               subtitle: 'จัดการที่อยู่จัดส่ง',
-              onTap: () {},
+              onTap: () => context.pushNamed('customerAddresses'),
             ),
             _buildOption(
               context,
               icon: Icons.history,
               title: 'ประวัติการสั่งซื้อ',
               subtitle: 'ดูออเดอร์ทั้งหมดที่เคยสั่ง',
-              onTap: () {},
+              onTap: () => context.goNamed('customerOrders'),
             ),
             _buildOption(
               context,

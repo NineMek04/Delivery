@@ -185,9 +185,9 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
                   spacing: 8,
                   runSpacing: 4,
                   children: _shops.map((s) => Chip(
-                    avatar: const Icon(Icons.store, size: 14, color: Colors.indigo),
+                    avatar: Icon(Icons.store, size: 14, color: Theme.of(context).primaryColor),
                     label: Text(s.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    backgroundColor: isDark ? Colors.grey[800] : Colors.indigo.withOpacity(0.08),
+                    backgroundColor: isDark ? Colors.grey[800] : Theme.of(context).primaryColor.withOpacity(0.08),
                     side: BorderSide.none,
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                   )).toList(),

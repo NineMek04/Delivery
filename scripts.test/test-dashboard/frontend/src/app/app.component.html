@@ -1,300 +1,120 @@
-<div class="dashboard-container">
-  
-  <!-- 1. LEFT SIDEBAR PANEL (Frosted Glassmorphism) -->
-  <aside class="sidebar-panel glass-panel">
-    <div class="brand-header">
-      <div class="logo-area">
-        <span class="cyber-icon">📡</span>
-        <h2>NINE MEK 04</h2>
-      </div>
-      <span class="brand-sub">TEST ORCHESTRATOR</span>
+<div class="dashboard-root">
+  <!-- Top Navigation Bar -->
+  <header class="top-navbar">
+    <div class="brand">
+      <span class="logo-icon">🔳</span>
+      <span class="logo-text">RUNTIME_ENGINE</span>
     </div>
-
-    <!-- Rule 8: Environment Toggle Configuration -->
-    <div class="config-section">
-      <label class="section-label">⚙️ RUNNING ENVIRONMENT</label>
-      <div class="env-toggle-group">
-        <button 
-          (click)="triggerType = 'docker'" 
-          [class.active]="triggerType === 'docker'"
-          title="Run in fully isolated Docker sandbox containers">
-          🐳 Docker Sandbox
-        </button>
-      </div>
-    </div>
-
-    <!-- Navigation test suites -->
-    <nav class="nav-section">
-      <label class="section-label">🧪 CHOOSE TEST CATEGORY</label>
-      <div class="nav-links">
-        <a 
-          (click)="selectSuite('overall')" 
-          [class.active]="activeSuite === 'overall'" 
-          class="nav-link-btn highlight-nav">
-          <span class="link-icon">📊</span>
-          <div class="link-text">
-            <span class="title">Overall Dashboard</span>
-            <span class="subtitle">Combined Test Analytics</span>
-          </div>
-        </a>
-
-        <a 
-          (click)="selectSuite('csharp')" 
-          [class.active]="activeSuite === 'csharp'" 
-          class="nav-link-btn">
-          <span class="link-icon">🛡️</span>
-          <div class="link-text">
-            <span class="title">Backend Integration</span>
-            <span class="subtitle">C# xUnit Core Services</span>
-          </div>
-        </a>
-
-        <a 
-          (click)="selectSuite('python')" 
-          [class.active]="activeSuite === 'python'" 
-          class="nav-link-btn">
-          <span class="link-icon">🧠</span>
-          <div class="link-text">
-            <span class="title">AI Engine Validation</span>
-            <span class="subtitle">Python pytest VRP Solver</span>
-          </div>
-        </a>
-
-        <a 
-          (click)="selectSuite('load')" 
-          [class.active]="activeSuite === 'load'" 
-          class="nav-link-btn">
-          <span class="link-icon">⚡</span>
-          <div class="link-text">
-            <span class="title">Load & Stress Testing</span>
-            <span class="subtitle">Heavy concurrency durability</span>
-          </div>
-        </a>
-
-        <a 
-          (click)="selectSuite('simulator')" 
-          [class.active]="activeSuite === 'simulator'" 
-          class="nav-link-btn">
-          <span class="link-icon">🚀</span>
-          <div class="link-text">
-            <span class="title">E2E Simulators</span>
-            <span class="subtitle">Chaos GPS & Map Telemetry</span>
-          </div>
-        </a>
-      </div>
+    <nav class="main-nav">
+      <a (click)="selectSuite('overall')" [class.active]="activeSuite === 'overall'" class="nav-item">Global Overview</a>
+      <a (click)="selectSuite('csharp')" [class.active]="activeSuite === 'csharp'" class="nav-item">Backend Integration (.NET)</a>
+      <a (click)="selectSuite('python')" [class.active]="activeSuite === 'python'" class="nav-item">AI Engine (Python)</a>
+      <a (click)="selectSuite('load')" [class.active]="activeSuite === 'load'" class="nav-item">Load Testing (Node.js)</a>
+      <a (click)="selectSuite('simulator')" [class.active]="activeSuite === 'simulator'" class="nav-item">E2E Simulator</a>
     </nav>
-
-    <!-- Historical execution sessions list (Drawer/Accordion Feel) -->
-    <div class="history-section">
-      <label class="section-label">📜 HISTORICAL RUNS</label>
-      <div class="history-list">
-        <div *ngIf="sessions.length === 0" class="empty-history muted">
-          No historical executions found.
-        </div>
-        <div 
-          *ngFor="let session of sessions" 
-          (click)="viewHistoricalSession(session)"
-          [class.active]="session.sessionId === activeSessionId"
-          class="history-card">
-          <div class="hist-header">
-            <span class="suite-badge">{{ getSuiteName(session.testSuite) }}</span>
-            <span class="status-badge" [attr.data-status]="session.status">
-              {{ session.status }}
-            </span>
-          </div>
-          <div class="hist-meta">
-            <span>{{ session.triggerType === 'docker' ? '🐳' : '🖥️' }} {{ session.createdAt | date:'HH:mm:ss (dd/MM)' }}</span>
-            <span *ngIf="session.durationMs">{{ (session.durationMs / 1000) | number:'1.1-2' }}s</span>
-          </div>
-        </div>
+    <div class="topbar-actions">
+      <!-- Rule 8: Toggleable running environment trigger -->
+      <div class="env-toggle">
+        <button 
+          (click)="triggerType = triggerType === 'docker' ? 'host' : 'docker'" 
+          class="env-toggle-btn"
+          title="Toggle execution environment (Docker Sandbox or Host System)">
+          🐳 {{ triggerType === 'docker' ? 'Docker Sandbox' : 'Host System' }}
+        </button>
       </div>
+
+      <button 
+        class="run-test-btn" 
+        (click)="triggerTestRun()"
+        [title]="activeSuite === 'overall' ? 'Select a specific suite from the menu to run a test' : ''"
+        [disabled]="activeStatus === 'RUNNING' || activeStatus === 'QUEUED' || activeSuite === 'overall'">
+        <span class="play-icon">▶</span> {{ activeSuite === 'overall' ? 'Select Suite to Run' : 'Run New Test' }}
+      </button>
+
+      <button 
+        *ngIf="activeStatus === 'RUNNING' || activeStatus === 'QUEUED'"
+        class="cancel-test-btn" 
+        (click)="cancelActiveRun()">
+        <span class="stop-icon">■</span> Cancel Run
+      </button>
+
+      <button class="utility-btn" title="Settings">⚙</button>
+      <button class="utility-btn" title="Notifications">🔔</button>
     </div>
-  </aside>
+  </header>
 
-  <!-- 2. MAIN WORKSPACE AREA -->
-  <main class="workspace-area">
-    <!-- Active Test Header & Execution Controller Card -->
-    <section class="suite-details-card glass-panel">
-      <div class="suite-info">
-        <div class="title-wrap">
-          <span class="suite-emoji">
-            {{ activeSuite === 'csharp' ? '🛡️' : activeSuite === 'python' ? '🧠' : activeSuite === 'load' ? '⚡' : '🚀' }}
-          </span>
-          <div style="flex: 1;">
-            <h1>{{ getSuiteName(activeSuite) }}</h1>
-            <div class="suite-desc-box">
-              <div class="desc-row">
-                <span class="desc-label">📁 ไฟล์ที่เทส:</span>
-                <span class="desc-value">{{ getSuiteDescription(activeSuite).files }}</span>
-              </div>
-              <div class="desc-row">
-                <span class="desc-label">🔍 สิ่งที่เช็ค:</span>
-                <span class="desc-value">{{ getSuiteDescription(activeSuite).check }}</span>
-              </div>
+  <!-- Main Body Content -->
+  <div class="layout-body">
+    <!-- Main Workspace Content -->
+    <main class="workspace">
+      <!-- Dashboard Header -->
+      <div class="workspace-header">
+        <div class="header-titles">
+          <h1>{{ activeSuite === 'overall' ? 'Orchestration Hub: Global Analytics' : 'Suite Execution: ' + (activeSuite | uppercase) }}</h1>
+          <p>{{ getSuiteDescription(activeSuite).check }}</p>
+        </div>
+        <div class="live-sync-badge" [class.streaming]="activeStatus === 'RUNNING'">
+          <span class="pulse-dot"></span> LIVE SYNC
+        </div>
+      </div>
+
+      <!-- Global Overview Subcomponent -->
+      <app-overall-overview 
+        *ngIf="activeSuite === 'overall'"
+        [dashboardStats]="dashboardStats"
+        [sessions]="sessions"
+        [csharpCases]="csharpCases"
+        [pythonCases]="pythonCases"
+        [loadCases]="loadCases"
+        [simulatorCases]="simulatorCases"
+        (suiteSelected)="selectSuite($event)">
+      </app-overall-overview>
+
+      <!-- Suite Details Subcomponent -->
+      <app-suite-details
+        *ngIf="activeSuite !== 'overall'"
+        [activeSuite]="activeSuite"
+        [filteredCases]="filteredCases"
+        [searchQuery]="searchQuery"
+        [activeStatusFilter]="activeStatusFilter"
+        [chartType]="chartType"
+        [totalCount]="getCasesCount('all')"
+        [passedCount]="getCasesCount('PASS')"
+        [failedCount]="getCasesCount('FAIL')"
+        (searchChanged)="searchQuery = $event; filterCases()"
+        (statusFilterChanged)="setStatusFilter($event)"
+        (chartTypeChanged)="toggleChartType($event)"
+        (caseClicked)="toggleRow($event)">
+      </app-suite-details>
+
+      <!-- Map & Terminal remains nested inside the core main workspace context -->
+      <div [ngClass]="{'simulator-layout': activeSuite === 'simulator', 'standard-layout': activeSuite !== 'simulator'}">
+        <!-- If simulator tab is active or selected, render simulator maps -->
+        <section *ngIf="activeSuite === 'simulator'" class="map-routing-section">
+          <app-simulator-host></app-simulator-host>
+        </section>
+
+        <!-- Bottom console stream log -->
+        <section *ngIf="activeSuite !== 'overall'" class="live-feed-section">
+          <div class="feed-header">
+            <div class="feed-title">
+              <span class="console-icon">💻</span> Live Telemetry Feed
+            </div>
+            <div class="feed-tail" style="display: flex; align-items: center; gap: 12px;">
+              <span>tail -f /var/log/runtime.json</span>
+              <button class="action-btn secondary" (click)="exportLogs()" style="font-size: 10px; padding: 4px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 4px; color: #8b949e; cursor: pointer; transition: all 0.2s;">
+                📥 Export Logs
+              </button>
             </div>
           </div>
-        </div>
-        
-        <div class="suite-status-bar" *ngIf="activeSuite !== 'overall'">
-          <div class="status-indicator">
-            <span class="label">Status:</span>
-            <span class="status-value" [attr.data-status]="activeStatus">{{ activeStatus }}</span>
+          <div class="feed-terminal-wrapper">
+            <app-live-terminal [logs]="activeLogs"></app-live-terminal>
           </div>
-          <div class="status-indicator" *ngIf="activeDurationMs">
-            <span class="label">Elapsed:</span>
-            <span class="status-value highlight">{{ (activeDurationMs / 1000) | number:'1.1-2' }}s</span>
-          </div>
-          <div class="status-indicator" *ngIf="activeSessionId">
-            <span class="label">Session ID:</span>
-            <span class="status-value id-code">{{ activeSessionId.substring(0, 8) }}...</span>
-          </div>
-        </div>
+        </section>
       </div>
+    </main>
+  </div>
 
-      <!-- Execution control buttons -->
-      <div class="control-actions-panel" *ngIf="activeSuite !== 'overall'">
-        <button 
-          (click)="triggerTestRun()" 
-          [disabled]="activeStatus === 'RUNNING' || activeStatus === 'QUEUED'"
-          class="cyber-btn run-btn">
-          💥 Execute Suite ({{ triggerType === 'docker' ? 'Docker' : 'Host' }})
-        </button>
-        <button 
-          (click)="cancelActiveRun()" 
-          [disabled]="activeStatus !== 'RUNNING' && activeStatus !== 'QUEUED'"
-          class="cyber-btn cancel-btn">
-          🛑 Cancel Run
-        </button>
-        
-        <!-- Artifacts download options -->
-        <button 
-          *ngIf="activeSessionId" 
-          (click)="downloadLogs(activeSessionId)" 
-          class="cyber-btn action-btn">
-          📥 Logs
-        </button>
-        <button 
-          *ngIf="activeSessionId && (activeStatus === 'COMPLETED' || activeStatus === 'FAILED')" 
-          (click)="downloadReport(activeSessionId)" 
-          class="cyber-btn action-btn highlight">
-          📊 Report
-        </button>
-      </div>
-    </section>
-
-    <section class="results-grid">
-      <div class="metric-card">
-        <span class="metric-label">Total Runs</span>
-        <strong>{{ dashboardStats.runs }}</strong>
-        <span class="metric-foot">Recorded sessions</span>
-      </div>
-      <div class="metric-card success">
-        <span class="metric-label">Passed</span>
-        <strong>{{ dashboardStats.passed }}</strong>
-        <span class="metric-foot">{{ dashboardStats.successRate }}% success</span>
-      </div>
-      <div class="metric-card danger">
-        <span class="metric-label">Failed</span>
-        <strong>{{ dashboardStats.failed }}</strong>
-        <span class="metric-foot">Across all suites</span>
-      </div>
-      <div class="metric-card">
-        <span class="metric-label">Avg Time</span>
-        <strong>{{ (dashboardStats.avgDurationMs / 1000) | number:'1.1-1' }}s</strong>
-        <span class="metric-foot">Per completed run</span>
-      </div>
-    </section>
-
-    <section class="analytics-panel glass-panel">
-      <div class="panel-header compact">
-        <span class="terminal-icon">📊</span>
-        <h3>TEST RESULT ANALYTICS</h3>
-      </div>
-
-      <div class="analytics-body">
-        <div class="active-summary">
-          <span class="summary-label">Active Run Summary</span>
-          <ng-container *ngIf="activeSummary; else noSummary">
-            <div class="summary-ring" [style.--rate]="activeSummary.successRate">
-              <strong>{{ activeSummary.successRate }}%</strong>
-              <span>PASS</span>
-            </div>
-            <div class="summary-counts">
-              <span><b>{{ activeSummary.total }}</b> total</span>
-              <span class="ok"><b>{{ activeSummary.passed }}</b> passed</span>
-              <span class="bad"><b>{{ activeSummary.failed }}</b> failed</span>
-              <span><b>{{ activeSummary.skipped }}</b> skipped</span>
-            </div>
-          </ng-container>
-          <ng-template #noSummary>
-            <div class="empty-summary muted">No completed run selected.</div>
-          </ng-template>
-        </div>
-
-        <div class="history-chart">
-          <div *ngIf="chartSessions.length === 0" class="empty-summary muted">
-            Results will appear here after the first run.
-          </div>
-          <div *ngFor="let session of chartSessions" class="chart-row">
-            <span class="chart-name">{{ getSuiteName(session.testSuite) }}</span>
-            <div class="chart-track">
-              <span class="chart-pass" [style.width.%]="getBarWidth(session.summary?.passed || 0, session.summary?.total || 0)"></span>
-              <span class="chart-fail" [style.width.%]="getBarWidth(session.summary?.failed || 0, session.summary?.total || 0)"></span>
-            </div>
-            <span class="chart-rate">{{ session.summary?.successRate || 0 }}%</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- OVERALL DASHBOARD VIEW -->
-    <section class="overall-dashboard-panel glass-panel" *ngIf="activeSuite === 'overall'">
-      <div class="panel-header">
-        <span class="terminal-icon">📈</span>
-        <h3>COMBINED SUCCESS RATES</h3>
-      </div>
-      <div class="chart-container">
-        <canvas #overallChart></canvas>
-      </div>
-    </section>
-
-    <!-- UNIT SPECIFIC TEST CHART -->
-    <section class="unit-chart-panel glass-panel" *ngIf="activeSuite !== 'overall' && (activeStatus === 'COMPLETED' || activeStatus === 'FAILED')">
-      <div class="panel-header">
-        <span class="terminal-icon">🔬</span>
-        <h3>DETAILED UNIT TEST CASES</h3>
-      </div>
-      <div class="chart-container">
-        <canvas #unitChart></canvas>
-      </div>
-    </section>
-
-    <!-- Error message display if any -->
-    <div *ngIf="activeError && activeSuite !== 'overall'" class="error-banner">
-      <span class="err-icon">⚠️</span>
-      <div class="err-body">
-        <strong>Execution Failed:</strong> {{ activeError }}
-      </div>
-    </div>
-
-    <!-- Active Live Console Terminal -->
-    <section class="terminal-panel glass-panel" *ngIf="activeSuite !== 'overall'">
-      <div class="panel-header">
-        <span class="terminal-icon">💻</span>
-        <h3>LIVE CONSOLE TELEMETRY STREAM</h3>
-        <div class="terminal-actions">
-          <span class="heartbeat" [class.active]="activeStatus === 'RUNNING'" title="WebSocket Connection Alive"></span>
-          <span class="pulse-text muted">{{ activeStatus === 'RUNNING' ? 'STREAMING' : 'IDLE' }}</span>
-        </div>
-      </div>
-      <div class="terminal-wrapper">
-        <app-live-terminal [logs]="activeLogs"></app-live-terminal>
-      </div>
-    </section>
-
-    <!-- E2E Map Routing Playback Visualizer Panel (Specific to Simulator suite) -->
-    <section *ngIf="activeSuite === 'simulator'" class="visualizer-panel animate-fade-in">
-      <app-simulator-host></app-simulator-host>
-    </section>
-  </main>
+  <!-- Premium case detail modal subcomponent -->
+  <app-case-detail-modal [caseItem]="selectedDetailCase" (closeModal)="closeDetailModal()"></app-case-detail-modal>
 </div>

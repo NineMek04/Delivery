@@ -1,7 +1,7 @@
 {
   "sandbox": {
-    "memoryLimitBytes": 536870912,
-    "cpuShares": 512,
+    "memoryLimitBytes": 2147483648,
+    "cpuShares": 1024,
     "networkMode": "delivery_default",
     "securityOpts": ["no-new-privileges:true"],
     "capabilitiesDrop": ["ALL"],

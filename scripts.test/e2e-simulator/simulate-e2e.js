@@ -55,6 +55,8 @@ function logTest(name, status, details = "", inputs = "N/A") {
     durationMs: 0,
     error: status === "FAIL" ? details : null
   });
+
+  console.log(`\n>> TEST_CASE_UPDATE | ${name} | ${status} | ${details} | ${inputs}\n`);
 }
 
 function finishProcess(code) {
@@ -150,26 +152,32 @@ async function routeFromOsrm(start, end) {
 }
 
 async function bestRoute(start, end, encodedPolyline, label) {
+  let routeCoords = [];
   if (encodedPolyline) {
     try {
       const decoded = decodePolyline(encodedPolyline);
       if (decoded.length > 1) {
         log('Route', `${label}: using backend encoded road polyline (${decoded.length} points)`);
-        return decoded;
+        routeCoords = decoded;
       }
     } catch (error) {
       log('Route', `${label}: backend polyline decode failed (${error.message})`);
     }
   }
 
-  try {
-    const osrm = await routeFromOsrm(start, end);
-    log('Route', `${label}: using local OSRM route (${osrm.length} points)`);
-    return osrm;
-  } catch (error) {
-    log('Route', `${label}: OSRM unavailable, using straight-line fallback (${error.message})`);
-    return straightLine(start, end);
+  if (!routeCoords.length) {
+    try {
+      const osrm = await routeFromOsrm(start, end);
+      log('Route', `${label}: using local OSRM route (${osrm.length} points)`);
+      routeCoords = osrm;
+    } catch (error) {
+      log('Route', `${label}: OSRM unavailable, using straight-line fallback (${error.message})`);
+      routeCoords = straightLine(start, end);
+    }
   }
+
+  console.log(`\n>> ROUTE_COORDINATES | ${label} | ${JSON.stringify(routeCoords)}\n`);
+  return routeCoords;
 }
 
 async function login(email, password) {
@@ -220,7 +228,7 @@ async function createShop() {
   });
 
   const shop = unwrapValue(response);
-  return {
+  const resultShop = {
     id: shop.id || shop.Id,
     name: shop.name || shop.Name || name,
     menuName: shop.menuName || shop.MenuName || menuName,
@@ -228,6 +236,8 @@ async function createShop() {
     lat: shop.lat ?? shop.Lat ?? location.lat,
     lng: shop.lng ?? shop.Lng ?? location.lng
   };
+  console.log(`\n>> SHOP_CREATED | ${resultShop.name} | ${resultShop.lat} | ${resultShop.lng}\n`);
+  return resultShop;
 }
 
 function buildRiders(shop) {
@@ -261,6 +271,7 @@ async function createOrder(shop, dropoff) {
   const order = unwrapValue(response);
   orderId = order.id || order.Id;
   activeOrder = order;
+  console.log(`\n>> ORDER_CREATED | ${orderId} | _ | _ | ${dropoff.lat} | ${dropoff.lng}\n`);
   return order;
 }
 
@@ -315,6 +326,7 @@ async function startWandering(conn, rider) {
       if (rider.isDelivering) break;
       rider.current = step;
       await sendGps(conn, step.lat, step.lng);
+      console.log(`\n>> RIDER_GPS | ${rider.id} | ${rider.name} | ${step.lat} | ${step.lng} | IDLE\n`);
       await sleep(300); // 300ms intervals matching frontend exactly
     }
     
@@ -338,6 +350,17 @@ async function moveAlong(conn, rider, coords, label) {
     rider.current = jitter;
     process.stdout.write(`\r  ${rider.name} ${label} ${i + 1}/${detailed.length}: ${jitter.lat.toFixed(5)}, ${jitter.lng.toFixed(5)}`);
     await sendGps(conn, jitter.lat, jitter.lng);
+    console.log(`\n>> RIDER_GPS | ${rider.id} | ${rider.name} | ${jitter.lat} | ${jitter.lng} | DELIVERING\n`);
+
+    // Scale progress between 15% and 98%
+    let percent = 15;
+    if (label.includes('pickup') || label.includes('to store')) {
+      percent = Math.round(15 + (i / detailed.length) * 35);
+    } else {
+      percent = Math.round(50 + (i / detailed.length) * 48);
+    }
+    console.log(`\n>> SIMULATION_PROGRESS | ${percent}\n`);
+
     await sleep(300); // 300ms intervals for ultra-smooth transitions!
   }
 
@@ -357,6 +380,7 @@ async function runDelivery(conn, rider, offer) {
   rider.isDelivering = true;
 
   section(`DELIVERY STARTED BY ${rider.name}`);
+  console.log(`\n>> ACTIVE_RIDER | ${rider.name}\n`);
 
   const order = offer.order || activeOrder;
   const pickup = {
@@ -382,6 +406,8 @@ async function runDelivery(conn, rider, offer) {
   await moveAlong(conn, rider, deliveryRoute, 'to dropoff');
 
   await updateStatus(rider.token, 'COMPLETED');
+  console.log(`\n>> RIDER_GPS | ${rider.id} | ${rider.name} | ${dropoff.lat} | ${dropoff.lng} | COMPLETED\n`);
+  console.log('\n>> SIMULATION_PROGRESS | 100\n');
   log('Simulator', `Completed Order ${orderId} with ${rider.name}`);
 
   await sleep(3000);
@@ -396,6 +422,8 @@ async function connectRider(rider) {
   rider.id = auth.user?.riderId || auth.user?.RiderId;
 
   if (!rider.id) throw new Error(`Rider ${rider.email} has no riderId in auth response`);
+
+  console.log(`\n>> RIDER_MAPPING | ${rider.name} | ${rider.id}\n`);
 
   const conn = new signalR.HubConnectionBuilder()
     .withUrl(HUB, {

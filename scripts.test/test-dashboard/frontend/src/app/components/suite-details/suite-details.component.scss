@@ -1,0 +1,148 @@
+.middle-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr;
+  gap: 16px;
+  align-items: stretch;
+
+  @media (max-width: 992px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.suite-info-card {
+  background-color: #0d111a;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 380px;
+
+  .suite-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    .suite-card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f0f6fc;
+    }
+  }
+
+  .table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    max-height: calc(380px - 60px);
+  }
+}
+
+.chart-card {
+  background-color: #0d111a;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 380px;
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    .chart-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f0f6fc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      
+      .chart-icon {
+        font-size: 13px;
+      }
+    }
+
+    .chart-filters {
+      display: flex;
+      background-color: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 2px;
+
+      .filter-btn {
+        color: #8b949e;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover {
+          color: #c9d1d9;
+        }
+
+        &.active {
+          background-color: #21262d;
+          color: #f0f6fc;
+        }
+      }
+    }
+  }
+
+  .canvas-wrapper {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    width: 100%;
+  }
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 11px;
+
+  th {
+    color: #8b949e;
+    font-weight: 500;
+    padding: 6px 8px;
+    border-bottom: 1px solid #21262d;
+  }
+
+  td {
+    padding: 8px;
+    border-bottom: 1px solid #161b22;
+    color: #c9d1d9;
+    vertical-align: middle;
+
+    &.input-code {
+      font-family: ui-monospace, SFMono-Regular, SF Pro Mono, Menlo, Monaco, Consolas, monospace;
+      color: #8b949e;
+    }
+
+    .status-pill {
+      font-weight: 600;
+
+      &.pass {
+        color: #3fb950;
+      }
+
+      &.fail {
+        color: #f85149;
+      }
+    }
+  }
+
+  .hoverable-row {
+    transition: background-color 0.2s;
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+  }
+}

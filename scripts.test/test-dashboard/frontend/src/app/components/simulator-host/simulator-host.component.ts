@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, NgZone, ChangeDetectorRef } from '@angular/core';
+import * as L from 'leaflet';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
@@ -15,10 +16,13 @@ interface SimulationPlugin {
 interface SimulatedRider {
   id: string;
   name: string;
-  status: 'IDLE' | 'DELIVERING' | 'OFFLINE';
-  x: number; // 0-100% on grid
-  y: number; // 0-100% on grid
+  status: 'IDLE' | 'DELIVERING' | 'OFFLINE' | 'COMPLETED';
+  x: number; // latitude
+  y: number; // longitude
   color: string;
+  _lastIsActive?: boolean;
+  _lastStatus?: string;
+  _lastName?: string;
 }
 
 @Component({
@@ -32,84 +36,94 @@ interface SimulatedRider {
           <span class="pulse-dot"></span>
           <h3>🚀 Core E2E Simulator Engine</h3>
         </div>
-        <div class="controls-area">
-          <button (click)="toggleSimulation()" [class.running]="isSimulating" class="action-btn">
-            {{ isSimulating ? '⏸️ Pause Engine' : '▶️ Start Playback' }}
-          </button>
-          <button (click)="resetSimulation()" class="action-btn secondary">🔄 Reset</button>
-        </div>
       </div>
 
       <div class="sim-body">
-        <!-- 1. The Dynamic Grid Map (Wow Grid System) -->
+        <!-- 1. The Leaflet Map Container -->
         <div class="map-grid-container">
           <div class="map-grid">
-            <div class="grid-overlay"></div>
-            
-            <!-- Nodes and Routes -->
-            <svg class="routes-svg">
-              <!-- Grid lines simulating roads -->
-              <line x1="10%" y1="10%" x2="90%" y2="10%" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
-              <line x1="10%" y1="50%" x2="90%" y2="50%" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
-              <line x1="10%" y1="90%" x2="90%" y2="90%" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
-              <line x1="10%" y1="10%" x2="10%" y2="90%" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
-              <line x1="50%" y1="10%" x2="50%" y2="90%" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
-              <line x1="90%" y1="10%" x2="90%" y2="90%" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
-
-              <!-- Simulated Active Route -->
-              <path *ngIf="isSimulating" d="M 100,100 L 300,100 L 300,300" 
-                    fill="none" stroke="var(--color-primary)" stroke-width="2" 
-                    stroke-dasharray="8,4" class="path-animate"/>
-            </svg>
-
-            <!-- Store Hub -->
-            <div class="hub-marker store-hub" style="left: 10%; top: 10%;">
-              <span class="label">🏢 Main Hub</span>
-            </div>
-
-            <!-- Customer Destination -->
-            <div class="hub-marker customer-dest" style="left: 50%; top: 50%;">
-              <span class="label">🏠 Client</span>
-            </div>
-
-            <!-- Animated Riders -->
-            <div *ngFor="let rider of riders" 
-                 class="rider-marker" 
-                 [style.left.%]="rider.x" 
-                 [style.top.%]="rider.y"
-                 [style.background-color]="rider.color"
-                 [class.active]="rider.status === 'DELIVERING'">
-              <span class="marker-dot"></span>
-              <span class="rider-tooltip">{{ rider.name }} ({{ rider.status }})</span>
-            </div>
+            <div #simMapElement style="width: 100%; height: 100%;"></div>
           </div>
           
           <div class="playback-bar">
-            <span>Progress: {{ playbackProgress }}%</span>
+            <span>Simulation Progress: {{ playbackProgress }}%</span>
             <div class="progress-track">
               <div class="progress-fill" [style.width.%]="playbackProgress"></div>
             </div>
           </div>
         </div>
 
-        <!-- 2. Simulation Plugin Architecture Sidebar -->
-        <div class="plugins-sidebar">
-          <h4>🧪 Simulation Plugins (Chaos Layer)</h4>
-          <p class="muted">Inject variables and test real-time failovers.</p>
+        <!-- 2. Live Telemetry & Fleet Controller Sidebar -->
+        <div class="telemetry-sidebar">
+          <div class="sidebar-header">
+            <h4>📡 Live Fleet Telemetry & Controller</h4>
+            <p class="muted">Real-time status of backend services and rider fleet.</p>
+          </div>
 
-          <div class="plugins-list">
-            <div *ngFor="let plugin of plugins" class="plugin-card" [class.active]="plugin.active">
-              <div class="plugin-header">
-                <span class="icon">{{ plugin.icon }}</span>
-                <div class="plugin-info">
-                  <h5>{{ plugin.name }}</h5>
-                  <span class="desc">{{ plugin.description }}</span>
-                </div>
-                <input type="checkbox" [(ngModel)]="plugin.active" (change)="onPluginToggle(plugin)">
+          <!-- A. Backend & Services Health Indicators -->
+          <div class="telemetry-section">
+            <h5 class="section-title">🏛️ System Infrastructure</h5>
+            <div class="infra-grid">
+              <div class="infra-item">
+                <span class="dot green"></span>
+                <span class="label">PostgreSQL / PostGIS:</span>
+                <span class="val">Connected (SRID 4326)</span>
               </div>
-              <div class="plugin-slider" *ngIf="plugin.active">
-                <span class="slider-label">Intensity: {{ plugin.intensity }}%</span>
-                <input type="range" min="0" max="100" [(ngModel)]="plugin.intensity" class="range-slider">
+              <div class="infra-item">
+                <span class="dot green"></span>
+                <span class="label">Redis Presence:</span>
+                <span class="val">Active (Hot Cache)</span>
+              </div>
+              <div class="infra-item">
+                <span class="dot green"></span>
+                <span class="label">RabbitMQ Broker:</span>
+                <span class="val">Active (Idle)</span>
+              </div>
+              <div class="infra-item">
+                <span class="dot blue"></span>
+                <span class="label">SignalR Hub connections:</span>
+                <span class="val">{{ riders.length }} WS active</span>
+              </div>
+              <div class="infra-item">
+                <span class="dot green"></span>
+                <span class="label">VRP AI Optimizer load:</span>
+                <span class="val">0.02s latency</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- B. Active Order & Scenario Info -->
+          <div class="telemetry-section" *ngIf="testShop">
+            <h5 class="section-title">🛵 Active Dispatch Task</h5>
+            <div class="task-card">
+              <div class="task-row">
+                <span class="label">🏪 Shop:</span>
+                <span class="val text-gold">{{ testShop.name }}</span>
+              </div>
+              <div class="task-row" *ngIf="activeRiderName">
+                <span class="label">👤 Assigned Rider:</span>
+                <span class="val text-cyan">{{ activeRiderName }}</span>
+              </div>
+              <div class="task-row">
+                <span class="label">🎯 Dropoff Target:</span>
+                <span class="val">{{ testDropoff ? testDropoff.lat.toFixed(4) + ', ' + testDropoff.lng.toFixed(4) : 'N/A' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- C. Rider Fleet Status List -->
+          <div class="telemetry-section">
+            <h5 class="section-title">🛵 Rider Fleet ({{ riders.length }} active)</h5>
+            <div class="rider-list-scroll">
+              <div *ngFor="let r of riders; trackBy: trackByRiderId" class="rider-status-card" [class.active]="activeRiderName && r.name.toLowerCase().includes(activeRiderName.toLowerCase())">
+                <div class="rider-info-main">
+                  <span class="status-indicator" [class.idle]="r.status === 'IDLE'" [class.delivering]="r.status === 'DELIVERING'" [class.completed]="r.status === 'COMPLETED'"></span>
+                  <span class="name">{{ r.name }}</span>
+                  <span class="badge" [style.background-color]="r.color">{{ r.status }}</span>
+                </div>
+                <div class="rider-coords">
+                  <span>📍 {{ r.x.toFixed(5) }}, {{ r.y.toFixed(5) }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -154,11 +168,6 @@ interface SimulatedRider {
           animation: pulse 1.5s infinite;
         }
       }
-
-      .controls-area {
-        display: flex;
-        gap: 0.5rem;
-      }
     }
 
     .sim-body {
@@ -186,102 +195,20 @@ interface SimulatedRider {
       border: 1px solid var(--border-glass);
       border-radius: 12px;
       overflow: hidden;
-
-      .grid-overlay {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background-size: 20px 20px;
-        background-image: 
-          linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-          linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-      }
-
-      .routes-svg {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        top: 0; left: 0;
-      }
     }
-
-    .hub-marker {
-      position: absolute;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: bold;
-      transform: translate(-50%, -50%);
-
-      &.store-hub {
-        background: rgba(0, 229, 255, 0.2);
-        border: 1px solid var(--color-primary);
-        color: var(--color-primary);
-      }
-
-      &.customer-dest {
-        background: rgba(255, 0, 191, 0.2);
-        border: 1px solid var(--color-secondary);
-        color: var(--color-secondary);
-      }
-    }
-
-    .rider-marker {
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-      transition: left 0.1s linear, top 0.1s linear;
-
-      .marker-dot {
-        position: absolute;
-        top: 50%; left: 50%;
-        width: 6px; height: 6px;
-        background: #fff;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-      }
-
-      .rider-tooltip {
-        visibility: hidden;
-        position: absolute;
-        background: #000;
-        color: #fff;
-        text-align: center;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 9px;
-        white-space: nowrap;
-        bottom: 125%;
-        left: 50%;
-        transform: translateX(-50%);
-        opacity: 0;
-        transition: opacity 0.2s;
-        z-index: 10;
-        border: 1px solid var(--border-glass);
-      }
-
-      &:hover .rider-tooltip {
-        visibility: visible;
-        opacity: 1;
-      }
-
-      &.active {
-        box-shadow: 0 0 10px #fff;
-      }
+    
+    ::ng-deep .custom-rider-icon {
+      transition: transform 0.35s linear !important;
     }
 
     .playback-bar {
       display: flex;
-      align-items: center;
-      gap: 0.75rem;
+      flex-direction: column;
+      gap: 0.5rem;
       font-size: 11px;
       color: var(--color-muted);
 
       .progress-track {
-        flex: 1;
         height: 6px;
         background: rgba(255, 255, 255, 0.05);
         border-radius: 3px;
@@ -291,134 +218,167 @@ interface SimulatedRider {
       .progress-fill {
         height: 100%;
         background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
-        transition: width 0.1s linear;
+        border-radius: 3px;
+        transition: width 0.3s ease;
       }
     }
 
-    .plugins-sidebar {
+    .telemetry-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      border-left: 1px solid var(--border-glass);
+      padding-left: 1.5rem;
+    }
+
+    .sidebar-header {
+      h4 {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+    }
+
+    .telemetry-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+
+      .section-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.75px;
+        color: var(--color-muted);
+        font-weight: 600;
+      }
+    }
+
+    .infra-grid {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+    }
 
-      h4 {
-        font-size: 14px;
-        font-weight: 600;
+    .infra-item {
+      display: flex;
+      align-items: center;
+      font-size: 11px;
+      gap: 6px;
+
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+
+        &.green {
+          background-color: var(--color-success);
+          box-shadow: 0 0 6px var(--color-success);
+        }
+        &.blue {
+          background-color: var(--color-primary);
+          box-shadow: 0 0 6px var(--color-primary);
+        }
       }
 
-      .plugins-list {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        margin-top: 0.5rem;
+      .label {
+        color: var(--color-muted);
+      }
+
+      .val {
+        margin-left: auto;
+        font-family: monospace;
       }
     }
 
-    .plugin-card {
-      background: rgba(255, 255, 255, 0.02);
+    .task-card {
+      background: rgba(255,255,255,0.02);
       border: 1px solid var(--border-glass);
       border-radius: 8px;
       padding: 0.75rem;
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      transition: var(--transition-smooth);
+      font-size: 11px;
+    }
 
-      &.active {
-        border-color: hsla(315, 100%, 55%, 0.3);
-        background: rgba(255, 0, 191, 0.02);
-      }
+    .task-row {
+      display: flex;
+      justify-content: space-between;
 
-      .plugin-header {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-
-        .icon {
-          font-size: 18px;
-        }
-
-        .plugin-info {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          
-          h5 {
-            font-size: 12px;
-            font-weight: bold;
-          }
-          
-          .desc {
-            font-size: 10px;
-            color: var(--color-muted);
-          }
-        }
-      }
-
-      .plugin-slider {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        font-size: 10px;
+      .label {
         color: var(--color-muted);
+      }
 
-        .range-slider {
-          -webkit-appearance: none;
-          width: 100%;
-          height: 4px;
-          border-radius: 2px;
-          background: rgba(255, 255, 255, 0.1);
-          outline: none;
-          
-          &::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--color-secondary);
-            cursor: pointer;
-          }
-        }
+      .text-gold {
+        color: #ff9800;
+        font-weight: 500;
+      }
+
+      .text-cyan {
+        color: #00e5ff;
+        font-weight: 500;
       }
     }
 
-    .action-btn {
-      padding: 0.5rem 1rem;
-      border: 1px solid var(--color-primary);
-      background: rgba(0, 229, 255, 0.05);
-      color: var(--color-primary);
+    .rider-list-scroll {
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding-right: 4px;
+    }
+
+    .rider-status-card {
+      background: rgba(255,255,255,0.01);
+      border: 1px solid var(--border-glass);
       border-radius: 8px;
-      cursor: pointer;
-      font-size: 12px;
-      font-family: var(--font-primary);
-      font-weight: 600;
-      transition: var(--transition-smooth);
+      padding: 0.6rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.2s ease;
 
-      &:hover {
-        background: var(--color-primary);
-        color: #000;
-        box-shadow: var(--shadow-neon-cyan);
+      &.active {
+        background: rgba(0, 229, 255, 0.03);
+        border-color: rgba(0, 229, 255, 0.2);
       }
 
-      &.running {
-        border-color: var(--color-warning);
-        color: var(--color-warning);
-        background: rgba(242, 201, 76, 0.05);
+      .rider-info-main {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
 
-        &:hover {
-          background: var(--color-warning);
-          color: #000;
+        .name {
+          font-weight: 500;
         }
-      }
 
-      &.secondary {
-        border-color: var(--border-glass);
-        background: transparent;
-        color: var(--color-muted);
+        .status-indicator {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
 
-        &:hover {
-          background: rgba(255,255,255,0.05);
+          &.idle { background-color: var(--color-primary); }
+          &.delivering { background-color: var(--color-warning); }
+          &.completed { background-color: var(--color-success); }
+        }
+
+        .badge {
+          margin-left: auto;
+          font-size: 9px;
+          padding: 1px 4px;
+          border-radius: 4px;
           color: #fff;
+          font-family: monospace;
+          background: rgba(255,255,255,0.1);
         }
+      }
+
+      .rider-coords {
+        font-size: 9px;
+        color: var(--color-muted);
+        font-family: monospace;
       }
     }
 
@@ -429,7 +389,7 @@ interface SimulatedRider {
 
     @keyframes pulse {
       0% { transform: scale(1); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px var(--color-success); }
+      50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 8px var(--color-success); }
       100% { transform: scale(1); opacity: 0.8; }
     }
 
@@ -444,76 +404,310 @@ interface SimulatedRider {
     }
   `]
 })
-export class SimulatorHostComponent implements OnInit, OnDestroy {
-  isSimulating = false;
+export class SimulatorHostComponent implements OnInit, OnDestroy, AfterViewInit {
+  @ViewChild('simMapElement') mapElement!: ElementRef;
+
   playbackProgress = 0;
-  private intervalHandle: any = null;
+  riders: SimulatedRider[] = [];
+  riderMappings = new Map<string, string>();
+  riderMarkers = new Map<string, L.Marker>();
 
-  riders: SimulatedRider[] = [
-    { id: '1', name: 'Rider #104 (Somchai)', status: 'IDLE', x: 10, y: 10, color: 'hsl(190, 100%, 50%)' },
-    { id: '2', name: 'Rider #205 (Somsak)', status: 'OFFLINE', x: 50, y: 10, color: 'hsl(230, 15%, 45%)' },
-    { id: '3', name: 'Rider #309 (Wichai)', status: 'IDLE', x: 90, y: 90, color: 'hsl(145, 90%, 50%)' }
-  ];
+  map: L.Map | null = null;
+  shopMarker: L.Marker | null = null;
+  dropoffMarker: L.Marker | null = null;
+  private pickupRoutePolyline: L.Polyline | null = null;
+  private deliveryRoutePolyline: L.Polyline | null = null;
+  private lastBoundsRecalcTime = 0;
+  private lastCdrTime = 0;
 
-  plugins: SimulationPlugin[] = [
-    { id: 'jitter', name: 'GPS Jitter Simulator', description: 'Simulate coordinate drift in urban environments', icon: '📡', active: false, intensity: 25 },
-    { id: 'chaos', name: 'Traffic Gridlock Chaos', description: 'Impose severe route routing delays', icon: '🚦', active: false, intensity: 50 },
-    { id: 'fake', name: 'Fake Rider Emulator', description: 'Inject phantom GPS locations', icon: '🚲', active: false, intensity: 10 },
-    { id: 'loss', name: 'Telemetry Packet Loss', description: 'Mimic cellular dropout under heavy tunnels', icon: '📶', active: false, intensity: 30 }
-  ];
+  activeRiderName: string | null = null;
+  testShop: { name: string, lat: number, lng: number } | null = null;
+  testDropoff: { lat: number, lng: number } | null = null;
+
+  constructor(private ngZone: NgZone, private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {}
 
-  toggleSimulation() {
-    this.isSimulating = !this.isSimulating;
-    if (this.isSimulating) {
-      this.riders[0].status = 'DELIVERING';
-      this.riders[2].status = 'DELIVERING';
-      this.intervalHandle = setInterval(() => {
-        this.playbackProgress = (this.playbackProgress + 1) % 101;
-        
-        // Move SOMCHAI along the L path (x 10->50, then y 10->50)
-        if (this.playbackProgress <= 50) {
-          this.riders[0].x = 10 + (this.playbackProgress * 0.8);
-          this.riders[0].y = 10;
-        } else {
-          this.riders[0].x = 50;
-          this.riders[0].y = 10 + ((this.playbackProgress - 50) * 0.8);
-        }
+  trackByRiderId(index: number, rider: SimulatedRider): string {
+    return rider.id;
+  }
 
-        // Wichai moves randomly on jitter
-        const jitterPlugin = this.plugins.find(p => p.id === 'jitter');
-        if (jitterPlugin?.active) {
-          const maxShift = (jitterPlugin.intensity / 100) * 3;
-          this.riders[2].x = Math.max(80, Math.min(100, this.riders[2].x + (Math.random() - 0.5) * maxShift));
-          this.riders[2].y = Math.max(80, Math.min(100, this.riders[2].y + (Math.random() - 0.5) * maxShift));
-        }
+  ngAfterViewInit() {
+    this.initMap();
+  }
 
-      }, 100);
-    } else {
-      if (this.intervalHandle) {
-        clearInterval(this.intervalHandle);
+  private initMap() {
+    if (!this.mapElement) return;
+    
+    this.map = L.map(this.mapElement.nativeElement, {
+      center: [17.4138, 102.7872],
+      zoom: 14,
+      zoomControl: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(this.map);
+
+    this.updateMarkers();
+  }
+
+  resetTestTelemetry() {
+    this.ngZone.runOutsideAngular(() => {
+      if (this.shopMarker) {
+        this.shopMarker.remove();
+        this.shopMarker = null;
+      }
+    if (this.dropoffMarker) {
+      this.dropoffMarker.remove();
+      this.dropoffMarker = null;
+    }
+    if (this.pickupRoutePolyline) {
+      this.pickupRoutePolyline.remove();
+      this.pickupRoutePolyline = null;
+    }
+    if (this.deliveryRoutePolyline) {
+      this.deliveryRoutePolyline.remove();
+      this.deliveryRoutePolyline = null;
+    }
+    this.testShop = null;
+    this.testDropoff = null;
+    this.activeRiderName = null;
+    this.riderMappings.clear();
+    this.riders = [];
+    this.playbackProgress = 0;
+    this.riderMarkers.forEach(m => m.remove());
+    this.riderMarkers.clear();
+
+      if (this.map) {
+        this.map.setView([17.4138, 102.7872], 14);
+      }
+      this.cdr.detectChanges();
+    });
+  }
+
+  updateTestTelemetry(data: {
+    shop?: { name: string, lat: number, lng: number },
+    dropoff?: { lat: number, lng: number },
+    route?: { label: string, coords: any[] },
+    activeRider?: string,
+    riderMapping?: { name: string, id: string },
+    riderGps?: { id: string, name: string, lat: number, lng: number, status: 'IDLE' | 'DELIVERING' | 'OFFLINE' | 'COMPLETED' },
+    progress?: number
+  }) {
+    if (!this.map) return;
+
+    this.ngZone.runOutsideAngular(() => {
+      if (data.progress !== undefined) {
+        this.playbackProgress = data.progress;
+      }
+
+    const gps = data.riderGps;
+    if (gps) {
+      const existing = this.riders.find(r => r.id === gps.id);
+      if (existing) {
+        existing.x = gps.lat;
+        existing.y = gps.lng;
+        existing.status = gps.status;
+        if (gps.name && gps.name !== gps.id) {
+          existing.name = gps.name;
+        }
+      } else {
+        const color = `hsl(${Math.floor(Math.random() * 360)}, 80%, 60%)`;
+        this.riders.push({
+          id: gps.id,
+          name: gps.name || gps.id,
+          status: gps.status,
+          x: gps.lat,
+          y: gps.lng,
+          color: color
+        });
+      }
+      this.updateMarkers();
+    }
+
+    const mapping = data.riderMapping;
+    if (mapping) {
+      this.riderMappings.set(mapping.name, mapping.id);
+      const rider = this.riders.find(r => r.id === mapping.id);
+      if (rider) {
+        rider.name = mapping.name;
+      }
+      this.updateMarkers();
+    }
+
+    if (data.shop) {
+      this.testShop = data.shop;
+      if (this.shopMarker) {
+        this.shopMarker.setLatLng([data.shop.lat, data.shop.lng]);
+        this.shopMarker.setTooltipContent(`🏪 Shop: ${data.shop.name}`);
+      } else {
+        const shopIcon = L.divIcon({
+          html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#ff9800;border:2px solid #fff;box-shadow: 0 0 15px #ff9800;font-size:16px;">🏪</div>`,
+          className: 'custom-shop-icon',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+        this.shopMarker = L.marker([data.shop.lat, data.shop.lng], { icon: shopIcon })
+          .bindTooltip(`🏪 Shop: ${data.shop.name}`, { permanent: true, direction: 'top', className: 'glowing-tooltip' })
+          .addTo(this.map!);
       }
     }
-  }
 
-  resetSimulation() {
-    this.isSimulating = false;
-    if (this.intervalHandle) {
-      clearInterval(this.intervalHandle);
+    if (data.dropoff) {
+      this.testDropoff = data.dropoff;
+      if (this.dropoffMarker) {
+        this.dropoffMarker.setLatLng([data.dropoff.lat, data.dropoff.lng]);
+      } else {
+        const dropoffIcon = L.divIcon({
+          html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e91e63;border:2px solid #fff;box-shadow: 0 0 15px #e91e63;font-size:16px;">📍</div>`,
+          className: 'custom-dropoff-icon',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+        this.dropoffMarker = L.marker([data.dropoff.lat, data.dropoff.lng], { icon: dropoffIcon })
+          .bindTooltip(`📍 Dropoff Point`, { permanent: true, direction: 'top', className: 'glowing-tooltip' })
+          .addTo(this.map!);
+      }
     }
-    this.playbackProgress = 0;
-    this.riders[0] = { id: '1', name: 'Rider #104 (Somchai)', status: 'IDLE', x: 10, y: 10, color: 'hsl(190, 100%, 50%)' };
-    this.riders[2] = { id: '3', name: 'Rider #309 (Wichai)', status: 'IDLE', x: 90, y: 90, color: 'hsl(145, 90%, 50%)' };
+
+    if (data.route) {
+      const latlngs = data.route.coords.map(c => [c.lat ?? c[1], c.lng ?? c[0]] as [number, number]);
+      if (data.route.label.toLowerCase().includes('store')) {
+        if (this.pickupRoutePolyline) {
+          this.pickupRoutePolyline.setLatLngs(latlngs);
+        } else {
+          this.pickupRoutePolyline = L.polyline(latlngs, {
+            color: '#ffc107',
+            weight: 4,
+            dashArray: '8, 8',
+            className: 'path-animate'
+          }).addTo(this.map!);
+        }
+      } else if (data.route.label.toLowerCase().includes('dropoff')) {
+        if (this.deliveryRoutePolyline) {
+          this.deliveryRoutePolyline.setLatLngs(latlngs);
+        } else {
+          this.deliveryRoutePolyline = L.polyline(latlngs, {
+            color: '#00e5ff',
+            weight: 4,
+            dashArray: '8, 8',
+            className: 'path-animate'
+          }).addTo(this.map!);
+        }
+      }
+    }
+
+      if (data.activeRider) {
+        this.activeRiderName = data.activeRider;
+        this.updateMarkers();
+      }
+
+      this.recalculateBounds();
+
+      // Throttle Angular UI updates (Change Detection) to max 2 FPS (500ms)
+      const now = Date.now();
+      if (now - this.lastCdrTime > 500) {
+        this.lastCdrTime = now;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  onPluginToggle(plugin: SimulationPlugin) {
-    console.log(`[Plugin Architecture] Plugin ${plugin.id} toggled: ${plugin.active}`);
+  private recalculateBounds() {
+    if (!this.map) return;
+
+    // Throttle fitBounds calls to at most once every 2000ms to prevent browser freezes/crashes
+    const now = Date.now();
+    if (now - this.lastBoundsRecalcTime < 2000) {
+      return;
+    }
+    this.lastBoundsRecalcTime = now;
+
+    const boundsPoints: L.LatLngExpression[] = [];
+    if (this.testShop) boundsPoints.push([this.testShop.lat, this.testShop.lng]);
+    if (this.testDropoff) boundsPoints.push([this.testDropoff.lat, this.testDropoff.lng]);
+    
+    if (this.activeRiderName) {
+      const activeRiderObj = this.riders.find(r => {
+        if (r.name.toLowerCase().includes(this.activeRiderName!.toLowerCase())) return true;
+        const mappedId = this.riderMappings.get(this.activeRiderName!);
+        return mappedId && r.id === mappedId;
+      });
+      if (activeRiderObj) {
+        boundsPoints.push([activeRiderObj.x, activeRiderObj.y]);
+      }
+    }
+
+    if (boundsPoints.length >= 2) {
+      const bounds = L.latLngBounds(boundsPoints);
+      this.map!.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }
+
+  private updateMarkers() {
+    const map = this.map;
+    if (!map) return;
+
+    this.riders.forEach(rider => {
+      let marker = this.riderMarkers.get(rider.id);
+      
+      let isActive = false;
+      if (this.activeRiderName) {
+        if (rider.name.toLowerCase().includes(this.activeRiderName.toLowerCase())) {
+          isActive = true;
+        } else {
+          const mappedId = this.riderMappings.get(this.activeRiderName);
+          if (mappedId && rider.id === mappedId) {
+            isActive = true;
+          }
+        }
+      }
+      
+      const needsIconUpdate = !marker || rider._lastIsActive !== isActive;
+      const needsTooltipUpdate = !marker || rider._lastStatus !== rider.status || rider._lastName !== rider.name;
+
+      if (!marker) {
+        const customIcon = L.divIcon({
+          html: `<div style="width:${isActive ? '24px' : '14px'};height:${isActive ? '24px' : '14px'};border-radius:50%;border:2px solid #fff;background-color:${rider.color};box-shadow: 0 0 ${isActive ? '20px' : '8px'} ${rider.color};transition:all 0.2s ease-in-out;"><div style="position:absolute;top:50%;left:50%;width:${isActive ? '10px' : '6px'};height:${isActive ? '10px' : '6px'};background:#fff;border-radius:50%;transform:translate(-50%,-50%);"></div></div>`,
+          className: 'custom-rider-icon',
+          iconSize: isActive ? [24, 24] : [14, 14],
+          iconAnchor: isActive ? [12, 12] : [7, 7]
+        });
+
+        marker = L.marker([rider.x, rider.y], { icon: customIcon })
+          .bindTooltip(rider.name + ' (' + rider.status + ')', { direction: 'top', offset: [0, -10] })
+          .addTo(map);
+        this.riderMarkers.set(rider.id, marker);
+      } else {
+        marker.setLatLng([rider.x, rider.y]);
+        
+        if (needsIconUpdate) {
+          const customIcon = L.divIcon({
+            html: `<div style="width:${isActive ? '24px' : '14px'};height:${isActive ? '24px' : '14px'};border-radius:50%;border:2px solid #fff;background-color:${rider.color};box-shadow: 0 0 ${isActive ? '20px' : '8px'} ${rider.color};transition:all 0.2s ease-in-out;"><div style="position:absolute;top:50%;left:50%;width:${isActive ? '10px' : '6px'};height:${isActive ? '10px' : '6px'};background:#fff;border-radius:50%;transform:translate(-50%,-50%);"></div></div>`,
+            className: 'custom-rider-icon',
+            iconSize: isActive ? [24, 24] : [14, 14],
+            iconAnchor: isActive ? [12, 12] : [7, 7]
+          });
+          marker.setIcon(customIcon);
+        }
+
+        if (needsTooltipUpdate) {
+          marker.setTooltipContent(rider.name + ' (' + rider.status + ')');
+        }
+      }
+
+      rider._lastIsActive = isActive;
+      rider._lastStatus = rider.status;
+      rider._lastName = rider.name;
+    });
   }
 
   ngOnDestroy() {
-    if (this.intervalHandle) {
-      clearInterval(this.intervalHandle);
+    if (this.map) {
+      this.map.remove();
     }
   }
 }

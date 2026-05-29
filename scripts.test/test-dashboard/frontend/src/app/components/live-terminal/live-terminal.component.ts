@@ -12,7 +12,6 @@ import { FitAddon } from '@xterm/addon-fit';
     .terminal-container {
       width: 100%;
       height: 100%;
-      min-height: 400px;
       background: #090c10;
       border: 1px solid hsla(190, 100%, 50%, 0.15);
       box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 229, 255, 0.03);

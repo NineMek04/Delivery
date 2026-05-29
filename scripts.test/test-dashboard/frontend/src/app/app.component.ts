@@ -1,52 +1,27 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { io, Socket } from 'socket.io-client';
-import { Chart, registerables, TooltipItem } from 'chart.js';
 import { LiveTerminalComponent } from './components/live-terminal/live-terminal.component';
 import { SimulatorHostComponent } from './components/simulator-host/simulator-host.component';
-
-Chart.register(...registerables);
-
-export interface TestSession {
-  sessionId: string;
-  testSuite: string;
-  status: string;
-  createdAt: string;
-  completedAt?: string;
-  durationMs?: number;
-  triggerType: 'docker' | 'host';
-  logFile: string;
-  reportFile?: string;
-  summary?: TestSummary;
-  error?: string;
-}
-
-export interface TestCase {
-  name: string;
-  location: string;
-  inputs: string;
-  status: 'PASS' | 'FAIL' | 'SKIPPED';
-  durationMs: number;
-  error?: string;
-}
-
-export interface TestSummary {
-  suiteType: string;
-  status: string;
-  total: number;
-  passed: number;
-  failed: number;
-  skipped: number;
-  successRate: number;
-  durationMs: number;
-  generatedAt: string;
-}
+import { CaseDetailModalComponent } from './components/case-detail-modal/case-detail-modal.component';
+import { SuiteDetailsComponent } from './components/suite-details/suite-details.component';
+import { OverallOverviewComponent } from './components/overall-overview/overall-overview.component';
+import { TestCase, TestSession, TestSummary } from './test-dashboard.model';
+import { INITIAL_CSHARP_CASES, INITIAL_PYTHON_CASES, INITIAL_LOAD_CASES, INITIAL_SIMULATOR_CASES } from './test-dashboard.config';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, LiveTerminalComponent, SimulatorHostComponent],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    LiveTerminalComponent, 
+    SimulatorHostComponent,
+    CaseDetailModalComponent,
+    SuiteDetailsComponent,
+    OverallOverviewComponent
+  ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
@@ -56,15 +31,32 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Config State
   activeSuite: 'overall' | 'csharp' | 'python' | 'load' | 'simulator' = 'overall';
-  triggerType: 'docker' | 'host' = 'docker'; // Rule 8: toggleable
+  triggerType: 'docker' | 'host' = 'docker';
+
+  // Search & Filter State
+  searchQuery = '';
+  activeStatusFilter: 'all' | 'PASS' | 'FAIL' | 'SKIPPED' = 'all';
+  filteredCases: TestCase[] = [];
+  chartType: 'doughnut' | 'bar' = 'doughnut';
 
   // Active Session State
   activeSessionId: string | null = null;
   activeLogs = '';
-  activeStatus = 'IDLE'; // 'IDLE', 'QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'
+  activeStatus = 'IDLE'; // 'IDLE', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'
   activeDurationMs: number | null = null;
   activeError = '';
   activeSummary: TestSummary | null = null;
+
+  // Real Data Binding State per Suite
+  latestCsharpSession: TestSession | null = null;
+  latestPythonSession: TestSession | null = null;
+  latestLoadSession: TestSession | null = null;
+  latestSimulatorSession: TestSession | null = null;
+
+  csharpCases: TestCase[] = [];
+  pythonCases: TestCase[] = [];
+  loadCases: TestCase[] = [];
+  simulatorCases: TestCase[] = [];
 
   // History State
   sessions: TestSession[] = [];
@@ -72,15 +64,209 @@ export class AppComponent implements OnInit, OnDestroy {
   private socket: Socket | null = null;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-  private chartInstance: Chart | null = null;
-  private overallChartInstance: Chart | null = null;
+  @ViewChild(SimulatorHostComponent) simulatorHost: SimulatorHostComponent | null = null;
 
-  @ViewChild('unitChart') unitChartCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('overallChart') overallChartCanvas!: ElementRef<HTMLCanvasElement>;
+  parsedLogLines = new Set<string>();
+  selectedDetailCase: TestCase | null = null;
+
+  parseLiveLogs(chunk: string) {
+    if (!chunk) return;
+    
+    const lines = chunk.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || this.parsedLogLines.has(trimmed)) continue;
+
+      if (trimmed.includes('>> TEST_CASE_UPDATE')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 5) {
+          const name = parts[1].trim();
+          const statusStr = parts[2].trim();
+          const details = parts[3].trim();
+          const inputs = parts[4].trim();
+
+          const tc: TestCase = {
+            name,
+            location: 'e2e-simulator/simulate-e2e.js',
+            inputs,
+            status: statusStr === 'PASS' ? 'PASS' : statusStr === 'FAIL' ? 'FAIL' : 'SKIPPED',
+            durationMs: 0,
+            error: statusStr === 'FAIL' ? details : undefined,
+            responseTrace: statusStr === 'PASS' ? details : undefined,
+            requestPayload: inputs
+          };
+
+          this.updateOrCreateCase(tc);
+        }
+      } else if (trimmed.includes('>> SHOP_CREATED')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 4) {
+          const name = parts[1].trim();
+          const lat = parseFloat(parts[2].trim());
+          const lng = parseFloat(parts[3].trim());
+          if (this.simulatorHost) {
+            this.simulatorHost.updateTestTelemetry({ shop: { name, lat, lng } });
+          }
+        }
+      } else if (trimmed.includes('>> ORDER_CREATED')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 6) {
+          const orderId = parts[1].trim();
+          const dropoffLat = parseFloat(parts[4].trim());
+          const dropoffLng = parseFloat(parts[5].trim());
+          if (this.simulatorHost) {
+            this.simulatorHost.updateTestTelemetry({ dropoff: { lat: dropoffLat, lng: dropoffLng } });
+          }
+        }
+      } else if (trimmed.includes('>> ROUTE_COORDINATES')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 3) {
+          const label = parts[1].trim();
+          try {
+            const coords = JSON.parse(parts[2].trim());
+            if (this.simulatorHost) {
+              this.simulatorHost.updateTestTelemetry({ route: { label, coords } });
+            }
+          } catch (e) {
+            console.error('Failed to parse route coordinates JSON', e);
+          }
+        }
+      } else if (trimmed.includes('>> ACTIVE_RIDER')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 2) {
+          const riderName = parts[1].trim();
+          if (this.simulatorHost) {
+            this.simulatorHost.updateTestTelemetry({ activeRider: riderName });
+          }
+        }
+      } else if (trimmed.includes('>> RIDER_MAPPING')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 3) {
+          const name = parts[1].trim();
+          const id = parts[2].trim();
+          if (this.simulatorHost) {
+            this.simulatorHost.updateTestTelemetry({ riderMapping: { name, id } });
+          }
+        }
+      } else if (trimmed.includes('>> RIDER_GPS')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 6) {
+          const id = parts[1].trim();
+          const name = parts[2].trim();
+          const lat = parseFloat(parts[3].trim());
+          const lng = parseFloat(parts[4].trim());
+          const status = parts[5].trim() as any;
+          if (this.simulatorHost) {
+            this.simulatorHost.updateTestTelemetry({
+              riderGps: { id, name, lat, lng, status }
+            });
+          }
+        }
+      } else if (trimmed.includes('>> SIMULATION_PROGRESS')) {
+        this.parsedLogLines.add(trimmed);
+        const parts = trimmed.split('|');
+        if (parts.length >= 2) {
+          const progressVal = parseInt(parts[1].trim(), 10);
+          if (!isNaN(progressVal) && this.simulatorHost) {
+            this.simulatorHost.updateTestTelemetry({ progress: progressVal });
+          }
+        }
+      }
+    }
+  }
+
+  private updateOrCreateCase(tc: TestCase) {
+    let casesList: TestCase[] = [];
+    if (this.activeSuite === 'simulator') {
+      casesList = this.simulatorCases;
+    } else if (this.activeSuite === 'csharp') {
+      casesList = this.csharpCases;
+    } else if (this.activeSuite === 'python') {
+      casesList = this.pythonCases;
+    } else if (this.activeSuite === 'load') {
+      casesList = this.loadCases;
+    } else {
+      return;
+    }
+
+    const idx = casesList.findIndex(c => c.name === tc.name);
+    if (idx !== -1) {
+      casesList[idx] = { ...casesList[idx], ...tc };
+    } else {
+      casesList.push(tc);
+    }
+
+    if (this.activeSuite === 'simulator') {
+      this.simulatorCases = [...casesList];
+    } else if (this.activeSuite === 'csharp') {
+      this.csharpCases = [...casesList];
+    } else if (this.activeSuite === 'python') {
+      this.pythonCases = [...casesList];
+    } else if (this.activeSuite === 'load') {
+      this.loadCases = [...casesList];
+    }
+    this.filterCases();
+  }
+
+  prepopulateDetailedCases() {
+    this.csharpCases = [...INITIAL_CSHARP_CASES];
+    this.pythonCases = [...INITIAL_PYTHON_CASES];
+    this.loadCases = [...INITIAL_LOAD_CASES];
+    this.simulatorCases = [...INITIAL_SIMULATOR_CASES];
+    this.filterCases();
+  }
+
+  filterCases() {
+    let cases = this.getActiveSuiteCases();
+    
+    cases = [...cases].sort((a, b) => {
+      if (a.status === 'FAIL' && b.status !== 'FAIL') return -1;
+      if (a.status !== 'FAIL' && b.status === 'FAIL') return 1;
+      return 0;
+    });
+
+    if (this.searchQuery) {
+      const q = this.searchQuery.toLowerCase();
+      cases = cases.filter(c => 
+        c.name.toLowerCase().includes(q) || 
+        c.location.toLowerCase().includes(q)
+      );
+    }
+    
+    if (this.activeStatusFilter !== 'all') {
+      cases = cases.filter(c => c.status === this.activeStatusFilter);
+    }
+    
+    this.filteredCases = cases;
+  }
+
+  getCasesCount(status: 'all' | 'PASS' | 'FAIL' | 'SKIPPED'): number {
+    const cases = this.getActiveSuiteCases();
+    if (status === 'all') return cases.length;
+    return cases.filter(c => c.status === status).length;
+  }
+
+  setStatusFilter(status: 'all' | 'PASS' | 'FAIL' | 'SKIPPED' | string) {
+    this.activeStatusFilter = status as any;
+    this.filterCases();
+  }
+
+  toggleChartType(type: 'doughnut' | 'bar') {
+    this.chartType = type;
+  }
 
   ngOnInit() {
+    this.prepopulateDetailedCases();
     this.initSocket();
     this.loadSessions();
+    this.calculateDashboardStats();
   }
 
   private initSocket() {
@@ -95,10 +281,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
     this.socket.on('log-history', (data: string) => {
       this.activeLogs = data;
+      this.parseLiveLogs(data);
     });
 
     this.socket.on('log', (chunk: string) => {
       this.activeLogs += chunk;
+      this.parseLiveLogs(chunk);
     });
 
     this.socket.on('status', (data: any) => {
@@ -109,7 +297,6 @@ export class AppComponent implements OnInit, OnDestroy {
       this.loadSessions();
     });
 
-    // WebSockets heartbeats to prevent silent disconnections
     this.heartbeatInterval = setInterval(() => {
       if (this.socket && this.socket.connected) {
         this.socket.emit('ping');
@@ -123,18 +310,88 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  async fetchReportData(sessionId: string): Promise<TestCase[]> {
+    try {
+      const res = await fetch(`${this.apiUrl}/api/test/sessions/${sessionId}/report-data`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.testCases || [];
+      }
+    } catch (err) {
+      console.error('[API] Failed to fetch report data for session ' + sessionId, err);
+    }
+    return [];
+  }
+
   async loadSessions() {
     try {
       const res = await fetch(`${this.apiUrl}/api/test/sessions`);
       if (res.ok) {
         this.sessions = await res.json();
         
-        // Ensure chart updates if viewing overall or active session
-        if (this.activeSuite === 'overall') {
-          setTimeout(() => this.renderOverallChart(), 100);
-        } else if (this.activeSessionId && (this.activeStatus === 'COMPLETED' || this.activeStatus === 'FAILED')) {
+        const completed = this.sessions.filter(s => s.status === 'COMPLETED');
+        
+        const latestCs = completed.find(s => s.testSuite === 'csharp');
+        if (latestCs && (!this.latestCsharpSession || this.latestCsharpSession.sessionId !== latestCs.sessionId)) {
+          this.latestCsharpSession = latestCs;
+          if (this.activeSuite !== 'csharp' || (this.activeStatus !== 'RUNNING' && this.activeStatus !== 'QUEUED')) {
+            this.fetchReportData(latestCs.sessionId).then(cases => {
+              this.csharpCases = cases;
+              this.filterCases();
+            });
+          }
+        } else if (!latestCs) {
+          this.latestCsharpSession = null;
+          this.csharpCases = [];
+        }
+        
+        const latestPy = completed.find(s => s.testSuite === 'python');
+        if (latestPy && (!this.latestPythonSession || this.latestPythonSession.sessionId !== latestPy.sessionId)) {
+          this.latestPythonSession = latestPy;
+          if (this.activeSuite !== 'python' || (this.activeStatus !== 'RUNNING' && this.activeStatus !== 'QUEUED')) {
+            this.fetchReportData(latestPy.sessionId).then(cases => {
+              this.pythonCases = cases;
+              this.filterCases();
+            });
+          }
+        } else if (!latestPy) {
+          this.latestPythonSession = null;
+          this.pythonCases = [];
+        }
+        
+        const latestLoad = completed.find(s => s.testSuite === 'load');
+        if (latestLoad && (!this.latestLoadSession || this.latestLoadSession.sessionId !== latestLoad.sessionId)) {
+          this.latestLoadSession = latestLoad;
+          if (this.activeSuite !== 'load' || (this.activeStatus !== 'RUNNING' && this.activeStatus !== 'QUEUED')) {
+            this.fetchReportData(latestLoad.sessionId).then(cases => {
+              this.loadCases = cases;
+              this.filterCases();
+            });
+          }
+        } else if (!latestLoad) {
+          this.latestLoadSession = null;
+          this.loadCases = [];
+        }
+        
+        const latestSim = completed.find(s => s.testSuite === 'simulator');
+        if (latestSim && (!this.latestSimulatorSession || this.latestSimulatorSession.sessionId !== latestSim.sessionId)) {
+          this.latestSimulatorSession = latestSim;
+          if (this.activeSuite !== 'simulator' || (this.activeStatus !== 'RUNNING' && this.activeStatus !== 'QUEUED')) {
+            this.fetchReportData(latestSim.sessionId).then(cases => {
+              this.simulatorCases = cases;
+              this.filterCases();
+            });
+          }
+        } else if (!latestSim) {
+          this.latestSimulatorSession = null;
+          this.simulatorCases = [];
+        }
+
+        if (this.activeSessionId && (this.activeStatus === 'COMPLETED' || this.activeStatus === 'FAILED')) {
           this.loadReportData(this.activeSessionId);
         }
+
+        this.calculateDashboardStats();
       }
     } catch (err) {
       console.error('[API] Failed to fetch session history:', err);
@@ -146,7 +403,19 @@ export class AppComponent implements OnInit, OnDestroy {
       const res = await fetch(`${this.apiUrl}/api/test/sessions/${sessionId}/report-data`);
       if (res.ok) {
         const data = await res.json();
-        setTimeout(() => this.renderUnitChart(data.testCases || []), 100);
+        const cases = data.testCases || [];
+        
+        if (this.activeSuite === 'csharp') {
+          this.csharpCases = cases;
+        } else if (this.activeSuite === 'python') {
+          this.pythonCases = cases;
+        } else if (this.activeSuite === 'load') {
+          this.loadCases = cases;
+        } else if (this.activeSuite === 'simulator') {
+          this.simulatorCases = cases;
+        }
+        
+        this.filterCases();
       }
     } catch (err) {
       console.error('Failed to load report data', err);
@@ -159,6 +428,20 @@ export class AppComponent implements OnInit, OnDestroy {
     this.activeDurationMs = null;
     this.activeSummary = null;
     this.activeStatus = 'QUEUED';
+
+    this.parsedLogLines.clear();
+    if (this.activeSuite === 'simulator') {
+      this.simulatorCases = [];
+      if (this.simulatorHost) {
+        this.simulatorHost.resetTestTelemetry();
+      }
+    } else if (this.activeSuite === 'csharp') {
+      this.csharpCases = [];
+    } else if (this.activeSuite === 'python') {
+      this.pythonCases = [];
+    } else if (this.activeSuite === 'load') {
+      this.loadCases = [];
+    }
 
     try {
       const res = await fetch(`${this.apiUrl}/api/test/run`, {
@@ -209,13 +492,35 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  exportLogs() {
+    if (!this.activeLogs) {
+      alert('No logs available to export.');
+      return;
+    }
+    const blob = new Blob([this.activeLogs], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-execution-${this.activeSuite}-${Date.now()}.log`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  toggleRow(row: TestCase) {
+    this.selectedDetailCase = row;
+  }
+
+  closeDetailModal() {
+    this.selectedDetailCase = null;
+  }
+
   selectSuite(suite: 'overall' | 'csharp' | 'python' | 'load' | 'simulator') {
     this.activeSuite = suite;
+    this.searchQuery = '';
+    this.activeStatusFilter = 'all';
+    this.filterCases();
     
-    // Clear terminal log display if switching to a fresh suite
-    if (suite === 'overall') {
-      setTimeout(() => this.renderOverallChart(), 100);
-    } else {
+    if (suite !== 'overall') {
       if (this.activeStatus === 'IDLE' || ['COMPLETED', 'FAILED', 'CANCELLED'].includes(this.activeStatus)) {
         this.activeLogs = '';
         this.activeStatus = 'IDLE';
@@ -224,45 +529,6 @@ export class AppComponent implements OnInit, OnDestroy {
         this.activeError = '';
         this.activeSummary = null;
       }
-    }
-  }
-  viewHistoricalSession(session: TestSession) {
-    if (this.activeSessionId) {
-      // Leave previous socket room
-      this.socket?.emit('leave-session', this.activeSessionId);
-    }
-
-    this.activeSuite = session.testSuite as any;
-    this.triggerType = session.triggerType;
-    this.activeSessionId = session.sessionId;
-    this.activeStatus = session.status;
-    this.activeDurationMs = session.durationMs || null;
-    this.activeError = session.error || '';
-    this.activeSummary = session.summary || null;
-    this.activeLogs = '';
-
-    this.joinSessionRoom(session.sessionId);
-
-    if (this.activeStatus === 'COMPLETED' || this.activeStatus === 'FAILED') {
-      this.loadReportData(session.sessionId);
-    }
-  }
-
-  downloadLogs(sessionId: string) {
-    window.open(`${this.apiUrl}/api/test/sessions/${sessionId}/logs`);
-  }
-
-  downloadReport(sessionId: string) {
-    window.open(`${this.apiUrl}/api/test/sessions/${sessionId}/report`);
-  }
-
-  getSuiteName(suiteKey: string): string {
-    switch (suiteKey) {
-      case 'csharp': return 'Backend Integration (C#)';
-      case 'python': return 'AI Engine Validation (Python)';
-      case 'load': return 'Load & Stress Testing (Node.js)';
-      case 'simulator': return 'E2E Simulator (Node.js)';
-      default: return suiteKey;
     }
   }
 
@@ -297,7 +563,9 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  get dashboardStats() {
+  dashboardStats: any = { runs: 0, total: 0, passed: 0, failed: 0, successRate: 0, avgDurationMs: 0 };
+
+  private calculateDashboardStats() {
     const completed = this.sessions.filter(session => session.summary);
     const totals = completed.reduce(
       (acc, session) => {
@@ -310,7 +578,7 @@ export class AppComponent implements OnInit, OnDestroy {
       { total: 0, passed: 0, failed: 0, durationMs: 0 }
     );
 
-    return {
+    this.dashboardStats = {
       runs: completed.length,
       total: totals.total,
       passed: totals.passed,
@@ -320,121 +588,14 @@ export class AppComponent implements OnInit, OnDestroy {
     };
   }
 
-  get chartSessions() {
-    return this.sessions
-      .filter(session => session.summary)
-      .slice(0, 8)
-      .reverse();
-  }
-
-  getBarWidth(value: number, total: number): number {
-    if (!total) return 0;
-    return Math.max(4, Math.round((value / total) * 100));
-  }
-
-  renderUnitChart(testCases: TestCase[]) {
-    if (!this.unitChartCanvas?.nativeElement) return;
-    
-    if (this.chartInstance) {
-      this.chartInstance.destroy();
+  getActiveSuiteCases(): TestCase[] {
+    switch (this.activeSuite) {
+      case 'csharp': return this.csharpCases;
+      case 'python': return this.pythonCases;
+      case 'load': return this.loadCases;
+      case 'simulator': return this.simulatorCases;
+      default: return [];
     }
-
-    const labels = testCases.map(t => t.name.substring(0, 15) + (t.name.length > 15 ? '...' : ''));
-    const dataPoints = testCases.map(t => t.durationMs);
-    const bgColors = testCases.map(t => t.status === 'PASS' ? 'rgba(74, 222, 128, 0.7)' : (t.status === 'FAIL' ? 'rgba(248, 113, 113, 0.7)' : 'rgba(156, 163, 175, 0.7)'));
-    const borderColors = testCases.map(t => t.status === 'PASS' ? 'rgba(74, 222, 128, 1)' : (t.status === 'FAIL' ? 'rgba(248, 113, 113, 1)' : 'rgba(156, 163, 175, 1)'));
-
-    this.chartInstance = new Chart(this.unitChartCanvas.nativeElement, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Test Duration (ms)',
-          data: dataPoints,
-          backgroundColor: bgColors,
-          borderColor: borderColors,
-          borderWidth: 1,
-          borderRadius: 4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: (context) => {
-                return testCases[context[0].dataIndex].name;
-              },
-              afterTitle: (context) => {
-                const t = testCases[context[0].dataIndex];
-                return `Location: ${t.location}\nInputs: ${t.inputs}`;
-              },
-              label: (context) => {
-                const t = testCases[context.dataIndex];
-                let label = `Result: ${t.status} (${t.durationMs}ms)`;
-                if (t.error) {
-                  label += `\nError: ${t.error}`;
-                }
-                return label;
-              }
-            }
-          }
-        },
-        scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-          x: { grid: { display: false } }
-        }
-      }
-    });
-  }
-
-  renderOverallChart() {
-    if (!this.overallChartCanvas?.nativeElement) return;
-    
-    if (this.overallChartInstance) {
-      this.overallChartInstance.destroy();
-    }
-
-    // Aggregate success rate by suite
-    const suites = ['csharp', 'python', 'load', 'simulator'];
-    const suiteNames = ['Backend C#', 'AI Python', 'Load Test', 'Simulator'];
-    const rates = suites.map(suite => {
-      const completed = this.sessions.filter(s => s.testSuite === suite && s.summary);
-      if (completed.length === 0) return 0;
-      const latest = completed[completed.length - 1]; // get most recent
-      return latest.summary?.successRate || 0;
-    });
-
-    this.overallChartInstance = new Chart(this.overallChartCanvas.nativeElement, {
-      type: 'polarArea',
-      data: {
-        labels: suiteNames,
-        datasets: [{
-          data: rates,
-          backgroundColor: [
-            'rgba(99, 102, 241, 0.7)',
-            'rgba(234, 179, 8, 0.7)',
-            'rgba(236, 72, 153, 0.7)',
-            'rgba(16, 185, 129, 0.7)'
-          ]
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right', labels: { color: '#fff' } }
-        },
-        scales: {
-          r: {
-            ticks: { backdropColor: 'transparent', color: '#ccc' },
-            grid: { color: 'rgba(255,255,255,0.1)' }
-          }
-        }
-      }
-    });
   }
 
   ngOnDestroy() {

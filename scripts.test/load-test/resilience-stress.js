@@ -47,6 +47,8 @@ function logStep(name, status, details = "", inputs = "N/A") {
     inputs, 
     status, 
     durationMs: 0, 
+    requestPayload: inputs,
+    responseTrace: status === "PASS" ? details : null,
     error: errorMsg 
   });
 }

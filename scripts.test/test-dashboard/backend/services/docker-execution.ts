@@ -237,23 +237,42 @@ export async function cancelDockerTest(sessionId: string): Promise<boolean> {
   let container = activeContainers.get(sessionId);
 
   if (!container) {
-    const matches = await (docker as any).listContainers({
-      all: true,
-      filters: { label: [`delivery.test.session=${sessionId}`] },
-    });
-    if (matches.length > 0) {
-      container = docker.getContainer(matches[0].Id);
+    try {
+      const matches = await docker.listContainers({
+        all: true,
+        filters: {
+          label: [`delivery.test.session=${sessionId}`]
+        }
+      });
+      if (matches.length > 0) {
+        container = docker.getContainer(matches[0].Id);
+      } else {
+        // Javascript robust fallback
+        const allContainers = await docker.listContainers({ all: true });
+        const matched = allContainers.find(c => c.Labels && c.Labels['delivery.test.session'] === sessionId);
+        if (matched) {
+          container = docker.getContainer(matched.Id);
+        }
+      }
+    } catch (err) {
+      console.error('[Docker] List containers error:', err);
     }
   }
 
   if (!container) return false;
 
   try {
-    console.log(`[Docker] Cancelling test session ${sessionId}, stopping container ${container.id.substring(0, 12)}`);
+    console.log(`[Docker] Cancelling test session ${sessionId}, sending SIGINT (Ctrl+C) to container ${container.id.substring(0, 12)}`);
     activeContainers.delete(sessionId);
 
-    // Force stop and remove container
-    await container.stop({ t: 2 }).catch(() => {});
+    // 1. Emulate Ctrl+C by sending SIGINT to the main process inside the container
+    await container.kill({ signal: 'SIGINT' }).catch(() => {});
+    
+    // Give the container 1.5 seconds to handle the signal and cleanup gracefully
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // 2. Force stop and remove container to ensure complete sandbox isolation and cleanup
+    await container.stop({ t: 1 }).catch(() => {});
     await container.remove({ force: true }).catch(() => {});
     return true;
   } catch (err: any) {

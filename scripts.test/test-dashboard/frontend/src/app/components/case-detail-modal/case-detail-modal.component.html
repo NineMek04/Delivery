@@ -1,0 +1,58 @@
+<div class="detail-modal-backdrop" *ngIf="caseItem" (click)="onClose()">
+  <div class="detail-modal-container glass-card" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div class="header-main">
+        <span class="status-badge" [class.pass]="caseItem.status === 'PASS'" [class.fail]="caseItem.status === 'FAIL'">
+          {{ caseItem.status === 'PASS' ? '✓ PASS' : '✗ FAIL' }}
+        </span>
+        <h2 class="modal-title">{{ caseItem.name }}</h2>
+      </div>
+      <button class="modal-close-btn" (click)="onClose()">×</button>
+    </div>
+
+    <div class="modal-body scrollable">
+      <!-- Test Metadata Grid Table -->
+      <div class="metadata-table-wrapper">
+        <table class="modal-meta-table">
+          <tbody>
+            <tr>
+              <td class="meta-label">📂 Location:</td>
+              <td class="meta-value font-mono">{{ caseItem.location }}</td>
+            </tr>
+            <tr>
+              <td class="meta-label">🔌 Test Inputs / Arguments:</td>
+              <td class="meta-value font-mono">{{ caseItem.inputs || 'N/A' }}</td>
+            </tr>
+            <tr>
+              <td class="meta-label">⏱️ Duration:</td>
+              <td class="meta-value">{{ caseItem.durationMs }} ms</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Details Grid Split View -->
+      <div class="modal-details-grid">
+        <div class="detail-col col-objective">
+          <div class="col-header">
+            <span class="icon">📤</span>
+            <h4>ข้อมูลที่ใช้ทดสอบและคำสั่งร้องขอ (Request Payload / Execution Steps)</h4>
+          </div>
+          <div class="pre-wrapper">
+            <pre class="code-block font-mono">{{ caseItem.requestPayload || 'ไม่มีข้อมูลขั้นตอนในรอบนี้' }}</pre>
+          </div>
+        </div>
+        
+        <div class="detail-col col-criteria" [class.fail]="caseItem.status === 'FAIL'">
+          <div class="col-header">
+            <span class="icon">📥</span>
+            <h4>ผลลัพธ์ที่ได้รับและการตรวจสอบ (Response Trace / Assertions)</h4>
+          </div>
+          <div class="pre-wrapper">
+            <pre class="code-block font-mono" [style.color]="caseItem.status === 'FAIL' ? '#ff7b72' : '#3fb950'">{{ caseItem.error || caseItem.responseTrace || 'ยืนยันความปลอดภัยสำเร็จ' }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

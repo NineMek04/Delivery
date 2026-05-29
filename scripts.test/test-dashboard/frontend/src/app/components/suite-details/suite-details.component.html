@@ -1,0 +1,91 @@
+<div class="middle-grid">
+  <!-- 1. The Result Charts -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">
+        <span class="chart-icon">{{ chartType === 'doughnut' ? '🍩' : '⏱️' }}</span> {{ activeSuite | uppercase }} Results
+      </div>
+      <div class="chart-filters">
+        <span class="filter-btn" [class.active]="chartType === 'doughnut'" (click)="onToggleChartType('doughnut')">🍩 Ratios</span>
+        <span class="filter-btn" [class.active]="chartType === 'bar'" (click)="onToggleChartType('bar')">⏱️ Durations</span>
+      </div>
+    </div>
+    <div class="canvas-wrapper">
+      <canvas #unitChart></canvas>
+    </div>
+  </div>
+
+  <!-- 2. The Datatable List -->
+  <div class="suite-info-card">
+    <div class="suite-card-header" style="display: flex; flex-direction: column; gap: 8px; align-items: stretch; margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span class="suite-card-title">📂 Test Cases List</span>
+        <input 
+          type="text" 
+          [ngModel]="searchQuery" 
+          (ngModelChange)="onSearchChange($event)"
+          style="background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; color: #c9d1d9; font-size: 11px; width: 180px; outline: none; transition: border-color 0.2s;" 
+          placeholder="🔍 Filter cases...">
+      </div>
+      <div style="display: flex; gap: 6px; font-size: 10px;">
+        <button 
+          [class.active]="activeStatusFilter === 'all'" 
+          (click)="onStatusFilterChanged('all')"
+          style="background: #161b22; border: 1px solid #30363d; border-radius: 4px; color: #8b949e; padding: 2px 6px; cursor: pointer; transition: all 0.2s;"
+          [style.color]="activeStatusFilter === 'all' ? '#f0f6fc' : '#8b949e'"
+          [style.borderColor]="activeStatusFilter === 'all' ? '#58a6ff' : '#30363d'">
+          All ({{ totalCount }})
+        </button>
+        <button 
+          [class.active]="activeStatusFilter === 'PASS'" 
+          (click)="onStatusFilterChanged('PASS')"
+          style="background: #161b22; border: 1px solid #30363d; border-radius: 4px; color: #8b949e; padding: 2px 6px; cursor: pointer; transition: all 0.2s;"
+          [style.color]="activeStatusFilter === 'PASS' ? '#3fb950' : '#8b949e'"
+          [style.borderColor]="activeStatusFilter === 'PASS' ? '#3fb950' : '#30363d'">
+          Pass ({{ passedCount }})
+        </button>
+        <button 
+          [class.active]="activeStatusFilter === 'FAIL'" 
+          (click)="onStatusFilterChanged('FAIL')"
+          style="background: #161b22; border: 1px solid #30363d; border-radius: 4px; color: #8b949e; padding: 2px 6px; cursor: pointer; transition: all 0.2s;"
+          [style.color]="activeStatusFilter === 'FAIL' ? '#f85149' : '#8b949e'"
+          [style.borderColor]="activeStatusFilter === 'FAIL' ? '#f85149' : '#30363d'">
+          Fail ({{ failedCount }})
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Test Name</th>
+            <th>Location</th>
+            <th>Duration</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let row of filteredCases">
+            <tr (click)="onCaseClicked(row)" style="cursor: pointer;" class="hoverable-row" title="Click to view detailed test specifications and execution logs">
+              <td>
+                <span style="display:inline-block; margin-right: 6px; color: #58a6ff; font-size: 11px;">🔍</span>
+                {{ row.name }}
+              </td>
+              <td class="input-code">{{ row.location }}</td>
+              <td>{{ row.durationMs }}ms</td>
+              <td>
+                <span class="status-pill" [class.pass]="row.status === 'PASS'" [class.fail]="row.status === 'FAIL'">
+                  {{ row.status === 'PASS' ? '✓ Pass' : (row.status === 'FAIL' ? '✗ Fail' : row.status) }}
+                </span>
+              </td>
+            </tr>
+          </ng-container>
+          <tr *ngIf="filteredCases.length === 0">
+            <td colspan="4" style="text-align: center; color: #8b949e; padding: 2rem;">No test cases found for this suite yet. Click 'Run New Test' to execute.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

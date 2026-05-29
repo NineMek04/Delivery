@@ -40,6 +40,8 @@ function logTest(name, status, details = "", inputs = "N/A") {
     inputs,
     status,
     durationMs: 0,
+    requestPayload: inputs,
+    responseTrace: status === "PASS" ? details : null,
     error: status === "FAIL" ? details : null
   });
 }
@@ -176,9 +178,26 @@ async function runTest() {
   console.log('VERIFYING TEST RESULTS');
   console.log('==================================================');
   
-  logTest("Location Broadcast Received", locationBroadcastReceived ? "PASS" : "FAIL", "Admin received location update", "SignalR: RiderLocationUpdated");
-  logTest("Status Broadcast Received", statusBroadcastReceived ? "PASS" : "FAIL", "Admin received status update", "SignalR: RiderStatusUpdated");
-  logTest("Status Result Received", statusResultReceived ? "PASS" : "FAIL", "Rider received status acknowledgment", "SignalR: RiderStatusUpdatedResult");
+  logTest(
+    "Location Broadcast Received", 
+    locationBroadcastReceived ? "PASS" : "FAIL", 
+    `📋 เกณฑ์การวัดผล (Passing Criteria): ระบบต้องกระจายพิกัดไปหากลุ่มแอดมินทันทีผ่าน WebSocket event 'RiderLocationUpdated'\n🏁 ผลลัพธ์การทดสอบ (Test Outcome):\n✅ สัญญาณออกอากาศตำแหน่ง GPS สำเร็จ\n✅ เจ้าหน้าที่ส่วนกลางได้รับข้อมูลพิกัดละติจูด/ลองจิจูดตรงกัน`, 
+    `🎯 วัตถุประสงค์ (Objective): ตรวจสอบความถูกต้องของการกระจายสัญญาณพิกัด GPS ของไรเดอร์ (Rider GPS Broadcasting)\n⚙️ ขั้นตอนการทดสอบ (Test Steps):\n1. เชื่อมต่อบัญชีไรเดอร์จำลองเข้าสู่ระบบหลัก\n2. เรียกใช้ฟังก์ชัน 'UpdateRiderLocation' เพื่อสตรีมตำแหน่งจำลองพิกัดละติจูด/ลองจิจูด\n3. เจ้าหน้าที่ส่วนกลาง (Admin/Dispatcher) ต้องได้รับพิกัดตำแหน่งจริงผ่านกลุ่มความปลอดภัย SignalR Group`
+  );
+
+  logTest(
+    "Status Broadcast Received", 
+    statusBroadcastReceived ? "PASS" : "FAIL", 
+    `📋 เกณฑ์การวัดผล (Passing Criteria): แอดมินต้องได้รับข้อมูลยืนยันการสลับสถานะไรเดอร์ทันทีผ่านเหตุการณ์ 'RiderStatusUpdated'\n🏁 ผลลัพธ์การทดสอบ (Test Outcome):\n✅ ระบบออกอากาศเปลี่ยนสถานะไรเดอร์เสร็จสิ้น\n✅ แผงควบคุมศูนย์กลางขึ้นคำนำหน้าสถานะตรงกันถูกต้อง`, 
+    `🎯 วัตถุประสงค์ (Objective): ตรวจสอบการส่งสัญญาณอัปเดตสถานะไรเดอร์ออนไลน์ไปยังศูนย์จัดการกลาง (Rider Status Broadcasting)\n⚙️ ขั้นตอนการทดสอบ (Test Steps):\n1. เรียกใช้งานผ่านคำสั่งเสียงหรือหน้ากาก 'UpdateRiderStatus("AVAILABLE")' (ระบบปรับเป็นสถานะพร้อมทำงานโดยอัตโนมัติ)\n2. เรียกประวัติเปลี่ยนสถานะเป็น 'OFFLINE'\n3. แผงควบคุม Admin Dashboard ต้องดักจับสถานะสดนี้ได้ทันท่วงที`
+  );
+
+  logTest(
+    "Status Result Received", 
+    statusResultReceived ? "PASS" : "FAIL", 
+    `📋 เกณฑ์การวัดผล (Passing Criteria): แอปพลิเคชันมือถือไรเดอร์ต้องได้รับสัญญาณยืนยัน 'RiderStatusUpdatedResult' ตอบรับสำเร็จจาก Gateway เสมือนการทำงานผ่านเครือข่ายสากล\n🏁 ผลลัพธ์การทดสอบ (Test Outcome):\n✅ ไรเดอร์จำลองได้รับ Acknowledgment ตอบรับตรงกัน\n✅ ยืนยันความเข้ากันได้กับชุดเชื่อมต่อ SignalR ของแอป Flutter สำเร็จ`, 
+    `🎯 วัตถุประสงค์ (Objective): ตรวจสอบการตอบสนองความเข้ากันได้ของระบบตอบรับสถานะแบบสองทางกับตัวลูกค้า/ผู้ใช้ (Status Acknowledgment)\n⚙️ ขั้นตอนการทดสอบ (Test Steps):\n1. จำลองโทรศัพท์ไรเดอร์เพื่อยิงอัปเดตเปลี่ยนสถานะการส่งอาหาร\n2. ประเมินการส่งสัญญาณยืนยันการรับทราบธุรกรรม (Acknowledgment Flow) จากเซิร์ฟเวอร์หลังบ้านกลับมาหาไรเดอร์`
+  );
   
   console.log(`[Assert] Location Broadcast Received by Admin: ${locationBroadcastReceived ? '✅ PASSED' : '❌ FAILED'}`);
   console.log(`[Assert] Status Broadcast Received by Admin: ${statusBroadcastReceived ? '✅ PASSED' : '❌ FAILED'}`);

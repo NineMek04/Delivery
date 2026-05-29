@@ -1,0 +1,175 @@
+<!-- Top Row: 4 Metric Cards -->
+<div class="metrics-row">
+  <!-- Success Rate -->
+  <div class="metric-card">
+    <div class="card-header-row">
+      <span class="card-label">Global Success Rate</span>
+      <span class="card-icon">📈</span>
+    </div>
+    <div class="metric-value green-text">{{ dashboardStats.successRate }}%</div>
+    <div class="sparkline-container">
+      <svg class="sparkline" viewBox="0 0 100 20">
+        <path d="M 0,15 Q 20,5 40,12 T 80,4 T 100,10" fill="none" stroke="#3fb950" stroke-width="2" />
+      </svg>
+    </div>
+  </div>
+
+  <!-- Total Executions -->
+  <div class="metric-card">
+    <div class="card-header-row">
+      <span class="card-label">Total Executions</span>
+      <span class="card-icon">🔢</span>
+    </div>
+    <div class="metric-value">{{ dashboardStats.runs }}</div>
+    <span class="card-subtitle">+12/min avg</span>
+  </div>
+
+  <!-- Avg Execution Time -->
+  <div class="metric-card">
+    <div class="card-header-row">
+      <span class="card-label">Avg. Execution Time</span>
+      <span class="card-icon">⏱</span>
+    </div>
+    <div class="metric-value">{{ (dashboardStats.avgDurationMs / 1000) | number:'1.1-1' }}s</div>
+    <span class="card-subtitle">-1.5s vs last run</span>
+  </div>
+
+  <!-- Resource Usage -->
+  <div class="metric-card">
+    <div class="card-header-row">
+      <span class="card-label">Total Resource Usage</span>
+      <span class="card-icon">💾</span>
+    </div>
+    <div class="resource-bars">
+      <div class="resource-bar-row">
+        <span class="bar-name">CPU:</span>
+        <span class="bar-value">42%</span>
+        <div class="bar-track"><div class="bar-fill cyan-fill" style="width: 42%"></div></div>
+      </div>
+      <div class="resource-bar-row">
+        <span class="bar-name">RAM:</span>
+        <span class="bar-value">12GB</span>
+        <div class="bar-track"><div class="bar-fill purple-fill" style="width: 60%"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Middle Row: Line Chart & Load Test Widget -->
+<div class="middle-grid">
+  <!-- Performance Nexus Chart -->
+  <div class="chart-card large-chart">
+    <div class="chart-header">
+      <div class="chart-title">
+        <span class="chart-icon">📈</span> Performance Nexus
+      </div>
+      <div class="chart-filters">
+        <span class="filter-btn active">1H</span>
+        <span class="filter-btn">24H</span>
+        <span class="filter-btn">7D</span>
+      </div>
+    </div>
+    <div class="canvas-wrapper">
+      <canvas #overallChart></canvas>
+    </div>
+  </div>
+
+  <!-- Load Test widget -->
+  <div class="load-test-card">
+    <div class="card-title-row">
+      <span class="bold-title">⚡ Load Test (Node.js)</span>
+      <span class="version-badge">v2.1</span>
+    </div>
+    <div class="stress-row">
+      <span class="stress-label">Concurrency/Stress</span>
+      <span class="stress-value spike-text">Spike: {{ loadStatsForUi.rps }}</span>
+    </div>
+    <!-- Bar chart placeholder -->
+    <div class="styled-bar-chart">
+      <div class="bar-item" style="height: 20%"></div>
+      <div class="bar-item" style="height: 25%"></div>
+      <div class="bar-item" style="height: 35%"></div>
+      <div class="bar-item" style="height: 30%"></div>
+      <div class="bar-item highlighted-red" style="height: 65%"></div>
+      <div class="bar-item highlighted-red" style="height: 85%"></div>
+      <div class="bar-item highlighted-red" style="height: 70%"></div>
+      <div class="bar-item" style="height: 40%"></div>
+      <div class="bar-item" style="height: 30%"></div>
+    </div>
+    <!-- Idempotency Check box -->
+    <div class="idempotency-box" [class.passed]="loadStatsForUi.passed">
+      <span class="box-title">Idempotency Check</span>
+      <div class="box-status">
+        <span class="check-icon">✓</span> 100% Passed (10k requests)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Row: 3 Suite Cards with Real Data Binding -->
+<div class="bottom-grid">
+  <!-- 1. Backend Integration Card -->
+  <div class="suite-info-card" (click)="onSuiteSelected('csharp')" style="cursor: pointer;" title="View Backend Integration detailed logs">
+    <div class="suite-card-header">
+      <span class="suite-card-title">🛡️ Backend Integration (.NET)</span>
+    </div>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Case</th>
+            <th>Input (MediatR)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of csharpCasesForUi">
+            <td>{{ row.name }}</td>
+            <td class="input-code">{{ row.input }}</td>
+            <td>
+              <span class="status-pill" [class.pass]="row.status === 'Pass'" [class.fail]="row.status === 'Fail'">
+                {{ row.status === 'Pass' ? '✓ Pass' : '✗ Fail' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 2. AI Engine Card -->
+  <div class="suite-info-card" (click)="onSuiteSelected('python')" style="cursor: pointer;" title="View AI Engine detailed constraints">
+    <div class="suite-card-header">
+      <span class="suite-card-title">🧠 AI Engine (Python)</span>
+      <span class="badge vrp-badge">VRP Opt</span>
+    </div>
+    <div class="json-viewer-box">
+      <span class="box-label">Input Coordinates</span>
+      <pre class="coordinates-code">{{ pythonCoordsForUi | json }}</pre>
+    </div>
+    <div class="constraints-section">
+      <span class="section-label">Constraint Checks</span>
+      <div class="constraints-grid">
+        <div *ngFor="let item of pythonConstraintsForUi" class="constraint-item" [class.passed]="item.passed">
+          <span class="check-box">✓</span>
+          <span class="constraint-label">{{ item.label }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. E2E Simulator Card -->
+  <div class="suite-info-card" (click)="onSuiteSelected('simulator')" style="cursor: pointer;" title="View E2E Simulator detailed paths">
+    <div class="suite-card-header">
+      <span class="suite-card-title">🚀 E2E Simulator</span>
+      <span class="badge running-badge">Running</span>
+    </div>
+    <div class="steps-checklist">
+      <div *ngFor="let step of simulatorStepsForUi" class="step-item" [attr.data-status]="step.status">
+        <span class="step-indicator"></span>
+        <span class="step-label">{{ step.label }}</span>
+        <span class="step-meta">{{ step.meta }}</span>
+      </div>
+    </div>
+  </div>
+</div>

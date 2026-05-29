@@ -7,6 +7,8 @@ using BackendApi.Data;
 using BackendApi.Core.StateMachines;
 using BackendApi.Services.Dispatch;
 using BackendApi.Infrastructure.Redis;
+using BackendApi.Infrastructure.EventBus;
+using BackendApi.Infrastructure.EventBus.Events;
 
 namespace BackendApi.Services.Tracking
 {
@@ -15,18 +17,24 @@ namespace BackendApi.Services.Tracking
         private readonly ApplicationDbContext _dbContext;
         private readonly RiderPresenceService _presenceService;
         private readonly StateMachineService _stateMachine;
+        private readonly IEventBus _eventBus;
         private readonly ILogger<RiderPresenceManager> _logger;
+        private readonly IServiceProvider _serviceProvider;
 
         public RiderPresenceManager(
             ApplicationDbContext dbContext,
             RiderPresenceService presenceService,
             StateMachineService stateMachine,
-            ILogger<RiderPresenceManager> _logger2)
+            IEventBus eventBus,
+            ILogger<RiderPresenceManager> logger,
+            IServiceProvider serviceProvider)
         {
             _dbContext = dbContext;
             _presenceService = presenceService;
             _stateMachine = stateMachine;
-            _logger = _logger2;
+            _eventBus = eventBus;
+            _logger = logger;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<RiderConnectionResult?> HandleRiderConnectAsync(string userId)
@@ -36,19 +44,20 @@ namespace BackendApi.Services.Tracking
 
             await _presenceService.UpdateHeartbeatAsync(user.RiderId);
 
-            var rider = await _dbContext.Riders.FindAsync(user.RiderId);
+            var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == user.RiderId);
             if (rider == null) return null;
 
             var oldState = rider.State;
-            if (rider.State == RiderState.OFFLINE)
+            
+            // Publish integration event to RabbitMQ for durable out-of-process state transition
+            var riderId = rider.Id;
+            await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent
             {
-                await _stateMachine.TransitionRiderAsync(rider, RiderState.IDLE);
-            }
-            else if (rider.State == RiderState.STALE)
-            {
-                var newState = await HasActiveJobAsync(rider.Id) ? RiderState.BUSY : RiderState.IDLE;
-                await _stateMachine.TransitionRiderAsync(rider, newState);
-            }
+                RiderId = riderId,
+                TargetState = (rider.State == RiderState.OFFLINE) ? "IDLE" : "RECOVER",
+                PreviousState = oldState.ToString(),
+                Reason = "connect"
+            });
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
         }
@@ -58,11 +67,20 @@ namespace BackendApi.Services.Tracking
             var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
             if (user?.RiderId == null) return null;
 
-            var rider = await _dbContext.Riders.FindAsync(user.RiderId);
+            var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == user.RiderId);
             if (rider == null || rider.State == RiderState.OFFLINE) return null;
 
             var oldState = rider.State;
-            await _stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
+            var riderId = rider.Id;
+
+            // Publish integration event to RabbitMQ for durable out-of-process state transition
+            await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent
+            {
+                RiderId = riderId,
+                TargetState = "STALE",
+                PreviousState = oldState.ToString(),
+                Reason = "disconnect"
+            });
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
         }

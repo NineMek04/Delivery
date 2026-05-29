@@ -95,14 +95,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   loadDashboardData(): void {
     this.isLoading = true;
-    // BaseApiService.getAll() ทำการ unwrap ApiResponse + PaginatedResult ให้อัตโนมัติแล้ว
     forkJoin({
       orders: this.orderService.getAll(),
-      riders: this.riderService.getAll()
+      riders: this.riderService.getByEndpoint('/rider-locations')
     }).subscribe({
       next: ({ orders, riders }) => {
         this.orders = orders;
-        this.riders = riders;
+        const riderList = (riders as any)?.value || [];
+        this.riders = riderList.map((r: any) => ({
+          id: r.riderId,
+          name: r.name,
+          status: r.status,
+          lat: r.lat,
+          lng: r.lng,
+          trackingCode: `RID-${r.riderId.substring(0, 6).toUpperCase()}`
+        }));
         this.syncChart();
         this.isLoading = false;
       },

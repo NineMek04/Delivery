@@ -107,6 +107,7 @@ public static class ServiceSetup
         services.AddTransient<OrderCreatedIntegrationEventHandler>();
         services.AddTransient<OrderStatusChangedIntegrationEventHandler>();
         services.AddTransient<RiderLocationUpdatedIntegrationEventHandler>();
+        services.AddTransient<RiderStateChangedIntegrationEventHandler>();
 
         // --- Background Workers (The System Janitors) ---
         services.AddHostedService<DispatchTimeoutWorker>();
@@ -114,6 +115,7 @@ public static class ServiceSetup
         services.AddHostedService<GpsRabbitMqConsumerWorker>();
         services.AddHostedService<PartitionMaintenanceWorker>();
         services.AddHostedService<TelemetryBroadcastWorker>();
+        services.AddHostedService<OsrmSnapWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);
@@ -141,7 +143,14 @@ public static class ServiceSetup
             options.Filters.Add<ValidationFilter>();
         });
 
-        services.AddSignalR();
+        services.AddSignalR(options =>
+        {
+            // ป้องกัน Thundering Herd เวลาไรเดอร์เข้าพร้อมกัน 500 คน
+            options.HandshakeTimeout = TimeSpan.FromSeconds(30); 
+            options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+            options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+            options.MaximumReceiveMessageSize = 32 * 1024;
+        });
 
         // --- AI Service HttpClient ---
         services.AddHttpClient<IAiService, AiService>(client =>

@@ -22,7 +22,7 @@ function getArg(name, defaultValue) {
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : defaultValue;
 }
 
-const NUM_RIDERS = parseInt(getArg("riders", "50"), 10);
+const NUM_RIDERS = parseInt(getArg("riders", "500"), 10);
 const DURATION_SEC = parseInt(getArg("duration", "60"), 10);
 const INTERVAL_MS = parseInt(getArg("interval", "2000"), 10);
 
@@ -97,6 +97,9 @@ async function simulateRider(index, token) {
       await connection.invoke("UpdateLocation", lat, lng, accuracy);
       stats.gpsSent++;
     } catch (err) {
+      if (stats.gpsErrors === 0) {
+        console.error(`[FIRST GPS ERROR]: ${err.message}`);
+      }
       stats.gpsErrors++;
     }
   }, INTERVAL_MS);

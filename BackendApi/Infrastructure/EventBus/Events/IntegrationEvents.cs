@@ -107,3 +107,30 @@ public record RiderLocationUpdatedIntegrationEvent : IntegrationEvent
         Timestamp = timestamp;
     }
 }
+
+/// <summary>
+/// Event published when a rider's presence or online state changes,
+/// ensuring durable, out-of-process persistence of rider states.
+/// </summary>
+public record RiderStateChangedIntegrationEvent : IntegrationEvent
+{
+    public string RiderId { get; init; } = null!;
+    public string TargetState { get; init; } = null!; // "IDLE", "STALE", "BUSY", "OFFLINE"
+    public string? PreviousState { get; init; }
+    public string Reason { get; init; } = null!; // "connect", "disconnect", "heartbeat"
+
+    public RiderStateChangedIntegrationEvent() { }
+
+    [JsonConstructor]
+    public RiderStateChangedIntegrationEvent(
+        string riderId,
+        string targetState,
+        string? previousState,
+        string reason)
+    {
+        RiderId = riderId;
+        TargetState = targetState;
+        PreviousState = previousState;
+        Reason = reason;
+    }
+}

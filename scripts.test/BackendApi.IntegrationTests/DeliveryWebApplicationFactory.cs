@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
+using Testcontainers.Redis;
 
 namespace BackendApi.IntegrationTests;
 
@@ -19,6 +20,7 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
 {
     private readonly PostgreSqlContainer _container;
     private readonly RabbitMqContainer _rabbitMqContainer;
+    private readonly RedisContainer _redisContainer;
 
     public DeliveryWebApplicationFactory()
     {
@@ -39,11 +41,15 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
             .WithUsername("guest")
             .WithPassword("guest")
             .Build();
+
+        _redisContainer = new RedisBuilder()
+            .WithImage("redis:7-alpine")
+            .Build();
     }
 
     public async Task InitializeAsync()
     {
-        await Task.WhenAll(_container.StartAsync(), _rabbitMqContainer.StartAsync());
+        await Task.WhenAll(_container.StartAsync(), _rabbitMqContainer.StartAsync(), _redisContainer.StartAsync());
 
         // Create PostGIS extension before EF Core migration
         await using var conn = new NpgsqlConnection(_container.GetConnectionString());
@@ -56,7 +62,7 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
-        await Task.WhenAll(_container.DisposeAsync().AsTask(), _rabbitMqContainer.DisposeAsync().AsTask());
+        await Task.WhenAll(_container.DisposeAsync().AsTask(), _rabbitMqContainer.DisposeAsync().AsTask(), _redisContainer.DisposeAsync().AsTask());
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -77,7 +83,9 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
                 { "MessageBroker:Host", _rabbitMqContainer.Hostname },
                 { "MessageBroker:Port", _rabbitMqContainer.GetMappedPublicPort(5672).ToString() },
                 { "MessageBroker:Username", "guest" },
-                { "MessageBroker:Password", "guest" }
+                { "MessageBroker:Password", "guest" },
+                { "ConnectionStrings:Redis", _redisContainer.GetConnectionString() },
+                { "Redis", _redisContainer.GetConnectionString() }
             });
         });
 

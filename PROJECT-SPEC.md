@@ -60,8 +60,8 @@
 ### 2.1 Backend Stack (.NET 8 Core)
 - **.NET 8 (LTS):** หัวใจหลักของ Business Engine, REST API และ SignalR WebSocket Hub ทำงานแบบ Native Async
 - **Entity Framework Core (8.x):** ระบบ ORM นำหน้าแบบ Code-first ควบคุม Database Migrations และ Optimistic Concurrency 
-- **PostgreSQL 16:** ฐานข้อมูลเชิงสัมพันธ์แบบทนทาน (ACID Transaction)
-- **PostGIS 3.x:** ส่วนขยายเชิงพื้นที่สำหรับรันคำสั่ง SQL Spatial เช่น `ST_Distance` หรือหาขอบเขตรัศมีด้วย `ST_DWithin` และ GiST Indexing
+- **PostgreSQL 15 (postgis/postgis:15-3.3):** ฐานข้อมูลเชิงสัมพันธ์แบบทนทาน (ACID Transaction)
+- **PostGIS 3.3:** ส่วนขยายเชิงพื้นที่สำหรับรันคำสั่ง SQL Spatial เช่น `ST_Distance` หรือหาขอบเขตรัศมีด้วย `ST_DWithin` และ GiST Indexing
 - **Redis 7.x:** ระบบ Speed Layer พักข้อมูลพิกัด GPS รัน Presence และควบคุมกุญแจล็อคกระจาย (Distributed Lock)
 - **RabbitMQ 3.x:** เมสเสจโบรคเกอร์คอยสับคิวข้อความ Integration Events ผ่าน AMQP Protocol พร้อม Dead Letter Queues (DLQ)
 - **SignalR:** เกตเวย์ส่งสัญญาณทิศทางเดียวและสองทางบนเทคโนโลยี WebSockets
@@ -137,14 +137,18 @@
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **`postgres-db` (postgres:16-alpine):** ฐานข้อมูลหลัก (The Ledger) เก็บโครงสร้างข้อมูลทั้งหมด ทำ Spatial Database ในการค้นหาร้านค้าและ Rider
-2. **`redis-cache` (redis:7-alpine):** ข้อมูลพิกัดล่าสุด (GPS Speed Layer), ตาราง Presence เก็บการมีตัวตน, และระบบ distributed locking
-3. **`backend-api`:** สร้างขึ้นจาก Dockerfile แบบ Multi-stage รวบตรรกะควบคุมระบบ (The brain of Orchestration)
-4. **`fastapi-ai`:** Python Service ทำหน้าที่คำนวณ VRP Waypoints และให้คะแนน Rider
-5. **`osrm`:** ตัวประมวลผลระยะทางบนเครือข่ายถนนจริงระดับวินาที
-6. **`rabbitmq`:** ตัวเชื่อมต่อแลกเปลี่ยนข้อมูลข้ามเซอร์วิสแบบ Asynchronous (AMQP Broker)
-7. **`seq`:** ศัลยแพทย์ส่องกล้อง วิเคราะห์ค้นหาข้อมูล Log ทั้งหมดของระบบในหน้าต่างเดียว
-8. **`admin-dashboard`:** Nginx Server ขนาดจิ๋ว คอยเสิร์ฟไฟล์ Static Web HTML/CSS ของ Angular 19
+1. **`db` (delivery-db: postgis/postgis:15-3.3):** ฐานข้อมูลหลัก (The Ledger) เก็บโครงสร้างข้อมูลทั้งหมด ทำ Spatial Database ในการค้นหาร้านค้าและ Rider
+2. **`redis` (delivery-redis: redis:7-alpine):** ข้อมูลพิกัดล่าสุด (GPS Speed Layer), ตาราง Presence เก็บการมีตัวตน, และระบบ distributed locking
+3. **`backend` (delivery-backend):** สร้างขึ้นจาก Dockerfile แบบ Multi-stage รวบตรรกะควบคุมระบบหลัก (.NET 8)
+4. **`ai-service` (delivery-ai):** Python FastAPI Service ทำหน้าที่คำนวณ VRP Waypoints และให้คะแนน Rider
+5. **`osrm` (delivery-osrm):** ตัวประมวลผลระยะทางบนเครือข่ายถนนจริงระดับมิลลิวินาที (Offline OSRM Router)
+6. **`rabbitmq` (delivery-rabbitmq: rabbitmq:3-management-alpine):** ตัวเชื่อมต่อแลกเปลี่ยนข้อมูลข้ามเซอร์วิสแบบ Asynchronous (AMQP Broker)
+7. **`seq` (delivery-seq: datalust/seq:latest):** ระบบ Log Analytics สำหรับมอนิเตอร์และวิเคราะห์ log จาก CorrelationId ทั่วทุกเซอร์วิส
+8. **`frontend` (delivery-frontend):** Nginx Server เสิร์ฟไฟล์ Static Web HTML/CSS ของ Angular 19 (Admin Dashboard)
+9. **`rider-app` (delivery-rider-app):** Nginx Server เสิร์ฟไฟล์แอปพลิเคชันไรเดอร์ Flutter Web
+10. **`nginx-proxy` (delivery-nginx: nginx:alpine):** Reverse Proxy สำหรับจัดการจัดเส้นทางทราฟฟิกระหว่างบริการหลัก
+11. **`prometheus` (delivery-prometheus):** จัดเก็บค่าสถิติเชิงระบบสำหรับการวิเคราะห์ขีดความสามารถ
+12. **`grafana` (delivery-grafana):** บอร์ดแดชบอร์ดแดชแสดงผลประสิทธิภาพเชิงภาพ (Visualization)
 
 ---
 
@@ -408,12 +412,17 @@ npm run generate:api
 
 ### 12.1 คลังเทส C# Integration Tests (xUnit)
 - **พิกัดโฟลเดอร์:** `scripts.test/BackendApi.IntegrationTests/`
-- **เครื่องมือหลัก:** `xUnit`, `Testcontainers.PostgreSql`, `Testcontainers.Redis`, `FluentAssertions`
-- **กลยุทธ์การออกแบบ:** ใช้ `DeliveryWebApplicationFactory.cs` ทำหน้าที่ดึง Image Postgres/PostGIS ของจริงขึ้นมาจำลองเพื่อรันเทสเชิงพื้นที่ โดยมีคลาสทดสอบที่ครอบคลุมดังนี้:
+- **เครื่องมือหลัก:** `xUnit`, `Testcontainers.PostgreSql`, `Testcontainers.RabbitMq`, `Testcontainers.Redis`, `FluentAssertions`
+- **การทดสอบแบบ Hermetic Sandbox (100% Self-Contained):** เพื่อรองรับการรันชุดการทดสอบผ่านระบบบอร์ดควบคุม Docker Sandbox โดยไม่มีปัญหาการขาดแคลน Redis ใน Local network หรือปัญหาคอขวดบนพอร์ตโฮสต์ ระบบได้บูรณาการ Testcontainers ทั้งหมด 3 ตัว ทำงานสอดประสานกันภายใน `DeliveryWebApplicationFactory.cs`:
+  - **`PostgreSqlContainer` (postgis/postgis:15-3.3):** จำลองฐานข้อมูลหลักเชิงพื้นที่พร้อมเปิดใช้งาน PostGIS Extension เชิงรุก
+  - **`RabbitMqContainer` (rabbitmq:3-management-alpine):** จำลองคิวรับส่งข้อความ Integration Events ประสิทธิภาพสูง
+  - **`RedisContainer` (redis:7-alpine):** จำลอง Cache ความเร็วสูงสำหรับ GPS Speed Layer, Rider Presence และ Distributed Locks ทำให้การรันเทสมีความเป็น Hermetic และเป็นอิสระจาก Redis ตัวนอกเครื่อง 100%
+- **คลาสทดสอบที่ครอบคลุม (43 Tests):**
   - **`SpatialQueryTests.cs`:** ตรวจคำนวณหาร้านค้าในรัศมี และการกรองระยะห่างพิกัดเชิงเส้นโค้งโลก
   - **`OrderLifecycleTests.cs`:** ตรวจจังหวะการเลื่อนสถานะออเดอร์และการปะทะกันของสเตตไรเดอร์
   - **`OrderCancelTests.cs`:** ตรวจเงื่อนไขการห้ามกดยกเลิกสินค้าขณะขี่รถส่งของ
   - **`AuthFlowTests.cs`:** ตรวจสอบรหัสความปลอดภัยและการรีเฟรชโทเค็นหมุนรอบ (Token Rotation)
+  - **`TelemetryControllerTests.cs`:** ตรวจสอบ REST Batch Ingestion API การประมวลผลตำแหน่งแบบกลุ่ม และการประเมินอัตราตอบรับด้วยระบบ Rate Limit
 
 ```bash
 # สั่งรันทุก Integration Tests ทั้งหมด
@@ -472,6 +481,32 @@ pytest -v
 2. **Exponential Backoff Retry Strategy:** การสื่อสารผ่าน RabbitMQ กำหนดอัตราลองใหม่ 5 ครั้งแบบทวีคูณระยะเวลาห่าง (2/4/8/16/32 วินาที) ก่อนจะปล่อยข้อความหล่นลงตู้จดหมายเสีย (DLQ)
 3. **Optimistic Concurrency Protection:** ใช้ RowVersion บล็อกคำสั่งแก้ทับข้อมูลของแอดมินหลายคนในเสี้ยววินาทีเดียวกัน
 4. **Failsafe Circuit Breaker:** ระบบ Polly ดักจับ API ภายนอก หาก AI Engine หลับใหลชั่วคราว ระบบหลังบ้านจะปรับใช้ระบบนำทางตรง OSRM Fallback ทันทีโดยไม่หยุดกระบวนการสร้างออเดอร์ของลูกค้า
+
+---
+
+## บทที่ 15 — การสังเกตการณ์ประสิทธิภาพระดับสูง (Data-Driven Observability Dashboard)
+
+ระบบได้รับการยกระดับประสิทธิภาพการสังเกตการณ์และการตรวจจับปัญหาแบบเรียลไทม์ผ่านการวิเคราะห์ผลลัพธ์ข้อมูลการทดสอบโหลดอย่างเป็นระบบ (Real-time Test Metrics Analytics Pipeline):
+
+### 15.1 สถาปัตยกรรมการดึงค่าสถิติ (Metrics Extraction Pipeline)
+```text
+[ Docker Sandbox Container ] (รัน breaking-point-stress.js / resilience-stress.js)
+            │
+            ▼ (ส่ง Stdout Logs เรียลไทม์)
+   [ LogParserService ] (Node.js - ตรวจจับข้อมูลผ่าน Regex: RPS, Latency, Errors)
+            │
+            ├──────► [ Redis Queue/History ] (เก็บข้อมูลประวัติย้อนหลัง 100 รอบใน Memory)
+            │
+            └──────► [ Socket.IO Log Buffer ] (จัดแบทช์ส่งออกทุก 500ms ป้องกัน UI Freezes)
+                        │
+                        ▼ (กระจายสัญญาณแบบ Real-time)
+             [ MetricsChartComponent ] (Angular UI - Chart.js)
+```
+
+### 15.2 ระบบหน้ากากวิเคราะห์ (Data-Driven Visualizations)
+1.  **RPS Gauge Chart:** เข็มมาตรวัดความเร็วในการประมวลผลคำขอ (Requests Per Second) ทำงานแบบเรียลไทม์ มีการตั้งจุดเตือนวิกฤต (Critical Threshold) เป็นสีแดงสดเมื่อชนเพดานขีดจำกัดความสามารถทางกายภาพของระบบหลังบ้าน (Physical System Capacity เช่น 5,000 RPS)
+2.  **RPS vs Latency Trend Chart:** แผนภูมิกราฟเส้นคู่เปรียบเทียบความสัมพันธ์เชิงประสิทธิภาพระหว่างปริมาณทราฟฟิก (Requests/sec) และความหน่วงการตอบสนอง (Latency ในหน่วย ms) เพื่อชี้จุดเสื่อมถอยของการให้บริการ (Latency Degradation Point)
+3.  **ANSI Live Terminal Highlighting:** หน้าต่าง xterm แสดงผลรันเทสบน Angular มีระบบ Regex วิเคราะห์และย้อมสีข้อมูลสำคัญอัตโนมัติ เช่น ไฮไลท์คำว่า `Error`/`Timeout` เป็นสีแดง, `Passed`/`0.00%` เป็นสีเขียว และ `BREAKING POINT` เป็นสีแดงกระพริบเพื่อกระตุ้นสายตาผู้ใช้งานแอดมิน
 
 ---
 

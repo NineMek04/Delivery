@@ -137,41 +137,52 @@ Delivery/
 
 ## 5. Current State of Development
 
-### สถานะรวม: 🔵 **Phase 5 — Real-world Routing & Real-time Dispatch Simulation** (สำเร็จ 100% สำหรับ Core/Web)
-### สถานะรวม: 🟢 **Phase 6 — Production Readiness & Operational Intelligence** (สำเร็จ 100% สำหรับ Core Backend/AI/Testing)
+### สถานะรวม: 🔵 **Phase 5 — Data-Driven Observability (Testing Dashboard)** (สำเร็จ 100%)
+### สถานะรวม: 🟢 **Phase 6 — Production Readiness & Operational Intelligence** (สำเร็จ 100% สำหรับ Core Backend/AI/Testing/Dashboard)
 
 | Component            | Status            | รายละเอียด                                                    |
 |----------------------|-------------------|--------------------------------------------------------------|
-| **docker-compose**   | ✅ Created         | 5 services: db, backend, ai-service, frontend, **redis** (ปรับจูน RAM & DB Connections สำหรับ PostGIS) |
+| **docker-compose**   | ✅ Created         | 6 services: db, backend, ai-service, frontend, redis, **test-dashboard-redis** (ระบบอัตโนมัติคุมการรัน) |
 | **PostGIS DB**       | ✅ Optimized       | GiST Indexes บนพิกัด Geometry, ตาราง Location History แบบ Range Partitioning รายเดือน, Clustering จูน Disk IO |
 | **Redis Cache**      | ✅ Running         | Used for GPS speed layer, presence, and distributed locking  |
 | **BackendApi**       | ✅ 100% Ready      | ขจัดปัญหา N+1 Query, ย้าย Haversine Math ไปหา PostGIS Engine, เพิ่มระบบ Provision Partition อัตโนมัติ |
 | **Universal Tracking**| ✅ 100% Ready      | ติดตั้งรหัสอ้างอิงสวยงาม ORD-, RID-, SHP-, USR- คิวรี O(1)/O(log N) ผนวกการค้นหาแบบผสมผสาน |
 | **OSRM Routing**     | ✅ 100% Ready      | ติดตั้งระบบ Offline-First Dijkstra สำหรับวาดเส้นทางโค้งจริง พร้อมการบีบอัด Polyline |
 | **ai-engine**        | ✅ 100% Ready      | FastAPI + OR-Tools VRP solver, Phase A Scorer, และ ETA Prediction Engine |
-| **admin-dashboard**  | 🟢 90% Ready       | ใช้งาน Sim Map, แปลง Polyline, ปรับ UI แสดงรหัส Tracking Code สวยงาม, รับข้อมูล Analytics |
-| **rider_app**        | 🟡 30% Ready       | Foundation ready. Needs real UI, build_runner, and Background GPS logic. |
+| **admin-dashboard**  | ✅ 100% Ready      | Live maps, Smooth Linear Interpolation, On-Demand Route history, และ SignalR live tracking |
+| **test-dashboard**   | ✅ 100% Ready      | Testing Dashboard (Node.js + BullMQ + Angular + Socket.IO + Xterm + Chart.js Gauge/Line charts) พร้อมดึง Metrics (RPS, Latency, Errors) |
+| **rider_app**        | 🟢 50% Ready       | Isar NoSQL Offline Buffer, Timer Sync Engine, and Riverpod integration complete. |
 | **E2E Simulator**    | ✅ 100% Ready      | Node.js script เชื่อมต่อเต็มรูปแบบ รองรับเส้นทาง OSRM, GPS Jitter, SignalR Flow พร้อมกันหลาย Rider |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
 | **Database Migration**| ✅ Applied         | Run `dotnet ef database update` สำหรับ Spatial Index, Partitioning, และ RefNumber ล่าสุด |
 | **Backend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
 | **Enterprise Audit** | ✅ Ready           | Layered Base Entities, Soft Delete, IP Tracking, Concurrency Tokens (RowVersion) |
 | **E2E Testcontainers**| ✅ 100% Passed     | รัน integration tests แบบ End-to-End บน Testcontainers PostGIS Docker จริง ผ่านฉลุย 5/5 เคส |
-| **Integration Tests**| ✅ 100% Passed     | รันผ่าน 18/18 เคส (Auth, Order, Cancel, Spatial) ด้วย Testcontainers PostGIS |
+| **Integration Tests**| ✅ 100% Passed     | รันผ่าน 43/43 เคส (รวม Telemetry Batch Ingestion) ด้วย Testcontainers PostGIS + Redis แบบ Hermetic Sandbox |
 | **Stress/Load Tests**| ✅ 100% Passed     | สคริปต์ Node.js สำหรับเทสโหลด SignalR, API, Dispatch และ Reconnect stability |
 | **Analytics & ETA**  | ✅ 100% Ready      | AI ประเมินเวลาส่งอัตโนมัติ และ Dashboard summary endpoints สำหรับ Admin |
 | **AI-OS Context**    | ✅ Implemented     | ใช้งาน `AI-INDEX.md` ในการจัดการ context อย่างแม่นยำและประหยัด Token |
+
 
 ---
 
 ## 6. Docker Compose Config (ปัจจุบัน)
 
-| Service        | Image / Build          | Port  | Container Name       | Status              |
-|----------------|------------------------|-------|----------------------|---------------------|
-| **db**         | `postgis/postgis:15-3.3`| 5432  | delivery-db          | ✅ ใช้งานได้          |
-| **backend**    | `./BackendApi/Dockerfile`| 5000 | delivery-backend     | ✅ Ready            |
-| **ai-service** | `./ai-engine/Dockerfile` | 8000 | delivery-ai          | ✅ Ready            |
-| **frontend**   | `./admin-dashboard/Dockerfile`| 80| delivery-frontend    | ✅ Ready            |
+| Service        | Image / Build                    | Port  | Container Name       | Status              |
+|----------------|----------------------------------|-------|----------------------|---------------------|
+| **db**         | `postgis/postgis:15-3.3`          | 5432  | delivery-db          | ✅ ใช้งานได้         |
+| **backend**    | `./BackendApi/Dockerfile`        | 5000  | delivery-backend     | ✅ Ready            |
+| **redis**      | `redis:7-alpine`                 | 6379  | delivery-redis       | ✅ Ready            |
+| **ai-service** | `./ai-engine/Dockerfile`          | 8000  | delivery-ai          | ✅ Ready            |
+| **frontend**   | `./admin-dashboard/Dockerfile`   | 80    | delivery-frontend    | ✅ Ready            |
+| **rider-app**  | `./rider_app/Dockerfile`         | 8080  | delivery-rider-app   | ✅ Ready (Web Prototype) |
+| **osrm**       | `osrm/osrm-backend`              | 5001  | delivery-osrm        | ✅ Ready (Offline OSRM)  |
+| **nginx-proxy**| `nginx:alpine`                   | 8081  | delivery-nginx       | ✅ Ready            |
+| **seq**        | `datalust/seq:latest`            | 5341  | delivery-seq         | ✅ Ready (Central Logs)  |
+| **prometheus** | `prom/prometheus:latest`         | 9090  | delivery-prometheus  | ✅ Ready            |
+| **grafana**    | `grafana/grafana-enterprise`     | 3000  | delivery-grafana     | ✅ Ready            |
+| **rabbitmq**   | `rabbitmq:3-management-alpine`   | 5672  | delivery-rabbitmq    | ✅ Ready (AMQP Broker)   |
+
 
 ---
 

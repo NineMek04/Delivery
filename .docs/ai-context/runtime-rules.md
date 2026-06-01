@@ -108,7 +108,23 @@ Redis ≠ Source of Truth
 
 ---
 
-## 7. Logging & Changelog Rules
+## 7. Testing & Sandbox Constraints (Crucial)
+
+```
+Single Test Hub Rule
+  ✅ การทดสอบทุกลำดับ (C#, Python, Node.js Simulator) ต้องรวมศูนย์อยู่ภายใต้ scripts.test/ เท่านั้น
+
+Hermetic Integration Testing Rule
+  ✅ ห้าม Hardcode หรือพึ่งพาสิทธิ์เครือข่าย localhost:6379 ของโฮสต์ภายนอกในการทำ Backend Integration Tests
+  ✅ บังคับใช้งาน Testcontainers.Redis ร่วมกับ PostgreSQL และ RabbitMQ ใน DeliveryWebApplicationFactory.cs เสมอเพื่อให้สามารถรันผ่าน Sandbox คอนเทนเนอร์อย่างอิสระ 100%
+
+Real-time Logs & UI Stability Rule
+  ✅ ในระบบส่ง Log ของแผงควบคุม ต้องทำการจัดกลุ่มส่ง (Batching/Throttling 500ms) ห้ามส่งแบบดิบถี่ๆ ป้องกัน UI Freezes
+```
+
+---
+
+## 8. Logging & Changelog Rules
 
 - **ห้ามเขียน AI-CHANGELOG.md โดยอัตโนมัติ** — ถามผู้ใช้ก่อนทุกครั้ง
 - **AI-CHANGELOG.md เป็น append-only** — ห้ามแก้ไข entries เก่า

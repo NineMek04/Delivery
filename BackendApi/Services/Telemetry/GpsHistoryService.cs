@@ -54,6 +54,7 @@ namespace BackendApi.Services.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to bulk insert {Count} GPS points into database.", points.Count);
+                throw;
             }
         }
     }

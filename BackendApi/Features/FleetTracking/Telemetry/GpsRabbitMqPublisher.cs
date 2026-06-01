@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -268,6 +269,15 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         {
             // Non-blocking fire-and-forget publish to memory channel
             _channelQueue.Writer.TryWrite(point);
+        }
+
+        public void PublishBatch(IEnumerable<TrackPoint> points)
+        {
+            if (points == null) return;
+            foreach (var point in points)
+            {
+                _channelQueue.Writer.TryWrite(point);
+            }
         }
 
         public void PublishForSnap(TrackPoint point)

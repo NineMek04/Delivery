@@ -7,6 +7,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Xunit;
 using BackendApi.Features.FleetTracking.Telemetry;
+using BackendApi.Features.FleetTracking.Models;
 using BackendApi.Core.Models;
 
 namespace BackendApi.IntegrationTests
@@ -252,6 +253,84 @@ namespace BackendApi.IntegrationTests
             var body = await response2.Content.ReadFromJsonAsync<ApiResponse<string>>();
             Assert.NotNull(body);
             Assert.Contains("throttled", body.Value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task PostGpsCoordinate_WithCustomerRole_Returns403Forbidden()
+        {
+            // Arrange: register and login a Customer
+            var customerEmail = $"customer_telemetry_{Guid.NewGuid():N}@test.com";
+            var registerPayload = new
+            {
+                Email = customerEmail,
+                Password = "CustomerPass123!",
+                FullName = "Telemetry Customer",
+                Role = "Customer"
+            };
+
+            var registerResponse = await _client.PostAsJsonAsync("/api/v1/auth/register", registerPayload);
+            Assert.True(registerResponse.IsSuccessStatusCode);
+
+            var loginPayload = new
+            {
+                Email = customerEmail,
+                Password = "CustomerPass123!"
+            };
+
+            var loginResponse = await _client.PostAsJsonAsync("/api/v1/auth/login", loginPayload);
+            Assert.True(loginResponse.IsSuccessStatusCode);
+
+            var loginBody = await loginResponse.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>();
+            Assert.NotNull(loginBody?.Value);
+            var customerToken = loginBody.Value.AccessToken;
+
+            var payload = new GpsPointRequest
+            {
+                Latitude = 13.7563,
+                Longitude = 100.5018,
+                Accuracy = 5.0
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", customerToken);
+
+            // Act
+            var response = await _client.SendAsync(request);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostGpsBatch_ExceedingLimit_Returns400BadRequest()
+        {
+            // Arrange: create batch of 101 items
+            var payload = new List<GpsBatchPointRequest>();
+            for (int i = 0; i < 101; i++)
+            {
+                payload.Add(new GpsBatchPointRequest
+                {
+                    Latitude = 13.7563,
+                    Longitude = 100.5018,
+                    Accuracy = 5.0,
+                    Timestamp = DateTime.UtcNow.AddSeconds(-i)
+                });
+            }
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps/batch")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+
+            // Act
+            var response = await _client.SendAsync(request);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
     }
 }

@@ -145,6 +145,10 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
     this.trackingService.stopConnection();
+    this.draw.stopAllAnimations();
+    if (this.currentRiderRoutePolyline) {
+      this.currentRiderRoutePolyline.remove();
+    }
     if (this.map) {
       this.map.remove();
     }

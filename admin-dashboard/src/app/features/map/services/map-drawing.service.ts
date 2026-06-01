@@ -70,10 +70,29 @@ export class MapDrawingService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.markerAnimations.forEach(frame => cancelAnimationFrame(frame));
+    this.stopAllAnimations();
     this.clearActiveLayers();
     this.destroyCluster();
     this.mapInstance = undefined;
+  }
+
+  public stopAnimation(riderId: string): void {
+    const frameId = this.markerAnimations.get(riderId);
+    if (frameId !== undefined) {
+      cancelAnimationFrame(frameId);
+      this.markerAnimations.delete(riderId);
+    }
+    this.activeAnimationLoops.set(riderId, false);
+    this.riderPositionQueues.delete(riderId);
+  }
+
+  public stopAllAnimations(): void {
+    this.markerAnimations.forEach((frameId) => {
+      cancelAnimationFrame(frameId);
+    });
+    this.markerAnimations.clear();
+    this.activeAnimationLoops.clear();
+    this.riderPositionQueues.clear();
   }
 
   public get map(): L.Map | undefined {
@@ -160,6 +179,7 @@ export class MapDrawingService implements OnDestroy {
       if (!activeIds.has(id)) {
         this.clusterGroup!.removeLayer(marker);
         this.clusterMarkers.delete(id);
+        this.stopAnimation(id);
       }
     });
   }

@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using BackendApi.Core.StateMachines;
 using BackendApi.Features.FleetTracking.Telemetry;
+using BackendApi.Features.FleetTracking.Models;
 
 namespace BackendApi.Services.Telemetry
 {
@@ -83,6 +84,11 @@ namespace BackendApi.Services.Telemetry
             }
 
             var now = timestamp ?? DateTime.UtcNow;
+            // Prevent future time spoofing (DoS)
+            if (now > DateTime.UtcNow.AddMinutes(1))
+            {
+                now = DateTime.UtcNow;
+            }
 
             // 2. ข้ามการทำ Snap-to-Road ใน Hot Path ไปก่อนเพื่อป้องกัน Thread Pool Exhaustion
             // OSRM HTTP Request จะบล็อก Thread และเกิด Timeout (1.5s) หากมีโหลด 500 req/sec
@@ -91,14 +97,20 @@ namespace BackendApi.Services.Telemetry
             double snappedLng = lng;
             // 3. ป้องกันการวาร์ปกระโดดข้ามพิกัดระยะไกล (Teleport Protection)
             var lastGps = await _presenceService.GetLastKnownLocationAsync(riderId);
+            bool isHistoricalPoint = false;
             if (lastGps is not null)
             {
                 var distMeters = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, snappedLat, snappedLng);
                 var timeDiffSeconds = (now - lastGps.Value.UpdatedAt).TotalSeconds;
 
-                // ความเร็วเกิน 180 km/h (50 m/s) มีความท้าทายว่าสัญญาณ GPS ผิดเพี้ยน
-                if (timeDiffSeconds > 0 && (distMeters / timeDiffSeconds) > 50.0)
+                if (timeDiffSeconds <= 0)
                 {
+                    // Detect if this is an older point arriving out-of-order
+                    isHistoricalPoint = true;
+                }
+                else if ((distMeters / timeDiffSeconds) > 50.0)
+                {
+                    // ความเร็วเกิน 180 km/h (50 m/s) มีความท้าทายว่าสัญญาณ GPS ผิดเพี้ยน
                     _logger.LogWarning("GPS Teleport anomaly detected for Rider {RiderId}. Movement of {Dist}m in {Time}s ignored.", 
                         riderId, Math.Round(distMeters, 1), Math.Round(timeDiffSeconds, 1));
                     return;
@@ -107,7 +119,7 @@ namespace BackendApi.Services.Telemetry
 
             // 4. คำนวณความเร็วจาก GPS point ก่อนหน้า (reuse lastGps จากด้านบน)
             double speedKmh = 0.0;
-            if (lastGps is not null)
+            if (lastGps is not null && !isHistoricalPoint)
             {
                 var distForSpeed = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, snappedLat, snappedLng);
                 var timeDiffForSpeed = (now - lastGps.Value.UpdatedAt).TotalSeconds;
@@ -116,7 +128,10 @@ namespace BackendApi.Services.Telemetry
             }
 
             // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache
-            await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh);
+            if (!isHistoricalPoint)
+            {
+                await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh);
+            }
 
             // 6. โยนพิกัดลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร
             _gpsPublisher.Publish(new TrackPoint(riderId, snappedLat, snappedLng, now));
@@ -124,6 +139,13 @@ namespace BackendApi.Services.Telemetry
 
             // 7. เพิ่มตัวนับ GPS Tick สำหรับแสดงอัตราผ่านทางหน้าหลังบ้าน
             _aggregator.IncrementGpsTick();
+
+            if (isHistoricalPoint)
+            {
+                // Stop processing here so old/out-of-order points are only saved to RabbitMQ (history)
+                // and do not update Presence cache or broadcast via SignalR
+                return;
+            }
 
             // 8. จัดการ Dynamic Throttling สำหรับ Broadcast ผ่าน SignalR
             var db = _redis.GetDatabase();
@@ -219,7 +241,7 @@ namespace BackendApi.Services.Telemetry
                             new HashEntry("order_id", activeOrder.Id),
                             new HashEntry("customer_id", customerId ?? string.Empty)
                         });
-                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
+                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromMinutes(5));
                     }
                     else
                     {
@@ -283,9 +305,9 @@ namespace BackendApi.Services.Telemetry
             var historicalPoints = validPoints.Take(validPoints.Count - 1).ToList();
 
             // 3. จัดการข้อมูลย้อนหลัง (Historical Points): ส่งตรงเข้า RabbitMQ เป็นข้อมูลดิบ (Raw Lat/Lng) เพื่อประหยัดทรัพยากร
-            foreach (var point in historicalPoints)
+            if (historicalPoints.Count > 0)
             {
-                _gpsPublisher.Publish(new TrackPoint(riderId, point.Latitude, point.Longitude, point.Timestamp));
+                _gpsPublisher.PublishBatch(historicalPoints.Select(point => new TrackPoint(riderId, point.Latitude, point.Longitude, point.Timestamp)));
             }
 
             // 4. จัดการจุดล่าสุด (Latest Point): ประมวลผลลอจิกเต็มรูปแบบใน Hot Path (ผ่าน OSRM, Redis Presence, SignalR, DB Throttle)

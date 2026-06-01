@@ -89,7 +89,7 @@ public class OrdersController : DeliveryControllerBase
     /// อัปเดตสถานะของออเดอร์ (เช่น Rider กดรับของแล้วเริ่มส่ง, ส่งเสร็จแล้ว)
     /// </summary>
     [HttpPatch("{id}/status")]
-    [Authorize] // Rider หรือ Admin
+    [Authorize(Roles = $"{AuthConstants.RiderRole},{AuthConstants.AdminRole}")] // Rider หรือ Admin (Defense-in-depth)
     public async Task<ActionResult<ApiResponse<OrderDto>>> UpdateOrderStatus(
         string id,
         [FromBody] UpdateOrderStatusDto dto,

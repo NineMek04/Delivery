@@ -63,8 +63,8 @@ class AuthService extends Notifier<AuthStatus> {
   /// Timer สำหรับ Token Clocking (เทียบ Angular: clockingSubscription)
   Timer? _clockingTimer;
 
-  /// Flag ป้องกัน concurrent refresh
-  bool _isRefreshing = false;
+  /// Future สำหรับป้องกัน concurrent refresh และแชร์ผลลัพธ์ร่วมกัน
+  Future<bool>? _refreshFuture;
 
   @override
   AuthStatus build() {
@@ -209,12 +209,13 @@ class AuthService extends Notifier<AuthStatus> {
   /// 4. หากล้มเหลว → logout (บังคับ re-login)
   Future<bool> refreshAccessToken() async {
     // ป้องกัน concurrent refresh (race condition)
-    if (_isRefreshing) {
-      _logger.d('⏳ Token refresh already in progress, skipping...');
-      return false;
+    if (_refreshFuture != null) {
+      _logger.d('⏳ Token refresh already in progress, awaiting current refresh future...');
+      return await _refreshFuture!;
     }
 
-    _isRefreshing = true;
+    final completer = Completer<bool>();
+    _refreshFuture = completer.future;
 
     try {
       final refreshToken = await _storage.read(
@@ -224,6 +225,7 @@ class AuthService extends Notifier<AuthStatus> {
       if (refreshToken == null || refreshToken.isEmpty) {
         _logger.w('⚠️ No refresh token found — forcing re-login');
         await _forceLogout();
+        completer.complete(false);
         return false;
       }
 
@@ -255,10 +257,12 @@ class AuthService extends Notifier<AuthStatus> {
         );
 
         _logger.i('🔄 Token refreshed successfully');
+        completer.complete(true);
         return true;
       } else {
         _logger.w('⚠️ Refresh API returned failure: ${parsed.message}');
         await _forceLogout();
+        completer.complete(false);
         return false;
       }
     } on DioException catch (e) {
@@ -268,13 +272,15 @@ class AuthService extends Notifier<AuthStatus> {
       );
       // หาก refresh ล้มเหลว (401, 400, etc.) → logout
       await _forceLogout();
+      completer.complete(false);
       return false;
     } catch (e) {
       _logger.e('❌ Unexpected error during token refresh', error: e);
       await _forceLogout();
+      completer.complete(false);
       return false;
     } finally {
-      _isRefreshing = false;
+      _refreshFuture = null;
     }
   }
 

@@ -166,14 +166,18 @@ class GpsBufferService {
         if (remainingCount > 0) {
           Future.delayed(const Duration(milliseconds: 100), () => syncBufferedPoints());
         }
-      } else if (response.statusCode == 202) {
-        // 202 Accepted: Rate-limited/throttled. KEEP coordinates locally and backoff
-        _logger.w('⚠️ Ingestion batch throttled (202 Accepted). Keeping points in Isar and slowing sync.');
+      } else if (response.statusCode == 429) {
+        // 429 Too Many Requests: Rate-limited/throttled. KEEP coordinates locally and backoff
+        _logger.w('⚠️ Ingestion batch throttled (429 Too Many Requests). Keeping points in Isar and slowing sync.');
       } else {
         _logger.w('⚠️ Ingestion batch returned status: ${response.statusCode}. Keeping points in Isar.');
       }
     } on DioException catch (e) {
-      _logger.w('🔌 Network connectivity issue while uploading GPS batch: ${e.message}. Keeping points.');
+      if (e.response?.statusCode == 429) {
+        _logger.w('⚠️ Ingestion batch throttled via exception (429 Too Many Requests). Keeping points in Isar and slowing sync.');
+      } else {
+        _logger.w('🔌 Network connectivity issue while uploading GPS batch: ${e.message}. Keeping points.');
+      }
       
       // Parse header recommendations from error responses too
       if (e.response != null) {
@@ -184,10 +188,6 @@ class GpsBufferService {
           if (newInterval != null) {
             updateSyncInterval(newInterval);
           }
-        }
-        
-        if (statusCode == 202) {
-          _logger.w('⚠️ Ingestion batch throttled via exception (202). Keeping points in Isar.');
         }
       }
     } catch (e) {

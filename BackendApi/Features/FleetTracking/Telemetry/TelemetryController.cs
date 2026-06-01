@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using BackendApi.Core;
 using BackendApi.Core.Models;
 using BackendApi.Services.Telemetry;
+using BackendApi.Security;
+using BackendApi.Features.FleetTracking.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +42,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// to command the mobile client's tracking frequency.
         /// </summary>
         [HttpPost("gps")]
+        [Authorize(Policy = AuthConstants.RiderPolicy)]
         public async Task<ActionResult<ApiResponse<string>>> PostGpsCoordinate([FromBody] GpsPointRequest request)
         {
             if (request == null)
@@ -62,10 +65,10 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             if (rateLimited)
             {
-                // Return 202 Accepted: Standard API pattern indicating request is received
-                // but discarded/ignored because of current rate limits to conserve system bandwidth.
-                return StatusCode(StatusCodes.Status202Accepted, 
-                    ApiResponse<string>.Ok("Coordinate received but throttled by rate limit."));
+                // Return 429 Too Many Requests: Standard API pattern to instruct mobile client to hold off
+                // and keep points locally in buffer to retry later.
+                return StatusCode(StatusCodes.Status429TooManyRequests, 
+                     ApiResponse<string>.Fail("Coordinate throttled by rate limit. Please retry later."));
             }
 
             // Normal ingestion path
@@ -80,11 +83,18 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// Appends X-Recommended-Ping header to command the mobile client's tracking frequency.
         /// </summary>
         [HttpPost("gps/batch")]
+        [Authorize(Policy = AuthConstants.RiderPolicy)]
+        [RequestSizeLimit(32768)] // 32KB Payload size limit for Defense-in-depth against OOM attacks
         public async Task<ActionResult<ApiResponse<string>>> PostGpsBatch([FromBody] List<GpsBatchPointRequest> requests)
         {
             if (requests == null || requests.Count == 0)
             {
                 return BadRequest(ApiResponse<string>.Fail("Request batch cannot be null or empty."));
+            }
+
+            if (requests.Count > 100)
+            {
+                return BadRequest(ApiResponse<string>.Fail("Batch size exceeds the maximum limit of 100 points."));
             }
 
             var riderId = CurrentUserId;
@@ -102,9 +112,9 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             if (rateLimited)
             {
-                // Return 202 Accepted: Keep points locally and retry later
-                return StatusCode(StatusCodes.Status202Accepted, 
-                    ApiResponse<string>.Ok("Batch received but throttled by rate limit. Please retry later."));
+                // Return 429 Too Many Requests: Keep points locally and retry later
+                return StatusCode(StatusCodes.Status429TooManyRequests, 
+                     ApiResponse<string>.Fail("Batch received but throttled by rate limit. Please retry later."));
             }
 
             // Normal batch ingestion path
@@ -132,27 +142,5 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             return Ok(ApiResponse<MobileConfigResponse>.Ok(config));
         }
-    }
-
-    public class GpsPointRequest
-    {
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-        public double Accuracy { get; set; }
-        public DateTime? Timestamp { get; set; }
-    }
-
-    public class GpsBatchPointRequest
-    {
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
-        public double Accuracy { get; set; }
-        public DateTime Timestamp { get; set; }
-    }
-
-    public class MobileConfigResponse
-    {
-        public int IntervalSeconds { get; set; }
-        public DateTime ServerTime { get; set; }
     }
 }

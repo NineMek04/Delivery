@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using BackendApi.Data;
+using BackendApi.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +30,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         private const int SubBatchLimit = 5_000;
         private readonly IServiceProvider _serviceProvider;
         private readonly IConfiguration _configuration;
+        private readonly IHostApplicationLifetime _appLifetime;
         private readonly ILogger<GpsRabbitMqConsumerWorker> _logger;
 
         private IConnection? _connection;
@@ -38,10 +43,12 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         public GpsRabbitMqConsumerWorker(
             IServiceProvider serviceProvider,
             IConfiguration configuration,
+            IHostApplicationLifetime appLifetime,
             ILogger<GpsRabbitMqConsumerWorker> logger)
         {
             _serviceProvider = serviceProvider;
             _configuration = configuration;
+            _appLifetime = appLifetime;
             _logger = logger;
 
             // Bounded to 10,000 items in C# memory to prevent OOM
@@ -160,7 +167,8 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             }
             catch (Exception ex)
             {
-                _logger.LogCritical(ex, "Failed to initialize RabbitMQ for GPS Telemetry Consumer.");
+                _logger.LogCritical(ex, "Failed to initialize RabbitMQ for GPS Telemetry Consumer. Exiting application.");
+                _appLifetime.StopApplication();
                 return;
             }
 
@@ -210,6 +218,16 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// <summary>
         /// Drains messages up to SubBatchLimit, saves them to PostGIS, and performs a manual ACK.
         /// </summary>
+        private static Guid GenerateGuidFromPoint(TrackPoint point)
+        {
+            using (var md5 = MD5.Create())
+            {
+                string key = $"{point.RiderId}_{point.Timestamp.Ticks}";
+                byte[] hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key));
+                return new Guid(hash);
+            }
+        }
+
         private async Task DrainAndSaveBatchAsync(CancellationToken ct)
         {
             var points = new List<TrackPoint>(SubBatchLimit);
@@ -224,40 +242,100 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             if (points.Count == 0) return;
 
-            _logger.LogInformation("Drained {Count} GPS points from local channel. Committing to database...", points.Count);
+            var batchCorrelationId = Guid.NewGuid().ToString();
 
-            try
+            // Trace Correlation Scope
+            using (_logger.BeginScope(new Dictionary<string, object>
             {
-                // Save to database within scoped context
-                using (var scope = _serviceProvider.CreateScope())
-                {
-                    var historyService = scope.ServiceProvider.GetRequiredService<BackendApi.Services.Telemetry.GpsHistoryService>();
-                    await historyService.SavePointsAsync(points, ct);
-                }
+                ["CorrelationId"] = batchCorrelationId,
+                ["BatchSize"] = points.Count
+            }))
+            {
+                _logger.LogInformation("Drained {Count} GPS points from local channel. Committing to database...", points.Count);
 
-                // Successful Database Save -> Bulk ACK to RabbitMQ
-                // We acknowledge all messages up to the maximum delivery tag in this batch
-                ulong maxDeliveryTag = 0;
-                foreach (var tag in deliveryTags)
+                try
                 {
-                    if (tag > maxDeliveryTag) maxDeliveryTag = tag;
-                }
-
-                if (maxDeliveryTag > 0 && _channel != null)
-                {
-                    lock (_channel) // Make sure basic ack is thread-safe on the channel
+                    // Save to database within scoped context
+                    using (var scope = _serviceProvider.CreateScope())
                     {
-                        _channel.BasicAck(maxDeliveryTag, multiple: true);
+                        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                        var historyService = scope.ServiceProvider.GetRequiredService<BackendApi.Services.Telemetry.GpsHistoryService>();
+
+                        // Wrap processed events validation and actual GPS points saving in a single atomic transaction (Zero-Data-Loss Fix)
+                        using (var transaction = await dbContext.Database.BeginTransactionAsync(ct))
+                        {
+                            try
+                            {
+                                var newPoints = new List<TrackPoint>();
+                                var processedEvents = new List<ProcessedEvent>();
+
+                                // Bulk Check ProcessedEvents for duplicates
+                                var eventIdsToCheck = points.Select(p => GenerateGuidFromPoint(p)).ToList();
+                                var existingEventIds = await dbContext.ProcessedEvents
+                                    .Where(pe => pe.HandlerName == "GpsConsumer" && eventIdsToCheck.Contains(pe.EventId))
+                                    .Select(pe => pe.EventId)
+                                    .ToListAsync(ct);
+
+                                for (int i = 0; i < points.Count; i++)
+                                {
+                                    var p = points[i];
+                                    var eventId = eventIdsToCheck[i];
+                                    if (!existingEventIds.Contains(eventId))
+                                    {
+                                        newPoints.Add(p);
+                                        processedEvents.Add(new ProcessedEvent
+                                        {
+                                            EventId = eventId,
+                                            HandlerName = "GpsConsumer",
+                                            ProcessedAt = DateTime.UtcNow
+                                        });
+                                    }
+                                }
+
+                                if (newPoints.Count > 0)
+                                {
+                                    // Save processed events for idempotency (Rule 3)
+                                    dbContext.ProcessedEvents.AddRange(processedEvents);
+                                    await dbContext.SaveChangesAsync(ct);
+
+                                    // Save new unique GPS points
+                                    await historyService.SavePointsAsync(newPoints, ct);
+                                }
+
+                                await transaction.CommitAsync(ct);
+                                _logger.LogInformation("Successfully saved batch of {Count} GPS points (New unique: {UniqueCount}) within atomic transaction.", points.Count, newPoints.Count);
+                            }
+                            catch (Exception)
+                            {
+                                await transaction.RollbackAsync(ct);
+                                throw;
+                            }
+                        }
                     }
-                    _logger.LogInformation("Batch of {Count} GPS points successfully ACKed to RabbitMQ up to tag {Tag}.", points.Count, maxDeliveryTag);
+
+                    // Successful Database Save -> Bulk ACK to RabbitMQ
+                    ulong maxDeliveryTag = 0;
+                    foreach (var tag in deliveryTags)
+                    {
+                        if (tag > maxDeliveryTag) maxDeliveryTag = tag;
+                    }
+
+                    if (maxDeliveryTag > 0 && _channel != null)
+                    {
+                        lock (_channel) // Make sure basic ack is thread-safe on the channel
+                        {
+                            _channel.BasicAck(maxDeliveryTag, multiple: true);
+                        }
+                        _logger.LogInformation("Batch of {Count} GPS points successfully ACKed to RabbitMQ up to tag {Tag}.", points.Count, maxDeliveryTag);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to commit batch of {Count} GPS points to the database. Messages will not be ACKed.", points.Count);
-                // We do NOT acknowledge these messages. Since they are not ACKed, they will be preserved
-                // in RabbitMQ's persistent store. If the connection drops or the service restarts,
-                // RabbitMQ will automatically requeue and redeliver them.
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to commit batch of {Count} GPS points to the database. Messages will not be ACKed.", points.Count);
+                    // We do NOT acknowledge these messages. Since they are not ACKed, they will be preserved
+                    // in RabbitMQ's persistent store. If the connection drops or the service restarts,
+                    // RabbitMQ will automatically requeue and redeliver them.
+                }
             }
         }
 

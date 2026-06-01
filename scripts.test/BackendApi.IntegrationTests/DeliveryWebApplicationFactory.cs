@@ -51,6 +51,17 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
     {
         await Task.WhenAll(_container.StartAsync(), _rabbitMqContainer.StartAsync(), _redisContainer.StartAsync());
 
+        // Set environment variables for Program.cs to use, ensuring they are loaded into ConfigurationManager
+        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _container.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", $"{_redisContainer.Hostname}:{_redisContainer.GetMappedPublicPort(6379)}");
+        Environment.SetEnvironmentVariable("Redis", $"{_redisContainer.Hostname}:{_redisContainer.GetMappedPublicPort(6379)}");
+        Environment.SetEnvironmentVariable("MessageBroker__Host", _rabbitMqContainer.Hostname);
+        Environment.SetEnvironmentVariable("MessageBroker__Port", _rabbitMqContainer.GetMappedPublicPort(5672).ToString());
+        Environment.SetEnvironmentVariable("MessageBroker__Username", "guest");
+        Environment.SetEnvironmentVariable("MessageBroker__Password", "guest");
+        Environment.SetEnvironmentVariable("RateLimiting__Global__PermitLimit", "99999");
+        Environment.SetEnvironmentVariable("RateLimiting__Auth__PermitLimit", "99999");
+
         // Create PostGIS extension before EF Core migration
         await using var conn = new NpgsqlConnection(_container.GetConnectionString());
         await conn.OpenAsync();
@@ -84,8 +95,8 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
                 { "MessageBroker:Port", _rabbitMqContainer.GetMappedPublicPort(5672).ToString() },
                 { "MessageBroker:Username", "guest" },
                 { "MessageBroker:Password", "guest" },
-                { "ConnectionStrings:Redis", _redisContainer.GetConnectionString() },
-                { "Redis", _redisContainer.GetConnectionString() }
+                { "ConnectionStrings:Redis", $"{_redisContainer.Hostname}:{_redisContainer.GetMappedPublicPort(6379)}" },
+                { "Redis", $"{_redisContainer.Hostname}:{_redisContainer.GetMappedPublicPort(6379)}" }
             });
         });
 

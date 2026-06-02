@@ -38,6 +38,7 @@ public class AiService : IAiService
         }
     }
 
+    /*
     public async Task<RoutingResponseDto?> OptimizeRouteAsync(RoutingRequestDto request, CancellationToken cancellationToken = default)
     {
         try
@@ -60,6 +61,7 @@ public class AiService : IAiService
             return null;
         }
     }
+    */
 
     public async Task<PredictEtaResponseDto?> PredictEtaAsync(PredictEtaRequestDto request, CancellationToken cancellationToken = default)
     {

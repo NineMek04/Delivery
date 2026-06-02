@@ -136,7 +136,7 @@ class ChatService extends FamilyNotifier<ChatState, String> {
   Future<void> _joinRoom() async {
     if (_hubConnection == null || state.activeOrderId == null) return;
     try {
-      await _hubConnection!.invoke('JoinOrderChat', args: [state.activeOrderId]);
+      await _hubConnection!.invoke('JoinOrderChat', args: [state.activeOrderId!]);
     } catch (e) {
       _logger.e('Failed to join chat room for Order ${state.activeOrderId}', error: e);
     }
@@ -148,7 +148,7 @@ class ChatService extends FamilyNotifier<ChatState, String> {
     }
 
     try {
-      await _hubConnection!.invoke('SendMessage', args: [state.activeOrderId, text]);
+      await _hubConnection!.invoke('SendMessage', args: [state.activeOrderId!, text]);
       return true;
     } catch (e) {
       _logger.e('Failed to send message to Order ${state.activeOrderId}', error: e);

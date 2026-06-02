@@ -115,7 +115,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                 subdomains: const ['a', 'b', 'c', 'd'],
                 tileProvider: _dbDir != null
                     ? CachedTileProvider(dbDir: _dbDir!)
-                    : const NetworkTileProvider(),
+                    : NetworkTileProvider(),
               ),
               PolylineLayer(
                 polylines: [

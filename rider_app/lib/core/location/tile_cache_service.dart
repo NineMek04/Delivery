@@ -16,7 +16,7 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 class CachedTileProvider extends TileProvider {
   final String dbDir;
 
-  const CachedTileProvider({required this.dbDir});
+  CachedTileProvider({required this.dbDir});
 
   @override
   ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {

@@ -483,7 +483,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                               userAgentPackageName: 'com.delivery.rider_app',
                               tileProvider: _dbDir != null
                                   ? CachedTileProvider(dbDir: _dbDir!)
-                                  : const NetworkTileProvider(),
+                                  : NetworkTileProvider(),
                             ),
                             if (routePoints.isNotEmpty)
                               PolylineLayer(

@@ -20,4 +20,8 @@ export class OrderService extends BaseApiService<OrderDto> {
   public retryDispatch(id: string): Observable<any> {
     return req<any>(`${this.endpoint}/${id}/dispatch`).post();
   }
+
+  public batchDispatch(orderIds: string[]): Observable<any> {
+    return req<any>(`${this.endpoint}/batch-dispatch`).body({ orderIds }).post();
+  }
 }

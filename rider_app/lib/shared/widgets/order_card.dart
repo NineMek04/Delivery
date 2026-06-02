@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/order.dart';
+import '../../features/delivery/screens/chat_screen.dart';
 import '../utils/order_status_helper.dart';
 import 'status_badge.dart';
 
@@ -147,6 +148,15 @@ class OrderCard extends StatelessWidget {
                   _contactButton(context, Icons.phone_in_talk, 'ร้าน', () => _makeCall(null)),
                   const SizedBox(width: 8),
                   _contactButton(context, Icons.person_outline, 'ลูกค้า', () => _makeCall(null)),
+                  const SizedBox(width: 8),
+                  _contactButton(context, Icons.chat_bubble_outline, 'แชท', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(orderId: order.id),
+                      ),
+                    );
+                  }),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(

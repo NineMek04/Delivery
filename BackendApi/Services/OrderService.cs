@@ -517,6 +517,66 @@ public class OrderService : IOrderService
         return (StatusCodes.Status200OK, ApiResponse.Ok("สั่ง Dispatch ใหม่เรียบร้อย ระบบกำลังค้นหาไรเดอร์ให้ใหม่..."));
     }
 
+    public async Task<(int StatusCode, ApiResponse Response)> BatchDispatchAsync(
+        BatchDispatchDto dto,
+        CancellationToken cancellationToken)
+    {
+        if (dto.OrderIds == null || dto.OrderIds.Count == 0)
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse.Fail("กรุณาระบุรหัสออเดอร์อย่างน้อย 1 รายการ"));
+        }
+
+        var orders = await _db.GetQuery<Order>()
+            .Where(o => dto.OrderIds.Contains(o.Id))
+            .ToListAsync(cancellationToken);
+
+        if (orders.Count != dto.OrderIds.Count)
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse.Fail("พบรหัสออเดอร์บางรายการไม่ถูกต้องในระบบ"));
+        }
+
+        // ตรวจสอบสถานะของออเดอร์
+        foreach (var order in orders)
+        {
+            if (order.State != Core.StateMachines.OrderState.CREATED && order.State != Core.StateMachines.OrderState.MATCHING)
+            {
+                return (StatusCodes.Status400BadRequest, ApiResponse.Fail($"ออเดอร์ {order.RefNumber} อยู่ในสถานะ {order.State} ไม่สามารถนำมาจัดกลุ่มพ่วงได้"));
+            }
+        }
+
+        var batchGroupId = Guid.NewGuid().ToString();
+        var size = orders.Count;
+
+        for (int i = 0; i < orders.Count; i++)
+        {
+            var order = orders[i];
+            order.BatchGroupId = batchGroupId;
+            order.BatchSequence = i + 1;
+            order.BatchSize = size;
+            order.State = Core.StateMachines.OrderState.CREATED;
+            _db.UpdateObject(order);
+        }
+
+        await _db.CommitChangesAsync(cancellationToken);
+
+        // รัน Dispatch แบบพ่วงใน Background Task
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
+                await dispatchSvc.StartBatchDispatchAsync(batchGroupId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Background batch dispatch failed for Batch {BatchGroupId}", batchGroupId);
+            }
+        });
+
+        return (StatusCodes.Status200OK, ApiResponse.Ok("สร้างกลุ่มออเดอร์พ่วงเรียบร้อย ระบบกำลังค้นหาไรเดอร์เพื่อจัดส่ง..."));
+    }
+
     public async Task<(int StatusCode, ApiResponse Response)> DeleteAllOrdersAsync(CancellationToken cancellationToken)
     {
         await _db.GetQuery<Order>().ExecuteDeleteAsync(cancellationToken);

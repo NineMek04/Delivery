@@ -58,6 +58,9 @@ namespace BackendApi.Models
         /// <summary>ลำดับจัดส่งภายในกลุ่ม (0 = เดี่ยว, 1+ = ลำดับในกลุ่ม)</summary>
         public int BatchSequence { get; set; }
 
+        /// <summary>จำนวนออเดอร์ทั้งหมดในกลุ่มพ่วง</summary>
+        public int BatchSize { get; set; }
+
         // ── Dispatch Offer Fields ──────────────────────────────────
 
         /// <summary>Offer ID ปัจจุบันที่ยิงไปให้ Rider (ใช้สำหรับ Idempotency)</summary>

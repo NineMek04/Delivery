@@ -5,6 +5,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../../core/location/tile_cache_service.dart';
 
 // Mock Provider for demonstration
 final locationProvider = StateProvider<LatLng>((ref) => const LatLng(17.4138, 102.7872));
@@ -21,6 +24,24 @@ class RouteTrackingScreen extends ConsumerStatefulWidget {
 class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   final MapController _mapController = MapController();
   bool _isPickedUp = false;
+  String? _dbDir;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDbDir();
+  }
+
+  Future<void> _loadDbDir() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      if (mounted) {
+        setState(() {
+          _dbDir = dbPath;
+        });
+      }
+    } catch (_) {}
+  }
 
   // Mock Route Data
   final LatLng _pickupLocation = const LatLng(17.4200, 102.7900);
@@ -92,6 +113,9 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
               TileLayer(
                 urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
+                tileProvider: _dbDir != null
+                    ? CachedTileProvider(dbDir: _dbDir!)
+                    : const NetworkTileProvider(),
               ),
               PolylineLayer(
                 polylines: [

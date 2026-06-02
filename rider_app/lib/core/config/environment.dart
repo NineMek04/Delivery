@@ -38,6 +38,14 @@ class Environment {
     return '$base/hubs/tracking';
   }
 
+  static String get chatHubUrl {
+    if (apiBaseUrl.isEmpty) return '/hubs/chat';
+    final base = apiBaseUrl.endsWith('/')
+        ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
+        : apiBaseUrl;
+    return '$base/hubs/chat';
+  }
+
   static const bool isDevelopment = bool.fromEnvironment(
     'DEBUG',
     defaultValue: true,

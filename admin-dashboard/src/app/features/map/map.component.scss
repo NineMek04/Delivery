@@ -379,6 +379,152 @@ i {
   }
 }
 
+.batch-mode-selector {
+  position: absolute;
+  z-index: 450;
+  left: 18px;
+  top: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .btn-batch-mode {
+    background: rgba(20, 20, 20, 0.92);
+    border: 1px solid var(--color-surface-line);
+    color: var(--color-text-primary);
+    padding: 10px 18px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      border-color: #f59e0b;
+      color: #f59e0b;
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.25);
+    }
+
+    &.active {
+      background: var(--color-status-error);
+      color: white;
+      border-color: var(--color-status-error);
+
+      &:hover {
+        background: #dc2626;
+        border-color: #dc2626;
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+      }
+    }
+  }
+
+  .batch-mode-hint {
+    background: rgba(245, 158, 11, 0.95);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #000;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.batch-hud-panel {
+  position: absolute;
+  z-index: 450;
+  left: 18px;
+  top: 126px;
+  width: 280px;
+  background: rgba(20, 20, 20, 0.94);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  backdrop-filter: blur(12px);
+  padding: 16px;
+  color: var(--color-text-primary);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: grid;
+  gap: 12px;
+  animation: fadeIn 0.2s ease-out;
+
+  .hud-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    strong {
+      font-size: 13px;
+      font-weight: 800;
+      color: #f59e0b;
+    }
+
+    .count-badge {
+      background: #f59e0b;
+      color: #000;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+  }
+
+  .hud-desc {
+    margin: 0;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
+
+  .hud-actions {
+    display: flex;
+    gap: 10px;
+
+    button {
+      flex: 1;
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+
+      &.btn-hud-cancel {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--color-text-primary);
+        border-color: var(--color-surface-line);
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+      }
+
+      &.btn-hud-submit {
+        background: #f59e0b;
+        color: #000;
+
+        &:hover:not(:disabled) {
+          background: #e08e0b;
+          box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+        }
+
+        &:disabled {
+          background: rgba(245, 158, 11, 0.2);
+          color: rgba(255, 255, 255, 0.3);
+          border-color: transparent;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .shop-modal-backdrop {
   position: absolute;
   inset: 0;

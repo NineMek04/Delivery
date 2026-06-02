@@ -1,3 +1,5 @@
+
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -7,10 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../core/signalr/signalr_service.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/location/location_service.dart';
+import '../../../core/location/tile_cache_service.dart';
 import '../../../core/session/rider_session_service.dart';
 import '../../../models/dispatch_offer.dart';
 import '../../../shared/utils/polyline_util.dart';
@@ -77,11 +81,24 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   // เก็บค่าล่าสุดสำหรับอนิเมชัน LERP ในแผนที่
   LatLng? _lastAnimatedPoint;
   double? _lastAnimatedHeading;
+  String? _dbDir;
 
   @override
   void initState() {
     super.initState();
+    _loadDbDir();
     _bindSimStreams();
+  }
+
+  Future<void> _loadDbDir() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      if (mounted) {
+        setState(() {
+          _dbDir = dbPath;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -464,6 +481,9 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                             TileLayer(
                               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.delivery.rider_app',
+                              tileProvider: _dbDir != null
+                                  ? CachedTileProvider(dbDir: _dbDir!)
+                                  : const NetworkTileProvider(),
                             ),
                             if (routePoints.isNotEmpty)
                               PolylineLayer(

@@ -84,6 +84,12 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   public showOrderDetailModal = false;
   public filterStatus: string = 'ALL';
 
+  // ── คุณลักษณะระบบจัดออเดอร์พ่วงด้วยมือ (Manual Order Batching) ──
+  public isBatchMode = false;
+  public selectedOrderIdsForBatch: string[] = [];
+  private activeOrders: OrderDto[] = [];
+  private batchPolylines: L.Polyline[] = [];
+
   // ── คุณลักษณะระบบร้านค้า (Shop Registration Features) ──
   public isAddShopMode = false;
   public showShopModal = false;
@@ -146,6 +152,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.subscriptions.unsubscribe();
     this.trackingService.stopConnection();
     this.draw.stopAllAnimations();
+    this.clearBatchLines();
     if (this.currentRiderRoutePolyline) {
       this.currentRiderRoutePolyline.remove();
     }
@@ -329,6 +336,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.orderService.getAll(1, 100).subscribe({
       next: (orders) => {
         const active = orders.filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status || ''));
+        this.activeOrders = active;
         this.drawOrdersOnMap(active);
       }
     });
@@ -343,41 +351,67 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.orderPolylines = [];
 
     orders.forEach(order => {
+      const isSelected = this.selectedOrderIdsForBatch.includes(order.id || '');
+
       // Draw pickup (Shop) if not drawn
       if (order.pickupLat && order.pickupLng) {
+        const bg = isSelected ? '#f59e0b' : '#ea580c';
+        const shadow = isSelected ? 'box-shadow: 0 0 10px #f59e0b, 0 0 5px #f59e0b;' : '';
+        const scale = isSelected ? 'transform: scale(1.25);' : '';
         const pMarker = L.marker([order.pickupLat, order.pickupLng], {
           icon: L.divIcon({
             className: 'order-pickup-marker',
-            html: `<div style="background:#ea580c;width:20px;height:20px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:10px;">🏪</div>`,
+            html: `<div style="background:${bg};width:20px;height:20px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:10px;${shadow}${scale}">🏪</div>`,
             iconSize: [20,20]
           })
         }).addTo(this.map);
-        pMarker.on('click', () => this.openOrderDetails(order));
+        pMarker.on('click', () => {
+          if (this.isBatchMode) {
+            this.toggleOrderSelectionForBatch(order);
+          } else {
+            this.openOrderDetails(order);
+          }
+        });
         this.orderMarkers.push(pMarker);
       }
       
       // Draw dropoff (Customer)
       if (order.dropoffLat && order.dropoffLng) {
+        const bg = isSelected ? '#f59e0b' : '#3b82f6';
+        const shadow = isSelected ? 'box-shadow: 0 0 10px #f59e0b, 0 0 5px #f59e0b;' : '';
+        const scale = isSelected ? 'transform: scale(1.25);' : '';
         const dMarker = L.marker([order.dropoffLat, order.dropoffLng], {
           icon: L.divIcon({
             className: 'order-dropoff-marker',
-            html: `<div style="background:#3b82f6;width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:12px;">🏠</div>`,
+            html: `<div style="background:${bg};width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:12px;${shadow}${scale}">🏠</div>`,
             iconSize: [24,24]
           })
         }).addTo(this.map);
-        dMarker.on('click', () => this.openOrderDetails(order));
+        dMarker.on('click', () => {
+          if (this.isBatchMode) {
+            this.toggleOrderSelectionForBatch(order);
+          } else {
+            this.openOrderDetails(order);
+          }
+        });
         this.orderMarkers.push(dMarker);
       }
 
       // Draw polyline connecting pickup and dropoff
       if (order.pickupLat && order.pickupLng && order.dropoffLat && order.dropoffLng) {
+        const color = isSelected ? '#f59e0b' : '#8b5cf6';
+        const weight = isSelected ? 5 : 3;
         const poly = L.polyline(
           [[order.pickupLat, order.pickupLng], [order.dropoffLat, order.dropoffLng]], 
-          { color: '#8b5cf6', weight: 3, dashArray: '5, 10', opacity: 0.7 }
+          { color: color, weight: weight, dashArray: '5, 10', opacity: 0.7 }
         ).addTo(this.map);
         this.orderPolylines.push(poly);
       }
     });
+
+    if (this.isBatchMode) {
+      this.drawBatchRouteLines();
+    }
   }
 
   openOrderDetails(order: OrderDto): void {
@@ -540,6 +574,139 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       },
       error: (err) => {
         console.error('Failed to fetch rider history:', err);
+      }
+    });
+  }
+
+  // ── คุณลักษณะระบบจัดออเดอร์พ่วงด้วยมือ (Manual Order Batching Methods) ──
+
+  toggleBatchMode(): void {
+    this.isBatchMode = !this.isBatchMode;
+    if (!this.isBatchMode) {
+      this.selectedOrderIdsForBatch = [];
+      this.clearBatchLines();
+    } else {
+      this.closeOrderDetails();
+      Swal.fire({
+        title: 'เปิดโหมดจัดออเดอร์พ่วงด้วยมือ',
+        text: 'กรุณาคลิกเลือกจุดออเดอร์ (ร้านค้าหรือลูกค้า) เพื่อพ่วงงานเข้าด้วยกัน',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        timer: 3000,
+        showConfirmButton: false
+      });
+    }
+    this.drawOrdersOnMap(this.activeOrders);
+  }
+
+  toggleOrderSelectionForBatch(order: OrderDto): void {
+    const orderId = order.id;
+    if (!orderId) return;
+
+    if (order.status !== 'CREATED' && order.status !== 'MATCHING') {
+      Swal.fire({
+        title: 'ไม่สามารถเลือกได้',
+        text: `ออเดอร์ ${order.trackingCode} อยู่ในสถานะ ${order.status} ไม่สามารถนำมาจัดกลุ่มพ่วงได้`,
+        icon: 'warning',
+        confirmButtonColor: '#f59e0b'
+      });
+      return;
+    }
+
+    const index = this.selectedOrderIdsForBatch.indexOf(orderId);
+    if (index > -1) {
+      this.selectedOrderIdsForBatch.splice(index, 1);
+    } else {
+      this.selectedOrderIdsForBatch.push(orderId);
+    }
+
+    this.drawOrdersOnMap(this.activeOrders);
+  }
+
+  private drawBatchRouteLines(): void {
+    this.clearBatchLines();
+
+    if (this.selectedOrderIdsForBatch.length < 2) return;
+
+    const coords: L.LatLngExpression[] = [];
+    this.selectedOrderIdsForBatch.forEach(id => {
+      const order = this.activeOrders.find(o => o.id === id);
+      if (order && order.pickupLat && order.pickupLng) {
+        coords.push([order.pickupLat, order.pickupLng]);
+      }
+    });
+
+    if (coords.length >= 2) {
+      const poly = L.polyline(coords, {
+        color: '#f59e0b',
+        weight: 6,
+        dashArray: '8, 12',
+        opacity: 0.9
+      }).addTo(this.map);
+      this.batchPolylines.push(poly);
+    }
+  }
+
+  private clearBatchLines(): void {
+    this.batchPolylines.forEach(p => p.remove());
+    this.batchPolylines = [];
+  }
+
+  submitBatchDispatch(): void {
+    if (this.selectedOrderIdsForBatch.length < 2) {
+      Swal.fire({
+        title: 'เลือกออเดอร์ไม่พอ',
+        text: 'กรุณาเลือกออเดอร์อย่างน้อย 2 รายการเพื่อทำการจัดพ่วงงาน',
+        icon: 'warning',
+        confirmButtonColor: '#f59e0b'
+      });
+      return;
+    }
+
+    Swal.fire({
+      title: 'ยืนยันส่งงานพ่วง?',
+      text: `คุณต้องการมัดรวมออเดอร์ ${this.selectedOrderIdsForBatch.length} รายการและจัดส่งไปยังไรเดอร์ผ่านระบบ AI Dispatch หรือไม่?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#f59e0b',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: '🚀 ยืนยันส่งงานพ่วง',
+      cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          title: 'กำลังประมวลผล...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        this.orderService.batchDispatch(this.selectedOrderIdsForBatch).subscribe({
+          next: (res) => {
+            Swal.fire({
+              title: 'สำเร็จ!',
+              text: 'มัดรวมออเดอร์และสั่งเริ่มค้นหาไรเดอร์แบบพ่วงงานเรียบร้อยแล้ว',
+              icon: 'success',
+              timer: 3000,
+              showConfirmButton: false
+            });
+            this.selectedOrderIdsForBatch = [];
+            this.isBatchMode = false;
+            this.clearBatchLines();
+            this.loadActiveOrders();
+          },
+          error: (err) => {
+            console.error('Failed to submit batch dispatch:', err);
+            Swal.fire({
+              title: 'เกิดข้อผิดพลาด',
+              text: err?.error?.message || 'ไม่สามารถเริ่มจัดส่งออเดอร์พ่วงได้',
+              icon: 'error',
+              confirmButtonColor: '#ef4444'
+            });
+          }
+        });
       }
     });
   }

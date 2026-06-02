@@ -75,6 +75,7 @@ public static class ApplicationSetup
 
         // --- SignalR Hub ---
         app.MapHub<TrackingHub>("/hubs/tracking");
+        app.MapHub<ChatHub>("/hubs/chat");
 
         // --- EventBus Subscriptions (Decoupled background processing) ---
         var eventBus = app.Services.GetRequiredService<IEventBus>();

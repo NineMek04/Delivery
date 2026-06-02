@@ -33,6 +33,7 @@ namespace BackendApi.Data
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<FcmToken> FcmTokens { get; set; }
         public DbSet<ProcessedEvent> ProcessedEvents { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
 
         public override int SaveChanges()
         {
@@ -183,6 +184,11 @@ namespace BackendApi.Data
             modelBuilder.Entity<FcmToken>()
                 .HasIndex(ft => ft.Token)
                 .HasDatabaseName("IX_FcmTokens_Token");
+
+            // ChatMessages — B-tree index for OrderId
+            modelBuilder.Entity<ChatMessage>()
+                .HasIndex(cm => cm.OrderId)
+                .HasDatabaseName("IX_ChatMessages_OrderId");
 
             // Unique filtered index on User.ShopId for StorePartners (soft delete aware)
             modelBuilder.Entity<User>()

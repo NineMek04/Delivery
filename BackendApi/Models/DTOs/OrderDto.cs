@@ -102,4 +102,13 @@ namespace BackendApi.Models.DTOs
         public string? Notes { get; set; }
         public string? OptionsDescription { get; set; }
     }
+
+    /// <summary>
+    /// DTO สำหรับสั่งเริ่มจัดส่งออเดอร์หลายใบพร้อมกันโดยแอดมิน (Manual Batching)
+    /// </summary>
+    public class BatchDispatchDto
+    {
+        public List<string> OrderIds { get; set; } = new();
+        public string? RiderId { get; set; }
+    }
 }

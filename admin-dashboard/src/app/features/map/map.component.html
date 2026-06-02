@@ -12,6 +12,33 @@
       }
     </div>
 
+    <!-- แผงควบคุมโหมดจัดออเดอร์พ่วงด้วยมือ -->
+    <div class="batch-mode-selector">
+      <button type="button" class="btn-batch-mode" [class.active]="isBatchMode" (click)="toggleBatchMode()">
+        {{ isBatchMode ? '🛑 ปิดโหมดจัดออเดอร์พ่วง' : '📦 จัดออเดอร์พ่วงด้วยมือ' }}
+      </button>
+      @if (isBatchMode) {
+        <span class="batch-mode-hint animate-pulse">💡 คลิกเลือกจุดออเดอร์บนแผนที่เพื่อพ่วงงานเข้าด้วยกัน</span>
+      }
+    </div>
+
+    <!-- HUD แสดงยอดและปุ่มส่งงาน (เมื่อเลือก > 0) -->
+    @if (isBatchMode && selectedOrderIdsForBatch.length > 0) {
+      <div class="batch-hud-panel">
+        <div class="hud-header">
+          <strong>📦 จัดส่งออเดอร์พ่วง</strong>
+          <span class="count-badge">{{ selectedOrderIdsForBatch.length }} ออเดอร์</span>
+        </div>
+        <p class="hud-desc">ออเดอร์จะถูกพ่วงกลุ่มรหัสเดียวกัน ค้นหาไรเดอร์อัตโนมัติ</p>
+        <div class="hud-actions">
+          <button type="button" class="btn-hud-cancel" (click)="toggleBatchMode()">ยกเลิก</button>
+          <button type="button" class="btn-hud-submit" (click)="submitBatchDispatch()" [disabled]="selectedOrderIdsForBatch.length < 2">
+            🚀 ส่งงานพ่วง
+          </button>
+        </div>
+      </div>
+    }
+
     <!-- แผงสถานะ Fleet ของไรเดอร์ -->
     <div class="fleet-status">
       <strong>Fleet_Status</strong>

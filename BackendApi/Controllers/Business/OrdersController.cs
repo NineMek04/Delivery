@@ -141,6 +141,19 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
+    /// สั่งเริ่ม Batch Dispatch ออเดอร์หลายใบพร้อมกันโดยแอดมิน (Manual Batching)
+    /// </summary>
+    [HttpPost("batch-dispatch")]
+    [Authorize(Policy = AuthConstants.OperationsPolicy)]
+    public async Task<ActionResult<ApiResponse>> BatchDispatch(
+        [FromBody] BatchDispatchDto dto,
+        CancellationToken cancellationToken)
+    {
+        var (statusCode, response) = await _orderService.BatchDispatchAsync(dto, cancellationToken);
+        return StatusCode(statusCode, response);
+    }
+
+    /// <summary>
     /// ลบข้อมูลออเดอร์ทั้งหมด (สำหรับ Simulator)
     /// </summary>
     [HttpDelete("all")]

@@ -45,6 +45,8 @@ class AuthInterceptor extends Interceptor {
 /// - Network error → ไม่มีอินเทอร์เน็ต
 class ErrorInterceptor extends Interceptor {
   final Ref _ref;
+  final List<_PendingRequest> _queue = [];
+  bool _isRefreshing = false;
 
   ErrorInterceptor(this._ref);
 
@@ -52,18 +54,79 @@ class ErrorInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final statusCode = err.response?.statusCode;
 
+    if (statusCode == 401) {
+      _logger.w('🔐 Unauthorized (401) — checking token refresh state');
+      
+      final requestPath = err.requestOptions.path;
+      if (requestPath.contains('/auth/refresh') ||
+          requestPath.contains('/auth/login')) {
+        return handler.next(err);
+      }
+
+      if (_isRefreshing) {
+        _logger.d('⏳ Token refresh in progress. Queueing request: ${err.requestOptions.uri}');
+        _queue.add(_PendingRequest(err, handler));
+        return;
+      }
+
+      _isRefreshing = true;
+      _logger.i('🔑 Starting token refresh flow for request: ${err.requestOptions.uri}');
+
+      try {
+        final authService = _ref.read(authServiceProvider.notifier);
+        final refreshed = await authService.refreshAccessToken();
+
+        if (refreshed) {
+          final newToken = authService.currentToken;
+          if (newToken != null) {
+            // Retry current request
+            final response = await _retryRequest(err.requestOptions, newToken);
+            handler.resolve(response);
+
+            // Retry all queued requests
+            _logger.i('🔄 Retrying ${_queue.length} queued requests with new token');
+            for (final pending in _queue) {
+              try {
+                final queuedResponse = await _retryRequest(pending.err.requestOptions, newToken);
+                pending.handler.resolve(queuedResponse);
+              } catch (queuedErr) {
+                if (queuedErr is DioException) {
+                  pending.handler.reject(queuedErr);
+                } else {
+                  pending.handler.reject(
+                    DioException(
+                      requestOptions: pending.err.requestOptions,
+                      error: queuedErr,
+                    ),
+                  );
+                }
+              }
+            }
+            _queue.clear();
+            return;
+          }
+        }
+
+        _logger.w('🔐 Token refresh failed — rejecting current and queued requests');
+        handler.reject(err);
+        for (final pending in _queue) {
+          pending.handler.reject(pending.err);
+        }
+        _queue.clear();
+      } catch (e) {
+        _logger.e('❌ Unexpected error during token refresh orchestration', error: e);
+        handler.reject(err);
+        for (final pending in _queue) {
+          pending.handler.reject(pending.err);
+        }
+        _queue.clear();
+      } finally {
+        _isRefreshing = false;
+      }
+      return;
+    }
+
     switch (statusCode) {
-      case 401:
-        _logger.w('🔐 Unauthorized (401) — attempting token refresh');
-        // เทียบ Angular: ไม่มี auto-refresh แต่เราเพิ่มให้ดีกว่า
-        // ลอง refresh token แล้ว retry request เดิม
-        final refreshed = await _tryRefreshAndRetry(err, handler);
-        if (refreshed) return; // retry สำเร็จ → ไม่ต้อง propagate error
-
-        // Refresh ล้มเหลว → logout (AuthService จัดการแล้ว)
-        _logger.w('🔐 Token refresh failed — user will be redirected to login');
-        break;
-
       case 403:
         _logger.w('🚫 Forbidden (403) — Access denied');
         break;
@@ -74,7 +137,6 @@ class ErrorInterceptor extends Interceptor {
 
       case 422:
         _logger.w('⚠️ Validation Error (422)');
-        // Validation errors จาก BackendApi's ValidationFilter
         break;
 
       case 429:
@@ -97,60 +159,33 @@ class ErrorInterceptor extends Interceptor {
     handler.next(err);
   }
 
-  /// พยายาม refresh token แล้ว retry request เดิม.
-  ///
-  /// Returns true หาก retry สำเร็จ (handler.resolve ถูกเรียกแล้ว)
-  /// Returns false หาก refresh หรือ retry ล้มเหลว
-  Future<bool> _tryRefreshAndRetry(
-    DioException err,
-    ErrorInterceptorHandler handler,
-  ) async {
-    // ป้องกันไม่ให้ refresh request ตัวเอง retry วนลูป
-    final requestPath = err.requestOptions.path;
-    if (requestPath.contains('/auth/refresh') ||
-        requestPath.contains('/auth/login')) {
-      return false;
-    }
+  Future<Response> _retryRequest(RequestOptions opts, String token) async {
+    opts.headers['Authorization'] = 'Bearer $token';
 
-    try {
-      final authService = _ref.read(authServiceProvider.notifier);
-      final refreshed = await authService.refreshAccessToken();
+    final retryDio = Dio(
+      BaseOptions(
+        baseUrl: opts.baseUrl,
+        connectTimeout: opts.connectTimeout,
+        receiveTimeout: opts.receiveTimeout,
+      ),
+    );
 
-      if (!refreshed) return false;
-
-      // Retry original request ด้วย token ใหม่
-      final newToken = authService.currentToken;
-      if (newToken == null) return false;
-
-      final opts = err.requestOptions;
-      opts.headers['Authorization'] = 'Bearer $newToken';
-
-      // สร้าง Dio instance ใหม่สำหรับ retry (ป้องกัน interceptor loop)
-      final retryDio = Dio(
-        BaseOptions(
-          baseUrl: opts.baseUrl,
-          connectTimeout: opts.connectTimeout,
-          receiveTimeout: opts.receiveTimeout,
-        ),
-      );
-
-      final response = await retryDio.request(
-        opts.path,
-        data: opts.data,
-        queryParameters: opts.queryParameters,
-        options: Options(
-          method: opts.method,
-          headers: opts.headers,
-          responseType: opts.responseType,
-        ),
-      );
-
-      handler.resolve(response);
-      _logger.i('🔄 Request retried successfully after token refresh');
-      return true;
-    } catch (e) {
-      _logger.e('❌ Retry after refresh failed', error: e);
-      return false;
-    }
+    return await retryDio.request(
+      opts.path,
+      data: opts.data,
+      queryParameters: opts.queryParameters,
+      options: Options(
+        method: opts.method,
+        headers: opts.headers,
+        responseType: opts.responseType,
+      ),
+    );
   }
+}
+
+class _PendingRequest {
+  final DioException err;
+  final ErrorInterceptorHandler handler;
+
+  _PendingRequest(this.err, this.handler);
 }

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/delivery_provider.dart';
 
 class DeliveryConfirmationScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -63,24 +65,39 @@ class _DeliveryConfirmationScreenState extends ConsumerState<DeliveryConfirmatio
       _isLoading = true;
     });
 
-    // Mock API Submit
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      await ref.read(deliveryNotifierProvider.notifier).updateOrderStatus(widget.orderId, 'COMPLETED');
+      
+      final state = ref.read(deliveryNotifierProvider);
+      if (state.error != null) {
+        throw Exception(state.error);
+      }
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    HapticFeedback.heavyImpact();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Delivery Confirmed! Great job.'),
-          backgroundColor: Colors.green[700],
-        ),
-      );
-      // context.goNamed('home');
-      Navigator.of(context).pop(); // Mock pop
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('ยืนยันจัดส่งสำเร็จ! เก่งมาก'),
+            backgroundColor: Colors.green[700],
+          ),
+        );
+        context.goNamed('home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการยืนยันจัดส่ง: $e'),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

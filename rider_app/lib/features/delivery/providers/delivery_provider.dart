@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 
 import '../../../core/api/api_helpers.dart';
 import '../../../core/api/services/order_api_service.dart';
@@ -106,10 +107,89 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
         completedOrders: completed,
         activeOrder: active.isNotEmpty ? active.first : null,
       );
-    } on ApiException catch (e) {
-      state = state.copyWith(isUpdating: false, error: e.message);
     } catch (e) {
-      state = state.copyWith(isUpdating: false, error: e.toString());
+      // Check if it is a network connectivity error
+      bool isNetworkError = false;
+      if (e is DioException) {
+        final type = e.type;
+        if (type == DioExceptionType.connectionTimeout ||
+            type == DioExceptionType.sendTimeout ||
+            type == DioExceptionType.receiveTimeout ||
+            type == DioExceptionType.connectionError) {
+          isNetworkError = true;
+        }
+      } else if (e is ApiException) {
+        if (e.statusCode == null) {
+          isNetworkError = true;
+        }
+      }
+
+      if (isNetworkError) {
+        try {
+          // 1. Save to SQLite queue
+          final db = ref.read(localDatabaseServiceProvider);
+          await db.savePendingStatusUpdate(orderId, newStatus);
+
+          // 2. Perform Optimistic Update
+          OrderDto? existingOrder;
+          try {
+            existingOrder = state.activeOrders.firstWhere((o) => o.id == orderId);
+          } catch (_) {
+            existingOrder = state.completedOrders.firstWhere((o) => o.id == orderId);
+          }
+
+          final optimisticOrder = OrderDto(
+            id: existingOrder.id,
+            status: newStatus,
+            pickupLat: existingOrder.pickupLat,
+            pickupLng: existingOrder.pickupLng,
+            dropoffLat: existingOrder.dropoffLat,
+            dropoffLng: existingOrder.dropoffLng,
+            expectedDeliveryTime: existingOrder.expectedDeliveryTime,
+            assignedRiderId: existingOrder.assignedRiderId,
+            customerId: existingOrder.customerId,
+            shopId: existingOrder.shopId,
+            distanceKm: existingOrder.distanceKm,
+            deliveryFee: existingOrder.deliveryFee,
+            trackingCode: existingOrder.trackingCode,
+            refNumber: existingOrder.refNumber,
+            encodedPolyline: existingOrder.encodedPolyline,
+            items: existingOrder.items,
+            createdAt: existingOrder.createdAt,
+            assignedAt: existingOrder.assignedAt,
+            completedAt: newStatus == 'COMPLETED' ? DateTime.now() : existingOrder.completedAt,
+          );
+
+          await db.saveOrder(optimisticOrder);
+
+          final active = List<OrderDto>.from(state.activeOrders);
+          final completed = List<OrderDto>.from(state.completedOrders);
+
+          active.removeWhere((o) => o.id == orderId);
+          completed.removeWhere((o) => o.id == orderId);
+
+          if (_completedStatuses.contains(optimisticOrder.status.toUpperCase())) {
+            completed.insert(0, optimisticOrder);
+          } else if (_activeStatuses.contains(optimisticOrder.status.toUpperCase())) {
+            active.insert(0, optimisticOrder);
+          }
+
+          state = state.copyWith(
+            isUpdating: false,
+            activeOrders: active,
+            completedOrders: completed,
+            activeOrder: active.isNotEmpty ? active.first : null,
+            error: 'Offline: บันทึกสถานะงานแบบออฟไลน์แล้ว',
+          );
+          return;
+        } catch (dbErr) {
+          // Fall through to normal error handling if database operation fails
+        }
+      }
+
+      // Normal error path
+      final errorMessage = e is ApiException ? e.message : e.toString();
+      state = state.copyWith(isUpdating: false, error: errorMessage);
     }
   }
 

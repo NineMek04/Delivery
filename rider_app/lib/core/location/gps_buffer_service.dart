@@ -6,10 +6,13 @@ import 'package:logger/logger.dart';
 import 'package:sqflite/sqflite.dart' show getDatabasesPath;
 import '../api/delivery_api_client.dart';
 import '../../models/gps_point.dart';
+import '../database/local_database_service.dart';
+import '../config/app_constants.dart';
 
 final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
   return GpsBufferService(
     dio: ref.watch(deliveryApiClientProvider),
+    db: ref.watch(localDatabaseServiceProvider),
   );
 });
 
@@ -24,16 +27,20 @@ final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
 /// Isar (gpsPoints collection) -> Batch uploads (POST /api/telemetry/gps/batch) -> Purge on 200 OK
 class GpsBufferService {
   final Dio _dio;
+  final LocalDatabaseService _db;
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
   
   Isar? _isar;
   Timer? _syncTimer;
   int _syncIntervalSeconds = 5; // Default sync check interval
   bool _isSyncing = false;
+  bool _isSyncingStatus = false;
 
   GpsBufferService({
     required Dio dio,
-  }) : _dio = dio;
+    required LocalDatabaseService db,
+  })  : _dio = dio,
+        _db = db;
 
   /// Retrieves or opens the Isar database instance.
   /// Reuses SQLite directory path to keep all local files organized together.
@@ -56,6 +63,7 @@ class GpsBufferService {
     _logger.i('🛰️ Starting periodic GPS Isar Offline Sync Timer (every $_syncIntervalSeconds seconds)');
     _syncTimer = Timer.periodic(Duration(seconds: _syncIntervalSeconds), (_) {
       syncBufferedPoints();
+      syncPendingStatusUpdates();
     });
   }
 
@@ -194,6 +202,53 @@ class GpsBufferService {
       _logger.e('❌ Unexpected error during offline Isar telemetry synchronization', error: e);
     } finally {
       _isSyncing = false;
+    }
+  }
+
+  /// Synchronizes pending order status updates queued during offline mode.
+  Future<void> syncPendingStatusUpdates() async {
+    if (_isSyncingStatus) return;
+    _isSyncingStatus = true;
+
+    try {
+      final pendingList = await _db.getPendingStatusUpdates();
+      if (pendingList.isEmpty) {
+        _isSyncingStatus = false;
+        return;
+      }
+
+      _logger.d('📡 Syncing ${pendingList.length} pending order status updates from SQLite...');
+
+      for (final update in pendingList) {
+        final id = update['id'] as int;
+        final orderId = update['order_id'] as String;
+        final status = update['status'] as String;
+
+        try {
+          final response = await _dio.patch(
+            '${AppConstants.ordersEndpoint}/$orderId/status',
+            data: {'Status': status},
+          );
+
+          if (response.statusCode == 200 || response.statusCode == 204) {
+            _logger.i('✅ Successfully synced pending order status update: orderId=$orderId, status=$status');
+            await _db.deletePendingStatusUpdate(id);
+          } else {
+            _logger.w('⚠️ Failed to sync status update, status code: ${response.statusCode}');
+            break;
+          }
+        } on DioException catch (dioErr) {
+          _logger.w('🔌 Network error during status sync: ${dioErr.message}');
+          break;
+        } catch (err) {
+          _logger.e('❌ Unexpected error syncing status update id=$id', error: err);
+          break;
+        }
+      }
+    } catch (e) {
+      _logger.e('❌ Error in syncPendingStatusUpdates', error: e);
+    } finally {
+      _isSyncingStatus = false;
     }
   }
 

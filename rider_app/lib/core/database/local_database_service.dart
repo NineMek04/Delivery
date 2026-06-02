@@ -15,6 +15,7 @@ class LocalDatabaseService {
   // Web fallback storage
   final Map<String, Map<String, dynamic>> _webOrders = {};
   final Map<String, String> _webSession = {};
+  final List<Map<String, dynamic>> _webPendingUpdates = [];
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -30,7 +31,20 @@ class LocalDatabaseService {
 
     return await openDatabase(
       pathString,
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE pending_status_updates (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              order_id TEXT,
+              status TEXT,
+              timestamp INTEGER
+            )
+          ''');
+          _logger.i('Upgraded database schema: created pending_status_updates table');
+        }
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE orders (
@@ -45,6 +59,15 @@ class LocalDatabaseService {
           CREATE TABLE session (
             key TEXT PRIMARY KEY,
             value TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE pending_status_updates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT,
+            status TEXT,
+            timestamp INTEGER
           )
         ''');
       },
@@ -251,6 +274,74 @@ class LocalDatabaseService {
   }
 
 
+
+  // Save pending status update for offline sync
+  Future<void> savePendingStatusUpdate(String orderId, String status) async {
+    if (kIsWeb) {
+      _webPendingUpdates.add({
+        'id': _webPendingUpdates.length + 1,
+        'order_id': orderId,
+        'status': status,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+      _logger.d('[Web] Saved pending status update to memory: orderId=$orderId, status=$status');
+      return;
+    }
+
+    try {
+      final db = await database;
+      await db.insert(
+        'pending_status_updates',
+        {
+          'order_id': orderId,
+          'status': status,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+      _logger.i('Saved pending status update locally: orderId=$orderId, status=$status');
+    } catch (e) {
+      _logger.e('Failed to save pending status update', error: e);
+    }
+  }
+
+  // Get all pending status updates (FIFO order)
+  Future<List<Map<String, dynamic>>> getPendingStatusUpdates() async {
+    if (kIsWeb) {
+      return List<Map<String, dynamic>>.from(_webPendingUpdates);
+    }
+
+    try {
+      final db = await database;
+      return await db.query(
+        'pending_status_updates',
+        orderBy: 'timestamp ASC',
+      );
+    } catch (e) {
+      _logger.e('Failed to get pending status updates', error: e);
+      return [];
+    }
+  }
+
+  // Delete pending status update
+  Future<void> deletePendingStatusUpdate(int id) async {
+    if (kIsWeb) {
+      _webPendingUpdates.removeWhere((item) => item['id'] == id);
+      _logger.d('[Web] Deleted pending status update from memory: id=$id');
+      return;
+    }
+
+    try {
+      final db = await database;
+      await db.delete(
+        'pending_status_updates',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      _logger.i('Deleted pending status update: id=$id');
+    } catch (e) {
+      _logger.e('Failed to delete pending status update', error: e);
+    }
+  }
 
   bool _isActiveStatus(String status) {
     final s = status.toUpperCase();

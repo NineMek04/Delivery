@@ -33,7 +33,11 @@ class _ActiveDeliveryScreenState extends ConsumerState<ActiveDeliveryScreen> {
     if (!mounted) return;
     final err = ref.read(deliveryNotifierProvider).error;
     if (err != null) {
-      ErrorDialog.show(context, title: 'อัปเดตไม่สำเร็จ', message: err);
+      if (err.startsWith('Offline:')) {
+        ErrorDialog.showSuccess(context, err);
+      } else {
+        ErrorDialog.show(context, title: 'อัปเดตไม่สำเร็จ', message: err);
+      }
     } else {
       ErrorDialog.showSuccess(context, 'อัปเดตสถานะเป็น $next');
     }
@@ -95,7 +99,16 @@ class _ActiveDeliveryScreenState extends ConsumerState<ActiveDeliveryScreen> {
                         ? OrderStatusHelper.nextActionLabel(order.status)
                         : null,
                     onPrimaryAction: next != null
-                        ? () => _advanceStatus(order.id, order.status)
+                        ? () {
+                            if (next == 'COMPLETED') {
+                              context.pushNamed(
+                                'confirmDelivery',
+                                pathParameters: {'orderId': order.id},
+                              );
+                            } else {
+                              _advanceStatus(order.id, order.status);
+                            }
+                          }
                         : null,
                   );
                 },

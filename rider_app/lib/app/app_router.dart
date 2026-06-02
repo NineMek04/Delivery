@@ -10,6 +10,7 @@ import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
 import '../features/home/screens/home_screen.dart';
 import '../features/delivery/screens/active_delivery_screen.dart';
+import '../features/delivery/screens/delivery_confirmation_screen.dart';
 import '../features/delivery/screens/delivery_history_screen.dart';
 import '../features/tracking/screens/map_tracking_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
@@ -116,6 +117,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/delivery/active',
             name: 'activeDelivery',
             builder: (context, state) => const ActiveDeliveryScreen(),
+          ),
+          GoRoute(
+            path: '/delivery/confirm/:orderId',
+            name: 'confirmDelivery',
+            builder: (context, state) {
+              final orderId = state.pathParameters['orderId']!;
+              return DeliveryConfirmationScreen(orderId: orderId);
+            },
           ),
           GoRoute(
             path: '/delivery/history',
@@ -261,7 +270,7 @@ class MainShell extends StatelessWidget {
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location == '/') return 0;
-    if (location == '/delivery/active') return 1;
+    if (location == '/delivery/active' || location.startsWith('/delivery/confirm')) return 1;
     if (location == '/tracking') return 2;
     if (location == '/delivery/history') return 3;
     if (location == '/profile') return 4;

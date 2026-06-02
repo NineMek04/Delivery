@@ -52,6 +52,8 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int) -> Dict[
     # 5. Set search parameters
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+    # Set a 5-second search time limit to prevent Denial of Service (OWASP LLM04 Model DoS)
+    search_parameters.time_limit.seconds = 5
 
     # 6. Solve
     solution = routing.SolveWithParameters(search_parameters)

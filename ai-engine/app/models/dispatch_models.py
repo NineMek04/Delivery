@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 # --- Models สำหรับ Dispatch Ranking ---
 class DispatchContext(BaseModel):
@@ -8,8 +8,8 @@ class DispatchContext(BaseModel):
 
 class DispatchOrder(BaseModel):
     id: str
-    pickup: List[float]  # [lat, lng]
-    dropoff: List[float] # [lat, lng]
+    pickup: Tuple[float, float]  # [lat, lng]
+    dropoff: Tuple[float, float] # [lat, lng]
     sla_limit_minutes: int = 30
 
 class DispatchCandidate(BaseModel):

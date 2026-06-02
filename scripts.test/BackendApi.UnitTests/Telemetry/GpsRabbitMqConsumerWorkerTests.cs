@@ -4,13 +4,20 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Xunit;
+using BackendApi.Data;
+using BackendApi.Models;
+using BackendApi.Services;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Services.Telemetry;
 
@@ -24,10 +31,14 @@ namespace BackendApi.UnitTests.Telemetry
         private readonly Mock<IServiceProvider> _scopeServiceProviderMock;
         
         private readonly Mock<IConfiguration> _configMock;
+        private readonly Mock<IHostApplicationLifetime> _appLifetimeMock;
         private readonly Mock<ILogger<GpsRabbitMqConsumerWorker>> _loggerMock;
         private readonly Mock<IConnection> _connectionMock;
         private readonly Mock<IModel> _channelMock;
         private readonly Mock<GpsHistoryService> _gpsHistoryServiceMock;
+        private readonly Mock<ApplicationDbContext> _dbContextMock;
+        private readonly Mock<DatabaseFacade> _databaseFacadeMock;
+        private readonly Mock<IDbContextTransaction> _dbTransactionMock;
 
         public GpsRabbitMqConsumerWorkerTests()
         {
@@ -37,12 +48,30 @@ namespace BackendApi.UnitTests.Telemetry
             _scopeServiceProviderMock = new Mock<IServiceProvider>();
             
             _configMock = new Mock<IConfiguration>();
+            _appLifetimeMock = new Mock<IHostApplicationLifetime>();
             _loggerMock = new Mock<ILogger<GpsRabbitMqConsumerWorker>>();
             _connectionMock = new Mock<IConnection>();
             _channelMock = new Mock<IModel>();
             
             // Mock GpsHistoryService by passing null dependencies (since we mock SavePointsAsync anyway)
             _gpsHistoryServiceMock = new Mock<GpsHistoryService>(null!, null!);
+
+            // Setup DB Context with In-Memory Database and DatabaseFacade Mock for Transactions
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            var currentUserServiceMock = new Mock<ICurrentUserService>();
+            currentUserServiceMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
+            currentUserServiceMock.Setup(u => u.UserName).Returns("System");
+
+            _dbContextMock = new Mock<ApplicationDbContext>(options, currentUserServiceMock.Object) { CallBase = true };
+            _databaseFacadeMock = new Mock<DatabaseFacade>(_dbContextMock.Object);
+            _dbTransactionMock = new Mock<IDbContextTransaction>();
+
+            _dbContextMock.Setup(c => c.Database).Returns(_databaseFacadeMock.Object);
+            _databaseFacadeMock.Setup(d => d.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+                               .ReturnsAsync(_dbTransactionMock.Object);
 
             // Setup IConfiguration values
             _configMock.Setup(c => c["MessageBroker:Host"]).Returns("localhost");
@@ -64,6 +93,10 @@ namespace BackendApi.UnitTests.Telemetry
             _scopeServiceProviderMock
                 .Setup(s => s.GetService(typeof(GpsHistoryService)))
                 .Returns(_gpsHistoryServiceMock.Object);
+
+            _scopeServiceProviderMock
+                .Setup(s => s.GetService(typeof(ApplicationDbContext)))
+                .Returns(_dbContextMock.Object);
 
             // Setup Connection and Channel
             _connectionMock.Setup(c => c.CreateModel()).Returns(_channelMock.Object);
@@ -94,6 +127,7 @@ namespace BackendApi.UnitTests.Telemetry
             var worker = new TestableGpsRabbitMqConsumerWorker(
                 _serviceProviderMock.Object,
                 _configMock.Object,
+                _appLifetimeMock.Object,
                 _loggerMock.Object,
                 _connectionMock.Object
             );
@@ -198,6 +232,7 @@ namespace BackendApi.UnitTests.Telemetry
             var worker = new TestableGpsRabbitMqConsumerWorker(
                 _serviceProviderMock.Object,
                 _configMock.Object,
+                _appLifetimeMock.Object,
                 _loggerMock.Object,
                 _connectionMock.Object
             );
@@ -263,8 +298,9 @@ namespace BackendApi.UnitTests.Telemetry
             public TestableGpsRabbitMqConsumerWorker(
                 IServiceProvider serviceProvider,
                 IConfiguration configuration,
+                IHostApplicationLifetime appLifetime,
                 ILogger<GpsRabbitMqConsumerWorker> logger,
-                IConnection mockConnection) : base(serviceProvider, configuration, logger)
+                IConnection mockConnection) : base(serviceProvider, configuration, appLifetime, logger)
             {
                 _mockConnection = mockConnection;
             }

@@ -104,8 +104,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # Ports removed to isolate the container from public access (OWASP LLM10 / LLM07 API Isolation)
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]

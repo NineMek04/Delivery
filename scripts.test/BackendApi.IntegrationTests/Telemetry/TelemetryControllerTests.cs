@@ -116,7 +116,7 @@ namespace BackendApi.IntegrationTests
         }
 
         [Fact]
-        public async Task PostGpsCoordinate_WhenRateLimited_Returns202Accepted()
+        public async Task PostGpsCoordinate_WhenRateLimited_Returns429TooManyRequests()
         {
             // Arrange
             var payload = new GpsPointRequest
@@ -142,16 +142,16 @@ namespace BackendApi.IntegrationTests
             var response1 = await sendRequest();
             Assert.Equal(HttpStatusCode.OK, response1.StatusCode);
 
-            // 2nd request immediately after -> should be rate limited (202 Accepted)
+            // 2nd request immediately after -> should be rate limited (429 TooManyRequests)
             var response2 = await sendRequest();
 
             // Assert
-            Assert.Equal(HttpStatusCode.Accepted, response2.StatusCode);
+            Assert.Equal(HttpStatusCode.TooManyRequests, response2.StatusCode);
             Assert.True(response2.Headers.Contains("X-Recommended-Ping"));
             
             var body = await response2.Content.ReadFromJsonAsync<ApiResponse<string>>();
             Assert.NotNull(body);
-            Assert.Contains("throttled", body.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("throttled", body.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -218,7 +218,7 @@ namespace BackendApi.IntegrationTests
         }
 
         [Fact]
-        public async Task PostGpsBatch_WhenRateLimited_Returns202Accepted()
+        public async Task PostGpsBatch_WhenRateLimited_Returns429TooManyRequests()
         {
             // Arrange
             var payload = new List<GpsBatchPointRequest>
@@ -243,16 +243,16 @@ namespace BackendApi.IntegrationTests
             var response1 = await sendRequest();
             Assert.Equal(HttpStatusCode.OK, response1.StatusCode);
 
-            // 2nd request immediately after -> should be rate limited (202 Accepted)
+            // 2nd request immediately after -> should be rate limited (429 TooManyRequests)
             var response2 = await sendRequest();
 
             // Assert
-            Assert.Equal(HttpStatusCode.Accepted, response2.StatusCode);
+            Assert.Equal(HttpStatusCode.TooManyRequests, response2.StatusCode);
             Assert.True(response2.Headers.Contains("X-Recommended-Ping"));
             
             var body = await response2.Content.ReadFromJsonAsync<ApiResponse<string>>();
             Assert.NotNull(body);
-            Assert.Contains("throttled", body.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("throttled", body.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]

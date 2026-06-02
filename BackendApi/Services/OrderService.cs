@@ -547,9 +547,11 @@ public class OrderService : IOrderService
         var batchGroupId = Guid.NewGuid().ToString();
         var size = orders.Count;
 
-        for (int i = 0; i < orders.Count; i++)
+        var orderedOrders = orders.OrderBy(o => dto.OrderIds.IndexOf(o.Id)).ToList();
+
+        for (int i = 0; i < orderedOrders.Count; i++)
         {
-            var order = orders[i];
+            var order = orderedOrders[i];
             order.BatchGroupId = batchGroupId;
             order.BatchSequence = i + 1;
             order.BatchSize = size;

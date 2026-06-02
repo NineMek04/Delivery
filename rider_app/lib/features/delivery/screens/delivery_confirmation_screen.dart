@@ -70,6 +70,19 @@ class _DeliveryConfirmationScreenState extends ConsumerState<DeliveryConfirmatio
       
       final state = ref.read(deliveryNotifierProvider);
       if (state.error != null) {
+        if (state.error!.startsWith('Offline:')) {
+          HapticFeedback.heavyImpact();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.error!),
+                backgroundColor: Colors.green[700],
+              ),
+            );
+            context.goNamed('home');
+          }
+          return;
+        }
         throw Exception(state.error);
       }
 

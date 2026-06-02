@@ -23,6 +23,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatServiceProvider(widget.orderId).notifier).connectAndJoin();
+      
+      final deliveryState = ref.read(deliveryNotifierProvider);
+      if (deliveryState.activeOrders.isEmpty && !deliveryState.isLoading) {
+        ref.read(deliveryNotifierProvider.notifier).loadOrders();
+      }
     });
   }
 

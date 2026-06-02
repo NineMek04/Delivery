@@ -211,6 +211,7 @@ class LocalDatabaseService {
     if (kIsWeb) {
       _webOrders.clear();
       _webSession.clear();
+      _webPendingUpdates.clear();
       _logger.i('[Web] Cleared memory database');
       return;
     }
@@ -219,6 +220,7 @@ class LocalDatabaseService {
       final db = await database;
       await db.delete('orders');
       await db.delete('session');
+      await db.delete('pending_status_updates');
       _logger.i('Cleared all local database tables');
     } catch (e) {
       _logger.e('Failed to clear local database data', error: e);

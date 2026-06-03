@@ -60,6 +60,13 @@
 - Forbidden patterns, Base class rules
 - Environment constraints, Logging policy
 
+### 🛡️ Critical Code Protection
+→ [CRITICAL-CODE-PROTECTION.md](CRITICAL-CODE-PROTECTION.md)
+- ไฟล์ที่ห้ามลบ/คอมเม้นต์ (3 Tiers: 🔴🟠🟡)
+- Protected endpoints & fallback mechanisms
+- State machine transition rules protection
+- ดูกฎบังคับใน [AGENTS.md §7](AGENTS.md)
+
 ---
 
 ## 3. Contracts (อ่านเมื่อต้องการ payload spec ที่แม่นยำ)

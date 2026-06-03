@@ -16,6 +16,7 @@ class LocalDatabaseService {
   final Map<String, Map<String, dynamic>> _webOrders = {};
   final Map<String, String> _webSession = {};
   final List<Map<String, dynamic>> _webPendingUpdates = [];
+  final List<Map<String, dynamic>> _webErrorLogs = [];
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -31,7 +32,7 @@ class LocalDatabaseService {
 
     return await openDatabase(
       pathString,
-      version: 2,
+      version: 3,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute('''
@@ -43,6 +44,18 @@ class LocalDatabaseService {
             )
           ''');
           _logger.i('Upgraded database schema: created pending_status_updates table');
+        }
+        if (oldVersion < 3) {
+          await db.execute('''
+            CREATE TABLE local_error_logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              timestamp INTEGER,
+              endpoint TEXT,
+              error_message TEXT,
+              payload TEXT
+            )
+          ''');
+          _logger.i('Upgraded database schema: created local_error_logs table');
         }
       },
       onCreate: (db, version) async {
@@ -70,6 +83,17 @@ class LocalDatabaseService {
             timestamp INTEGER
           )
         ''');
+
+        await db.execute('''
+          CREATE TABLE local_error_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER,
+            endpoint TEXT,
+            error_message TEXT,
+            payload TEXT
+          )
+        ''');
+        _logger.i('Created database tables (v3)');
       },
     );
   }
@@ -212,6 +236,7 @@ class LocalDatabaseService {
       _webOrders.clear();
       _webSession.clear();
       _webPendingUpdates.clear();
+      _webErrorLogs.clear();
       _logger.i('[Web] Cleared memory database');
       return;
     }
@@ -221,6 +246,7 @@ class LocalDatabaseService {
       await db.delete('orders');
       await db.delete('session');
       await db.delete('pending_status_updates');
+      await db.delete('local_error_logs');
       _logger.i('Cleared all local database tables');
     } catch (e) {
       _logger.e('Failed to clear local database data', error: e);
@@ -342,6 +368,71 @@ class LocalDatabaseService {
       _logger.i('Deleted pending status update: id=$id');
     } catch (e) {
       _logger.e('Failed to delete pending status update', error: e);
+    }
+  }
+
+  // Save local error log
+  Future<void> saveLocalErrorLog(String endpoint, String errorMessage, String payload) async {
+    if (kIsWeb) {
+      _webErrorLogs.add({
+        'id': _webErrorLogs.length + 1,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'endpoint': endpoint,
+        'error_message': errorMessage,
+        'payload': payload,
+      });
+      _logger.d('[Web] Saved local error log to memory: endpoint=$endpoint');
+      return;
+    }
+
+    try {
+      final db = await database;
+      await db.insert(
+        'local_error_logs',
+        {
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'endpoint': endpoint,
+          'error_message': errorMessage,
+          'payload': payload,
+        },
+      );
+      _logger.w('Logged local API error: endpoint=$endpoint, error=$errorMessage');
+    } catch (e) {
+      _logger.e('Failed to save local error log', error: e);
+    }
+  }
+
+  // Get all local error logs
+  Future<List<Map<String, dynamic>>> getLocalErrorLogs() async {
+    if (kIsWeb) {
+      return List<Map<String, dynamic>>.from(_webErrorLogs);
+    }
+
+    try {
+      final db = await database;
+      return await db.query(
+        'local_error_logs',
+        orderBy: 'timestamp DESC',
+      );
+    } catch (e) {
+      _logger.e('Failed to get local error logs', error: e);
+      return [];
+    }
+  }
+
+  // Clear local error logs
+  Future<void> clearLocalErrorLogs() async {
+    if (kIsWeb) {
+      _webErrorLogs.clear();
+      return;
+    }
+
+    try {
+      final db = await database;
+      await db.delete('local_error_logs');
+      _logger.i('Cleared local error logs');
+    } catch (e) {
+      _logger.e('Failed to clear local error logs', error: e);
     }
   }
 

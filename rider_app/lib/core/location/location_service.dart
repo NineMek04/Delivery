@@ -226,7 +226,7 @@ class LocationService extends Notifier<LocationState> {
 
     // ส่งตำแหน่งเริ่มต้นทันที
     final bufferService = ref.read(gpsBufferServiceProvider);
-    bufferService.bufferLocation(currentLat, currentLng, 10.0);
+    bufferService.bufferLocation(currentLat, currentLng, 10.0, heading: 0.0);
 
     // จำลองตำแหน่งขยับเป็นวงกลมเล็กๆ ทุก 5 วินาทีเพื่อให้เห็นบนแผนที่ว่ากำลังออนไลน์และเคลื่อนไหว
     _mockTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
@@ -243,15 +243,16 @@ class LocationService extends Notifier<LocationState> {
       final nextLat = currentLat + latOffset;
       final nextLng = currentLng + lngOffset;
 
+      final currentHeading = (angle * 180 / math.pi) % 360;
       state = state.copyWith(
         latitude: nextLat,
         longitude: nextLng,
         accuracy: 10.0,
-        heading: (angle * 180 / math.pi) % 360,
+        heading: currentHeading,
         lastUpdated: DateTime.now(),
       );
 
-      bufferService.bufferLocation(nextLat, nextLng, 10.0);
+      bufferService.bufferLocation(nextLat, nextLng, 10.0, heading: currentHeading);
     });
   }
 
@@ -292,17 +293,18 @@ class LocationService extends Notifier<LocationState> {
     final avgLng = sumLng / _locationHistory.length;
     final avgAccuracy = sumAccuracy / _locationHistory.length;
 
+    final heading = _normalizeHeading(_readHeading(position));
     state = state.copyWith(
       latitude: avgLat,
       longitude: avgLng,
       accuracy: avgAccuracy,
-      heading: _normalizeHeading(_readHeading(position)),
+      heading: heading,
       lastUpdated: DateTime.now(),
       error: null,
     );
 
     // ส่งพิกัดไปยัง Local DB Buffer สำหรับ Offline Buffering และ Batch Ingestion
-    ref.read(gpsBufferServiceProvider).bufferLocation(avgLat, avgLng, avgAccuracy);
+    ref.read(gpsBufferServiceProvider).bufferLocation(avgLat, avgLng, avgAccuracy, heading: heading);
   }
 
   double? _normalizeHeading(double? heading) {

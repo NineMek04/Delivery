@@ -1,0 +1,226 @@
+name: "🛡️ Critical Code Guard"
+
+# Triggered on Pull Requests to main branch
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  critical-code-check:
+    name: "Check Critical Code Modifications"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff
+
+      # Step 1: Detect DELETED critical files
+      - name: "🔴 Check for DELETED critical files"
+        run: |
+          echo "=== Checking for deleted TIER-1/TIER-2 critical files ==="
+          
+          CRITICAL_FILES=(
+            # TIER-1: AI Engine
+            "ai-engine/app/core/vrp_solver.py"
+            "ai-engine/app/core/scoring.py"
+            "ai-engine/app/core/geo_utils.py"
+            "ai-engine/app/api/v1/endpoints/optimize.py"
+            "ai-engine/app/api/v1/endpoints/dispatch.py"
+            "ai-engine/app/api/v1/api.py"
+            "ai-engine/main.py"
+            # TIER-1: Backend
+            "BackendApi/Features/AiRouting/IAiService.cs"
+            "BackendApi/Features/AiRouting/AiService.cs"
+            "BackendApi/Controllers/Business/AiController.cs"
+            "BackendApi/Features/AiRouting/OsrmRoutingService.cs"
+            "BackendApi/Features/DispatchManagement/DispatchService.cs"
+            "BackendApi/Hubs/TrackingHub.cs"
+            "BackendApi/Setup/ServiceSetup.cs"
+            # TIER-2: State Machines & Infrastructure
+            "BackendApi/Core/StateMachines/OrderState.cs"
+            "BackendApi/Core/StateMachines/RiderState.cs"
+            "BackendApi/Infrastructure/EventBus/RabbitMqEventBus.cs"
+            "BackendApi/Infrastructure/Redis/RiderPresenceService.cs"
+            "BackendApi/Infrastructure/Redis/RedisLockService.cs"
+            "BackendApi/Core/DataHandlers/DBHandlerCore.cs"
+            # TIER-2: Background Workers
+            "BackendApi/Services/BackgroundWorkers/DispatchTimeoutWorker.cs"
+            "BackendApi/Services/BackgroundWorkers/HeartbeatMonitor.cs"
+            "BackendApi/Services/BackgroundWorkers/OsrmSnapWorker.cs"
+            "BackendApi/Services/Telemetry/TelemetryService.cs"
+            # TIER-2: Frontend Apps
+            "rider_app/lib/core/signalr/signalr_service.dart"
+            "rider_app/lib/core/location/gps_buffer_service.dart"
+            "rider_app/lib/core/location/location_service.dart"
+            "admin-dashboard/src/app/features/map/map.component.ts"
+          )
+          
+          DELETED_FILES=$(git diff --name-only --diff-filter=D origin/main...HEAD 2>/dev/null || echo "")
+          VIOLATIONS=""
+          
+          for file in "${CRITICAL_FILES[@]}"; do
+            if echo "$DELETED_FILES" | grep -qF "$file"; then
+              VIOLATIONS="${VIOLATIONS}\n  ❌ DELETED: ${file}"
+            fi
+          done
+          
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::🚨 CRITICAL FILES DELETED! The following protected files were removed:${VIOLATIONS}"
+            echo ""
+            echo "These files are protected by CRITICAL-CODE-PROTECTION.md (TIER-1/TIER-2)."
+            echo "Deletion of these files will break the system. This PR requires manual review."
+            exit 1
+          fi
+          
+          echo "✅ No critical files were deleted."
+
+      # Step 2: Detect modifications to critical files and add label
+      - name: "🟠 Check for MODIFIED critical files"
+        run: |
+          echo "=== Checking which critical files were modified ==="
+          
+          MODIFIED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
+          
+          CRITICAL_PATTERNS=(
+            "ai-engine/app/core/"
+            "ai-engine/main.py"
+            "ai-engine/app/api/"
+            "BackendApi/Features/AiRouting/"
+            "BackendApi/Features/DispatchManagement/"
+            "BackendApi/Hubs/TrackingHub"
+            "BackendApi/Core/StateMachines/"
+            "BackendApi/Infrastructure/EventBus/"
+            "BackendApi/Infrastructure/Redis/"
+            "BackendApi/Setup/ServiceSetup.cs"
+            "BackendApi/Core/DataHandlers/DBHandlerCore.cs"
+            "BackendApi/Controllers/Business/AiController.cs"
+          )
+          
+          TOUCHED=""
+          for pattern in "${CRITICAL_PATTERNS[@]}"; do
+            MATCHES=$(echo "$MODIFIED_FILES" | grep "$pattern" || true)
+            if [ -n "$MATCHES" ]; then
+              TOUCHED="${TOUCHED}\n  ⚠️  ${MATCHES}"
+            fi
+          done
+          
+          if [ -n "$TOUCHED" ]; then
+            echo "::warning::⚠️ Critical code was modified in this PR:${TOUCHED}"
+            echo ""
+            echo "Please ensure a thorough review per CRITICAL-CODE-PROTECTION.md rules."
+            echo "CRITICAL_TOUCHED=true" >> $GITHUB_ENV
+          else
+            echo "✅ No critical code paths were modified."
+            echo "CRITICAL_TOUCHED=false" >> $GITHUB_ENV
+          fi
+
+      # Step 3: Verify AI endpoint registration is still intact
+      - name: "🔍 Verify AI endpoint registrations"
+        run: |
+          echo "=== Verifying AI endpoint registrations are intact ==="
+          ERRORS=""
+          
+          # Check main.py still registers both routers
+          if ! grep -q "app.include_router(v1_router" ai-engine/main.py 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ ai-engine/main.py: v1_router registration is MISSING"
+          fi
+          if ! grep -q "app.include_router(optimize.router" ai-engine/main.py 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ ai-engine/main.py: optimize.router registration is MISSING"
+          fi
+          
+          # Check api.py still registers dispatch and predict routers
+          if ! grep -q "dispatch.router" ai-engine/app/api/v1/api.py 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ ai-engine/app/api/v1/api.py: dispatch.router registration is MISSING"
+          fi
+          if ! grep -q "predict.router" ai-engine/app/api/v1/api.py 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ ai-engine/app/api/v1/api.py: predict.router registration is MISSING"
+          fi
+          
+          # Check AiService.cs still has all 3 methods
+          if ! grep -q "RankDispatchCandidatesAsync" BackendApi/Features/AiRouting/AiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ AiService.cs: RankDispatchCandidatesAsync is MISSING"
+          fi
+          if ! grep -q "OptimizeRouteAsync" BackendApi/Features/AiRouting/AiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ AiService.cs: OptimizeRouteAsync is MISSING"
+          fi
+          if ! grep -q "PredictEtaAsync" BackendApi/Features/AiRouting/AiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ AiService.cs: PredictEtaAsync is MISSING"
+          fi
+          
+          # Check IAiService.cs interface still has all 3 methods
+          if ! grep -q "RankDispatchCandidatesAsync" BackendApi/Features/AiRouting/IAiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ IAiService.cs: RankDispatchCandidatesAsync is MISSING from interface"
+          fi
+          if ! grep -q "OptimizeRouteAsync" BackendApi/Features/AiRouting/IAiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ IAiService.cs: OptimizeRouteAsync is MISSING from interface"
+          fi
+          if ! grep -q "PredictEtaAsync" BackendApi/Features/AiRouting/IAiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ IAiService.cs: PredictEtaAsync is MISSING from interface"
+          fi
+          
+          # Check ServiceSetup.cs still registers AI HttpClient
+          if ! grep -q "AddHttpClient<IAiService, AiService>" BackendApi/Setup/ServiceSetup.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ ServiceSetup.cs: IAiService HttpClient registration is MISSING"
+          fi
+          if ! grep -q "AddHttpClient<OsrmRoutingService>" BackendApi/Setup/ServiceSetup.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ ServiceSetup.cs: OsrmRoutingService HttpClient registration is MISSING"
+          fi
+          
+          # Check fallback methods exist
+          if ! grep -q "GenerateFallbackResponse" BackendApi/Features/AiRouting/AiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ AiService.cs: Dispatch fallback (GenerateFallbackResponse) is MISSING"
+          fi
+          if ! grep -q "GenerateFallbackRoutingResponse" BackendApi/Features/AiRouting/AiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ AiService.cs: Routing fallback (GenerateFallbackRoutingResponse) is MISSING"
+          fi
+          if ! grep -q "GenerateFallbackEtaResponse" BackendApi/Features/AiRouting/AiService.cs 2>/dev/null; then
+            ERRORS="${ERRORS}\n  ❌ AiService.cs: ETA fallback (GenerateFallbackEtaResponse) is MISSING"
+          fi
+          
+          # Check State Machine rules count (OrderState has 10 rules, RiderState has 12 rules)
+          ORDER_RULES=$(grep -c "=> true" BackendApi/Core/StateMachines/OrderState.cs 2>/dev/null || echo "0")
+          RIDER_RULES=$(grep -c "=> true" BackendApi/Core/StateMachines/RiderState.cs 2>/dev/null || echo "0")
+          
+          if [ "$ORDER_RULES" -lt 10 ]; then
+            ERRORS="${ERRORS}\n  ❌ OrderState.cs: Expected ≥10 transition rules, found ${ORDER_RULES} (rules may have been deleted!)"
+          fi
+          if [ "$RIDER_RULES" -lt 12 ]; then
+            ERRORS="${ERRORS}\n  ❌ RiderState.cs: Expected ≥12 transition rules, found ${RIDER_RULES} (rules may have been deleted!)"
+          fi
+          
+          if [ -n "$ERRORS" ]; then
+            echo "::error::🚨 CRITICAL CODE INTEGRITY CHECK FAILED:${ERRORS}"
+            exit 1
+          fi
+          
+          echo "✅ All critical endpoint registrations, fallbacks, and state machine rules verified."
+
+      # Step 4: Check for mass comment-out patterns
+      - name: "🔍 Detect comment-out patterns in critical files"
+        if: env.CRITICAL_TOUCHED == 'true'
+        run: |
+          echo "=== Checking for suspicious comment-out patterns ==="
+          
+          DIFF=$(git diff origin/main...HEAD -- \
+            "ai-engine/app/core/" \
+            "ai-engine/main.py" \
+            "ai-engine/app/api/" \
+            "BackendApi/Features/AiRouting/" \
+            "BackendApi/Features/DispatchManagement/" \
+            "BackendApi/Hubs/" \
+            "BackendApi/Core/StateMachines/" \
+            2>/dev/null || echo "")
+          
+          # Count lines that were changed from active code to comments
+          # Pattern: line starts with + and contains comment prefix (# or //) 
+          # but the corresponding - line did NOT have a comment prefix
+          COMMENT_ADDITIONS=$(echo "$DIFF" | grep "^+" | grep -cE "^\+\s*(#|//)" || echo "0")
+          CODE_REMOVALS=$(echo "$DIFF" | grep -c "^-" || echo "0")
+          
+          # Heuristic: if comment additions are >5 AND code removals are >5, flag it
+          if [ "$COMMENT_ADDITIONS" -gt 5 ] && [ "$CODE_REMOVALS" -gt 5 ]; then
+            echo "::warning::⚠️ Suspicious pattern detected: ${COMMENT_ADDITIONS} comment lines added, ${CODE_REMOVALS} code lines removed in critical files."
+            echo "This may indicate code was commented-out instead of properly removed. Please verify this is intentional."
+          else
+            echo "✅ No suspicious comment-out patterns detected."
+          fi

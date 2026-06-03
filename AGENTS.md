@@ -1,4 +1,4 @@
-# AGENTS.md: Codex Project Instructions (v0.9.5)
+# AGENTS.md: Codex Project Instructions (v0.9.6)
 
 ## 1. Required Context Before Work (Context Routing)
 ก่อนเริ่มทำภารกิจใดๆ ห้ามอ่านไฟล์ผังงานภาพรวมตรงๆ ให้เปิดอ่าน `AI-INDEX.md` เป็นประตูด่านแรกเพื่อหาทิศทางของ Spec ไฟล์ย่อยที่เกี่ยวข้องเท่านั้น เพื่อประหยัด Token Window และให้อ่าน `.docs/AI-CHANGELOG/` เฉพาะไฟล์ของวันที่เกี่ยวข้อง
@@ -36,3 +36,37 @@ All logs must include:
 1. **Single Test Hub Rule**: โฟลเดอร์รันการทดสอบทั้งหมด (C# Integration Tests, Python PyTest และ E2E Simulation/Load Tests) ต้องถูกรวบรวมไว้ภายใต้โฟลเดอร์เดียวคือ `scripts.test.test/` เท่านั้น (เช่น `scripts.test/BackendApi.IntegrationTests`, `scripts.test/ai-engine.tests`)
 2. **Exception**: สำหรับแอปพลิเคชันหน้าบ้าน Angular ยูสเคสไฟล์สเปกทดสอบระดับยูนิต (`*.spec.ts`) ให้สามารถวางไว้ควบคู่กับ Component นั้นๆ ตามมาตรฐานระบบ Angular CLI เพื่อรักษาโครงสร้างการทำงานและการ compile pipeline ของ Angular โครงการ
 3. **No Test Files in Core Directories**: ห้ามเขียนหรือสร้างโฟลเดอร์ทดสอบ (เช่น `tests/` หรือ `__tests__/`) ปนเปื้อนภายใน Context ไดเรกทอรีหลักของโปรเจค (เช่น `ai-engine/tests`) ให้ย้ายไปไว้ที่ `scripts.test/<component>.tests/` เท่านั้น
+
+## 7. Critical Code Protection Rules (Mandatory)
+
+> **⚠️ ไฟล์และโค้ดบล็อกที่จัดอยู่ใน Critical Code Registry → ดูรายละเอียดใน [`CRITICAL-CODE-PROTECTION.md`](CRITICAL-CODE-PROTECTION.md)**
+
+### 7.1 ห้ามกระทำ (Absolute Prohibitions)
+1. ❌ **ห้ามลบไฟล์ Critical ทั้งไฟล์** — เด็ดขาด ไม่มีข้อยกเว้น
+2. ❌ **ห้ามคอมเม้นต์ business logic ออก** — ห้ามเปลี่ยน active code ให้กลายเป็น comment (comment-out)
+3. ❌ **ห้ามลบหรือเปลี่ยน function signature** ของ public interface/contract (เช่น `IAiService`, `solve_vrp`, `rank_candidates`)
+4. ❌ **ห้ามลบ fallback mechanism ออก** — ทุก AI call ต้องมี fallback เสมอ (Haversine, Nearest-Neighbor, Rule-based ETA)
+5. ❌ **ห้ามลบ State Machine transition rules** (`OrderState`, `RiderState`) — เพิ่มได้ ลบไม่ได้
+6. ❌ **ห้ามเปลี่ยน router registration** ของ AI endpoints ใน `main.py` / `ServiceSetup.cs` ที่ทำให้ endpoint หายไป
+
+### 7.2 อนุญาตโดยมีเงื่อนไข (Conditional Allowed)
+1. ✅ แก้ไข implementation ภายในฟังก์ชัน Critical ได้ — แต่ต้องรักษา input/output contract เดิม
+2. ✅ เพิ่ม transition rule ใหม่ใน State Machine ได้ — แต่ห้ามลบของเก่า
+3. ✅ Refactor ได้ — แต่ต้อง verify ว่าทุก endpoint/function ยังทำงานครบถ้วนหลัง refactor
+4. ✅ เพิ่ม Polly/retry/timeout config ได้ — แต่ห้ามลบ circuit breaker ที่มีอยู่
+
+### 7.3 Verification Checklist (ก่อน commit ใดๆ ที่แตะไฟล์ Critical)
+AI Agent หรือ Developer ต้องตรวจสอบก่อน commit:
+- [ ] ทุก endpoint ที่อยู่ใน Critical list ยังถูก register อยู่หรือไม่?
+- [ ] ทุก fallback path ยังทำงานหรือไม่?
+- [ ] ทุก State transition rule ของเดิมยังครบอยู่หรือไม่?
+- [ ] `IAiService` interface ยัง expose method เดิมครบหรือไม่?
+- [ ] `main.py` ยัง include ทุก router (`v1_router`, `optimize.router`) หรือไม่?
+
+## 8. Reference Documents
+| Document | Purpose |
+|---|---|
+| `AI-INDEX.md` | Master Context Router — อ่านก่อนทุกงาน |
+| `CRITICAL-CODE-PROTECTION.md` | Critical Code Registry — ไฟล์ที่ห้ามลบ/แก้ไขโดยไม่มีเหตุผล |
+| `.docs/ai-context/runtime-rules.md` | Runtime coding constraints |
+| `.docs/AI-CHANGELOG/` | History of changes (append-only) |

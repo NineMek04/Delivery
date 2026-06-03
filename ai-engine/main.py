@@ -14,7 +14,7 @@ app = FastAPI(
 app.include_router(v1_router, prefix="/api/v1")
 
 # /api/optimize-route
-# app.include_router(optimize.router, prefix="/api", tags=["routing"])
+app.include_router(optimize.router, prefix="/api", tags=["routing"])
 
 @app.get("/health")
 def health_check():

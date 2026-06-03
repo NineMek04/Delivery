@@ -30,6 +30,7 @@ L.Marker.prototype.options.icon = iconDefault;
 
 import { MapMathService } from './services/map-math.service';
 import { MapDrawingService } from './services/map-drawing.service';
+import { RouteService } from '../../services/route.service';
 
 @Component({
   selector: 'app-map',
@@ -59,6 +60,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private orderService = inject(OrderService);
   private math = inject(MapMathService);
   public draw = inject(MapDrawingService);
+  private routeService = inject(RouteService);
   private http = inject(HttpClient);
   private zone = inject(NgZone);
   private subscriptions: Subscription = new Subscription();
@@ -629,23 +631,84 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (this.selectedOrderIdsForBatch.length < 2) return;
 
-    const coords: L.LatLngExpression[] = [];
+    const locations: any[] = [];
     this.selectedOrderIdsForBatch.forEach(id => {
       const order = this.activeOrders.find(o => o.id === id);
-      if (order && order.pickupLat && order.pickupLng) {
-        coords.push([order.pickupLat, order.pickupLng]);
+      if (order) {
+        if (order.pickupLat && order.pickupLng) {
+          locations.push({
+            id: `pickup_${order.id}`,
+            lat: order.pickupLat,
+            lng: order.pickupLng
+          });
+        }
+        if (order.dropoffLat && order.dropoffLng) {
+          locations.push({
+            id: `dropoff_${order.id}`,
+            lat: order.dropoffLat,
+            lng: order.dropoffLng
+          });
+        }
       }
     });
 
-    if (coords.length >= 2) {
-      const poly = L.polyline(coords, {
-        color: '#f59e0b',
-        weight: 6,
-        dashArray: '8, 12',
-        opacity: 0.9
-      }).addTo(this.map);
-      this.batchPolylines.push(poly);
-    }
+    if (locations.length < 2) return;
+
+    // Call AI Routing VRP sequence optimization
+    this.routeService.optimizeRoute({
+      locations: locations,
+      num_vehicles: 1,
+      depot: 0
+    }).subscribe({
+      next: (res) => {
+        const optimized = res.value?.optimizedRoute || res.optimizedRoute;
+        if (optimized && Array.isArray(optimized) && optimized.length >= 2) {
+          // Fetch real road routing path from OSRM between optimized waypoints
+          const coordsStr = optimized.map((wp: any) => `${wp.lng},${wp.lat}`).join(';');
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+          
+          this.http.get<any>(osrmUrl).subscribe({
+            next: (routeRes) => {
+              if (routeRes?.routes?.[0]?.geometry?.coordinates) {
+                const roadCoords = routeRes.routes[0].geometry.coordinates.map((coord: [number, number]) => 
+                  L.latLng(coord[1], coord[0])
+                );
+                
+                const poly = L.polyline(roadCoords, {
+                  color: '#f59e0b',
+                  weight: 6,
+                  opacity: 0.9
+                }).addTo(this.map);
+                this.batchPolylines.push(poly);
+              } else {
+                const fallbackCoords = optimized.map((wp: any) => L.latLng(wp.lat, wp.lng));
+                const poly = L.polyline(fallbackCoords, {
+                  color: '#f59e0b',
+                  weight: 6,
+                  dashArray: '8, 12',
+                  opacity: 0.9
+                }).addTo(this.map);
+                this.batchPolylines.push(poly);
+              }
+            },
+            error: (err) => {
+              console.warn('Failed to fetch OSRM road coordinates, falling back to straight lines:', err);
+              const fallbackCoords = optimized.map((wp: any) => L.latLng(wp.lat, wp.lng));
+              const poly = L.polyline(fallbackCoords, {
+                color: '#f59e0b',
+                weight: 6,
+                dashArray: '8, 12',
+                opacity: 0.9
+              }).addTo(this.map);
+              this.batchPolylines.push(poly);
+            }
+          });
+        }
+      },
+      error: (err) => {
+        console.error('Failed to optimize VRP route:', err);
+      }
+    });
   }
 
   private clearBatchLines(): void {

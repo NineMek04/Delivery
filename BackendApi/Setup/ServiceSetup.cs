@@ -21,6 +21,7 @@ using Microsoft.OpenApi.Models;
 using NetTopologySuite.Geometries;
 using StackExchange.Redis;
 using BackendApi.Features.FleetTracking.Telemetry;
+using Microsoft.Extensions.Http.Resilience;
 
 namespace BackendApi.Setup;
 
@@ -162,6 +163,23 @@ public static class ServiceSetup
             {
                 client.BaseAddress = new Uri(aiServiceUrl);
             }
+        })
+        .AddStandardResilienceHandler(options =>
+        {
+            // Total timeout across all attempts
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(5);
+
+            // Timeout per attempt
+            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(3);
+
+            // Circuit Breaker: Open circuit for 30s after 5 consecutive failures
+            options.CircuitBreaker.MinimumThroughput = 5;
+            options.CircuitBreaker.FailureRatio = 1.0; // Require 100% failure rate in sampling window
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+
+            // Set retry to 1 attempt to minimize latency (since 0 is not allowed)
+            options.Retry.MaxRetryAttempts = 1;
         });
 
         // --- OSRM Routing HttpClient ---

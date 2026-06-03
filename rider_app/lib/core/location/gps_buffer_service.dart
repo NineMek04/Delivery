@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:isar/isar.dart';
 import 'package:logger/logger.dart';
 import 'package:sqflite/sqflite.dart' show getDatabasesPath;
@@ -35,6 +37,11 @@ class GpsBufferService {
   int _syncIntervalSeconds = 5; // Default sync check interval
   bool _isSyncing = false;
   bool _isSyncingStatus = false;
+
+  // Adaptive sampling state
+  double? _lastBufferedLat;
+  double? _lastBufferedLng;
+  double? _lastBufferedHeading;
 
   GpsBufferService({
     required Dio dio,
@@ -87,8 +94,45 @@ class GpsBufferService {
   }
 
   /// Buffers a single location coordinate offline using Isar NoSQL.
-  Future<void> bufferLocation(double latitude, double longitude, double accuracy) async {
+  /// Applies Adaptive Sampling to filter out redundant points when stationary.
+  Future<void> bufferLocation(double latitude, double longitude, double accuracy, {double? heading}) async {
     try {
+      if (_lastBufferedLat != null && _lastBufferedLng != null) {
+        final distance = Geolocator.distanceBetween(
+          _lastBufferedLat!,
+          _lastBufferedLng!,
+          latitude,
+          longitude,
+        );
+
+        bool shouldBuffer = false;
+        if (distance >= 15.0) { // Buffer if distance changed by >= 15 meters
+          shouldBuffer = true;
+        }
+
+        if (heading != null && _lastBufferedHeading != null) {
+          final headingDiff = (heading - _lastBufferedHeading!).abs();
+          final normalizedDiff = headingDiff > 180 ? 360 - headingDiff : headingDiff;
+          if (normalizedDiff >= 15.0) { // Buffer if heading changed by >= 15 degrees
+            shouldBuffer = true;
+          }
+        } else if (heading != null) {
+          shouldBuffer = true;
+        }
+
+        if (!shouldBuffer) {
+          _logger.d('📍 GPS Point skipped (Adaptive Sampling): dist=${distance.toStringAsFixed(1)}m, heading change not significant.');
+          return;
+        }
+      }
+
+      // Update last buffered state
+      _lastBufferedLat = latitude;
+      _lastBufferedLng = longitude;
+      if (heading != null) {
+        _lastBufferedHeading = heading;
+      }
+
       final isar = await _getIsar();
       
       final point = GpsPoint()
@@ -169,10 +213,11 @@ class GpsBufferService {
           await isar.gpsPoints.deleteAll(pointIds);
         });
         
-        // If there are still backlogged items, run chained synchronization
+        // If there are still backlogged items, run chained synchronization with randomized jitter delay
         final remainingCount = await isar.gpsPoints.count();
         if (remainingCount > 0) {
-          Future.delayed(const Duration(milliseconds: 100), () => syncBufferedPoints());
+          final jitterDelay = 500 + Random().nextInt(1500);
+          Future.delayed(Duration(milliseconds: jitterDelay), () => syncBufferedPoints());
         }
       } else if (response.statusCode == 429) {
         // 429 Too Many Requests: Rate-limited/throttled. KEEP coordinates locally and backoff
@@ -233,13 +278,34 @@ class GpsBufferService {
           if (response.statusCode == 200 || response.statusCode == 204) {
             _logger.i('✅ Successfully synced pending order status update: orderId=$orderId, status=$status');
             await _db.deletePendingStatusUpdate(id);
+          } else if (response.statusCode != null && response.statusCode! >= 400 && response.statusCode! < 500) {
+            // Drop & Log 4xx errors
+            _logger.e('❌ Received 4xx client error status code ${response.statusCode} for orderId=$orderId. Dropping status update.');
+            await _db.saveLocalErrorLog(
+              'PATCH ${AppConstants.ordersEndpoint}/$orderId/status',
+              'Client Error ${response.statusCode}: ${response.statusMessage}',
+              '{"Status": "$status"}',
+            );
+            await _db.deletePendingStatusUpdate(id);
           } else {
             _logger.w('⚠️ Failed to sync status update, status code: ${response.statusCode}');
             break;
           }
         } on DioException catch (dioErr) {
-          _logger.w('🔌 Network error during status sync: ${dioErr.message}');
-          break;
+          final statusCode = dioErr.response?.statusCode;
+          if (statusCode != null && statusCode >= 400 && statusCode < 500) {
+            // Drop & Log 4xx errors
+            _logger.e('❌ Received 4xx client error status code $statusCode for orderId=$orderId. Dropping status update.');
+            await _db.saveLocalErrorLog(
+              'PATCH ${AppConstants.ordersEndpoint}/$orderId/status',
+              'DioException $statusCode: ${dioErr.response?.data ?? dioErr.message}',
+              '{"Status": "$status"}',
+            );
+            await _db.deletePendingStatusUpdate(id);
+          } else {
+            _logger.w('🔌 Network error during status sync: ${dioErr.message}');
+            break;
+          }
         } catch (err) {
           _logger.e('❌ Unexpected error syncing status update id=$id', error: err);
           break;

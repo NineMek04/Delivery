@@ -101,14 +101,45 @@ namespace BackendApi.Services.BackgroundWorkers
 
             _channel = _connection!.CreateModel();
 
+            var dlxName = "gps_telemetry_dlx";
+            var dlqName = $"{QueueName}_dlq";
+
+            // Declare Dead Letter Exchange + Queue
+            _channel.ExchangeDeclare(dlxName, "direct", durable: true);
+            _channel.QueueDeclare(dlqName, durable: true, exclusive: false, autoDelete: false);
+            _channel.QueueBind(dlqName, dlxName, QueueName);
+
+            var queueArguments = new Dictionary<string, object>
+            {
+                { "x-dead-letter-exchange", dlxName },
+                { "x-dead-letter-routing-key", QueueName }
+            };
+
             // Declare queue to ensure it exists
-            _channel.QueueDeclare(
-                queue: QueueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null
-            );
+            try
+            {
+                _channel.QueueDeclare(
+                    queue: QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: queueArguments
+                );
+            }
+            catch (RabbitMQ.Client.Exceptions.OperationInterruptedException ex) when (ex.ShutdownReason.ReplyCode == 406)
+            {
+                _logger.LogWarning("Queue {QueueName} has mismatched arguments. Deleting and recreating...", QueueName);
+                _channel.Dispose();
+                _channel = _connection.CreateModel();
+                _channel.QueueDelete(QueueName);
+                _channel.QueueDeclare(
+                    queue: QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: queueArguments
+                );
+            }
 
             // Level 2 QoS: Limit prefetch to avoid buffer build-up
             _channel.BasicQos(prefetchSize: 0, prefetchCount: 100, global: false);
@@ -125,13 +156,17 @@ namespace BackendApi.Services.BackgroundWorkers
                     if (point != null)
                     {
                         await ProcessSnapPointAsync(point);
+                        _channel.BasicAck(ea.DeliveryTag, multiple: false);
                     }
-
-                    _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                    else
+                    {
+                        _logger.LogWarning("Discarding malformed snap GPS message. Routing to DLQ.");
+                        _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing snap GPS message.");
+                    _logger.LogError(ex, "Error processing snap GPS message. Routing to DLQ.");
                     _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
                 }
             };
@@ -142,7 +177,7 @@ namespace BackendApi.Services.BackgroundWorkers
                 consumer: _consumer
             );
 
-            _logger.LogInformation("OsrmSnapWorker successfully subscribed to '{QueueName}'", QueueName);
+            _logger.LogInformation("OsrmSnapWorker successfully subscribed to '{QueueName}' (with DLQ)", QueueName);
         }
 
         private async Task ProcessSnapPointAsync(TrackPoint point)

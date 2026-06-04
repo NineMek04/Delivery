@@ -64,7 +64,7 @@ namespace BackendApi.UnitTests.Telemetry
                 true, // durable
                 false, // exclusive
                 false, // autoDelete
-                null // arguments
+                It.IsAny<IDictionary<string, object>>() // arguments
             ), Times.AtLeastOnce);
 
             // 2. Ensure persistent property is set

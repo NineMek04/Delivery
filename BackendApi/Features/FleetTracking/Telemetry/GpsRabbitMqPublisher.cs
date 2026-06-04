@@ -105,24 +105,85 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
                 _channel = _connection!.CreateModel();
 
-                // Declare Durable Queue
-                _channel.QueueDeclare(
-                    queue: QueueName,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null
-                );
+                var dlxName = "gps_telemetry_dlx";
+                var dlqName = $"{QueueName}_dlq";
+                var snapDlqName = $"{SnapQueueName}_dlq";
 
-                _channel.QueueDeclare(
-                    queue: SnapQueueName,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null
-                );
+                // Declare Dead Letter Exchange
+                _channel.ExchangeDeclare(dlxName, "direct", durable: true);
 
-                _logger.LogInformation("GpsRabbitMqPublisher successfully connected to RabbitMQ and declared queues '{QueueName}' and '{SnapQueueName}'", QueueName, SnapQueueName);
+                // Declare Dead Letter Queues
+                _channel.QueueDeclare(dlqName, durable: true, exclusive: false, autoDelete: false);
+                _channel.QueueDeclare(snapDlqName, durable: true, exclusive: false, autoDelete: false);
+
+                // Bind Dead Letter Queues to DLX
+                _channel.QueueBind(dlqName, dlxName, QueueName);
+                _channel.QueueBind(snapDlqName, dlxName, SnapQueueName);
+
+                var queueArguments = new Dictionary<string, object>
+                {
+                    { "x-dead-letter-exchange", dlxName },
+                    { "x-dead-letter-routing-key", QueueName }
+                };
+
+                var snapQueueArguments = new Dictionary<string, object>
+                {
+                    { "x-dead-letter-exchange", dlxName },
+                    { "x-dead-letter-routing-key", SnapQueueName }
+                };
+
+                // Declare Durable Queue with DLX configuration
+                try
+                {
+                    _channel.QueueDeclare(
+                        queue: QueueName,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: queueArguments
+                    );
+                }
+                catch (RabbitMQ.Client.Exceptions.OperationInterruptedException ex) when (ex.ShutdownReason.ReplyCode == 406)
+                {
+                    _logger.LogWarning("Queue {QueueName} has mismatched arguments. Deleting and recreating...", QueueName);
+                    _channel.Dispose();
+                    _channel = _connection.CreateModel();
+                    _channel.QueueDelete(QueueName);
+                    _channel.QueueDeclare(
+                        queue: QueueName,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: queueArguments
+                    );
+                }
+
+                try
+                {
+                    _channel.QueueDeclare(
+                        queue: SnapQueueName,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: snapQueueArguments
+                    );
+                }
+                catch (RabbitMQ.Client.Exceptions.OperationInterruptedException ex) when (ex.ShutdownReason.ReplyCode == 406)
+                {
+                    _logger.LogWarning("Queue {SnapQueueName} has mismatched arguments. Deleting and recreating...", SnapQueueName);
+                    _channel.Dispose();
+                    _channel = _connection.CreateModel();
+                    _channel.QueueDelete(SnapQueueName);
+                    _channel.QueueDeclare(
+                        queue: SnapQueueName,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: snapQueueArguments
+                    );
+                }
+
+                _logger.LogInformation("GpsRabbitMqPublisher successfully connected to RabbitMQ and declared queues '{QueueName}' (with DLQ) and '{SnapQueueName}' (with DLQ)", QueueName, SnapQueueName);
             }
         }
 

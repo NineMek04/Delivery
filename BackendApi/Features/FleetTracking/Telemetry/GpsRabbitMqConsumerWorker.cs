@@ -110,14 +110,45 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             _channel = _connection!.CreateModel();
 
+            var dlxName = "gps_telemetry_dlx";
+            var dlqName = $"{QueueName}_dlq";
+
+            // Declare Dead Letter Exchange + Queue
+            _channel.ExchangeDeclare(dlxName, "direct", durable: true);
+            _channel.QueueDeclare(dlqName, durable: true, exclusive: false, autoDelete: false);
+            _channel.QueueBind(dlqName, dlxName, QueueName);
+
+            var queueArguments = new Dictionary<string, object>
+            {
+                { "x-dead-letter-exchange", dlxName },
+                { "x-dead-letter-routing-key", QueueName }
+            };
+
             // Declare queue to ensure it exists
-            _channel.QueueDeclare(
-                queue: QueueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null
-            );
+            try
+            {
+                _channel.QueueDeclare(
+                    queue: QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: queueArguments
+                );
+            }
+            catch (RabbitMQ.Client.Exceptions.OperationInterruptedException ex) when (ex.ShutdownReason.ReplyCode == 406)
+            {
+                _logger.LogWarning("Queue {QueueName} has mismatched arguments. Deleting and recreating...", QueueName);
+                _channel.Dispose();
+                _channel = _connection.CreateModel();
+                _channel.QueueDelete(QueueName);
+                _channel.QueueDeclare(
+                    queue: QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: queueArguments
+                );
+            }
 
             // Level 2 QoS: Prefetch 5000 messages to process in Mega Batch
             _channel.BasicQos(prefetchSize: 0, prefetchCount: SubBatchLimit, global: false);
@@ -138,14 +169,14 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                     }
                     else
                     {
-                        _logger.LogWarning("Discarding malformed GPS message.");
-                        _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                        _logger.LogWarning("Discarding malformed GPS message. Routing to DLQ.");
+                        _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing incoming GPS message.");
-                    // Send negative ACK without requeue (to DLQ or drop)
+                    _logger.LogError(ex, "Error processing incoming GPS message. Routing to DLQ.");
+                    // Send negative ACK without requeue (to DLQ)
                     _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
                 }
             };

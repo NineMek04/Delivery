@@ -19,7 +19,7 @@ def compute_distance_matrix(locations: List[Location]) -> List[List[int]]:
         matrix.append(row)
     return matrix
 
-def solve_vrp(locations: List[Location], num_vehicles: int, depot: int) -> Dict[str, Any]:
+def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_deliveries: List[List[int]] = None) -> Dict[str, Any]:
     """
     Solves the Vehicle Routing Problem using Google OR-Tools.
     """
@@ -33,7 +33,8 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int) -> Dict[
     data = {
         'distance_matrix': distance_matrix,
         'num_vehicles': num_vehicles,
-        'depot': depot
+        'depot': depot,
+        'pickups_deliveries': pickups_deliveries or []
     }
 
     # 3. Create Routing Index Manager and Routing Model
@@ -48,6 +49,27 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int) -> Dict[
 
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+    # Add Distance dimension
+    dimension_name = 'Distance'
+    routing.AddDimension(
+        transit_callback_index,
+        0,  # no slack
+        3000000,  # vehicle maximum travel distance
+        True,  # start cumul to zero
+        dimension_name)
+    distance_dimension = routing.GetDimensionOrDie(dimension_name)
+
+    # Define Transportation Requests (Pickup & Delivery)
+    for request_pair in data['pickups_deliveries']:
+        if len(request_pair) == 2:
+            pickup_index = manager.NodeToIndex(request_pair[0])
+            delivery_index = manager.NodeToIndex(request_pair[1])
+            routing.AddPickupAndDelivery(pickup_index, delivery_index)
+            routing.solver().Add(
+                routing.VehicleVar(pickup_index) == routing.VehicleVar(delivery_index))
+            routing.solver().Add(
+                distance_dimension.CumulVar(pickup_index) <= distance_dimension.CumulVar(delivery_index))
 
     # 5. Set search parameters
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()

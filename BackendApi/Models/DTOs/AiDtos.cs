@@ -104,6 +104,9 @@ public class RoutingRequestDto
 
     [JsonPropertyName("depot")]
     public int Depot { get; set; } = 0;
+
+    [JsonPropertyName("pickups_deliveries")]
+    public List<List<int>> PickupsDeliveries { get; set; } = new();
 }
 
 public class RouteWaypointDto

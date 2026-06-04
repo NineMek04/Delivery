@@ -632,10 +632,16 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.selectedOrderIdsForBatch.length < 2) return;
 
     const locations: any[] = [];
+    const pickupsDeliveries: number[][] = [];
+
     this.selectedOrderIdsForBatch.forEach(id => {
       const order = this.activeOrders.find(o => o.id === id);
       if (order) {
+        let pickupIndex = -1;
+        let dropoffIndex = -1;
+
         if (order.pickupLat && order.pickupLng) {
+          pickupIndex = locations.length;
           locations.push({
             id: `pickup_${order.id}`,
             lat: order.pickupLat,
@@ -643,11 +649,16 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           });
         }
         if (order.dropoffLat && order.dropoffLng) {
+          dropoffIndex = locations.length;
           locations.push({
             id: `dropoff_${order.id}`,
             lat: order.dropoffLat,
             lng: order.dropoffLng
           });
+        }
+
+        if (pickupIndex !== -1 && dropoffIndex !== -1) {
+          pickupsDeliveries.push([pickupIndex, dropoffIndex]);
         }
       }
     });
@@ -658,7 +669,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.routeService.optimizeRoute({
       locations: locations,
       num_vehicles: 1,
-      depot: 0
+      depot: 0,
+      pickups_deliveries: pickupsDeliveries
     }).subscribe({
       next: (res) => {
         const optimized = res.value?.optimizedRoute || res.optimizedRoute;

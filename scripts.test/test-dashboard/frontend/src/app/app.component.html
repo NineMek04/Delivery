@@ -11,6 +11,7 @@
       <a (click)="selectSuite('python')" [class.active]="activeSuite === 'python'" class="nav-item">AI Engine (Python)</a>
       <a (click)="selectSuite('load')" [class.active]="activeSuite === 'load'" class="nav-item">Load Testing (Node.js)</a>
       <a (click)="selectSuite('simulator')" [class.active]="activeSuite === 'simulator'" class="nav-item">E2E Simulator</a>
+      <a (click)="selectSuite('interactive')" [class.active]="activeSuite === 'interactive'" class="nav-item">Interactive Map Sim</a>
     </nav>
     <div class="topbar-actions">
       <!-- Rule 8: Toggleable running environment trigger -->
@@ -73,7 +74,7 @@
 
       <!-- Suite Details Subcomponent -->
       <app-suite-details
-        *ngIf="activeSuite !== 'overall'"
+        *ngIf="activeSuite !== 'overall' && activeSuite !== 'interactive'"
         [activeSuite]="activeSuite"
         [filteredCases]="filteredCases"
         [searchQuery]="searchQuery"
@@ -95,8 +96,13 @@
           <app-simulator-host></app-simulator-host>
         </section>
 
+        <!-- If interactive simulator tab is active, render interactive simulator maps -->
+        <section *ngIf="activeSuite === 'interactive'" style="width: 100%;">
+          <app-interactive-simulator (sessionStarted)="onInteractiveSessionStarted($event)"></app-interactive-simulator>
+        </section>
+
         <!-- Bottom console stream log -->
-        <section *ngIf="activeSuite !== 'overall'" class="live-feed-section">
+        <section *ngIf="activeSuite !== 'overall' && activeSuite !== 'interactive'" class="live-feed-section">
           <div class="feed-header">
             <div class="feed-title">
               <span class="console-icon">💻</span> Live Telemetry Feed

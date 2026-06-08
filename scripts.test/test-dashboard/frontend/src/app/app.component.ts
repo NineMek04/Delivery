@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { io, Socket } from 'socket.io-client';
 import { LiveTerminalComponent } from './components/live-terminal/live-terminal.component';
 import { SimulatorHostComponent } from './components/simulator-host/simulator-host.component';
+import { InteractiveSimulatorComponent } from './components/interactive-simulator/interactive-simulator.component';
 import { CaseDetailModalComponent } from './components/case-detail-modal/case-detail-modal.component';
 import { SuiteDetailsComponent } from './components/suite-details/suite-details.component';
 import { OverallOverviewComponent } from './components/overall-overview/overall-overview.component';
@@ -18,6 +19,7 @@ import { INITIAL_CSHARP_CASES, INITIAL_PYTHON_CASES, INITIAL_LOAD_CASES, INITIAL
     FormsModule, 
     LiveTerminalComponent, 
     SimulatorHostComponent,
+    InteractiveSimulatorComponent,
     CaseDetailModalComponent,
     SuiteDetailsComponent,
     OverallOverviewComponent
@@ -30,7 +32,7 @@ export class AppComponent implements OnInit, OnDestroy {
   apiUrl = 'http://localhost:3001';
 
   // Config State
-  activeSuite: 'overall' | 'csharp' | 'python' | 'load' | 'simulator' = 'overall';
+  activeSuite: 'overall' | 'csharp' | 'python' | 'load' | 'simulator' | 'interactive' = 'overall';
   triggerType: 'docker' | 'host' = 'docker';
 
   // Search & Filter State
@@ -514,7 +516,16 @@ export class AppComponent implements OnInit, OnDestroy {
     this.selectedDetailCase = null;
   }
 
-  selectSuite(suite: 'overall' | 'csharp' | 'python' | 'load' | 'simulator') {
+  onInteractiveSessionStarted(sessionId: string) {
+    this.activeSessionId = sessionId;
+    this.activeStatus = 'RUNNING';
+    this.activeLogs = '';
+    this.parsedLogLines.clear();
+    this.joinSessionRoom(sessionId);
+    this.loadSessions();
+  }
+
+  selectSuite(suite: 'overall' | 'csharp' | 'python' | 'load' | 'simulator' | 'interactive') {
     this.activeSuite = suite;
     this.searchQuery = '';
     this.activeStatusFilter = 'all';
@@ -553,6 +564,11 @@ export class AppComponent implements OnInit, OnDestroy {
         return {
           files: 'scripts.test/e2e-simulator/simulate-e2e.js และ test-flutter-compat.js',
           check: 'ครอบคลุมวงจรชีวิต 1 ออเดอร์เต็มรูปแบบ ตั้งแต่ Admin สร้างออเดอร์ > AI ค้นหา Rider ที่ใกล้ที่สุด > Rider กดรับงาน > Rider เดินทางไปรับ-ส่งของตาม OSRM > รวมถึงมิติ Flutter Compatibility ที่เช็คว่าแอปมือถือสามารถยิงอัปเดตสถานะเข้า SignalR Hub ของเราและตอบกลับได้ถูกต้องหรือไม่'
+        };
+      case 'interactive':
+        return {
+          files: 'scripts.test/test-dashboard/',
+          check: 'จำลองการรับส่งออเดอร์แบบโต้ตอบได้ด้วยการคลิกบนแผนที่เมืองอุดรธานี และการผสานรวมภารกิจไรเดอร์ (Task Merging) แบบเสมือนจริง'
         };
       case 'overall':
       default:

@@ -25,6 +25,9 @@ Write-Host "Workspace: $WorkspaceRoot"
 Write-Host "API:       http://localhost:3001"
 Write-Host "Frontend:  http://localhost:4200"
 
-Start-Process powershell -WindowStyle Normal -WorkingDirectory $backendPath -ArgumentList "-NoExit", "-Command", "`$env:HOST_WORKSPACE_PATH='$WorkspaceRoot'; npm.cmd run dev:api"
 Start-Process powershell -WindowStyle Normal -WorkingDirectory $backendPath -ArgumentList "-NoExit", "-Command", "`$env:HOST_WORKSPACE_PATH='$WorkspaceRoot'; npm.cmd run dev:worker"
 Start-Process powershell -WindowStyle Normal -WorkingDirectory $frontendPath -ArgumentList "-NoExit", "-Command", "npm.cmd start -- --host 0.0.0.0"
+
+Write-Host "Starting API server in the foreground..."
+$env:HOST_WORKSPACE_PATH = $WorkspaceRoot
+npm.cmd run --prefix $backendPath dev:api

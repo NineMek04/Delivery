@@ -8,7 +8,8 @@
     "start:api": "node dist/api-server/server.js",
     "start:worker": "node dist/workers/worker.js",
     "dev:api": "ts-node-dev --respawn --transpile-only api-server/server.ts",
-    "dev:worker": "ts-node-dev --respawn --transpile-only workers/worker.ts"
+    "dev:worker": "ts-node-dev --respawn --transpile-only workers/worker.ts",
+    "simulator:cli": "node sim-cli.js"
   },
   "dependencies": {
     "bullmq": "^5.41.3",

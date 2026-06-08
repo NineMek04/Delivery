@@ -10,6 +10,8 @@ import os
 from datetime import datetime, timezone
 
 AI_ENGINE_URL = os.getenv("AI_ENGINE_URL", "http://localhost:8000")
+API_KEY = os.getenv("AI_SERVICE_API_KEY", "")
+HEADERS = {"X-API-Key": API_KEY}
 
 def test_predict_eta_with_defaults():
     """ทดสอบ predict-eta โดยไม่ส่ง rider_speed_kmh → ใช้ fallback ค่าเดิม"""
@@ -26,7 +28,7 @@ def test_predict_eta_with_defaults():
         "traffic_level": "normal"
     }
 
-    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, timeout=10)
+    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, headers=HEADERS, timeout=10)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     data = resp.json()
 
@@ -57,7 +59,7 @@ def test_predict_eta_with_rider_speed():
         "rider_speed_kmh": 25.0
     }
 
-    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, timeout=10)
+    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, headers=HEADERS, timeout=10)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     data = resp.json()
 
@@ -87,7 +89,7 @@ def test_predict_eta_with_osrm_pickup():
         "osrm_pickup_duration_seconds": 180  # 3 นาที
     }
 
-    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, timeout=10)
+    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, headers=HEADERS, timeout=10)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     data = resp.json()
 
@@ -120,12 +122,12 @@ def test_predict_eta_slow_rider():
 
     # Slow rider
     slow_payload = {**base_payload, "rider_speed_kmh": 10.0}
-    resp_slow = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=slow_payload, timeout=10)
+    resp_slow = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=slow_payload, headers=HEADERS, timeout=10)
     data_slow = resp_slow.json()
 
     # Fast rider
     fast_payload = {**base_payload, "rider_speed_kmh": 30.0}
-    resp_fast = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=fast_payload, timeout=10)
+    resp_fast = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=fast_payload, headers=HEADERS, timeout=10)
     data_fast = resp_fast.json()
 
     print(f"  Slow rider ETA: {data_slow['eta_minutes']} mins (velocity_factor: {data_slow['factors']['velocity_factor']})")
@@ -153,7 +155,7 @@ def test_predict_eta_weather_and_traffic():
         "osrm_pickup_duration_seconds": 300
     }
 
-    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, timeout=10)
+    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/predict-eta", json=payload, headers=HEADERS, timeout=10)
     assert resp.status_code == 200
     data = resp.json()
 
@@ -186,7 +188,7 @@ def test_dispatch_rank_with_speed():
         ]
     }
 
-    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/dispatch/rank", json=payload, timeout=10)
+    resp = httpx.post(f"{AI_ENGINE_URL}/api/v1/dispatch/rank", json=payload, headers=HEADERS, timeout=10)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     data = resp.json()
 

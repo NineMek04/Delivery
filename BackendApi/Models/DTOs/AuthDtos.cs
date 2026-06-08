@@ -48,7 +48,6 @@ public class RegisterRequest
 public class RefreshTokenRequest
 {
     /// <summary>Refresh Token ที่ได้จาก Login/Register</summary>
-    [Required(ErrorMessage = "กรุณาระบุ Refresh Token")]
     public string RefreshToken { get; set; } = string.Empty;
 }
 

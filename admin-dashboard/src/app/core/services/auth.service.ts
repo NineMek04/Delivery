@@ -48,11 +48,12 @@ export class AuthService implements OnDestroy {
   // ── Token Management ──────────────────────────────────────────────
 
   public getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
+    // Return null to ensure no JWT token is stored or accessed on client-side
+    return null;
   }
 
   public getRefreshToken(): string | null {
-    return localStorage.getItem(this.REFRESH_TOKEN_KEY);
+    return null;
   }
 
   public getUserData(): any | null {
@@ -64,11 +65,12 @@ export class AuthService implements OnDestroy {
     }
   }
 
-  public setTokens(accessToken: string, refreshToken: string, userData?: any): void {
-    localStorage.setItem(this.TOKEN_KEY, accessToken);
-    localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
+  public setTokens(accessToken: string, refreshToken: string, userData?: any, expiresAt?: string): void {
     if (userData) {
       localStorage.setItem(this.USER_DATA_KEY, JSON.stringify(userData));
+    }
+    if (expiresAt) {
+      localStorage.setItem('delivery_access_token_expires', expiresAt);
     }
     this.isAuthenticated$.next(true);
     this.currentRole$.next(this.extractCurrentRole());
@@ -76,7 +78,6 @@ export class AuthService implements OnDestroy {
   }
 
   public setToken(token: string): void {
-    localStorage.setItem(this.TOKEN_KEY, token);
     this.isAuthenticated$.next(true);
     this.currentRole$.next(this.extractCurrentRole());
     this.startTokenClocking();
@@ -85,7 +86,7 @@ export class AuthService implements OnDestroy {
   // ── Role & Permission Checks ──────────────────────────────────────
 
   /**
-   * ดึง Role ปัจจุบันจาก JWT Token หรือ userData ใน localStorage
+   * ดึง Role ปัจจุบันจาก userData ใน localStorage
    */
   public getUserRole(): string | null {
     return this.extractCurrentRole();
@@ -118,16 +119,10 @@ export class AuthService implements OnDestroy {
   }
 
   /**
-   * ดึงข้อมูลจาก JWT Claims โดยตรง (ไม่ต้องเรียก API)
+   * สำหรับ Cookie Authentication ดึงข้อมูลจาก JWT Claims ฝั่ง Web จะใช้ UserData แทน
    */
   public getDecodedToken(): JwtClaims | null {
-    const token = this.getToken();
-    if (!token) return null;
-    try {
-      return jwtDecode<JwtClaims>(token);
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   /**
@@ -135,17 +130,11 @@ export class AuthService implements OnDestroy {
    * เพื่อยืนยันว่า Token ยังใช้งานได้จริงจากฝั่ง Server
    */
   public verifySession(): Observable<boolean> {
-    const token = this.getToken();
-    if (!token || !this.hasValidToken()) {
+    if (!this.hasValidToken()) {
       this.clearAuthState();
       return of(false);
     }
 
-    // Token ยังไม่หมดอายุ → ถือว่า Session ยังใช้ได้
-    // ไม่เรียก API /Auth/session ตอน Startup เพื่อป้องกันปัญหา:
-    // 1. Backend ไม่ได้รัน → App ค้าง
-    // 2. errorInterceptor จับ 401 แล้ว refresh ซ้ำ
-    // การเช็คสิทธิ์จริงจะทำผ่าน Guards + Interceptors ขณะใช้งาน
     this.isAuthenticated$.next(true);
     this.currentRole$.next(this.extractCurrentRole());
     return of(true);
@@ -160,9 +149,10 @@ export class AuthService implements OnDestroy {
         const accessToken = data?.AccessToken || data?.accessToken;
         const refreshToken = data?.RefreshToken || data?.refreshToken;
         const user = data?.User || data?.user;
+        const expiresAt = data?.ExpiresAt || data?.expiresAt;
 
-        if (accessToken) {
-          this.setTokens(accessToken, refreshToken, user);
+        if (expiresAt) {
+          this.setTokens(accessToken, refreshToken, user, expiresAt);
         }
       })
     );
@@ -175,9 +165,10 @@ export class AuthService implements OnDestroy {
         const accessToken = d?.AccessToken || d?.accessToken;
         const refreshToken = d?.RefreshToken || d?.refreshToken;
         const user = d?.User || d?.user;
+        const expiresAt = d?.ExpiresAt || d?.expiresAt;
 
-        if (accessToken) {
-          this.setTokens(accessToken, refreshToken, user);
+        if (expiresAt) {
+          this.setTokens(accessToken, refreshToken, user, expiresAt);
         }
       })
     );
@@ -188,15 +179,9 @@ export class AuthService implements OnDestroy {
       return of(false);
     }
 
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) {
-      this.forceLogout();
-      return of(false);
-    }
-
     this.isRefreshing = true;
     return req<any>('/auth/refresh')
-      .body({ RefreshToken: refreshToken })
+      .body({ RefreshToken: '' }) // Refresh Token is stored in cookie, send empty string to match DTO
       .post()
       .pipe(
         map((res: any) => {
@@ -205,9 +190,10 @@ export class AuthService implements OnDestroy {
           const newAccessToken = data?.AccessToken || data?.accessToken;
           const newRefreshToken = data?.RefreshToken || data?.refreshToken;
           const user = data?.User || data?.user;
+          const expiresAt = data?.ExpiresAt || data?.expiresAt;
 
-          if (newAccessToken) {
-            this.setTokens(newAccessToken, newRefreshToken, user);
+          if (expiresAt) {
+            this.setTokens(newAccessToken, newRefreshToken, user, expiresAt);
             return true;
           } else {
             this.forceLogout();
@@ -223,9 +209,6 @@ export class AuthService implements OnDestroy {
   }
 
   public logout(): Observable<any> {
-
-    // เรียก API ก่อน (token ยังอยู่ใน localStorage ตอนนี้)
-    // แล้วค่อยลบ token หลังจาก API ตอบกลับ (สำเร็จหรือไม่สำเร็จก็ logout)
     return req<any>('/Auth/logout').post().pipe(
       catchError(() => of(null)), // ถ้า API พัง ก็ logout ฝั่ง client อยู่ดี
       tap(() => this.forceLogout())
@@ -235,21 +218,9 @@ export class AuthService implements OnDestroy {
   // ── Private Helpers ───────────────────────────────────────────────
 
   /**
-   * ดึง Role จาก JWT Claims หรือ userData
-   * Priority: JWT Claims → localStorage userData
+   * ดึง Role จาก userData
    */
   private extractCurrentRole(): string | null {
-    // 1. ลองดึงจาก JWT Claims ก่อน (แม่นยำที่สุด)
-    const decoded = this.getDecodedToken();
-    if (decoded) {
-      // ASP.NET Core อาจเก็บ role เป็น claim key ต่างกัน
-      const role = decoded['role']
-        || decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']
-        || decoded['Role'];
-      if (role) return role;
-    }
-
-    // 2. Fallback ไปดึงจาก userData ที่เก็บไว้ตอน Login
     const userData = this.getUserData();
     return userData?.Role || userData?.role || null;
   }
@@ -267,18 +238,19 @@ export class AuthService implements OnDestroy {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(this.USER_DATA_KEY);
+    localStorage.removeItem('delivery_access_token_expires');
     this.isAuthenticated$.next(false);
     this.currentRole$.next(null);
     this.stopTokenClocking();
   }
 
   private hasValidToken(): boolean {
-    const token = this.getToken();
-    if (!token) return false;
+    const expires = localStorage.getItem('delivery_access_token_expires');
+    const userData = this.getUserData();
+    if (!expires || !userData) return false;
     try {
-      const decoded: any = jwtDecode(token);
-      const currentTime = Math.floor(Date.now() / 1000);
-      return decoded.exp > currentTime;
+      const currentTime = Date.now();
+      return new Date(expires).getTime() > currentTime;
     } catch {
       return false;
     }
@@ -286,21 +258,19 @@ export class AuthService implements OnDestroy {
 
   private startTokenClocking(): void {
     this.stopTokenClocking();
-    // Check every 30 seconds if token expired (Token Clocking)
     this.clockingSubscription = interval(30000).subscribe(() => {
-      const token = this.getToken();
-      if (!token || !this.isAuthenticated$.value) return;
+      const expires = localStorage.getItem('delivery_access_token_expires');
+      if (!expires || !this.isAuthenticated$.value) return;
 
       try {
-        const decoded: any = jwtDecode(token);
-        const currentTime = Math.floor(Date.now() / 1000);
-        const timeRemaining = decoded.exp - currentTime;
+        const expiresTime = new Date(expires).getTime();
+        const currentTime = Date.now();
+        const timeRemainingSeconds = Math.floor((expiresTime - currentTime) / 1000);
 
         // Proactive refresh if expiring in < 2 mins (120 seconds)
-        if (timeRemaining < 120) {
+        if (timeRemainingSeconds < 120) {
           this.refreshAccessToken().subscribe();
-        } else if (timeRemaining <= 0) {
-          // Token is already expired, force refresh or logout
+        } else if (timeRemainingSeconds <= 0) {
           this.refreshAccessToken().subscribe(success => {
             if (!success) this.forceLogout();
           });

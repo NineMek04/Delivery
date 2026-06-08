@@ -26,4 +26,9 @@ public interface IAuthService
         string? userId,
         ChangePasswordRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<bool>> LogoutAsync(
+        string? userId,
+        CancellationToken cancellationToken = default);
 }
+

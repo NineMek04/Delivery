@@ -50,7 +50,7 @@ public class AuthController : DeliveryControllerBase
         if (!result.Succeeded || result.Value is null)
             return StatusCode(result.StatusCode, result.ToApiResponseBase());
 
-        SetAccessTokenCookie(result.Value.AccessToken, result.Value.ExpiresAt);
+        SetAuthCookiesIfDashboard(result.Value.AccessToken, result.Value.RefreshToken, result.Value.ExpiresAt);
 
         return StatusCode(result.StatusCode, result.ToApiResponse());
     }
@@ -75,7 +75,7 @@ public class AuthController : DeliveryControllerBase
         if (!result.Succeeded || result.Value is null)
             return StatusCode(result.StatusCode, result.ToApiResponseBase());
 
-        SetAccessTokenCookie(result.Value.AccessToken, result.Value.ExpiresAt);
+        SetAuthCookiesIfDashboard(result.Value.AccessToken, result.Value.RefreshToken, result.Value.ExpiresAt);
 
         return StatusCode(result.StatusCode, result.ToApiResponse());
     }
@@ -94,12 +94,23 @@ public class AuthController : DeliveryControllerBase
         [FromBody] RefreshTokenRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+        string? refreshToken = request?.RefreshToken;
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            Request.Cookies.TryGetValue("refresh_token", out refreshToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return BadRequest(ApiResponse.Fail("กรุณาระบุ Refresh Token"));
+        }
+
+        var result = await _authService.RefreshTokenAsync(refreshToken, cancellationToken);
 
         if (!result.Succeeded || result.Value is null)
             return StatusCode(result.StatusCode, result.ToApiResponseBase());
 
-        SetAccessTokenCookie(result.Value.AccessToken, result.Value.ExpiresAt);
+        SetAuthCookiesIfDashboard(result.Value.AccessToken, result.Value.RefreshToken, result.Value.ExpiresAt);
 
         return StatusCode(result.StatusCode, result.ToApiResponse());
     }
@@ -111,16 +122,10 @@ public class AuthController : DeliveryControllerBase
     [HttpPost("logout")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
-    public ActionResult<ApiResponse> Logout()
+    public async Task<ActionResult<ApiResponse>> Logout(CancellationToken cancellationToken = default)
     {
-        var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-        Response.Cookies.Delete(AuthConstants.AccessTokenCookieName, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = config.GetValue("Authentication:RequireSecureCookie", false),
-            SameSite = SameSiteMode.Lax,
-            Path = "/"
-        });
+        await _authService.LogoutAsync(CurrentUserId, cancellationToken);
+        DeleteAuthCookies();
 
         return Ok(ApiResponse.Ok("ออกจากระบบสำเร็จ"));
     }
@@ -165,15 +170,7 @@ public class AuthController : DeliveryControllerBase
         if (!result.Succeeded)
             return StatusCode(result.StatusCode, result.ToApiResponseBase());
 
-        // ลบ cookie เดิมด้วย เนื่องจาก password เปลี่ยนแปลง (ต้องการให้เข้าสู่ระบบใหม่)
-        var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-        Response.Cookies.Delete(AuthConstants.AccessTokenCookieName, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = config.GetValue("Authentication:RequireSecureCookie", false),
-            SameSite = SameSiteMode.Lax,
-            Path = "/"
-        });
+        DeleteAuthCookies();
 
         return Ok(ApiResponse.Ok("เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่อีกครั้ง"));
     }
@@ -181,27 +178,58 @@ public class AuthController : DeliveryControllerBase
     // ── Private helpers ──────────────────────────────────────────────
 
     /// <summary>
-    /// ตั้ง HttpOnly cookie สำหรับ access_token
-    /// เพื่อรองรับ web clients ที่ไม่ส่ง Bearer header
-    /// (ตาม .cursorrules: Token สามารถรับจาก Authorization: Bearer หรือ HttpOnly cookie)
+    /// ตั้ง HttpOnly cookie สำหรับ access_token และ refresh_token สำหรับ client-type Dashboard
     /// </summary>
-    private void SetAccessTokenCookie(string token, DateTime expiresAt)
+    private void SetAuthCookiesIfDashboard(string accessToken, string refreshToken, DateTime expiresAt)
     {
+        var clientType = Request.Headers["X-Client-Type"].ToString();
+        if (clientType != "Dashboard")
+        {
+            return;
+        }
+
         var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var requireSecure = config.GetValue("Authentication:RequireSecureCookie", false);
-        var sameSiteStr = config["Authentication:CookieSameSite"] ?? "Lax";
-        var sameSite = sameSiteStr.Equals("None", StringComparison.OrdinalIgnoreCase)
-            ? SameSiteMode.None
-            : sameSiteStr.Equals("Strict", StringComparison.OrdinalIgnoreCase)
-                ? SameSiteMode.Strict
-                : SameSiteMode.Lax;
+        var sameSite = SameSiteMode.Lax;
 
-        Response.Cookies.Append(AuthConstants.AccessTokenCookieName, token, new CookieOptions
+        Response.Cookies.Append(AuthConstants.AccessTokenCookieName, accessToken, new CookieOptions
         {
             HttpOnly = true,
             Secure = requireSecure,
             SameSite = sameSite,
             Expires = expiresAt,
+            Path = "/"
+        });
+
+        var refreshLifetimeDays = config.GetValue("Authentication:RefreshTokenLifetimeDays", 7);
+        Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = requireSecure,
+            SameSite = sameSite,
+            Expires = DateTimeOffset.UtcNow.AddDays(refreshLifetimeDays),
+            Path = "/"
+        });
+    }
+
+    private void DeleteAuthCookies()
+    {
+        var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var requireSecure = config.GetValue("Authentication:RequireSecureCookie", false);
+
+        Response.Cookies.Delete(AuthConstants.AccessTokenCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = requireSecure,
+            SameSite = SameSiteMode.Lax,
+            Path = "/"
+        });
+
+        Response.Cookies.Delete("refresh_token", new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = requireSecure,
+            SameSite = SameSiteMode.Lax,
             Path = "/"
         });
     }

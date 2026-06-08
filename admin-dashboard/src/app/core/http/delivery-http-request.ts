@@ -130,7 +130,8 @@ class DeliveryHttpRequest<T> implements IRequestBuilder<T> {
                 headers: header,
                 responseType: this._responseType as any,
                 reportProgress: this._reportProgress,
-                params: this._param ? new HttpParams({ fromObject: <any>this._param }) : undefined
+                params: this._param ? new HttpParams({ fromObject: <any>this._param }) : undefined,
+                withCredentials: true
             }
         );
 

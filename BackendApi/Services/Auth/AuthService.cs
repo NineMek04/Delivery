@@ -314,6 +314,29 @@ public sealed class AuthService : IAuthService
         return ServiceResult<bool>.Success(true, "เปลี่ยนรหัสผ่านสำเร็จ");
     }
 
+    public async Task<ServiceResult<bool>> LogoutAsync(
+        string? userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return ServiceResult<bool>.Success(true, "ออกจากระบบสำเร็จ (ไม่มี session)");
+        }
+
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user != null)
+        {
+            user.RefreshToken = null;
+            user.RefreshTokenExpiresAt = null;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("User {Email} logged out and refresh token was revoked.", user.Email);
+        }
+
+        return ServiceResult<bool>.Success(true, "ออกจากระบบสำเร็จ");
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     private AuthResponse GenerateAuthResponse(User user)

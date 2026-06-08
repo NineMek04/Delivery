@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.models.dispatch_models import DispatchRankRequest
 from app.core.scoring import rank_candidates
 from app.core.security import verify_api_key
@@ -10,6 +10,9 @@ async def rank_dispatch_candidates(request: DispatchRankRequest):
     """
     Phase A: Receive a list of idle Riders and return them ranked by suitability.
     """
+    if len(request.candidates) > 200:
+        raise HTTPException(status_code=422, detail="Too many candidates. Maximum allowed is 200.")
+
     if not request.candidates:
         return {"ranked_candidates": []}
 

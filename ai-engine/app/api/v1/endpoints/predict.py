@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
@@ -8,23 +8,28 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 class PredictEtaRequest(BaseModel):
-    pickup_lat: float
-    pickup_lng: float
-    dropoff_lat: float
-    dropoff_lng: float
-    route_distance_meters: float
-    route_duration_seconds: float
+    model_config = ConfigDict(extra="forbid")
+    
+    pickup_lat: float = Field(ge=-90.0, le=90.0)
+    pickup_lng: float = Field(ge=-180.0, le=180.0)
+    dropoff_lat: float = Field(ge=-90.0, le=90.0)
+    dropoff_lng: float = Field(ge=-180.0, le=180.0)
+    route_distance_meters: float = Field(ge=0.0)
+    route_duration_seconds: float = Field(ge=0.0)
     current_time: Optional[str] = None
     weather_condition: Optional[str] = "clear"
     traffic_level: Optional[str] = "normal"
-    rider_speed_kmh: Optional[float] = None
-    osrm_pickup_duration_seconds: Optional[float] = None
+    rider_speed_kmh: Optional[float] = Field(default=None, ge=0.0, le=150.0)
+    osrm_pickup_duration_seconds: Optional[float] = Field(default=None, ge=0.0)
 
 class PredictEtaResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    
     eta_minutes: float
     eta_datetime: str
     confidence: float
     factors: dict
+
 
 @router.post("/predict-eta", response_model=PredictEtaResponse)
 async def predict_eta(req: PredictEtaRequest):

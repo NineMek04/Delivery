@@ -1,0 +1,74 @@
+groups:
+  - name: security_alerts
+    rules:
+      - alert: HighFailedLogins
+        expr: rate(delivery_auth_failed_logins_total[1m]) * 60 > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of failed login attempts detected"
+          description: "There have been {{ $value }} failed login attempts in the last minute."
+
+      - alert: CriticalFailedLogins
+        expr: rate(delivery_auth_failed_logins_total[1m]) * 60 > 50
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical failed login rate detected (Possible Brute Force)"
+          description: "There have been {{ $value }} failed login attempts in the last minute (Possible brute force attack)."
+
+      - alert: HighLockoutRate
+        expr: rate(delivery_auth_lockouts_total[1m]) * 60 > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of account lockouts"
+          description: "There have been {{ $value }} account lockouts in the last minute."
+
+      - alert: HighCsrfViolations
+        expr: rate(delivery_csrf_rejections_total[1m]) * 60 > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Abnormal CSRF rejections rate"
+          description: "CSRF token/origin rejections rate is at {{ $value }} per minute."
+
+      - alert: HighRateLimitReached
+        expr: rate(delivery_rate_limit_rejections_total[1m]) * 60 > 30
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High volume of rate limit rejections"
+          description: "Rate limit rejections rate is at {{ $value }} per minute."
+
+      - alert: DispatchQueueBacklog
+        expr: delivery_dispatch_queue_depth > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dispatch queue backlog detected"
+          description: "The dispatch queue depth has been {{ $value }} for over 2 minutes."
+
+      - alert: RabbitMqDown
+        expr: delivery_rabbitmq_connection_status == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "RabbitMQ connection lost"
+          description: "The backend's connection to RabbitMQ has been lost (status is 0)."
+
+      - alert: BackendApiDown
+        expr: up{job="backend"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend API service is down"
+          description: "The backend API container or server is unreachable."

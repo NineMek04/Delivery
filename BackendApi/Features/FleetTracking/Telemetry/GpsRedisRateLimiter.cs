@@ -52,6 +52,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             if (rateLimited)
             {
                 _logger.LogDebug("GPS Rate Limit hit for Rider {RiderId}. Throttling to {Interval}s.", riderId, intervalSeconds);
+                BackendApi.Security.SecurityMetrics.RateLimitRejectionsTotal.WithLabels("gps").Inc();
             }
 
             return rateLimited;

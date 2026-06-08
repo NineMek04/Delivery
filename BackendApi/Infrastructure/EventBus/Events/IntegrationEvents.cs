@@ -30,7 +30,9 @@ public record OrderCreatedIntegrationEvent : IntegrationEvent
         double dropoffLatitude, 
         double dropoffLongitude, 
         double distanceKm, 
-        decimal deliveryFee)
+        decimal deliveryFee,
+        string? correlationId = null)
+        : base(correlationId)
     {
         OrderId = orderId;
         RefNumber = refNumber;
@@ -65,7 +67,9 @@ public record OrderStatusChangedIntegrationEvent : IntegrationEvent
         OrderState oldState, 
         OrderState newState, 
         string? assignedRiderId,
-        string? customerId)
+        string? customerId,
+        string? correlationId = null)
+        : base(correlationId)
     {
         OrderId = orderId;
         RefNumber = refNumber;
@@ -126,7 +130,9 @@ public record RiderStateChangedIntegrationEvent : IntegrationEvent
         string riderId,
         string targetState,
         string? previousState,
-        string reason)
+        string reason,
+        string? correlationId = null)
+        : base(correlationId)
     {
         RiderId = riderId;
         TargetState = targetState;

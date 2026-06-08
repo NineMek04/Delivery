@@ -34,6 +34,16 @@ public static class SecurityConfiguration
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+            options.OnRejected = async (context, token) =>
+            {
+                SecurityMetrics.RateLimitRejectionsTotal.WithLabels("global").Inc();
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await context.HttpContext.Response.WriteAsJsonAsync(new
+                {
+                    Message = "มีคำขอมากเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง"
+                }, token);
+            };
+
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

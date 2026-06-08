@@ -87,12 +87,22 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                     retryCount++;
                     _logger.LogInformation("Connecting to RabbitMQ Host: {Host}:{Port} (Attempt {Attempt}/{MaxRetries})", host, port, retryCount, maxRetries);
                     _connection = factory.CreateConnection();
+                    _connection.ConnectionShutdown += (sender, e) =>
+                    {
+                        BackendApi.Security.SecurityMetrics.RabbitMqConnectionStatus.Set(0);
+                    };
+                    if (retryCount > 1)
+                    {
+                        BackendApi.Security.SecurityMetrics.RabbitMqReconnectsTotal.Inc();
+                    }
                     connected = true;
+                    BackendApi.Security.SecurityMetrics.RabbitMqConnectionStatus.Set(1);
                 }
                 catch (Exception ex)
                 {
                     if (retryCount >= maxRetries)
                     {
+                        BackendApi.Security.SecurityMetrics.RabbitMqConnectionStatus.Set(0);
                         _logger.LogCritical(ex, "Failed to connect to RabbitMQ broker after {MaxRetries} attempts.", maxRetries);
                         throw;
                     }
@@ -156,6 +166,8 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             if (!string.IsNullOrEmpty(correlationId))
             {
                 properties.Headers.Add("X-Correlation-Id", correlationId);
+                properties.Headers.Add("correlation-id", correlationId);
+                properties.CorrelationId = correlationId;
             }
 
             _channel.BasicPublish(
@@ -232,17 +244,21 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             var body = eventArgs.Body.ToArray();
             var message = Encoding.UTF8.GetString(body);
 
-            // Extract CorrelationId from headers
-            string? correlationId = null;
-            if (eventArgs.BasicProperties.Headers != null && eventArgs.BasicProperties.Headers.TryGetValue("X-Correlation-Id", out var correlationHeaderObj))
+            // Extract CorrelationId from headers or properties
+            string? correlationId = eventArgs.BasicProperties.CorrelationId;
+            if (string.IsNullOrEmpty(correlationId) && eventArgs.BasicProperties.Headers != null)
             {
-                if (correlationHeaderObj is byte[] correlationBytes)
+                if (eventArgs.BasicProperties.Headers.TryGetValue("X-Correlation-Id", out var correlationHeaderObj) ||
+                    eventArgs.BasicProperties.Headers.TryGetValue("correlation-id", out correlationHeaderObj))
                 {
-                    correlationId = Encoding.UTF8.GetString(correlationBytes);
-                }
-                else
-                {
-                    correlationId = correlationHeaderObj?.ToString();
+                    if (correlationHeaderObj is byte[] correlationBytes)
+                    {
+                        correlationId = Encoding.UTF8.GetString(correlationBytes);
+                    }
+                    else
+                    {
+                        correlationId = correlationHeaderObj?.ToString();
+                    }
                 }
             }
 

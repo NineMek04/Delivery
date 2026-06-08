@@ -3,8 +3,10 @@ using BackendApi.Data;
 using BackendApi.Models;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using System.Diagnostics;
 using Order = BackendApi.Models.Order;
 
 namespace BackendApi.Services.Dispatch;
@@ -18,17 +20,20 @@ public class StateMachineService
     private readonly ApplicationDbContext _dbContext;
     private readonly IEventBus _eventBus;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<StateMachineService> _logger;
 
     public StateMachineService(
         ApplicationDbContext dbContext, 
         IEventBus eventBus,
         IConnectionMultiplexer redis,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<StateMachineService> logger)
     {
         _dbContext = dbContext;
         _eventBus = eventBus;
         _redis = redis;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
 
@@ -108,13 +113,16 @@ public class StateMachineService
         // Publish Order Status Changed Integration Event asynchronously to RabbitMQ
         try
         {
+            var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+
             await _eventBus.PublishAsync(new OrderStatusChangedIntegrationEvent(
                 order.Id,
                 order.RefNumber,
                 oldState,
                 order.State,
                 order.AssignedRiderId,
-                order.CustomerId
+                order.CustomerId,
+                correlationId
             ));
         }
         catch (Exception ex)

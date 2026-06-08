@@ -29,6 +29,9 @@ try
         builder.Configuration.AddInMemoryCollection(dotEnvValues);
     }
 
+    // --- Vault Secrets Configuration ---
+    builder.Configuration.AddVaultConfiguration();
+
     // --- 3. Logging (Serilog) ---
     var seqUrl = builder.Configuration["SEQ_URL"] ?? builder.Configuration["Seq:ServerUrl"] ?? "http://seq:5341";
     var seqApiKey = builder.Configuration["SEQ_API_KEY"];

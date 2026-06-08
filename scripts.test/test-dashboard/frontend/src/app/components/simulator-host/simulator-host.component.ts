@@ -460,26 +460,26 @@ export class SimulatorHostComponent implements OnInit, OnDestroy, AfterViewInit 
         this.shopMarker.remove();
         this.shopMarker = null;
       }
-    if (this.dropoffMarker) {
-      this.dropoffMarker.remove();
-      this.dropoffMarker = null;
-    }
-    if (this.pickupRoutePolyline) {
-      this.pickupRoutePolyline.remove();
-      this.pickupRoutePolyline = null;
-    }
-    if (this.deliveryRoutePolyline) {
-      this.deliveryRoutePolyline.remove();
-      this.deliveryRoutePolyline = null;
-    }
-    this.testShop = null;
-    this.testDropoff = null;
-    this.activeRiderName = null;
-    this.riderMappings.clear();
-    this.riders = [];
-    this.playbackProgress = 0;
-    this.riderMarkers.forEach(m => m.remove());
-    this.riderMarkers.clear();
+      if (this.dropoffMarker) {
+        this.dropoffMarker.remove();
+        this.dropoffMarker = null;
+      }
+      if (this.pickupRoutePolyline) {
+        this.pickupRoutePolyline.remove();
+        this.pickupRoutePolyline = null;
+      }
+      if (this.deliveryRoutePolyline) {
+        this.deliveryRoutePolyline.remove();
+        this.deliveryRoutePolyline = null;
+      }
+      this.testShop = null;
+      this.testDropoff = null;
+      this.activeRiderName = null;
+      this.riderMappings.clear();
+      this.riders = [];
+      this.playbackProgress = 0;
+      this.riderMarkers.forEach(m => m.remove());
+      this.riderMarkers.clear();
 
       if (this.map) {
         this.map.setView([17.4138, 102.7872], 14);
@@ -504,101 +504,101 @@ export class SimulatorHostComponent implements OnInit, OnDestroy, AfterViewInit 
         this.playbackProgress = data.progress;
       }
 
-    const gps = data.riderGps;
-    if (gps) {
-      const existing = this.riders.find(r => r.id === gps.id);
-      if (existing) {
-        existing.x = gps.lat;
-        existing.y = gps.lng;
-        existing.status = gps.status;
-        if (gps.name && gps.name !== gps.id) {
-          existing.name = gps.name;
-        }
-      } else {
-        const color = `hsl(${Math.floor(Math.random() * 360)}, 80%, 60%)`;
-        this.riders.push({
-          id: gps.id,
-          name: gps.name || gps.id,
-          status: gps.status,
-          x: gps.lat,
-          y: gps.lng,
-          color: color
-        });
-      }
-      this.updateMarkers();
-    }
-
-    const mapping = data.riderMapping;
-    if (mapping) {
-      this.riderMappings.set(mapping.name, mapping.id);
-      const rider = this.riders.find(r => r.id === mapping.id);
-      if (rider) {
-        rider.name = mapping.name;
-      }
-      this.updateMarkers();
-    }
-
-    if (data.shop) {
-      this.testShop = data.shop;
-      if (this.shopMarker) {
-        this.shopMarker.setLatLng([data.shop.lat, data.shop.lng]);
-        this.shopMarker.setTooltipContent(`🏪 Shop: ${data.shop.name}`);
-      } else {
-        const shopIcon = L.divIcon({
-          html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#ff9800;border:2px solid #fff;box-shadow: 0 0 15px #ff9800;font-size:16px;">🏪</div>`,
-          className: 'custom-shop-icon',
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        });
-        this.shopMarker = L.marker([data.shop.lat, data.shop.lng], { icon: shopIcon })
-          .bindTooltip(`🏪 Shop: ${data.shop.name}`, { permanent: true, direction: 'top', className: 'glowing-tooltip' })
-          .addTo(this.map!);
-      }
-    }
-
-    if (data.dropoff) {
-      this.testDropoff = data.dropoff;
-      if (this.dropoffMarker) {
-        this.dropoffMarker.setLatLng([data.dropoff.lat, data.dropoff.lng]);
-      } else {
-        const dropoffIcon = L.divIcon({
-          html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e91e63;border:2px solid #fff;box-shadow: 0 0 15px #e91e63;font-size:16px;">📍</div>`,
-          className: 'custom-dropoff-icon',
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        });
-        this.dropoffMarker = L.marker([data.dropoff.lat, data.dropoff.lng], { icon: dropoffIcon })
-          .bindTooltip(`📍 Dropoff Point`, { permanent: true, direction: 'top', className: 'glowing-tooltip' })
-          .addTo(this.map!);
-      }
-    }
-
-    if (data.route) {
-      const latlngs = data.route.coords.map(c => [c.lat ?? c[1], c.lng ?? c[0]] as [number, number]);
-      if (data.route.label.toLowerCase().includes('store')) {
-        if (this.pickupRoutePolyline) {
-          this.pickupRoutePolyline.setLatLngs(latlngs);
+      const gps = data.riderGps;
+      if (gps) {
+        const existing = this.riders.find(r => r.id === gps.id);
+        if (existing) {
+          existing.x = gps.lat;
+          existing.y = gps.lng;
+          existing.status = gps.status;
+          if (gps.name && gps.name !== gps.id) {
+            existing.name = gps.name;
+          }
         } else {
-          this.pickupRoutePolyline = L.polyline(latlngs, {
-            color: '#ffc107',
-            weight: 4,
-            dashArray: '8, 8',
-            className: 'path-animate'
-          }).addTo(this.map!);
+          const color = `hsl(${Math.floor(Math.random() * 360)}, 80%, 60%)`;
+          this.riders.push({
+            id: gps.id,
+            name: gps.name || gps.id,
+            status: gps.status,
+            x: gps.lat,
+            y: gps.lng,
+            color: color
+          });
         }
-      } else if (data.route.label.toLowerCase().includes('dropoff')) {
-        if (this.deliveryRoutePolyline) {
-          this.deliveryRoutePolyline.setLatLngs(latlngs);
+        this.updateMarkers();
+      }
+
+      const mapping = data.riderMapping;
+      if (mapping) {
+        this.riderMappings.set(mapping.name, mapping.id);
+        const rider = this.riders.find(r => r.id === mapping.id);
+        if (rider) {
+          rider.name = mapping.name;
+        }
+        this.updateMarkers();
+      }
+
+      if (data.shop) {
+        this.testShop = data.shop;
+        if (this.shopMarker) {
+          this.shopMarker.setLatLng([data.shop.lat, data.shop.lng]);
+          this.shopMarker.setTooltipContent(`🏪 Shop: ${data.shop.name}`);
         } else {
-          this.deliveryRoutePolyline = L.polyline(latlngs, {
-            color: '#00e5ff',
-            weight: 4,
-            dashArray: '8, 8',
-            className: 'path-animate'
-          }).addTo(this.map!);
+          const shopIcon = L.divIcon({
+            html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#ff9800;border:2px solid #fff;box-shadow: 0 0 15px #ff9800;font-size:16px;">🏪</div>`,
+            className: 'custom-shop-icon',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          });
+          this.shopMarker = L.marker([data.shop.lat, data.shop.lng], { icon: shopIcon })
+            .bindTooltip(`🏪 Shop: ${data.shop.name}`, { permanent: true, direction: 'top', className: 'glowing-tooltip' })
+            .addTo(this.map!);
         }
       }
-    }
+
+      if (data.dropoff) {
+        this.testDropoff = data.dropoff;
+        if (this.dropoffMarker) {
+          this.dropoffMarker.setLatLng([data.dropoff.lat, data.dropoff.lng]);
+        } else {
+          const dropoffIcon = L.divIcon({
+            html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#e91e63;border:2px solid #fff;box-shadow: 0 0 15px #e91e63;font-size:16px;">📍</div>`,
+            className: 'custom-dropoff-icon',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          });
+          this.dropoffMarker = L.marker([data.dropoff.lat, data.dropoff.lng], { icon: dropoffIcon })
+            .bindTooltip(`📍 Dropoff Point`, { permanent: true, direction: 'top', className: 'glowing-tooltip' })
+            .addTo(this.map!);
+        }
+      }
+
+      if (data.route) {
+        const latlngs = data.route.coords.map(c => [c.lat ?? c[1], c.lng ?? c[0]] as [number, number]);
+        if (data.route.label.toLowerCase().includes('store')) {
+          if (this.pickupRoutePolyline) {
+            this.pickupRoutePolyline.setLatLngs(latlngs);
+          } else {
+            this.pickupRoutePolyline = L.polyline(latlngs, {
+              color: '#ffc107',
+              weight: 4,
+              dashArray: '8, 8',
+              className: 'path-animate'
+            }).addTo(this.map!);
+          }
+        } else if (data.route.label.toLowerCase().includes('dropoff')) {
+          if (this.deliveryRoutePolyline) {
+            this.deliveryRoutePolyline.setLatLngs(latlngs);
+          } else {
+            this.deliveryRoutePolyline = L.polyline(latlngs, {
+              color: '#00e5ff',
+              weight: 4,
+              dashArray: '8, 8',
+              className: 'path-animate'
+            }).addTo(this.map!);
+          }
+        }
+      }
 
       if (data.activeRider) {
         this.activeRiderName = data.activeRider;
@@ -607,7 +607,6 @@ export class SimulatorHostComponent implements OnInit, OnDestroy, AfterViewInit 
 
       this.recalculateBounds();
 
-      // Throttle Angular UI updates (Change Detection) to max 2 FPS (500ms)
       const now = Date.now();
       if (now - this.lastCdrTime > 500) {
         this.lastCdrTime = now;
@@ -619,7 +618,6 @@ export class SimulatorHostComponent implements OnInit, OnDestroy, AfterViewInit 
   private recalculateBounds() {
     if (!this.map) return;
 
-    // Throttle fitBounds calls to at most once every 2000ms to prevent browser freezes/crashes
     const now = Date.now();
     if (now - this.lastBoundsRecalcTime < 2000) {
       return;

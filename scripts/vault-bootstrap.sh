@@ -1,7 +1,9 @@
 #!/bin/sh
+export VAULT_ADDR='http://vault:8200'
+
 # Wait for vault to be ready
 echo "Waiting for Vault to start..."
-until curl -s http://vault:8200/v1/sys/health | grep -q '"initialized":true'; do
+until vault status > /dev/null 2>&1 || [ $? -eq 2 ]; do
   sleep 1
 done
 

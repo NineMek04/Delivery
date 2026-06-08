@@ -51,6 +51,18 @@ services:
       - VAULT_ROLE_ID_FILE=/vault/approle/backend_role_id
       - VAULT_SECRET_ID_FILE=/vault/approle/backend_secret_id
       - VAULT_REQUIRED=true
+      - Jwt__Issuer=DeliveryBackendApi
+      - Jwt__Audience=DeliveryClients
+      - Cors__AllowedOrigins__0=http://localhost
+      - Cors__AllowedOrigins__1=http://localhost:80
+      - Cors__AllowedOrigins__2=http://localhost:4200
+      - Cors__AllowedOrigins__3=http://localhost:8080
+      - Cors__AllowedOrigins__4=http://localhost:8081
+      - Routing__LocalOsrmUrl=http://osrm:5000
+      - Authentication__RequireSecureCookie=false
+      - MessageBroker__Host=rabbitmq
+      - MessageBroker__Port=5672
+      - MessageBroker__Username=${RABBITMQ_USER}
     depends_on:
       db:
         condition: service_healthy
@@ -249,6 +261,7 @@ services:
   vault-bootstrap:
     image: hashicorp/vault:latest
     container_name: delivery-vault-bootstrap
+    user: "root"
     depends_on:
       - vault
     volumes:

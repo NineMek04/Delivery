@@ -17,15 +17,29 @@ public sealed class LoginAttemptService
 
     public bool IsLockedOut(string key, out TimeSpan retryAfter)
     {
+        return IsLockedOut(key, out retryAfter, out _);
+    }
+
+    public bool IsLockedOut(string key, out TimeSpan retryAfter, out bool wasUnlocked)
+    {
         retryAfter = TimeSpan.Zero;
+        wasUnlocked = false;
 
         if (!_cache.TryGetValue<LoginAttemptState>(key, out var state) || state is null)
         {
             return false;
         }
 
-        if (state.LockedUntil is null || state.LockedUntil <= DateTimeOffset.UtcNow)
+        if (state.LockedUntil is null)
         {
+            return false;
+        }
+
+        if (state.LockedUntil <= DateTimeOffset.UtcNow)
+        {
+            // Lockout expired
+            wasUnlocked = true;
+            _cache.Remove(key);
             return false;
         }
 

@@ -11,6 +11,7 @@ namespace BackendApi.Controllers.Business;
 /// API สำหรับการประมวลผลและการใช้บริการ AI Engine (VRP / ETA / Scoring)
 /// </summary>
 [Authorize]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(BackendApi.Setup.SecurityConfiguration.AuthRateLimitPolicy)]
 public class AiController : DeliveryControllerBase
 {
     private readonly IAiService _aiService;

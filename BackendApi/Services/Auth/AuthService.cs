@@ -20,6 +20,8 @@ public sealed class AuthService : IAuthService
         AuthConstants.StorePartnerRole
     ];
 
+    private const string DefaultDummyHash = "100000.SHA256.AAAAAAAAAAAAAAAAAAAAAA==.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
     private readonly ApplicationDbContext _dbContext;
     private readonly ITokenService _tokenService;
     private readonly LoginAttemptService _loginAttemptService;
@@ -51,29 +53,68 @@ public sealed class AuthService : IAuthService
         var email = NormalizeEmail(request.Email);
         var lockoutKey = $"login:{clientIp}:{email}";
 
-        if (_loginAttemptService.IsLockedOut(lockoutKey, out var retryAfter))
+        if (_loginAttemptService.IsLockedOut(lockoutKey, out var retryAfter, out var wasUnlocked))
         {
-            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_LOCKED_OUT", null, email);
+            LogAuthEvent("AUTH_LOGIN", "ACCOUNT_LOCKOUT_ATTEMPT", null, email);
 
             _logger.LogWarning(
-                "Login attempt blocked for {Email} from {IP} because lockout is active",
+                "Login attempt blocked for {Email} from {IP} because lockout is active (ACCOUNT_LOCKOUT_ATTEMPT)",
                 email,
                 clientIp);
 
-            return ServiceResult<AuthResponse>.Failure(
+            var retrySecs = (int)Math.Ceiling(retryAfter.TotalSeconds);
+            var lockedUntilUtc = DateTimeOffset.UtcNow.Add(retryAfter);
+
+            return ServiceResult<AuthResponse>.FailureWithLockout(
                 StatusCodes.Status429TooManyRequests,
                 $"บัญชีถูกล็อกชั่วคราว กรุณาลองใหม่อีก {Math.Max(1, retryAfter.Minutes)} นาที",
-                "ACCOUNT_LOCKED");
+                "ACCOUNT_LOCKED",
+                retrySecs,
+                lockedUntilUtc.ToString("o"));
+        }
+
+        if (wasUnlocked)
+        {
+            LogAuthEvent("AUTH_LOGIN", "ACCOUNT_UNLOCKED", null, email);
+            _logger.LogInformation("Account {Email} has been unlocked (lockout duration expired)", email);
         }
 
         var user = await _dbContext.Users
             .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
-        if (user is null || !PasswordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        bool isValidPassword;
+        if (user is null)
+        {
+            var dummyHash = _configuration.GetValue<string>("Authentication:DummyPasswordHash") ?? DefaultDummyHash;
+            PasswordHasher.VerifyPassword(request.Password, dummyHash);
+            isValidPassword = false;
+        }
+        else
+        {
+            isValidPassword = PasswordHasher.VerifyPassword(request.Password, user.PasswordHash);
+        }
+
+        if (!isValidPassword)
         {
             _loginAttemptService.RegisterFailure(lockoutKey);
 
-            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_INVALID_CREDENTIALS", null, email);
+            if (_loginAttemptService.IsLockedOut(lockoutKey, out var retryAfterAfterFailure, out _))
+            {
+                LogAuthEvent("AUTH_LOGIN", "ACCOUNT_LOCKED", user?.Id, email, user?.RiderId);
+                _logger.LogWarning("Account {Email} has been locked for 15 minutes due to 5 failed login attempts", email);
+
+                var retrySecs = (int)Math.Ceiling(retryAfterAfterFailure.TotalSeconds);
+                var lockedUntilUtc = DateTimeOffset.UtcNow.Add(retryAfterAfterFailure);
+
+                return ServiceResult<AuthResponse>.FailureWithLockout(
+                    StatusCodes.Status429TooManyRequests,
+                    $"บัญชีถูกล็อกชั่วคราว กรุณาลองใหม่อีก {Math.Max(1, retryAfterAfterFailure.Minutes)} นาที",
+                    "ACCOUNT_LOCKED",
+                    retrySecs,
+                    lockedUntilUtc.ToString("o"));
+            }
+
+            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_INVALID_CREDENTIALS", user?.Id, email, user?.RiderId);
 
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
@@ -83,7 +124,7 @@ public sealed class AuthService : IAuthService
 
         if (!user.IsActive)
         {
-            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_ACCOUNT_DISABLED", user.Id, user.Email);
+            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_ACCOUNT_DISABLED", user.Id, user.Email, user.RiderId);
 
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
@@ -103,7 +144,7 @@ public sealed class AuthService : IAuthService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_SUCCESS", user.Id, user.Email);
+        LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_SUCCESS", user.Id, user.Email, user.RiderId);
 
         return ServiceResult<AuthResponse>.Success(response, "เข้าสู่ระบบสำเร็จ");
     }
@@ -367,7 +408,13 @@ public sealed class AuthService : IAuthService
 
     // ── Private helpers ──────────────────────────────────────────────
 
-    private void LogAuthEvent(string operation, string result, string? userId, string? email = null)
+    private void LogAuthEvent(
+        string operation,
+        string result,
+        string? userId,
+        string? email = null,
+        string? riderId = null,
+        string? orderId = null)
     {
         var httpContext = _httpContextAccessor.HttpContext;
         var clientIp = httpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
@@ -376,14 +423,16 @@ public sealed class AuthService : IAuthService
         var correlationId = httpContext?.Items["CorrelationId"]?.ToString() ?? "unknown";
 
         _logger.LogInformation(
-            "AuthEvent {Operation} {Result} {UserId} {Email} {ClientType} {IP} {CorrelationId}",
+            "AuthEvent {Operation} {Result} {UserId} {Email} {ClientType} {IP} {CorrelationId} {OrderId} {RiderId}",
             operation,
             result,
             userId ?? "N/A",
             email ?? "N/A",
             clientType,
             clientIp,
-            correlationId);
+            correlationId,
+            orderId ?? "N/A",
+            riderId ?? "N/A");
     }
 
     private AuthResponse GenerateAuthResponse(User user)

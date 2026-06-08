@@ -65,6 +65,7 @@ public static class ServiceSetup
         services.AddScoped<ConditionContext>();
         services.AddScoped<DBHandlerCore>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAuditLogger, AdminAuditService>();
 
         // --- Mapster ---
         var mapsterConfig = MappingConfig.Configure();

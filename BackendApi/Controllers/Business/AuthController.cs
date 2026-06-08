@@ -48,7 +48,21 @@ public class AuthController : DeliveryControllerBase
         var result = await _authService.LoginAsync(request, clientIp, cancellationToken);
 
         if (!result.Succeeded || result.Value is null)
+        {
+            if (result.Code == "ACCOUNT_LOCKED")
+            {
+                return StatusCode(StatusCodes.Status429TooManyRequests, new
+                {
+                    success = false,
+                    message = result.Message,
+                    code = "ACCOUNT_LOCKED",
+                    error = "ACCOUNT_LOCKED",
+                    retryAfterSeconds = result.RetryAfterSeconds ?? 900,
+                    retryAfter = result.LockedUntil ?? DateTimeOffset.UtcNow.AddMinutes(15).ToString("o")
+                });
+            }
             return StatusCode(result.StatusCode, result.ToApiResponseBase());
+        }
 
         SetAuthCookiesIfDashboard(result.Value.AccessToken, result.Value.RefreshToken, result.Value.ExpiresAt);
 
@@ -87,6 +101,7 @@ public class AuthController : DeliveryControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>JWT Access Token + Refresh Token ชุดใหม่</returns>
     [HttpPost("refresh")]
+    [EnableRateLimiting(SecurityConfiguration.AuthRateLimitPolicy)]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
@@ -210,6 +225,17 @@ public class AuthController : DeliveryControllerBase
             Expires = DateTimeOffset.UtcNow.AddDays(refreshLifetimeDays),
             Path = "/"
         });
+
+        // CSRF Rotation: Generate a new XSRF-TOKEN on every Login/Refresh
+        var xsrfToken = Guid.NewGuid().ToString("N");
+        Response.Cookies.Append("XSRF-TOKEN", xsrfToken, new CookieOptions
+        {
+            HttpOnly = false, // Critical: Angular needs to read this
+            Secure = requireSecure,
+            SameSite = sameSite,
+            Expires = expiresAt,
+            Path = "/"
+        });
     }
 
     private void DeleteAuthCookies()
@@ -228,6 +254,14 @@ public class AuthController : DeliveryControllerBase
         Response.Cookies.Delete("refresh_token", new CookieOptions
         {
             HttpOnly = true,
+            Secure = requireSecure,
+            SameSite = SameSiteMode.Lax,
+            Path = "/"
+        });
+
+        Response.Cookies.Delete("XSRF-TOKEN", new CookieOptions
+        {
+            HttpOnly = false,
             Secure = requireSecure,
             SameSite = SameSiteMode.Lax,
             Path = "/"

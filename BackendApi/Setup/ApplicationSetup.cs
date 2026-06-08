@@ -41,8 +41,12 @@ public static class ApplicationSetup
         }
 
         app.UseRateLimiter();
+        
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Anti-CSRF Middleware (After Authentication so we have User Context)
+        app.UseMiddleware<CsrfValidationMiddleware>();
 
         app.MapMetrics(); // Expose /metrics for Prometheus
         app.MapHealthChecks("/health");

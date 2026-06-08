@@ -17,6 +17,8 @@ public sealed class ServiceResult<T>
     public string? Message { get; private init; }
     public string? Code { get; private init; }
     public T? Value { get; private init; }
+    public int? RetryAfterSeconds { get; private init; }
+    public string? LockedUntil { get; private init; }
 
     /// <summary>
     /// สร้างผลลัพธ์สำเร็จ
@@ -46,6 +48,25 @@ public sealed class ServiceResult<T>
             StatusCode = statusCode,
             Message = message,
             Code = code
+        };
+
+    /// <summary>
+    /// สร้างผลลัพธ์ล้มเหลวเนื่องจากบัญชีถูกล็อก
+    /// </summary>
+    public static ServiceResult<T> FailureWithLockout(
+        int statusCode,
+        string message,
+        string code,
+        int retryAfterSeconds,
+        string lockedUntil) =>
+        new()
+        {
+            Succeeded = false,
+            StatusCode = statusCode,
+            Message = message,
+            Code = code,
+            RetryAfterSeconds = retryAfterSeconds,
+            LockedUntil = lockedUntil
         };
 
     /// <summary>

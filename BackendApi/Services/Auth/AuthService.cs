@@ -4,6 +4,7 @@ using BackendApi.Data;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Services.Auth;
@@ -24,19 +25,22 @@ public sealed class AuthService : IAuthService
     private readonly LoginAttemptService _loginAttemptService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public AuthService(
         ApplicationDbContext dbContext,
         ITokenService tokenService,
         LoginAttemptService loginAttemptService,
         IConfiguration configuration,
-        ILogger<AuthService> logger)
+        ILogger<AuthService> logger,
+        IHttpContextAccessor httpContextAccessor)
     {
         _dbContext = dbContext;
         _tokenService = tokenService;
         _loginAttemptService = loginAttemptService;
         _configuration = configuration;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<ServiceResult<AuthResponse>> LoginAsync(
@@ -49,6 +53,8 @@ public sealed class AuthService : IAuthService
 
         if (_loginAttemptService.IsLockedOut(lockoutKey, out var retryAfter))
         {
+            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_LOCKED_OUT", null, email);
+
             _logger.LogWarning(
                 "Login attempt blocked for {Email} from {IP} because lockout is active",
                 email,
@@ -67,6 +73,8 @@ public sealed class AuthService : IAuthService
         {
             _loginAttemptService.RegisterFailure(lockoutKey);
 
+            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_INVALID_CREDENTIALS", null, email);
+
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
                 "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
@@ -75,6 +83,8 @@ public sealed class AuthService : IAuthService
 
         if (!user.IsActive)
         {
+            LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_ACCOUNT_DISABLED", user.Id, user.Email);
+
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
                 "บัญชีถูกระงับการใช้งาน",
@@ -93,7 +103,7 @@ public sealed class AuthService : IAuthService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("User {Email} logged in successfully", user.Email);
+        LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_SUCCESS", user.Id, user.Email);
 
         return ServiceResult<AuthResponse>.Success(response, "เข้าสู่ระบบสำเร็จ");
     }
@@ -110,6 +120,8 @@ public sealed class AuthService : IAuthService
 
         if (emailExists)
         {
+            LogAuthEvent("AUTH_REGISTER", "AUTH_REGISTER_FAILED_EMAIL_EXISTS", null, email);
+
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status409Conflict,
                 "อีเมลนี้ถูกใช้งานแล้ว",
@@ -118,6 +130,8 @@ public sealed class AuthService : IAuthService
 
         if (!AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
         {
+            LogAuthEvent("AUTH_REGISTER", "AUTH_REGISTER_FAILED_INVALID_ROLE", null, email);
+
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status400BadRequest,
                 $"บทบาทไม่ถูกต้อง (ใช้ได้: {string.Join(", ", AllowedRoles)})",
@@ -169,7 +183,7 @@ public sealed class AuthService : IAuthService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("New user registered: {Email} as {Role}", user.Email, user.Role);
+        LogAuthEvent("AUTH_REGISTER", "AUTH_REGISTER_SUCCESS", user.Id, user.Email);
 
         return ServiceResult<AuthResponse>.Success(
             response,
@@ -186,6 +200,8 @@ public sealed class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
+            LogAuthEvent("AUTH_REFRESH", "AUTH_REFRESH_FAILED_MISSING_TOKEN", null, null);
+
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status400BadRequest,
                 "กรุณาระบุ Refresh Token",
@@ -199,6 +215,8 @@ public sealed class AuthService : IAuthService
 
         if (user is null)
         {
+            LogAuthEvent("AUTH_REFRESH", "AUTH_REFRESH_FAILED_INVALID_TOKEN", null, null);
+
             _logger.LogWarning("Refresh token not found in database (possible reuse attack)");
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
@@ -213,6 +231,8 @@ public sealed class AuthService : IAuthService
             user.RefreshTokenExpiresAt = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
 
+            LogAuthEvent("AUTH_REFRESH", "AUTH_REFRESH_FAILED_TOKEN_EXPIRED", user.Id, user.Email);
+
             _logger.LogWarning("Refresh token expired for user {Email}", user.Email);
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
@@ -222,6 +242,8 @@ public sealed class AuthService : IAuthService
 
         if (!user.IsActive)
         {
+            LogAuthEvent("AUTH_REFRESH", "AUTH_REFRESH_FAILED_ACCOUNT_DISABLED", user.Id, user.Email);
+
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status401Unauthorized,
                 "บัญชีถูกระงับการใช้งาน",
@@ -237,7 +259,7 @@ public sealed class AuthService : IAuthService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Token refreshed for user {Email}", user.Email);
+        LogAuthEvent("AUTH_REFRESH", "AUTH_REFRESH_SUCCESS", user.Id, user.Email);
 
         return ServiceResult<AuthResponse>.Success(response, "Token refreshed สำเร็จ");
     }
@@ -320,6 +342,7 @@ public sealed class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
+            LogAuthEvent("AUTH_LOGOUT", "AUTH_LOGOUT_SUCCESS", null, null);
             return ServiceResult<bool>.Success(true, "ออกจากระบบสำเร็จ (ไม่มี session)");
         }
 
@@ -331,13 +354,37 @@ public sealed class AuthService : IAuthService
             user.RefreshToken = null;
             user.RefreshTokenExpiresAt = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("User {Email} logged out and refresh token was revoked.", user.Email);
+            
+            LogAuthEvent("AUTH_LOGOUT", "AUTH_LOGOUT_SUCCESS", user.Id, user.Email);
+        }
+        else
+        {
+            LogAuthEvent("AUTH_LOGOUT", "AUTH_LOGOUT_SUCCESS", userId, null);
         }
 
         return ServiceResult<bool>.Success(true, "ออกจากระบบสำเร็จ");
     }
 
     // ── Private helpers ──────────────────────────────────────────────
+
+    private void LogAuthEvent(string operation, string result, string? userId, string? email = null)
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        var clientIp = httpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+        var clientType = httpContext?.Request?.Headers["X-Client-Type"].ToString();
+        if (string.IsNullOrEmpty(clientType)) clientType = "Unknown";
+        var correlationId = httpContext?.Items["CorrelationId"]?.ToString() ?? "unknown";
+
+        _logger.LogInformation(
+            "AuthEvent {Operation} {Result} {UserId} {Email} {ClientType} {IP} {CorrelationId}",
+            operation,
+            result,
+            userId ?? "N/A",
+            email ?? "N/A",
+            clientType,
+            clientIp,
+            correlationId);
+    }
 
     private AuthResponse GenerateAuthResponse(User user)
     {

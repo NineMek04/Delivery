@@ -68,6 +68,12 @@ export class TrackingSignalRService {
   private _telemetryUpdated = new BehaviorSubject<{ telemetry: RealtimeTelemetryDto; utilization: RiderUtilizationDto } | null>(null);
   public telemetryUpdated$ = this._telemetryUpdated.asObservable();
 
+  private _orderCreated = new Subject<any>();
+  public orderCreated$ = this._orderCreated.asObservable();
+
+  private _orderAcceptedByStore = new Subject<{ orderId: string; status: string }>();
+  public orderAcceptedByStore$ = this._orderAcceptedByStore.asObservable();
+
   constructor(
     private authService: AuthService,
     private toastService: ToastService,
@@ -243,6 +249,14 @@ export class TrackingSignalRService {
     this.hubConnection.on('OrderStatusChanged', (orderId: string, newStatus: string) => {
       this.addAlert('Order Update', `Order ${orderId?.slice(0, 8)} → ${newStatus}`, 'info');
       this._orderStatusChanged.next({ orderId, status: newStatus });
+    });
+
+    this.hubConnection.on('OrderCreated', (data: any) => {
+      this._orderCreated.next(data);
+    });
+
+    this.hubConnection.on('OrderAcceptedByStore', (data: { orderId: string; status: string }) => {
+      this._orderAcceptedByStore.next(data);
     });
   }
 

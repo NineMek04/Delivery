@@ -34,7 +34,6 @@ import {
 import { AuthService } from '../../core/services/auth.service';
 import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
 import { Subscription } from 'rxjs';
-import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 
 export interface OrderTrackingState {
@@ -94,10 +93,8 @@ export class CustomerComponent implements OnInit, OnDestroy {
   dropoffLng = 102.7872;
   expectedDeliveryMinutes = 30;
 
-  // Real-time tracking state
   activeOrderTracking: OrderTrackingState | null = null;
   showTrackingPanel = false;
-  hubConnection: signalR.HubConnection | null = null;
 
   // Subscriptions
   private subs = new Subscription();
@@ -132,9 +129,6 @@ export class CustomerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subs.unsubscribe();
-    if (this.hubConnection) {
-      this.hubConnection.stop();
-    }
   }
 
   fetchShops() {
@@ -408,39 +402,11 @@ export class CustomerComponent implements OnInit, OnDestroy {
 
   // ── Real-time SignalR Integration for Customer App ──
   startSignalRForCustomer() {
-    const token = this.authService.getToken();
-    if (!token) return;
-
-    const hubUrl = environment.config.baseConfig.apiUrl.replace(
-      '/api/v1',
-      '/hubs/tracking',
-    );
-
-    this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => token,
-        transport: signalR.HttpTransportType.WebSockets,
-        skipNegotiation: true,
-      })
-      .withAutomaticReconnect()
-      .build();
-
-    this.hubConnection
-      .start()
-      .then(() => {
-        console.log('Customer connected to TrackingHub via SignalR');
-        this.registerCustomerListeners();
-      })
-      .catch((err) => console.error('SignalR Customer connection failed', err));
-  }
-
-  registerCustomerListeners() {
-    if (!this.hubConnection) return;
+    this.signalRService.startConnection();
 
     // 1. Listen for Store acceptance
-    this.hubConnection.on(
-      'OrderAcceptedByStore',
-      (data: { orderId: string; status: string }) => {
+    this.subs.add(
+      this.signalRService.orderAcceptedByStore$.subscribe((data: { orderId: string; status: string }) => {
         console.log('SignalR OrderAcceptedByStore received:', data);
         if (
           this.activeOrderTracking &&
@@ -454,24 +420,25 @@ export class CustomerComponent implements OnInit, OnDestroy {
             'success',
           );
         }
-      },
+      })
     );
 
     // 2. Listen for AI Dispatch matching
-    this.hubConnection.on('OfferReceived', (offer: any) => {
-      if (
-        this.activeOrderTracking &&
-        this.activeOrderTracking.orderId === offer.order?.id
-      ) {
-        this.activeOrderTracking.status = 'MATCHING';
-        this.activeOrderTracking.timelineIndex = 2;
-      }
-    });
+    this.subs.add(
+      this.signalRService.offerReceived$.subscribe((offer: any) => {
+        if (
+          this.activeOrderTracking &&
+          this.activeOrderTracking.orderId === offer.order?.id
+        ) {
+          this.activeOrderTracking.status = 'MATCHING';
+          this.activeOrderTracking.timelineIndex = 2;
+        }
+      })
+    );
 
     // 3. Listen for Rider assignment
-    this.hubConnection.on(
-      'OrderAssigned',
-      (data: { id: string; riderId: string; assignedAt: string }) => {
+    this.subs.add(
+      this.signalRService.orderAssigned$.subscribe((data: { id: string; riderId: string; assignedAt: string }) => {
         console.log('SignalR OrderAssigned received:', data);
         if (
           this.activeOrderTracking &&
@@ -486,13 +453,14 @@ export class CustomerComponent implements OnInit, OnDestroy {
             'info',
           );
         }
-      },
+      })
     );
 
     // 4. Listen for general order status modifications
-    this.hubConnection.on(
-      'OrderStatusChanged',
-      (orderId: string, newStatus: string) => {
+    this.subs.add(
+      this.signalRService.orderStatusChanged$.subscribe((data: any) => {
+        const orderId = data.orderId;
+        const newStatus = data.status;
         console.log('SignalR OrderStatusChanged received:', orderId, newStatus);
         if (
           this.activeOrderTracking &&
@@ -538,25 +506,24 @@ export class CustomerComponent implements OnInit, OnDestroy {
 
           this.activeOrderTracking.timelineIndex = index;
         }
-      },
+      })
     );
 
     // 5. Track Rider GPS coordinates real-time on live map/simulation
-    this.hubConnection.on(
-      'RiderLocationUpdated',
-      (data: { riderId: string; lat: number; lng: number; status: string }) => {
-        if (
-          this.activeOrderTracking &&
-          this.activeOrderTracking.riderId === data.riderId
-        ) {
-          this.activeOrderTracking.riderLat = data.lat;
-          this.activeOrderTracking.riderLng = data.lng;
-          // Mock distance remaining
-          this.activeOrderTracking.distanceRemainingKm = parseFloat(
-            (Math.random() * 2 + 0.3).toFixed(2),
-          );
+    this.subs.add(
+      this.signalRService.riderLocations$.subscribe((locations: Map<string, any>) => {
+        if (this.activeOrderTracking && this.activeOrderTracking.riderId) {
+          const data = locations.get(this.activeOrderTracking.riderId);
+          if (data) {
+            this.activeOrderTracking.riderLat = data.latitude;
+            this.activeOrderTracking.riderLng = data.longitude;
+            // Mock distance remaining
+            this.activeOrderTracking.distanceRemainingKm = parseFloat(
+              (Math.random() * 2 + 0.3).toFixed(2),
+            );
+          }
         }
-      },
+      })
     );
   }
 

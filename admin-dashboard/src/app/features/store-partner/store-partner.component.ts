@@ -23,8 +23,8 @@ import {
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { StoreService, MenuItem, MenuOption, OptionItem } from '../../core/services/store.service';
 import { AuthService } from '../../core/services/auth.service';
+import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
 import { Subscription } from 'rxjs';
-import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
 
 export interface IncomingOrder {
@@ -52,6 +52,7 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
   private shopService = inject(ShopService);
   private storeService = inject(StoreService);
   private authService = inject(AuthService);
+  private signalRService = inject(TrackingSignalRService);
   private formBuilder = inject(FormBuilder);
   private router = inject(Router);
 
@@ -67,7 +68,6 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
 
   // Order Queue
   incomingOrders: IncomingOrder[] = [];
-  hubConnection: signalR.HubConnection | null = null;
 
   // Menu Form Modal state
   showMenuModal = false;
@@ -101,9 +101,6 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subs.unsubscribe();
-    if (this.hubConnection) {
-      this.hubConnection.stop();
-    }
   }
 
   fetchStoreShops() {
@@ -301,91 +298,76 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
 
   // ── Real-Time Order Queue via SignalR ──
   startSignalRForStore() {
-    const token = this.authService.getToken();
-    if (!token) return;
-
-    const hubUrl = environment.config.baseConfig.apiUrl.replace('/api/v1', '/hubs/tracking');
-
-    this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => token,
-        transport: signalR.HttpTransportType.WebSockets,
-        skipNegotiation: true
-      })
-      .withAutomaticReconnect()
-      .build();
-
-    this.hubConnection.start()
-      .then(() => {
-        console.log('Store partner connected to TrackingHub via SignalR');
-        this.registerStoreListeners();
-      })
-      .catch(err => console.error('SignalR Store connection failed', err));
-  }
-
-  registerStoreListeners() {
-    if (!this.hubConnection) return;
+    this.signalRService.startConnection();
 
     // 1. Listen for new customer order placements
-    this.hubConnection.on('OrderCreated', (data: any) => {
-      console.log('SignalR OrderCreated broadcast received by Store:', data);
+    this.subs.add(
+      this.signalRService.orderCreated$.subscribe((data: any) => {
+        console.log('SignalR OrderCreated broadcast received by Store:', data);
 
-      // Play alert chime or trigger flashing visual alert
-      this.playOrderChime();
+        // Play alert chime or trigger flashing visual alert
+        this.playOrderChime();
 
-      const newOrder: IncomingOrder = {
-        id: data.id,
-        state: 'CREATED',
-        pickupLat: data.pickupLocation?.coordinates?.[1] || 13.7,
-        pickupLng: data.pickupLocation?.coordinates?.[0] || 100.5,
-        dropoffLat: data.dropoffLocation?.coordinates?.[1] || 13.7,
-        dropoffLng: data.dropoffLocation?.coordinates?.[0] || 100.5,
-        deliveryFee: data.deliveryFee || 35,
-        distanceKm: parseFloat((data.distanceKm || 1.2).toFixed(2)),
-        createdAt: data.createdAt || new Date().toISOString(),
-        customerId: data.customerId || 'c_demo_user',
-        customerName: data.customerName || 'ผู้ใช้แอปพลิเคชัน (Customer)'
-      };
+        const newOrder: IncomingOrder = {
+          id: data.id,
+          state: 'CREATED',
+          pickupLat: data.pickupLocation?.coordinates?.[1] || 13.7,
+          pickupLng: data.pickupLocation?.coordinates?.[0] || 100.5,
+          dropoffLat: data.dropoffLocation?.coordinates?.[1] || 13.7,
+          dropoffLng: data.dropoffLocation?.coordinates?.[0] || 100.5,
+          deliveryFee: data.deliveryFee || 35,
+          distanceKm: parseFloat((data.distanceKm || 1.2).toFixed(2)),
+          createdAt: data.createdAt || new Date().toISOString(),
+          customerId: data.customerId || 'c_demo_user',
+          customerName: data.customerName || 'ผู้ใช้แอปพลิเคชัน (Customer)'
+        };
 
-      // Add to front of queue
-      this.incomingOrders = [newOrder, ...this.incomingOrders];
+        // Add to front of queue
+        this.incomingOrders = [newOrder, ...this.incomingOrders];
 
-      Swal.fire({
-        icon: 'info',
-        title: 'มีคำสั่งซื้อใหม่เข้ามา!',
-        text: `ออเดอร์ #${newOrder.id.slice(0, 8)} เข้าคิวกรุณากดรับอาหาร`,
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 5000,
-        timerProgressBar: true
-      });
-    });
+        Swal.fire({
+          icon: 'info',
+          title: 'มีคำสั่งซื้อใหม่เข้ามา!',
+          text: `ออเดอร์ #${newOrder.id.slice(0, 8)} เข้าคิวกรุณากดรับอาหาร`,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 5000,
+          timerProgressBar: true
+        });
+      })
+    );
 
     // 2. Listen for dispatcher matched offer alerts
-    this.hubConnection.on('OfferReceived', (offer: any) => {
-      console.log('SignalR OfferReceived received by Store:', offer);
-      // Update matched order status in queue if present
-      const index = this.incomingOrders.findIndex(o => o.id === offer.order?.id);
-      if (index !== -1) {
-        this.incomingOrders[index].state = 'MATCHING';
-      }
-    });
+    this.subs.add(
+      this.signalRService.offerReceived$.subscribe((offer: any) => {
+        console.log('SignalR OfferReceived received by Store:', offer);
+        // Update matched order status in queue if present
+        const index = this.incomingOrders.findIndex(o => o.id === offer.order?.id);
+        if (index !== -1) {
+          this.incomingOrders[index].state = 'MATCHING';
+        }
+      })
+    );
 
     // 3. Listen for general status transitions
-    this.hubConnection.on('OrderStatusChanged', (orderId: string, newStatus: string) => {
-      console.log('SignalR OrderStatusChanged in Store:', orderId, newStatus);
-      const index = this.incomingOrders.findIndex(o => o.id === orderId);
-      if (index !== -1) {
-        this.incomingOrders[index].state = newStatus;
-        if (newStatus === 'COMPLETED' || newStatus === 'CANCELLED') {
-          // Remove from queue after completed/cancelled
-          setTimeout(() => {
-            this.incomingOrders = this.incomingOrders.filter(o => o.id !== orderId);
-          }, 5000);
+    this.subs.add(
+      this.signalRService.orderStatusChanged$.subscribe((data: any) => {
+        const orderId = data.orderId;
+        const newStatus = data.status;
+        console.log('SignalR OrderStatusChanged in Store:', orderId, newStatus);
+        const index = this.incomingOrders.findIndex(o => o.id === orderId);
+        if (index !== -1) {
+          this.incomingOrders[index].state = newStatus;
+          if (newStatus === 'COMPLETED' || newStatus === 'CANCELLED') {
+            // Remove from queue after completed/cancelled
+            setTimeout(() => {
+              this.incomingOrders = this.incomingOrders.filter(o => o.id !== orderId);
+            }, 5000);
+          }
         }
-      }
-    });
+      })
+    );
   }
 
   playOrderChime() {

@@ -11,6 +11,7 @@ import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 import { OrderDetailComponent } from '../orders/order-detail/order-detail.component';
 import { OrderDto } from '../../api/generated/model/order-dto';
+import { req } from '../../core/http/delivery-http-request';
 
 // Fix Leaflet default icons issue
 const iconRetinaUrl = 'assets/marker-icon-2x.png';
@@ -538,8 +539,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   showRiderRoute(riderId: string): void {
     if (!riderId) return;
-    const url = `/api/v1/rider-locations/${riderId}/history`;
-    this.http.get<any>(url).subscribe({
+    req<any>(`rider-locations/${riderId}/history`).get().subscribe({
       next: (response) => {
         if (response?.isSuccess && Array.isArray(response.data) && response.data.length > 0) {
           if (this.currentRiderRoutePolyline) {

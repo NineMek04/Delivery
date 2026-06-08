@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using BackendApi.Security;
+using BackendApi.Models;
 
 namespace BackendApi.Controllers.Business
 {
@@ -65,32 +66,39 @@ namespace BackendApi.Controllers.Business
 
             var locations = new List<RiderLocationDto>();
 
+            var riderIds = keys.Select(k => k.ToString().Substring("riders:gps:".Length)).ToList();
+
             // 3. ดึงสถานะ Rider จาก riders:status:* เพิ่มเติมเพื่อให้หน้าบ้านได้สถานะล่าสุด
             var statusBatch = db.CreateBatch();
             var statusTasks = keys.Select(k =>
             {
                 var riderId = k.ToString().Substring("riders:gps:".Length);
                 var statusKey = $"riders:status:{riderId}";
-                return new
-                {
-                    RiderId = riderId,
-                    Task = statusBatch.StringGetAsync(statusKey)
-                };
+                return statusBatch.StringGetAsync(statusKey);
+            }).ToList();
+
+            // 4. ดึงพิกัด snap เผื่อมีด้วย Batch
+            var snappedTasks = keys.Select(k =>
+            {
+                var riderId = k.ToString().Substring("riders:gps:".Length);
+                var snappedKey = $"riders:snapped_gps:{riderId}";
+                return statusBatch.HashGetAllAsync(snappedKey);
             }).ToList();
 
             statusBatch.Execute();
-            var statusResults = await Task.WhenAll(statusTasks.Select(t => t.Task));
+            var statusResults = await Task.WhenAll(statusTasks);
+            var snappedResults = await Task.WhenAll(snappedTasks);
 
-            // ดึงข้อมูล Rider จากฐานข้อมูลเป็น fallback เผื่อสถานะไม่อยู่ใน Redis หรือดึงชื่อไรเดอร์
-            var riderEntities = await DbContext.Riders
-                .AsNoTracking()
+            // ดึงข้อมูล Rider จากฐานข้อมูลเป็น fallback เผื่อสถานะไม่อยู่ใน Redis หรือดึงชื่อไรเดอร์ 
+            // FIX: กรองเฉพาะ RiderId ที่อยู่ใน Redis เพื่อป้องกัน Memory/DoS เมื่อมีข้อมูล Rider เยอะ
+            var riderEntities = await DB.GetQuery<Rider>(asNoTracking: true)
+                .Where(r => riderIds.Contains(r.Id))
                 .Select(r => new { r.Id, r.Name, r.State })
                 .ToDictionaryAsync(r => r.Id);
 
             for (int i = 0; i < keys.Count; i++)
             {
-                var keyStr = keys[i].ToString();
-                var riderId = keyStr.Substring("riders:gps:".Length);
+                var riderId = riderIds[i];
                 var hashEntries = results[i];
 
                 if (hashEntries.Length == 0) continue;
@@ -105,9 +113,8 @@ namespace BackendApi.Controllers.Business
                 long ticks = ticksVal.HasValue ? (long)ticksVal : 0;
                 double speed = speedVal.HasValue ? (double)speedVal : 0.0;
 
-                // 4. ดึงพิกัด snap เผื่อมี
-                var snappedKey = $"riders:snapped_gps:{riderId}";
-                var snappedEntries = await db.HashGetAllAsync(snappedKey);
+                // ใช้ข้อมูล snapped จาก Batch แทนที่จะดึง N+1
+                var snappedEntries = snappedResults[i];
                 double snappedLat = lat;
                 double snappedLng = lng;
                 bool isSnapped = false;

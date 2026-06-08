@@ -32,6 +32,16 @@ try
     // --- Vault Secrets Configuration ---
     builder.Configuration.AddVaultConfiguration();
 
+    // --- JWT Secret Fallback Mapping ---
+    if (string.IsNullOrEmpty(builder.Configuration["Jwt:Key"]))
+    {
+        var jwtSecret = builder.Configuration["JWT_SECRET"] ?? Environment.GetEnvironmentVariable("JWT_SECRET");
+        if (!string.IsNullOrEmpty(jwtSecret))
+        {
+            builder.Configuration["Jwt:Key"] = jwtSecret;
+        }
+    }
+
     // --- 3. Logging (Serilog) ---
     var seqUrl = builder.Configuration["SEQ_URL"] ?? builder.Configuration["Seq:ServerUrl"] ?? "http://seq:5341";
     var seqApiKey = builder.Configuration["SEQ_API_KEY"];

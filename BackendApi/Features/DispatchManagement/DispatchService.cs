@@ -262,6 +262,15 @@ public class DispatchService
         }
 
         // อัปเดต Order ด้วย Offer info
+        var originalValues = orders.Select(o => new
+        {
+            Order = o,
+            o.CurrentOfferId,
+            o.OfferVersion,
+            o.OfferExpiresAt,
+            o.AssignedRiderId
+        }).ToList();
+
         foreach (var order in orders)
         {
             order.CurrentOfferId = offerId;
@@ -271,6 +280,15 @@ public class DispatchService
 
             if (!await _stateMachine.TransitionOrderAsync(order, OrderState.OFFERING))
             {
+                // Rollback properties on failure to prevent stale state in memory
+                foreach (var orig in originalValues)
+                {
+                    orig.Order.CurrentOfferId = orig.CurrentOfferId;
+                    orig.Order.OfferVersion = orig.OfferVersion;
+                    orig.Order.OfferExpiresAt = orig.OfferExpiresAt;
+                    orig.Order.AssignedRiderId = orig.AssignedRiderId;
+                }
+
                 if (!isInjection) await _lockService.ReleaseLockAsync(riderId, offerId);
                 if (!isInjection) await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
                 return false;

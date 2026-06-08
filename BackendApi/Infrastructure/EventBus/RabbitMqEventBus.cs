@@ -28,6 +28,8 @@ public class RabbitMqEventBus : IEventBus, IDisposable
     private bool _disposed;
     private readonly Dictionary<string, List<Type>> _handlers = new();
     private readonly Dictionary<string, Type> _eventTypes = new();
+    private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _publishSemaphore = new(1, 1);
 
     public RabbitMqEventBus(
         IConfiguration configuration, 
@@ -43,70 +45,85 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
     private void EnsureConnection()
     {
-        if (_connection is { IsOpen: true }) return;
-
-        var host = _configuration["MessageBroker:Host"] ?? _configuration["MessageBroker__Host"] ?? "localhost";
-        var portStr = _configuration["MessageBroker:Port"] ?? _configuration["MessageBroker__Port"] ?? "5672";
-        var username = _configuration["MessageBroker:Username"] ?? _configuration["MessageBroker__Username"] ?? "guest";
-        var password = _configuration["MessageBroker:Password"] ?? _configuration["MessageBroker__Password"] ?? "guest";
-
-        int.TryParse(portStr, out var port);
-
-        var factory = new ConnectionFactory
-        {
-            HostName = host,
-            Port = port == 0 ? 5672 : port,
-            UserName = username,
-            Password = password,
-            DispatchConsumersAsync = true, // Enable asynchronous event handlers
-            AutomaticRecoveryEnabled = true,
-            NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
-            TopologyRecoveryEnabled = true
-        };
-
-        const int maxRetries = 5;
-        var retryCount = 0;
-        var connected = false;
-
-        while (!connected && retryCount < maxRetries)
-        {
-            try
-            {
-                retryCount++;
-                _logger.LogInformation("Connecting to RabbitMQ Host: {Host}:{Port} (Attempt {Attempt}/{MaxRetries})", host, port, retryCount, maxRetries);
-                _connection = factory.CreateConnection();
-                connected = true;
-            }
-            catch (Exception ex)
-            {
-                if (retryCount >= maxRetries)
-                {
-                    _logger.LogCritical(ex, "Failed to connect to RabbitMQ broker after {MaxRetries} attempts.", maxRetries);
-                    throw;
-                }
-
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, retryCount)); // Exponential backoff: 2s, 4s, 8s, 16s
-                _logger.LogWarning("RabbitMQ broker unreachable. Retrying in {Delay}s... Error: {Message}", delay.TotalSeconds, ex.Message);
-                Thread.Sleep(delay);
-            }
-        }
-
-        _channel = _connection!.CreateModel();
-
-        // Declare dynamic/direct exchange for the routing system
-        _channel.ExchangeDeclare(
-            exchange: ExchangeName,
-            type: "direct",
-            durable: true,
-            autoDelete: false
-        );
-
-        _logger.LogInformation("Successfully connected to RabbitMQ and declared exchange {Exchange}", ExchangeName);
+        EnsureConnectionAsync().GetAwaiter().GetResult();
     }
 
-    public Task PublishAsync<T>(T @event) where T : IntegrationEvent
+    private async Task EnsureConnectionAsync()
     {
-        EnsureConnection();
+        if (_connection is { IsOpen: true }) return;
+
+        await _connectionSemaphore.WaitAsync();
+        try
+        {
+            if (_connection is { IsOpen: true }) return;
+
+            var host = _configuration["MessageBroker:Host"] ?? _configuration["MessageBroker__Host"] ?? "localhost";
+            var portStr = _configuration["MessageBroker:Port"] ?? _configuration["MessageBroker__Port"] ?? "5672";
+            var username = _configuration["MessageBroker:Username"] ?? _configuration["MessageBroker__Username"] ?? "guest";
+            var password = _configuration["MessageBroker:Password"] ?? _configuration["MessageBroker__Password"] ?? "guest";
+
+            int.TryParse(portStr, out var port);
+
+            var factory = new ConnectionFactory
+            {
+                HostName = host,
+                Port = port == 0 ? 5672 : port,
+                UserName = username,
+                Password = password,
+                DispatchConsumersAsync = true, // Enable asynchronous event handlers
+                AutomaticRecoveryEnabled = true,
+                NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
+                TopologyRecoveryEnabled = true
+            };
+
+            const int maxRetries = 5;
+            var retryCount = 0;
+            var connected = false;
+
+            while (!connected && retryCount < maxRetries)
+            {
+                try
+                {
+                    retryCount++;
+                    _logger.LogInformation("Connecting to RabbitMQ Host: {Host}:{Port} (Attempt {Attempt}/{MaxRetries})", host, port, retryCount, maxRetries);
+                    _connection = factory.CreateConnection();
+                    connected = true;
+                }
+                catch (Exception ex)
+                {
+                    if (retryCount >= maxRetries)
+                    {
+                        _logger.LogCritical(ex, "Failed to connect to RabbitMQ broker after {MaxRetries} attempts.", maxRetries);
+                        throw;
+                    }
+
+                    var delay = TimeSpan.FromSeconds(Math.Pow(2, retryCount)); // Exponential backoff: 2s, 4s, 8s, 16s
+                    _logger.LogWarning("RabbitMQ broker unreachable. Retrying in {Delay}s... Error: {Message}", delay.TotalSeconds, ex.Message);
+                    await Task.Delay(delay);
+                }
+            }
+
+            _channel = _connection!.CreateModel();
+
+            // Declare dynamic/direct exchange for the routing system
+            _channel.ExchangeDeclare(
+                exchange: ExchangeName,
+                type: "direct",
+                durable: true,
+                autoDelete: false
+            );
+
+            _logger.LogInformation("Successfully connected to RabbitMQ and declared exchange {Exchange}", ExchangeName);
+        }
+        finally
+        {
+            _connectionSemaphore.Release();
+        }
+    }
+
+    public async Task PublishAsync<T>(T @event) where T : IntegrationEvent
+    {
+        await EnsureConnectionAsync();
 
         var eventName = @event.GetType().Name;
 
@@ -126,27 +143,33 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         var message = JsonSerializer.Serialize(@event);
         var body = Encoding.UTF8.GetBytes(message);
 
-        var properties = _channel!.CreateBasicProperties();
-        properties.Persistent = true; // Make message durable in disk
-        properties.Type = eventName;
-
-        properties.Headers = new Dictionary<string, object>();
-        if (!string.IsNullOrEmpty(correlationId))
-        {
-            properties.Headers.Add("X-Correlation-Id", correlationId);
-        }
-
         _logger.LogInformation("Publishing integration event {EventName} ({EventId}) to RabbitMQ with CorrelationId {CorrelationId}", eventName, @event.Id, correlationId);
 
-        _channel.BasicPublish(
-            exchange: ExchangeName,
-            routingKey: eventName,
-            mandatory: true,
-            basicProperties: properties,
-            body: body
-        );
+        await _publishSemaphore.WaitAsync();
+        try
+        {
+            var properties = _channel!.CreateBasicProperties();
+            properties.Persistent = true; // Make message durable in disk
+            properties.Type = eventName;
 
-        return Task.CompletedTask;
+            properties.Headers = new Dictionary<string, object>();
+            if (!string.IsNullOrEmpty(correlationId))
+            {
+                properties.Headers.Add("X-Correlation-Id", correlationId);
+            }
+
+            _channel.BasicPublish(
+                exchange: ExchangeName,
+                routingKey: eventName,
+                mandatory: true,
+                basicProperties: properties,
+                body: body
+            );
+        }
+        finally
+        {
+            _publishSemaphore.Release();
+        }
     }
 
     public void Subscribe<T, TH>()
@@ -416,6 +439,8 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
         _channel?.Dispose();
         _connection?.Dispose();
+        _connectionSemaphore.Dispose();
+        _publishSemaphore.Dispose();
         _disposed = true;
     }
 }

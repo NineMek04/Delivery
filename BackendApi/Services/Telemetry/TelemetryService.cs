@@ -254,7 +254,7 @@ namespace BackendApi.Services.Telemetry
                             new HashEntry("order_id", activeOrder.Id),
                             new HashEntry("customer_id", customerId ?? string.Empty)
                         });
-                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromMinutes(5));
+                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromSeconds(30));
                     }
                     else
                     {
@@ -264,7 +264,7 @@ namespace BackendApi.Services.Telemetry
                             new HashEntry("order_id", "NONE"),
                             new HashEntry("customer_id", "NONE")
                         });
-                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromMinutes(5));
+                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromSeconds(30));
                     }
                 }
 

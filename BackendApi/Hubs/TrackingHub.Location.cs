@@ -18,19 +18,19 @@ public partial class TrackingHub
         await _presenceManager.HandleRiderHeartbeatAsync(riderId);
     }
 
-    public async Task UpdateLocation(double lat, double lng, double accuracy, [FromServices] TelemetryService telemetryService)
+    public async Task UpdateLocation(double lat, double lng, double accuracy)
     {
         var riderId = await GetRiderIdAsync();
         if (riderId is null) return;
 
-        await telemetryService.ProcessLocationUpdateAsync(riderId, lat, lng, accuracy);
+        await _telemetryService.ProcessLocationUpdateAsync(riderId, lat, lng, accuracy);
     }
 
     /// <summary>
     /// เมธอดสำหรับ Flutter Client ที่ไม่ส่งพารามิเตอร์ accuracy
     /// </summary>
-    public async Task UpdateRiderLocation(double lat, double lng, [FromServices] TelemetryService telemetryService)
+    public async Task UpdateRiderLocation(double lat, double lng)
     {
-        await UpdateLocation(lat, lng, 10.0, telemetryService);
+        await UpdateLocation(lat, lng, 10.0);
     }
 }

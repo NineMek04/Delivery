@@ -96,6 +96,7 @@ public static class ServiceSetup
         services.AddScoped<OrderNotificationService>();
         services.AddScoped<ITrackingSearchService, TrackingSearchService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddSingleton<IDispatchTaskQueue, DispatchTaskQueue>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddSingleton<TelemetryAggregator>();
         services.AddScoped<TelemetryService>();
@@ -117,6 +118,7 @@ public static class ServiceSetup
         services.AddHostedService<PartitionMaintenanceWorker>();
         services.AddHostedService<TelemetryBroadcastWorker>();
         services.AddHostedService<OsrmSnapWorker>();
+        services.AddHostedService<DispatchBackgroundWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

@@ -41,6 +41,8 @@ public static class OrderStateRules
     /// </summary>
     public static bool IsValidTransition(OrderState from, OrderState to) => (from, to) switch
     {
+        (OrderState.CREATED, OrderState.CREATED) => true,
+        (OrderState.MATCHING, OrderState.CREATED) => true,
         (OrderState.CREATED, OrderState.MATCHING) => true,
         (OrderState.CREATED, OrderState.CANCELLED) => true,
         (OrderState.MATCHING, OrderState.OFFERING) => true,

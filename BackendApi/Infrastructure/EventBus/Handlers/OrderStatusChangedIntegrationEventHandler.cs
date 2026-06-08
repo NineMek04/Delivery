@@ -72,27 +72,31 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                     @event.NewState.ToString());
 
                 // 4. พุชแจ้งเตือน FCM แจ้งความคืบหน้าถึง Customer ใน Background
+                var correlationId = @event.CorrelationId ?? Guid.NewGuid().ToString();
                 _ = Task.Run(async () =>
                 {
-                    try
+                    using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
                     {
-                        using var scope = _scopeFactory.CreateScope();
-                        var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
-                        var statusThai = GetStatusThaiDescription(@event.NewState);
-                        await scopedFcmService.SendNotificationToUserAsync(
-                            @event.CustomerId,
-                            "อัปเดตสถานะออเดอร์ของคุณ",
-                            $"ออเดอร์ของคุณรหัส ORD-{@event.RefNumber.ToString("D6")} สถานะเปลี่ยนเป็น: {statusThai}",
-                            new Dictionary<string, string>
-                            {
-                                { "orderId", @event.OrderId },
-                                { "status", @event.NewState.ToString() },
-                                { "type", "ORDER_STATUS_CHANGED" }
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to send FCM status notification to Customer {CustomerId}", @event.CustomerId);
+                        try
+                        {
+                            using var scope = _scopeFactory.CreateScope();
+                            var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
+                            var statusThai = GetStatusThaiDescription(@event.NewState);
+                            await scopedFcmService.SendNotificationToUserAsync(
+                                @event.CustomerId,
+                                "อัปเดตสถานะออเดอร์ของคุณ",
+                                $"ออเดอร์ของคุณรหัส ORD-{@event.RefNumber.ToString("D6")} สถานะเปลี่ยนเป็น: {statusThai}",
+                                new Dictionary<string, string>
+                                {
+                                    { "orderId", @event.OrderId },
+                                    { "status", @event.NewState.ToString() },
+                                    { "type", "ORDER_STATUS_CHANGED" }
+                                });
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to send FCM status notification to Customer {CustomerId}", @event.CustomerId);
+                        }
                     }
                 });
             }
@@ -101,36 +105,40 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
             if (!string.IsNullOrWhiteSpace(@event.AssignedRiderId) && 
                 (@event.NewState == OrderState.COMPLETED || @event.NewState == OrderState.CANCELLED))
             {
+                var correlationId = @event.CorrelationId ?? Guid.NewGuid().ToString();
                 _ = Task.Run(async () =>
                 {
-                    try
+                    using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
                     {
-                        using var scope = _scopeFactory.CreateScope();
-                        var db = scope.ServiceProvider.GetRequiredService<DBHandlerCore>();
-
-                        var riderUser = await db.GetQuery<User>()
-                            .AsNoTracking()
-                            .FirstOrDefaultAsync(u => u.RiderId == @event.AssignedRiderId);
-
-                        if (riderUser != null)
+                        try
                         {
-                            var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
-                            var statusThai = @event.NewState == OrderState.COMPLETED ? "เสร็จสิ้นแล้ว" : "ยกเลิกแล้ว";
-                            await scopedFcmService.SendNotificationToUserAsync(
-                                riderUser.Id,
-                                "อัปเดตสถานะออเดอร์จัดส่ง",
-                                $"ออเดอร์จัดส่งรหัส ORD-{@event.RefNumber.ToString("D6")} ได้{statusThai}",
-                                new Dictionary<string, string>
-                                {
-                                    { "orderId", @event.OrderId },
-                                    { "status", @event.NewState.ToString() },
-                                    { "type", "ORDER_FINISHED" }
-                                });
+                            using var scope = _scopeFactory.CreateScope();
+                            var db = scope.ServiceProvider.GetRequiredService<DBHandlerCore>();
+
+                            var riderUser = await db.GetQuery<User>()
+                                .AsNoTracking()
+                                .FirstOrDefaultAsync(u => u.RiderId == @event.AssignedRiderId);
+
+                            if (riderUser != null)
+                            {
+                                var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
+                                var statusThai = @event.NewState == OrderState.COMPLETED ? "เสร็จสิ้นแล้ว" : "ยกเลิกแล้ว";
+                                await scopedFcmService.SendNotificationToUserAsync(
+                                    riderUser.Id,
+                                    "อัปเดตสถานะออเดอร์จัดส่ง",
+                                    $"ออเดอร์จัดส่งรหัส ORD-{@event.RefNumber.ToString("D6")} ได้{statusThai}",
+                                    new Dictionary<string, string>
+                                    {
+                                        { "orderId", @event.OrderId },
+                                        { "status", @event.NewState.ToString() },
+                                        { "type", "ORDER_FINISHED" }
+                                    });
+                            }
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to send FCM completion notification to Rider {RiderId}", @event.AssignedRiderId);
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to send FCM completion notification to Rider {RiderId}", @event.AssignedRiderId);
+                        }
                     }
                 });
             }

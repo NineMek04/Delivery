@@ -82,10 +82,10 @@ public class HeartbeatMonitor : BackgroundService
                         "Rider {RiderId} went STALE — last heartbeat: {LastHB}",
                         rider.Id, lastHeartbeat?.ToString("HH:mm:ss") ?? "never");
 
-                    await stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
+                    var transitioned = await stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
 
                     // ถ้ามี Offer ค้างอยู่ → Re-dispatch
-                    if (rider.State == RiderState.STALE)
+                    if (transitioned)
                     {
                         var offeringOrder = await dbContext.Orders
                             .FirstOrDefaultAsync(o =>

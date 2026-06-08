@@ -8,6 +8,7 @@ using BackendApi.Models.DTOs;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Tracking;
+using BackendApi.Services.BackgroundWorkers;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
 using MapsterMapper;
@@ -29,6 +30,8 @@ public class OrderService : IOrderService
     private readonly IAiService _aiService;
     private readonly OrderNotificationService _orderNotifier;
     private readonly IEventBus _eventBus;
+    private readonly IDispatchTaskQueue _dispatchQueue;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<OrderService> _logger;
 
     public OrderService(
@@ -41,6 +44,8 @@ public class OrderService : IOrderService
         IAiService aiService,
         OrderNotificationService orderNotifier,
         IEventBus eventBus,
+        IDispatchTaskQueue dispatchQueue,
+        IHttpContextAccessor httpContextAccessor,
         ILogger<OrderService> logger)
     {
         _db = db;
@@ -52,6 +57,8 @@ public class OrderService : IOrderService
         _aiService = aiService;
         _orderNotifier = orderNotifier;
         _eventBus = eventBus;
+        _dispatchQueue = dispatchQueue;
+        _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
 
@@ -195,44 +202,16 @@ public class OrderService : IOrderService
         // Broadcast to store partners group via SignalR
         await _orderNotifier.NotifyOrderCreatedAsync(responseDto, cancellationToken);
 
-        // รัน Dispatch แบบ Background Task เพื่อไม่ให้รอ API ค้าง
-        _ = Task.Run(async () =>
+        // Enqueue background dispatch task to the Channel-based queue
+        try
         {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
-                var batchEvaluator = scope.ServiceProvider.GetRequiredService<BatchEvaluator>();
-                var db = scope.ServiceProvider.GetRequiredService<BackendApi.Data.ApplicationDbContext>();
-
-                // ดึง Order ใน Scope ใหม่
-                var orderEntity = await db.Orders.FindAsync(savedOrder.Id);
-                if (orderEntity == null) return;
-
-                // 1. ลองจับกลุ่ม Pre-dispatch Batching
-                var batchId = await batchEvaluator.TryGroupAsync(orderEntity);
-
-                if (batchId != null)
-                {
-                    await dispatchSvc.StartBatchDispatchAsync(batchId);
-                }
-                else
-                {
-                    // 2. ลองแทรกงานให้ Rider ที่กำลังไปรับของ (Dynamic Injection)
-                    var injected = await dispatchSvc.TryInjectOrderAsync(orderEntity.Id);
-                    
-                    if (!injected)
-                    {
-                        // 3. เริ่ม Dispatch แบบเดี่ยวปกติ
-                        await dispatchSvc.StartDispatchAsync(orderEntity.Id);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Background dispatch failed for order {OrderId}", savedOrder.Id);
-            }
-        });
+            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.CreateOrder, savedOrder.Id, correlationId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue dispatch task for order {OrderId}", savedOrder.Id);
+        }
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(responseDto, "Order created and dispatch process started."));
     }
@@ -497,22 +476,21 @@ public class OrderService : IOrderService
             return (StatusCodes.Status400BadRequest, ApiResponse.Fail($"ไม่สามารถสั่ง Dispatch ซ้ำในสถานะ {order.State} ได้"));
         }
 
-        order.State = Core.StateMachines.OrderState.CREATED;
-        await _db.CommitChangesAsync(cancellationToken);
-
-        _ = Task.Run(async () =>
+        var success = await _stateMachine.TransitionOrderAsync(order, Core.StateMachines.OrderState.CREATED);
+        if (!success)
         {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
-                await dispatchSvc.StartDispatchAsync(order.Id);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Background dispatch retry failed for order {OrderId}", order.Id);
-            }
-        });
+            return (StatusCodes.Status400BadRequest, ApiResponse.Fail($"ไม่สามารถเปลี่ยนสถานะออเดอร์กลับไปเป็น CREATED ได้"));
+        }
+
+        try
+        {
+            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.RetryOrder, order.Id, correlationId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue dispatch task for order {OrderId}", order.Id);
+        }
 
         return (StatusCodes.Status200OK, ApiResponse.Ok("สั่ง Dispatch ใหม่เรียบร้อย ระบบกำลังค้นหาไรเดอร์ให้ใหม่..."));
     }
@@ -561,27 +539,28 @@ public class OrderService : IOrderService
 
         await _db.CommitChangesAsync(cancellationToken);
 
-        // รัน Dispatch แบบพ่วงใน Background Task
-        _ = Task.Run(async () =>
+        // Enqueue background batch dispatch task to the Channel-based queue
+        try
         {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var dispatchSvc = scope.ServiceProvider.GetRequiredService<DispatchService>();
-                await dispatchSvc.StartBatchDispatchAsync(batchGroupId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Background batch dispatch failed for Batch {BatchGroupId}", batchGroupId);
-            }
-        });
+            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.BatchGroup, batchGroupId, correlationId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue batch dispatch task for Batch {BatchGroupId}", batchGroupId);
+        }
 
         return (StatusCodes.Status200OK, ApiResponse.Ok("สร้างกลุ่มออเดอร์พ่วงเรียบร้อย ระบบกำลังค้นหาไรเดอร์เพื่อจัดส่ง..."));
     }
 
     public async Task<(int StatusCode, ApiResponse Response)> DeleteAllOrdersAsync(CancellationToken cancellationToken)
     {
+        // DISABLED FOR SECURITY: DeleteAllOrdersAsync is highly dangerous in production.
+        // Uncomment the code below only if you are in a dev/test environment and know what you are doing.
+        /*
         await _db.GetQuery<Order>().ExecuteDeleteAsync(cancellationToken);
         return (StatusCodes.Status200OK, ApiResponse.Ok("ลบข้อมูลออเดอร์ทั้งหมดสำเร็จ"));
+        */
+        return await Task.FromResult((StatusCodes.Status403Forbidden, ApiResponse.Fail("การเข้าถึงฟังก์ชันนี้ถูกปฏิเสธเนื่องจากความปลอดภัย (Disabled in production)")));
     }
 }

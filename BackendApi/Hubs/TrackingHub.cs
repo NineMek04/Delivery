@@ -31,6 +31,7 @@ public partial class TrackingHub : Hub
     private readonly IConfiguration _config;
     private readonly IEventBus _eventBus;
     private readonly TelemetryAggregator _aggregator;
+    private readonly TelemetryService _telemetryService;
     private readonly ILogger<TrackingHub> _logger;
 
     private const string AdminGroup = "admins";
@@ -43,6 +44,7 @@ public partial class TrackingHub : Hub
         IConfiguration config,
         IEventBus eventBus,
         TelemetryAggregator aggregator,
+        TelemetryService telemetryService,
         ILogger<TrackingHub> logger)
     {
         _presenceManager = presenceManager;
@@ -51,6 +53,7 @@ public partial class TrackingHub : Hub
         _config = config;
         _eventBus = eventBus;
         _aggregator = aggregator;
+        _telemetryService = telemetryService;
         _logger = logger;
     }
 

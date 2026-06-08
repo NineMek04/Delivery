@@ -94,27 +94,43 @@ public class DispatchOfferHandler
                 return false;
             }
 
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
                 // เปลี่ยนสถานะทุกออเดอร์
                 foreach (var order in orders)
                 {
                     if (!await _stateMachine.TransitionOrderAsync(order, OrderState.ASSIGNED))
+                    {
+                        await transaction.RollbackAsync();
                         return false;
+                    }
                 }
 
                 var rider = await _dbContext.Riders.FindAsync(riderId);
                 if (rider != null && rider.State != RiderState.BUSY)
                 {
                     if (!await _stateMachine.TransitionRiderAsync(riderId, RiderState.BUSY))
+                    {
+                        await transaction.RollbackAsync();
                         return false;
+                    }
                 }
+
+                await transaction.CommitAsync();
             }
             catch (DbUpdateConcurrencyException ex)
             {
+                await transaction.RollbackAsync();
                 _logger.LogError(ex, "Concurrency collision detected while Rider {RiderId} was accepting offer {OfferId}", 
                     riderId, offerId);
                 return false; // Concurrency conflict handled safely
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Exception while Rider {RiderId} was accepting offer {OfferId}", riderId, offerId);
+                return false;
             }
 
             // แจ้ง Admin Dashboard

@@ -9,6 +9,7 @@ using StackExchange.Redis;
 using Xunit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using BackendApi.Data;
 using BackendApi.Hubs;
 using BackendApi.Infrastructure.Redis;
@@ -50,7 +51,11 @@ namespace BackendApi.UnitTests.Telemetry
             _telemetryLoggerMock = new Mock<ILogger<TelemetryService>>();
             _dbContextMock = new Mock<ApplicationDbContext>(options, currentUserServiceMock.Object);
             _rateLimiterMock = new Mock<GpsRedisRateLimiter>(null!, null!);
-            _gpsPublisherMock = new Mock<GpsRabbitMqPublisher>(new Mock<IConfiguration>().Object, new Mock<ILogger<GpsRabbitMqPublisher>>().Object);
+            _gpsPublisherMock = new Mock<GpsRabbitMqPublisher>(
+                new Mock<IConfiguration>().Object, 
+                new Mock<ILogger<GpsRabbitMqPublisher>>().Object,
+                new Mock<IHostApplicationLifetime>().Object
+            );
             _aggregatorMock = new Mock<TelemetryAggregator>();
             _routingServiceMock = new Mock<OsrmRoutingService>(new System.Net.Http.HttpClient(), new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<IConfiguration>().Object, new Mock<ILogger<OsrmRoutingService>>().Object);
             _hubContextMock = new Mock<IHubContext<TrackingHub>>();

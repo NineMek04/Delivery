@@ -1,5 +1,6 @@
 using BackendApi.Data;
 using BackendApi.Services.Notifications;
+using BackendApi.Services.BackgroundWorkers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -17,19 +18,22 @@ public class DispatchRiderNotifier
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<DispatchRiderNotifier> _logger;
+    private readonly IBackgroundTaskQueue _backgroundTaskQueue;
 
     public DispatchRiderNotifier(
         IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
         IFcmNotificationService fcmService,
         IServiceScopeFactory scopeFactory,
         IHttpContextAccessor httpContextAccessor,
-        ILogger<DispatchRiderNotifier> logger)
+        ILogger<DispatchRiderNotifier> logger,
+        IBackgroundTaskQueue backgroundTaskQueue)
     {
         _hubContext = hubContext;
         _fcmService = fcmService;
         _scopeFactory = scopeFactory;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
+        _backgroundTaskQueue = backgroundTaskQueue;
     }
 
     /// <summary>
@@ -45,22 +49,21 @@ public class DispatchRiderNotifier
     {
         var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string ?? Guid.NewGuid().ToString();
 
-        _ = Task.Run(async () =>
+        _ = _backgroundTaskQueue.QueueBackgroundWorkItemAsync(async (serviceProvider, cancellationToken) =>
         {
             using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
             {
                 try
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var dbContext = serviceProvider.GetRequiredService<ApplicationDbContext>();
 
                     var riderUser = await dbContext.Users
                         .AsNoTracking()
-                        .FirstOrDefaultAsync(u => u.RiderId == riderId);
+                        .FirstOrDefaultAsync(u => u.RiderId == riderId, cancellationToken);
 
                     if (riderUser != null)
                     {
-                        var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
+                        var scopedFcmService = serviceProvider.GetRequiredService<IFcmNotificationService>();
                         await scopedFcmService.SendNotificationToUserAsync(
                             riderUser.Id,
                             "มีข้อเสนองานใหม่!",

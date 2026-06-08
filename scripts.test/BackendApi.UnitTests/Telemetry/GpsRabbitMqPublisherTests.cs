@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using RabbitMQ.Client;
 using Xunit;
@@ -17,6 +18,7 @@ namespace BackendApi.UnitTests.Telemetry
         private readonly Mock<ILogger<GpsRabbitMqPublisher>> _loggerMock;
         private readonly Mock<IConnection> _connectionMock;
         private readonly Mock<IModel> _channelMock;
+        private readonly Mock<IHostApplicationLifetime> _appLifetimeMock;
         private readonly TestableGpsRabbitMqPublisher _publisher;
 
         public GpsRabbitMqPublisherTests()
@@ -25,10 +27,15 @@ namespace BackendApi.UnitTests.Telemetry
             _loggerMock = new Mock<ILogger<GpsRabbitMqPublisher>>();
             _connectionMock = new Mock<IConnection>();
             _channelMock = new Mock<IModel>();
+            _appLifetimeMock = new Mock<IHostApplicationLifetime>();
 
             // Setup default config values
             _configMock.Setup(c => c["MessageBroker:Host"]).Returns("localhost");
             _configMock.Setup(c => c["MessageBroker:Port"]).Returns("5672");
+
+            // Setup application stopping token mock to prevent null refs
+            var cancellationTokenSource = new CancellationTokenSource();
+            _appLifetimeMock.Setup(a => a.ApplicationStopping).Returns(cancellationTokenSource.Token);
 
             // Setup mock connection to return mock channel
             _connectionMock.Setup(c => c.CreateModel()).Returns(_channelMock.Object);
@@ -38,6 +45,7 @@ namespace BackendApi.UnitTests.Telemetry
             _publisher = new TestableGpsRabbitMqPublisher(
                 _configMock.Object,
                 _loggerMock.Object,
+                _appLifetimeMock.Object,
                 _connectionMock.Object
             );
         }
@@ -135,7 +143,8 @@ namespace BackendApi.UnitTests.Telemetry
             public TestableGpsRabbitMqPublisher(
                 IConfiguration configuration,
                 ILogger<GpsRabbitMqPublisher> logger,
-                IConnection mockConnection) : base(configuration, logger)
+                IHostApplicationLifetime appLifetime,
+                IConnection mockConnection) : base(configuration, logger, appLifetime)
             {
                 _mockConnection = mockConnection;
             }

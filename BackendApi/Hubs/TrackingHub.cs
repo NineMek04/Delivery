@@ -23,6 +23,7 @@ namespace BackendApi.Hubs;
 ///   - TrackingHub.RiderStatus.cs → Status (UpdateRiderStatus, UpdateStatus)
 ///   - TrackingHub.Dispatch.cs → Offers (AcceptOffer, RejectOffer)
 /// </summary>
+[Authorize]
 public partial class TrackingHub : Hub
 {
     private readonly IRiderPresenceManager _presenceManager;

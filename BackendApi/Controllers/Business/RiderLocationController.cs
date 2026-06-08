@@ -79,7 +79,7 @@ namespace BackendApi.Controllers.Business
             }).ToList();
 
             statusBatch.Execute();
-            await Task.WhenAll(statusTasks.Select(t => t.Task));
+            var statusResults = await Task.WhenAll(statusTasks.Select(t => t.Task));
 
             // ดึงข้อมูล Rider จากฐานข้อมูลเป็น fallback เผื่อสถานะไม่อยู่ใน Redis หรือดึงชื่อไรเดอร์
             var riderEntities = await DbContext.Riders
@@ -124,7 +124,7 @@ namespace BackendApi.Controllers.Business
                     }
                 }
 
-                var statusRedis = statusTasks[i].Task.Result;
+                var statusRedis = statusResults[i];
                 string status = "OFFLINE";
                 string name = "Unknown Rider";
 

@@ -61,6 +61,7 @@ services:
       - MessageBroker__Port=5672
       - MessageBroker__Username=${RABBITMQ_USER}
       - MessageBroker__Password=${RABBITMQ_PASSWORD}
+      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
     depends_on:
       db:
         condition: service_healthy
@@ -101,6 +102,7 @@ services:
     container_name: delivery-ai
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/delivery_db
+      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
     depends_on:
       db:
         condition: service_healthy

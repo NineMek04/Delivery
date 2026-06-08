@@ -97,6 +97,7 @@ public static class ServiceSetup
         services.AddScoped<ITrackingSearchService, TrackingSearchService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddSingleton<IDispatchTaskQueue, DispatchTaskQueue>();
+        services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddSingleton<TelemetryAggregator>();
         services.AddScoped<TelemetryService>();
@@ -119,6 +120,7 @@ public static class ServiceSetup
         services.AddHostedService<TelemetryBroadcastWorker>();
         services.AddHostedService<OsrmSnapWorker>();
         services.AddHostedService<DispatchBackgroundWorker>();
+        services.AddHostedService<QueuedHostedService>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);
@@ -164,6 +166,12 @@ public static class ServiceSetup
             if (!string.IsNullOrWhiteSpace(aiServiceUrl))
             {
                 client.BaseAddress = new Uri(aiServiceUrl);
+            }
+
+            var apiKey = configuration["AI_SERVICE_API_KEY"];
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
             }
         })
         .AddStandardResilienceHandler(options =>

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models.routing_models import RoutingRequest
 from app.core.vrp_solver import solve_vrp
+from app.core.security import verify_api_key
 
 router = APIRouter()
 
-@router.post("/optimize-route")
+@router.post("/optimize-route", dependencies=[Depends(verify_api_key)])
 async def optimize_route(request: RoutingRequest):
     """
     VRP Optimization endpoint. Calculates the most efficient route sequence.

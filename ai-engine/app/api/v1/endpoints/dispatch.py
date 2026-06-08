@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.models.dispatch_models import DispatchRankRequest
 from app.core.scoring import rank_candidates
+from app.core.security import verify_api_key
 
 router = APIRouter()
 
-@router.post("/rank")
+@router.post("/rank", dependencies=[Depends(verify_api_key)])
 async def rank_dispatch_candidates(request: DispatchRankRequest):
     """
     Phase A: Receive a list of idle Riders and return them ranked by suitability.

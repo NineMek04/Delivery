@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 
 namespace BackendApi.Features.FleetTracking.Telemetry
@@ -25,7 +26,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         private readonly object _connectionLock = new();
         private bool _disposed;
 
-        public GpsRabbitMqPublisher(IConfiguration configuration, ILogger<GpsRabbitMqPublisher> logger)
+        public GpsRabbitMqPublisher(IConfiguration configuration, ILogger<GpsRabbitMqPublisher> logger, IHostApplicationLifetime appLifetime)
         {
             _configuration = configuration;
             _logger = logger;
@@ -41,9 +42,12 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                     FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest
                 });
 
-            // Start the background publisher workers
-            _ = System.Threading.Tasks.Task.Run(ProcessQueueAsync);
-            _ = System.Threading.Tasks.Task.Run(ProcessSnapQueueAsync);
+            // Start the background publisher workers and store their tasks
+            _processQueueTask = System.Threading.Tasks.Task.Run(ProcessQueueAsync);
+            _processSnapQueueTask = System.Threading.Tasks.Task.Run(ProcessSnapQueueAsync);
+
+            // Register application stopping callback
+            appLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
 
         private void EnsureConnection()
@@ -239,6 +243,28 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         private readonly System.Threading.Channels.Channel<TrackPoint> _channelQueue;
         private readonly System.Threading.Channels.Channel<TrackPoint> _snapChannelQueue;
         private readonly System.Threading.CancellationTokenSource _cts = new();
+        private readonly Task _processQueueTask;
+        private readonly Task _processSnapQueueTask;
+
+        private void OnApplicationStopping()
+        {
+            _logger.LogInformation("GpsRabbitMqPublisher: Application is stopping. Draining queues...");
+            
+            // Mark channels as completed so background loops finish reading remaining messages
+            _channelQueue.Writer.TryComplete();
+            _snapChannelQueue.Writer.TryComplete();
+
+            try
+            {
+                // Wait up to 5 seconds for background publishing tasks to finish processing remaining items
+                Task.WaitAll(new[] { _processQueueTask, _processSnapQueueTask }, TimeSpan.FromSeconds(5));
+                _logger.LogInformation("GpsRabbitMqPublisher: Queues drained successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "GpsRabbitMqPublisher: Error occurred while waiting for queues to drain.");
+            }
+        }
 
         private async System.Threading.Tasks.Task ProcessQueueAsync()
         {

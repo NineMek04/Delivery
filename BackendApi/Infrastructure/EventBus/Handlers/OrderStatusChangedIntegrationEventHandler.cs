@@ -7,9 +7,11 @@ using BackendApi.Hubs;
 using BackendApi.Models;
 using BackendApi.Services.Notifications;
 using BackendApi.Infrastructure.EventBus.Events;
+using BackendApi.Services.BackgroundWorkers;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BackendApi.Infrastructure.EventBus.Handlers
 {
@@ -23,17 +25,20 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
         private readonly IFcmNotificationService _fcmService;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<OrderStatusChangedIntegrationEventHandler> _logger;
+        private readonly IBackgroundTaskQueue _backgroundTaskQueue;
 
         public OrderStatusChangedIntegrationEventHandler(
             IHubContext<TrackingHub> hubContext,
             IFcmNotificationService fcmService,
             IServiceScopeFactory scopeFactory,
-            ILogger<OrderStatusChangedIntegrationEventHandler> logger)
+            ILogger<OrderStatusChangedIntegrationEventHandler> logger,
+            IBackgroundTaskQueue backgroundTaskQueue)
         {
             _hubContext = hubContext;
             _fcmService = fcmService;
             _scopeFactory = scopeFactory;
             _logger = logger;
+            _backgroundTaskQueue = backgroundTaskQueue;
         }
 
         public async Task Handle(OrderStatusChangedIntegrationEvent @event)
@@ -73,14 +78,13 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
 
                 // 4. พุชแจ้งเตือน FCM แจ้งความคืบหน้าถึง Customer ใน Background
                 var correlationId = @event.CorrelationId ?? Guid.NewGuid().ToString();
-                _ = Task.Run(async () =>
+                _ = _backgroundTaskQueue.QueueBackgroundWorkItemAsync(async (serviceProvider, cancellationToken) =>
                 {
                     using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
                     {
                         try
                         {
-                            using var scope = _scopeFactory.CreateScope();
-                            var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
+                            var scopedFcmService = serviceProvider.GetRequiredService<IFcmNotificationService>();
                             var statusThai = GetStatusThaiDescription(@event.NewState);
                             await scopedFcmService.SendNotificationToUserAsync(
                                 @event.CustomerId,
@@ -106,22 +110,21 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                 (@event.NewState == OrderState.COMPLETED || @event.NewState == OrderState.CANCELLED))
             {
                 var correlationId = @event.CorrelationId ?? Guid.NewGuid().ToString();
-                _ = Task.Run(async () =>
+                _ = _backgroundTaskQueue.QueueBackgroundWorkItemAsync(async (serviceProvider, cancellationToken) =>
                 {
                     using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
                     {
                         try
                         {
-                            using var scope = _scopeFactory.CreateScope();
-                            var db = scope.ServiceProvider.GetRequiredService<DBHandlerCore>();
+                            var db = serviceProvider.GetRequiredService<DBHandlerCore>();
 
                             var riderUser = await db.GetQuery<User>()
                                 .AsNoTracking()
-                                .FirstOrDefaultAsync(u => u.RiderId == @event.AssignedRiderId);
+                                .FirstOrDefaultAsync(u => u.RiderId == @event.AssignedRiderId, cancellationToken);
 
                             if (riderUser != null)
                             {
-                                var scopedFcmService = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
+                                var scopedFcmService = serviceProvider.GetRequiredService<IFcmNotificationService>();
                                 var statusThai = @event.NewState == OrderState.COMPLETED ? "เสร็จสิ้นแล้ว" : "ยกเลิกแล้ว";
                                 await scopedFcmService.SendNotificationToUserAsync(
                                     riderUser.Id,

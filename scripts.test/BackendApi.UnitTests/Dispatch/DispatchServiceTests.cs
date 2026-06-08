@@ -53,7 +53,7 @@ namespace BackendApi.UnitTests.Dispatch
             _presenceServiceMock = new Mock<RiderPresenceService>(new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<ILogger<RiderPresenceService>>().Object);
             _routingServiceMock = new Mock<OsrmRoutingService>(new System.Net.Http.HttpClient(), new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<IConfiguration>().Object, new Mock<ILogger<OsrmRoutingService>>().Object);
             _aiServiceMock = new Mock<IAiService>();
-            _riderNotifierMock = new Mock<DispatchRiderNotifier>(null!, null!, null!, null!, null!);
+            _riderNotifierMock = new Mock<DispatchRiderNotifier>(null!, null!, null!, null!, null!, null!);
             _adminNotifierMock = new Mock<DispatchAdminNotifier>(null!, null!);
             
             _loggerMock = new Mock<ILogger<DispatchService>>();

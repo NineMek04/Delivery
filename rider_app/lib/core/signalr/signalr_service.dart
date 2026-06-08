@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
+import 'package:signalr_netcore/iretry_policy.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 
 import '../../models/dispatch_offer.dart';
@@ -76,6 +78,32 @@ class DispatchScanStartedEvent {
     required this.dropoffLng,
     required this.nearbyCount,
   });
+}
+
+/// Custom retry policy that implements SignalR's `IRetryPolicy` with a
+/// randomized exponential backoff strategy (1s - 5s delay with jitter).
+class JitteredRetryPolicy implements IRetryPolicy {
+  @override
+  int? nextRetryDelayInMilliseconds(RetryContext retryContext) {
+    // Under the hood, SignalR client automatically resets the RetryContext state (including previousRetryCount)
+    // to 0 when it successfully reconnects.
+    final count = retryContext.previousRetryCount;
+    
+    // Exponential backoff base: 1000ms * 1.5^count
+    final double baseDelay = 1000 * pow(1.5, count).toDouble();
+    
+    // Jitter: +/- 500ms
+    final random = Random();
+    final int jitter = random.nextInt(1001) - 500; // range: -500 to +500 ms
+    
+    int nextDelay = (baseDelay + jitter).round();
+    
+    // Bound the delay between 1,000ms and 5,000ms (Traffic smoothing guard)
+    if (nextDelay < 1000) nextDelay = 1000;
+    if (nextDelay > 5000) nextDelay = 5000;
+    
+    return nextDelay;
+  }
 }
 
 /// SignalR client for TrackingHub (`/hubs/tracking`).
@@ -154,7 +182,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
                 authService.currentToken ?? '',
           ),
         )
-        .withAutomaticReconnect(retryDelays: [0, 2000, 10000, 30000])
+        .withAutomaticReconnect(reconnectPolicy: JitteredRetryPolicy())
         .build();
 
     _registerHandlers();

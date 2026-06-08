@@ -143,6 +143,20 @@ class GpsBufferService {
 
       // Write to Isar via asynchronous transaction block
       await isar.writeTxn(() async {
+        // Enforce FIFO if count >= 10,000
+        final currentCount = await isar.gpsPoints.count();
+        if (currentCount >= 10000) {
+          final excessCount = currentCount - 10000 + 1;
+          final oldestPoints = await isar.gpsPoints
+              .where()
+              .limit(excessCount)
+              .findAll();
+          if (oldestPoints.isNotEmpty) {
+            final oldestIds = oldestPoints.map((p) => p.id).toList();
+            await isar.gpsPoints.deleteAll(oldestIds);
+            _logger.w('⚠️ Offline GPS buffer limit reached (10,000). Purged $excessCount oldest points (FIFO).');
+          }
+        }
         await isar.gpsPoints.put(point);
       });
       

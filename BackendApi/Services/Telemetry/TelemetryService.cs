@@ -156,30 +156,43 @@ namespace BackendApi.Services.Telemetry
 
             if (lastBroadcast.Length > 0)
             {
-                var lastLat = (double)lastBroadcast.FirstOrDefault(e => e.Name == "lat").Value;
-                var lastLng = (double)lastBroadcast.FirstOrDefault(e => e.Name == "lng").Value;
-                var lastTicks = (long)lastBroadcast.FirstOrDefault(e => e.Name == "ticks").Value;
+                var latEntry = lastBroadcast.FirstOrDefault(e => e.Name == "lat");
+                var lngEntry = lastBroadcast.FirstOrDefault(e => e.Name == "lng");
+                var ticksEntry = lastBroadcast.FirstOrDefault(e => e.Name == "ticks");
 
-                var timeDiff = (now - new DateTime(lastTicks, DateTimeKind.Utc)).TotalSeconds;
-                var distanceMoved = HaversineDistance(lastLat, lastLng, snappedLat, snappedLng);
-
-                if (timeDiff > 0)
+                if (latEntry.Value.HasValue && lngEntry.Value.HasValue && ticksEntry.Value.HasValue)
                 {
-                    double speed = distanceMoved / timeDiff; // เมตรต่อวินาที
+                    var lastLat = (double)latEntry.Value;
+                    var lastLng = (double)lngEntry.Value;
+                    var lastTicks = (long)ticksEntry.Value;
 
-                    // คำนวณความถี่แบบ Dynamic ตามความเร็วของไรเดอร์
-                    if (speed > 5.0)       // เคลื่อนที่เร็ว (> 18 km/h): Broadcast ทุกๆ 1 วินาที
-                        throttleSeconds = 1.0;
-                    else if (speed > 1.5)  // เคลื่อนที่ช้า (5 - 18 km/h): Broadcast ทุกๆ 2 วินาที
-                        throttleSeconds = 2.0;
-                    else                   // หยุดนิ่ง (< 5 km/h): Broadcast ทุกๆ 5 วินาที
-                        throttleSeconds = 5.0;
+                    var timeDiff = (now - new DateTime(lastTicks, DateTimeKind.Utc)).TotalSeconds;
+                    var distanceMoved = HaversineDistance(lastLat, lastLng, snappedLat, snappedLng);
+
+                    if (timeDiff > 0)
+                    {
+                        double speed = distanceMoved / timeDiff; // เมตรต่อวินาที
+
+                        // คำนวณความถี่แบบ Dynamic ตามความเร็วของไรเดอร์
+                        if (speed > 5.0)       // เคลื่อนที่เร็ว (> 18 km/h): Broadcast ทุกๆ 1 วินาที
+                            throttleSeconds = 1.0;
+                        else if (speed > 1.5)  // เคลื่อนที่ช้า (5 - 18 km/h): Broadcast ทุกๆ 2 วินาที
+                            throttleSeconds = 2.0;
+                        else                   // หยุดนิ่ง (< 5 km/h): Broadcast ทุกๆ 5 วินาที
+                            throttleSeconds = 5.0;
+                    }
                 }
             }
 
-            var lastTicksValue = lastBroadcast.Length > 0 
-                ? (long)lastBroadcast.FirstOrDefault(e => e.Name == "ticks").Value 
-                : 0;
+            long lastTicksValue = 0;
+            if (lastBroadcast.Length > 0)
+            {
+                var ticksEntry = lastBroadcast.FirstOrDefault(e => e.Name == "ticks");
+                if (ticksEntry.Value.HasValue)
+                {
+                    lastTicksValue = (long)ticksEntry.Value;
+                }
+            }
             var secondsSinceLast = (now - new DateTime(lastTicksValue, DateTimeKind.Utc)).TotalSeconds;
 
             if (secondsSinceLast >= throttleSeconds)
@@ -321,20 +334,7 @@ namespace BackendApi.Services.Telemetry
                 bypassRateLimit: true);
         }
 
-        private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)
-        {
-            var r = 6371e3; // รัศมีโลกในหน่วยเมตร
-            var phi1 = lat1 * Math.PI / 180;
-            var phi2 = lat2 * Math.PI / 180;
-            var deltaPhi = (lat2 - lat1) * Math.PI / 180;
-            var deltaLambda = (lon2 - lon1) * Math.PI / 180;
-
-            var a = Math.Sin(deltaPhi / 2) * Math.Sin(deltaPhi / 2) +
-                    Math.Cos(phi1) * Math.Cos(phi2) *
-                    Math.Sin(deltaLambda / 2) * Math.Sin(deltaLambda / 2);
-            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-
-            return r * c;
-        }
+        private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2) =>
+            BackendApi.Core.Helpers.GeoMath.HaversineDistanceMeters(lat1, lon1, lat2, lon2);
     }
 }

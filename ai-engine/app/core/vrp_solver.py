@@ -3,19 +3,20 @@ from typing import List, Dict, Any
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from app.models.routing_models import Location
+from app.core.geo_utils import haversine_distance
 
 def compute_distance_matrix(locations: List[Location]) -> List[List[int]]:
     """
-    Compute a simple Euclidean distance matrix.
+    Compute a simple Haversine distance matrix.
     In production, this should be replaced by a routing engine like OSRM or Google Maps.
     """
     matrix = []
     for from_node in locations:
         row = []
         for to_node in locations:
-            # Linear distance calculation (Lat/Lng to meters approximation)
-            dist = math.hypot(from_node.lat - to_node.lat, from_node.lng - to_node.lng) * 111000
-            row.append(int(dist))
+            # Distance in meters using Haversine
+            dist = int(haversine_distance(from_node.lat, from_node.lng, to_node.lat, to_node.lng) * 1000)
+            row.append(dist)
         matrix.append(row)
     return matrix
 

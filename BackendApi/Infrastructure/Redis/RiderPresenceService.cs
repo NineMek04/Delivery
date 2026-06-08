@@ -63,6 +63,9 @@ public class RiderPresenceService
                 _ = batch.KeyExpireAsync(bufferKey, TimeSpan.FromMinutes(5));
             }
 
+            // Fire-and-forget: StackExchange.Redis IBatch.Execute() is inherently
+            // non-awaitable. This is by design for hot-path GPS presence updates
+            // where we trade consistency for throughput.
             batch.Execute();
             await Task.CompletedTask;
 

@@ -130,7 +130,8 @@ public class DispatchService
                 .Where(o => o.AssignedRiderId == rider.Id && (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP))
                 .ToListAsync();
 
-            if (activeOrders.Count == 0 || activeOrders.Count >= 3) continue;
+            var maxActiveOrders = _config.GetValue("Dispatch:MaxActiveOrdersPerRider", 3);
+            if (activeOrders.Count == 0 || activeOrders.Count >= maxActiveOrders) continue;
 
             // ตรวจสอบ Compatibility (Same Shop) - เพื่อความเรียบง่ายในเฟสแรก รองรับเฉพาะร้านเดียวกัน
             if (activeOrders.Any(o => o.ShopId == order.ShopId))
@@ -243,9 +244,12 @@ public class DispatchService
         var offerId = $"OFF-{Guid.NewGuid():N}"[..16];
         var timeout = TimeSpan.FromSeconds(offerTimeout);
 
-        // จอง Rider ด้วย Redis Lock (ยกเว้นกรณีที่เป็น injection ซึ่งไรเดอร์ BUSY อยู่แล้ว จะไม่ต้องล็อคใน state IDLE)
-        if (!await _lockService.TryAcquireRiderLockAsync(riderId, offerId, timeout))
-            return false;
+        // จอง Rider ด้วย Redis Lock — ข้ามกรณี injection เพราะ rider กำลัง BUSY อยู่แล้วและมี lock เดิม
+        if (!isInjection)
+        {
+            if (!await _lockService.TryAcquireRiderLockAsync(riderId, offerId, timeout))
+                return false;
+        }
 
         // เปลี่ยนสถานะ Rider → RESERVED (ข้ามถ้าเป็น injection เพราะกำลัง BUSY)
         if (!isInjection)
@@ -267,7 +271,7 @@ public class DispatchService
 
             if (!await _stateMachine.TransitionOrderAsync(order, OrderState.OFFERING))
             {
-                await _lockService.ReleaseLockAsync(riderId, offerId);
+                if (!isInjection) await _lockService.ReleaseLockAsync(riderId, offerId);
                 if (!isInjection) await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
                 return false;
             }

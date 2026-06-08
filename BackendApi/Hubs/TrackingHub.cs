@@ -65,8 +65,9 @@ public partial class TrackingHub : Hub
         {
             // Allow anonymous connections from localhost for the local testing E2E map
             var httpContext = Context.GetHttpContext();
-            var host = httpContext?.Request.Host.Host;
-            var isLocal = host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0";
+            var remoteIp = httpContext?.Connection.RemoteIpAddress;
+            var isLocal = remoteIp != null && (System.Net.IPAddress.IsLoopback(remoteIp)
+                || remoteIp.Equals(System.Net.IPAddress.Parse("::1")));
             if (isLocal)
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
@@ -173,19 +174,6 @@ public partial class TrackingHub : Hub
         return riderId;
     }
 
-    private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)
-    {
-        var r = 6371e3;
-        var phi1 = lat1 * Math.PI / 180;
-        var phi2 = lat2 * Math.PI / 180;
-        var deltaPhi = (lat2 - lat1) * Math.PI / 180;
-        var deltaLambda = (lon2 - lon1) * Math.PI / 180;
-
-        var a = Math.Sin(deltaPhi / 2) * Math.Sin(deltaPhi / 2) +
-                Math.Cos(phi1) * Math.Cos(phi2) *
-                Math.Sin(deltaLambda / 2) * Math.Sin(deltaLambda / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-
-        return r * c;
-    }
+    private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2) =>
+        BackendApi.Core.Helpers.GeoMath.HaversineDistanceMeters(lat1, lon1, lat2, lon2);
 }

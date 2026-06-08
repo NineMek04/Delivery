@@ -222,8 +222,8 @@ namespace BackendApi.UnitTests.Dispatch
             Assert.Equal(8.5, rankedResult[2].DistanceKm);
 
             // Score and ETA should be generated heuristically
-            Assert.True(rankedResult[0].Score > rankedResult[1].Score);
-            Assert.True(rankedResult[1].Score > rankedResult[2].Score);
+            Assert.True(rankedResult[0].Score < rankedResult[1].Score); // Lower = Better
+            Assert.True(rankedResult[1].Score < rankedResult[2].Score);
             Assert.True(rankedResult[0].EtaMinutes < rankedResult[1].EtaMinutes);
             Assert.True(rankedResult[1].EtaMinutes < rankedResult[2].EtaMinutes);
         }

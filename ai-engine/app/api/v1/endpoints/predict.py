@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ async def predict_eta(req: PredictEtaRequest):
             
         # Weather Multiplier
         weather_multiplier = 1.0
-        if req.weather_condition == "rain":
+        if req.weather_condition in ("rain", "rainy"):
             weather_multiplier = 1.4
         elif req.weather_condition == "storm":
             weather_multiplier = 1.8
@@ -98,9 +98,12 @@ async def predict_eta(req: PredictEtaRequest):
         if velocity_factor > 1.5 or velocity_factor < 0.7:
             confidence -= 0.05  # ความเร็วจริงห่างจาก OSRM มาก → ความมั่นใจลดลง
 
+        if eta_datetime.tzinfo is not None:
+            eta_datetime = eta_datetime.astimezone(timezone.utc).replace(tzinfo=None)
+
         return PredictEtaResponse(
             eta_minutes=round(eta_minutes, 1),
-            eta_datetime=eta_datetime.isoformat() + "Z",
+            eta_datetime=eta_datetime.strftime("%Y-%m-%dT%H:%M:%SZ"),
             confidence=round(max(confidence, 0.3), 2),  # Minimum confidence 30%
             factors={
                 "base_travel_mins": round(base_seconds / 60.0, 1),

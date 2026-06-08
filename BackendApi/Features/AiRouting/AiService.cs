@@ -85,19 +85,8 @@ public class AiService : IAiService
     }
 
     #region Fallback Mechanisms
-    private double CalculateHaversineDistance(double lat1, double lon1, double lat2, double lon2)
-    {
-        const double R = 6371; // Earth's radius in km
-        var dLat = ToRadians(lat2 - lat1);
-        var dLon = ToRadians(lon2 - lon1);
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
-                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return R * c;
-    }
-
-    private double ToRadians(double val) => (Math.PI / 180) * val;
+    private double CalculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) =>
+        BackendApi.Core.Helpers.GeoMath.HaversineDistanceKm(lat1, lon1, lat2, lon2);
 
     private DispatchRankResponseDto GenerateFallbackResponse(DispatchRankRequestDto request)
     {
@@ -108,7 +97,7 @@ public class AiService : IAiService
         foreach (var c in request.Candidates)
         {
             var distance = CalculateHaversineDistance(c.Lat, c.Lng, pickupLat, pickupLng);
-            var score = Math.Max(0.0, 100.0 - distance * 5.0);
+            var score = distance * 5.0; // Lower = Better (align with AI Engine)
             var eta = (int)Math.Max(1.0, Math.Ceiling(distance * 3.0));
 
             ranked.Add(new RankedCandidateDto
@@ -122,7 +111,7 @@ public class AiService : IAiService
 
         return new DispatchRankResponseDto
         {
-            RankedCandidates = ranked.OrderByDescending(r => r.Score).ToList()
+            RankedCandidates = ranked.OrderBy(r => r.Score).ToList()
         };
     }
 

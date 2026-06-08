@@ -11,6 +11,8 @@ async def optimize_route(request: RoutingRequest):
     """
     if len(request.locations) < 2:
         raise HTTPException(status_code=400, detail="ต้องมีจุดพิกัดอย่างน้อย 2 จุดขึ้นไป")
+    if len(request.locations) > 100:
+        raise HTTPException(status_code=400, detail="รองรับพิกัดสูงสุด 100 จุดต่อ VRP request")
 
     result = solve_vrp(request.locations, request.num_vehicles, request.depot, request.pickups_deliveries)
     

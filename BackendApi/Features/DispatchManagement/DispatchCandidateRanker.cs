@@ -88,9 +88,8 @@ public class DispatchCandidateRanker
             _logger.LogWarning(ex, "[Fallback Rule-Based Dispatch] AI Engine is DOWN or timed out. Falling back to straight-line Haversine / Redis distance-based nearest selection for Order {OrderId}.", order.Id);
         }
 
-        // Fallback: เรียงตามระยะทางที่ได้จาก Redis GEORADIUS พร้อมสร้างคะแนนและเวลาส่งจำลอง
         return candidates.OrderBy(c => c.DistanceKm)
-                         .Select(c => new RankedCandidate(c.RiderId, c.DistanceKm, Math.Max(0.0, 100.0 - c.DistanceKm * 5.0), (int)Math.Ceiling(c.DistanceKm * 2.0)))
+                         .Select(c => new RankedCandidate(c.RiderId, c.DistanceKm, c.DistanceKm * 5.0, (int)Math.Ceiling(c.DistanceKm * 2.0)))
                          .ToList();
     }
 }

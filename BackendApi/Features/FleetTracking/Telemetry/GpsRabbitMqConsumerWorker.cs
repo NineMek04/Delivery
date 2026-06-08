@@ -251,12 +251,9 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// </summary>
         private static Guid GenerateGuidFromPoint(TrackPoint point)
         {
-            using (var md5 = MD5.Create())
-            {
-                string key = $"{point.RiderId}_{point.Timestamp.Ticks}";
-                byte[] hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key));
-                return new Guid(hash);
-            }
+            string key = $"{point.RiderId}_{point.Timestamp.Ticks}";
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+            return new Guid(hash.AsSpan(0, 16));
         }
 
         private async Task DrainAndSaveBatchAsync(CancellationToken ct)

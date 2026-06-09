@@ -83,13 +83,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     ref.listen(homeNotifierProvider, (_, next) => _maybeShowOffer(next));
 
-    final riderLabel = home.isOnline
-        ? AppConstants.statusAvailable
-        : AppConstants.statusOffline;
-    final riderColor = home.isOnline
-        ? AppTheme.accentColor
-        : AppTheme.textMuted;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('หน้าหลัก'),
@@ -129,15 +122,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      // ── Rider Profile Card ─────────────────────────────
                       Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: AppTheme.surfaceElevated),
+                        ),
                         child: Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
                               CircleAvatar(
                                 radius: 28,
-                                backgroundColor: Theme.of(context).colorScheme.primary,
-                                child: const Icon(Icons.person, color: Colors.white),
+                                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                child: Text(
+                                  home.user?.fullName != null && home.user!.fullName.trim().isNotEmpty
+                                      ? home.user!.fullName[0].toUpperCase()
+                                      : 'R',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -146,50 +154,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   children: [
                                     Text(
                                       'สวัสดี, ${home.user?.fullName ?? 'Rider'}',
-                                      style: Theme.of(context).textTheme.titleLarge,
+                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: riderColor.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '● $riderLabel',
-                                        style: TextStyle(color: riderColor, fontSize: 12),
+                                    Text(
+                                      home.user?.email ?? 'rider@smartrouting.com',
+                                      style: const TextStyle(
+                                        color: AppTheme.textMuted,
+                                        fontSize: 13,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              Switch(
-                                value: home.isOnline,
-                                activeColor: Colors.greenAccent,
-                                onChanged: home.isTransitioning
-                                    ? null
-                                    : (v) async {
-                                        HapticFeedback.mediumImpact();
-                                        try {
-                                          await ref
-                                              .read(homeNotifierProvider.notifier)
-                                              .setOnline(v);
-                                        } catch (e) {
-                                          if (context.mounted) {
-                                            ErrorDialog.show(
-                                              context,
-                                              title: 'ไม่สามารถเปลี่ยนสถานะ',
-                                              message: e.toString(),
-                                            );
-                                          }
-                                        }
-                                      },
-                              ),
                             ],
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Online/Offline Status Switch Card ──────────────
+                      Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: AppTheme.surfaceElevated),
+                        ),
+                        child: SwitchListTile.adaptive(
+                          title: const Text(
+                            'สถานะการรับงาน',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            home.isOnline ? 'ออนไลน์ — พร้อมรับงานส่ง' : 'ออฟไลน์ — หยุดรับงานชั่วคราว',
+                            style: TextStyle(
+                              color: home.isOnline ? AppTheme.accentColor : AppTheme.textMuted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          value: home.isOnline,
+                          activeColor: AppTheme.accentColor,
+                          secondary: Icon(
+                            home.isOnline ? Icons.circle : Icons.circle_outlined,
+                            color: home.isOnline ? AppTheme.accentColor : AppTheme.textMuted,
+                          ),
+                          onChanged: home.isTransitioning
+                              ? null
+                              : (v) async {
+                                  HapticFeedback.mediumImpact();
+                                  try {
+                                    await ref
+                                        .read(homeNotifierProvider.notifier)
+                                        .setOnline(v);
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ErrorDialog.show(
+                                        context,
+                                        title: 'ไม่สามารถเปลี่ยนสถานะ',
+                                        message: e.toString(),
+                                      );
+                                    }
+                                  }
+                                },
                         ),
                       ),
                       if (home.sessionError != null) ...[

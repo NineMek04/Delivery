@@ -9,6 +9,7 @@ import '../core/auth/auth_service.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
 import '../features/home/screens/home_screen.dart';
+import '../features/home/providers/home_provider.dart';
 import '../features/delivery/screens/active_delivery_screen.dart';
 import '../features/delivery/screens/delivery_confirmation_screen.dart';
 import '../features/delivery/screens/delivery_history_screen.dart';
@@ -228,13 +229,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 // ═══════════════════════════════════════════════════════════════════
 // Main Shell — Rider Bottom Navigation
 // ═══════════════════════════════════════════════════════════════════
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final Widget child;
 
   const MainShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final homeState = ref.watch(homeNotifierProvider);
+    final hasOffer = homeState.incomingOffer != null;
+
     return Theme(
       data: AppTheme.darkTheme, // Riders prefer Dark Mode (customized green)
       child: Scaffold(
@@ -242,28 +246,54 @@ class MainShell extends StatelessWidget {
         bottomNavigationBar: NavigationBar(
           selectedIndex: _calculateSelectedIndex(context),
           onDestinationSelected: (index) => _onItemTapped(index, context),
-          destinations: const [
-            NavigationDestination(
+          destinations: [
+            const NavigationDestination(
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home),
               label: 'หน้าหลัก',
             ),
             NavigationDestination(
-              icon: Icon(Icons.delivery_dining_outlined),
-              selectedIcon: Icon(Icons.delivery_dining),
+              icon: hasOffer
+                  ? const Badge(
+                      backgroundColor: Colors.red,
+                      label: Text(
+                        '!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                      child: Icon(Icons.delivery_dining_outlined),
+                    )
+                  : const Icon(Icons.delivery_dining_outlined),
+              selectedIcon: hasOffer
+                  ? const Badge(
+                      backgroundColor: Colors.red,
+                      label: Text(
+                        '!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                      child: Icon(Icons.delivery_dining),
+                    )
+                  : const Icon(Icons.delivery_dining),
               label: 'งานส่ง',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.map_outlined),
               selectedIcon: Icon(Icons.map),
               label: 'แผนที่',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.history_outlined),
               selectedIcon: Icon(Icons.history),
               label: 'ประวัติ',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person),
               label: 'โปรไฟล์',
@@ -310,6 +340,32 @@ class StoreShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Listen for new orders to trigger a floating SnackBar notification
+    ref.listen<StoreOrdersState>(storeOrdersProvider, (previous, next) {
+      final prevCount = previous?.newOrderBadgeCount ?? 0;
+      if (next.newOrderBadgeCount > prevCount) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.notifications_active, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '🔔 มีออเดอร์ใหม่เข้ามา! กรุณาตรวจสอบและกดยืนยันการทำงาน',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 6),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
+
     final ordersState = ref.watch(storeOrdersProvider);
     final badgeCount = ordersState.newOrderBadgeCount;
 
@@ -329,7 +385,14 @@ class StoreShell extends ConsumerWidget {
             NavigationDestination(
               icon: badgeCount > 0
                   ? Badge(
-                      label: Text('$badgeCount'),
+                      backgroundColor: Colors.red,
+                      label: Text(
+                        '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       child: const Icon(Icons.receipt_long_outlined),
                     )
                   : const Icon(Icons.receipt_long_outlined),

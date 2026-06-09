@@ -66,6 +66,21 @@ public class OrderService : IOrderService
         CreateOrderDto dto,
         CancellationToken cancellationToken)
     {
+        // ตรวจสอบสถานะการเปิดร้านของร้านค้าก่อนการสั่งซื้อ
+        if (!string.IsNullOrWhiteSpace(dto.ShopId))
+        {
+            var shop = await _db.GetQuery<Shop>()
+                .FirstOrDefaultAsync(s => s.Id == dto.ShopId, cancellationToken);
+            if (shop == null)
+            {
+                return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("ไม่พบร้านค้าที่ต้องการสั่งซื้อ"));
+            }
+            if (!shop.IsOpen)
+            {
+                return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ร้านค้านี้ปิดทำการชั่วคราว ไม่สามารถสั่งซื้ออาหารได้"));
+            }
+        }
+
         // ใช้ GeometryFactory force 2D เพื่อป้องกัน "Geometry has Z dimension but column does not"
         var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
         var pickup = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.PickupLng, dto.PickupLat));

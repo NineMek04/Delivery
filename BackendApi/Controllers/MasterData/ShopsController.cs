@@ -162,13 +162,13 @@ namespace BackendApi.Controllers.MasterData
             if (existing is null)
                 return NotFound(ApiResponse.Fail("ไม่พบข้อมูลร้านค้าที่ต้องการแก้ไข", code: "NOT_FOUND"));
 
-            // อัปเดตเฉพาะฟิลด์ที่ปรับปรุงได้
-            existing.Name = dto.Name;
-            existing.MenuName = dto.MenuName;
-            existing.MenuPrice = dto.MenuPrice;
+            // อัปเดตเฉพาะฟิลด์ที่ปรับปรุงได้ (ป้องกันการเขียนทับด้วยข้อมูลว่างเปล่าหากส่งเฉพาะบางฟิลด์)
+            existing.Name = string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name;
+            existing.MenuName = string.IsNullOrWhiteSpace(dto.MenuName) ? existing.MenuName : dto.MenuName;
+            existing.MenuPrice = dto.MenuPrice > 0 ? dto.MenuPrice : existing.MenuPrice;
             existing.IsOpen = dto.IsOpen;
-            existing.PrepTimeMinutes = dto.PrepTimeMinutes;
-            existing.OpeningHours = dto.OpeningHours;
+            existing.PrepTimeMinutes = dto.PrepTimeMinutes > 0 ? dto.PrepTimeMinutes : existing.PrepTimeMinutes;
+            existing.OpeningHours = dto.OpeningHours ?? existing.OpeningHours;
 
             if (dto.Lat.HasValue && dto.Lng.HasValue)
             {

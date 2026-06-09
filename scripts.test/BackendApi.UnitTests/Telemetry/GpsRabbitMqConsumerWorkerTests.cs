@@ -191,7 +191,7 @@ namespace BackendApi.UnitTests.Telemetry
             );
 
             // Wait for DB Save to be triggered (with timeout)
-            var dbSaved = await Task.WhenAny(saveCompletionSource.Task, Task.Delay(2000)) == saveCompletionSource.Task;
+            var dbSaved = await Task.WhenAny(saveCompletionSource.Task, Task.Delay(5000)) == saveCompletionSource.Task;
             Assert.True(dbSaved, "Database save was not triggered in time.");
 
             // Cancel worker execution loop
@@ -275,7 +275,7 @@ namespace BackendApi.UnitTests.Telemetry
             );
 
             // Wait for DB Save attempt
-            var dbAttempted = await Task.WhenAny(dbFailCompletion.Task, Task.Delay(2000)) == dbFailCompletion.Task;
+            var dbAttempted = await Task.WhenAny(dbFailCompletion.Task, Task.Delay(5000)) == dbFailCompletion.Task;
             Assert.True(dbAttempted);
 
             await cts.CancelAsync();

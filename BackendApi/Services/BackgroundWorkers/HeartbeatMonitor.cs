@@ -78,33 +78,46 @@ public class HeartbeatMonitor : BackgroundService
                 r.State == RiderState.BUSY)
             .ToListAsync(ct);
 
-        foreach (var rider in activeRiders)
+        if (activeRiders.Count > 0)
         {
-            if (ct.IsCancellationRequested) break;
-            var lastHeartbeat = await presenceService.GetLastHeartbeatAsync(rider.Id);
-
-            if (lastHeartbeat is null || (now - lastHeartbeat.Value).TotalSeconds > heartbeatTimeout)
+            // Pipelined concurrent fetch of all heartbeats from Redis
+            var heartbeatTasks = activeRiders.Select(async rider =>
             {
-                if (rider.State != RiderState.STALE)
+                var lastHeartbeat = await presenceService.GetLastHeartbeatAsync(rider.Id);
+                return (Rider: rider, LastHeartbeat: lastHeartbeat);
+            }).ToList();
+
+            var riderHeartbeats = await Task.WhenAll(heartbeatTasks);
+
+            foreach (var item in riderHeartbeats)
+            {
+                if (ct.IsCancellationRequested) break;
+                var rider = item.Rider;
+                var lastHeartbeat = item.LastHeartbeat;
+
+                if (lastHeartbeat is null || (now - lastHeartbeat.Value).TotalSeconds > heartbeatTimeout)
                 {
-                    _logger.LogWarning(
-                        "Rider {RiderId} went STALE — last heartbeat: {LastHB}",
-                        rider.Id, lastHeartbeat?.ToString("HH:mm:ss") ?? "never");
-
-                    var transitioned = await stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
-
-                    // ถ้ามี Offer ค้างอยู่ → Re-dispatch
-                    if (transitioned)
+                    if (rider.State != RiderState.STALE)
                     {
-                        var offeringOrder = await dbContext.Orders
-                            .FirstOrDefaultAsync(o =>
-                                o.AssignedRiderId == rider.Id &&
-                                o.State == OrderState.OFFERING, ct);
+                        _logger.LogWarning(
+                            "Rider {RiderId} went STALE — last heartbeat: {LastHB}",
+                            rider.Id, lastHeartbeat?.ToString("HH:mm:ss") ?? "never");
 
-                        if (offeringOrder?.CurrentOfferId is not null)
+                        var transitioned = await stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
+
+                        // ถ้ามี Offer ค้างอยู่ → Re-dispatch
+                        if (transitioned)
                         {
-                            await offerHandler.RejectOrTimeoutAsync(
-                                offeringOrder.CurrentOfferId, rider.Id);
+                            var offeringOrder = await dbContext.Orders
+                                .FirstOrDefaultAsync(o =>
+                                    o.AssignedRiderId == rider.Id &&
+                                    o.State == OrderState.OFFERING, ct);
+
+                            if (offeringOrder?.CurrentOfferId is not null)
+                            {
+                                await offerHandler.RejectOrTimeoutAsync(
+                                    offeringOrder.CurrentOfferId, rider.Id);
+                            }
                         }
                     }
                 }
@@ -116,22 +129,36 @@ public class HeartbeatMonitor : BackgroundService
             .Where(r => r.State == RiderState.STALE)
             .ToListAsync(ct);
 
-        foreach (var rider in staleRiders)
+        if (staleRiders.Count > 0)
         {
-            if (ct.IsCancellationRequested) break;
-            var lastHeartbeat = await presenceService.GetLastHeartbeatAsync(rider.Id);
-            var staleDuration = lastHeartbeat.HasValue
-                ? (now - lastHeartbeat.Value).TotalSeconds
-                : staleToOffline + 1; // ถ้าไม่เคยส่ง → ถือว่าเกิน
-
-            if (staleDuration > staleToOffline)
+            // Pipelined concurrent fetch of all stale heartbeats from Redis
+            var staleHeartbeatTasks = staleRiders.Select(async rider =>
             {
-                _logger.LogInformation(
-                    "Rider {RiderId} offline — stale for {Duration}s",
-                    rider.Id, staleDuration);
+                var lastHeartbeat = await presenceService.GetLastHeartbeatAsync(rider.Id);
+                return (Rider: rider, LastHeartbeat: lastHeartbeat);
+            }).ToList();
 
-                await stateMachine.TransitionRiderAsync(rider, RiderState.OFFLINE);
-                await presenceService.RemoveRiderAsync(rider.Id);
+            var staleRiderHeartbeats = await Task.WhenAll(staleHeartbeatTasks);
+
+            foreach (var item in staleRiderHeartbeats)
+            {
+                if (ct.IsCancellationRequested) break;
+                var rider = item.Rider;
+                var lastHeartbeat = item.LastHeartbeat;
+
+                var staleDuration = lastHeartbeat.HasValue
+                    ? (now - lastHeartbeat.Value).TotalSeconds
+                    : staleToOffline + 1; // ถ้าไม่เคยส่ง → ถือว่าเกิน
+
+                if (staleDuration > staleToOffline)
+                {
+                    _logger.LogInformation(
+                        "Rider {RiderId} offline — stale for {Duration}s",
+                        rider.Id, staleDuration);
+
+                    await stateMachine.TransitionRiderAsync(rider, RiderState.OFFLINE);
+                    await presenceService.RemoveRiderAsync(rider.Id);
+                }
             }
         }
     }

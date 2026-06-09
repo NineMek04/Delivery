@@ -274,26 +274,40 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 {
                     EnsureConnection();
                     
-                    await foreach (var point in _channelQueue.Reader.ReadAllAsync(_cts.Token))
+                    if (await _channelQueue.Reader.WaitToReadAsync(_cts.Token))
                     {
-                        var message = JsonSerializer.Serialize(point);
-                        var body = Encoding.UTF8.GetBytes(message);
-
-                        lock (_connectionLock)
+                        var points = new List<TrackPoint>();
+                        // Buffer up to 500 messages that are immediately available
+                        while (points.Count < 500 && _channelQueue.Reader.TryRead(out var p))
                         {
-                            if (_channel == null) break; // Re-ensure connection on next loop
+                            points.Add(p);
+                        }
 
-                            var properties = _channel.CreateBasicProperties();
-                            properties.Persistent = true;
-                            properties.Type = nameof(TrackPoint);
+                        if (points.Count > 0)
+                        {
+                            lock (_connectionLock)
+                            {
+                                if (_channel == null) break; // Re-ensure connection on next loop
 
-                            _channel.BasicPublish(
-                                exchange: "",
-                                routingKey: QueueName,
-                                mandatory: true,
-                                basicProperties: properties,
-                                body: body
-                            );
+                                var batch = _channel.CreateBasicPublishBatch();
+                                foreach (var point in points)
+                                {
+                                    var message = JsonSerializer.Serialize(point);
+                                    var body = Encoding.UTF8.GetBytes(message);
+                                    var properties = _channel.CreateBasicProperties();
+                                    properties.Persistent = true;
+                                    properties.Type = nameof(TrackPoint);
+
+                                    batch.Add(
+                                        exchange: "",
+                                        routingKey: QueueName,
+                                        mandatory: true,
+                                        properties: properties,
+                                        body: body
+                                    );
+                                }
+                                batch.Publish();
+                            }
                         }
                     }
                 }
@@ -317,26 +331,40 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 {
                     EnsureConnection();
                     
-                    await foreach (var point in _snapChannelQueue.Reader.ReadAllAsync(_cts.Token))
+                    if (await _snapChannelQueue.Reader.WaitToReadAsync(_cts.Token))
                     {
-                        var message = JsonSerializer.Serialize(point);
-                        var body = Encoding.UTF8.GetBytes(message);
-
-                        lock (_connectionLock)
+                        var points = new List<TrackPoint>();
+                        // Buffer up to 500 messages that are immediately available
+                        while (points.Count < 500 && _snapChannelQueue.Reader.TryRead(out var p))
                         {
-                            if (_channel == null) break; // Re-ensure connection on next loop
+                            points.Add(p);
+                        }
 
-                            var properties = _channel.CreateBasicProperties();
-                            properties.Persistent = true;
-                            properties.Type = nameof(TrackPoint);
+                        if (points.Count > 0)
+                        {
+                            lock (_connectionLock)
+                            {
+                                if (_channel == null) break; // Re-ensure connection on next loop
 
-                            _channel.BasicPublish(
-                                exchange: "",
-                                routingKey: SnapQueueName,
-                                mandatory: true,
-                                basicProperties: properties,
-                                body: body
-                            );
+                                var batch = _channel.CreateBasicPublishBatch();
+                                foreach (var point in points)
+                                {
+                                    var message = JsonSerializer.Serialize(point);
+                                    var body = Encoding.UTF8.GetBytes(message);
+                                    var properties = _channel.CreateBasicProperties();
+                                    properties.Persistent = true;
+                                    properties.Type = nameof(TrackPoint);
+
+                                    batch.Add(
+                                        exchange: "",
+                                        routingKey: SnapQueueName,
+                                        mandatory: true,
+                                        properties: properties,
+                                        body: body
+                                    );
+                                }
+                                batch.Publish();
+                            }
                         }
                     }
                 }

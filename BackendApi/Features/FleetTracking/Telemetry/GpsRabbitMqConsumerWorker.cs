@@ -304,11 +304,14 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                                     .Select(pe => pe.EventId)
                                     .ToListAsync(ct);
 
+                                var uniqueEventIdsInBatch = new HashSet<Guid>();
                                 for (int i = 0; i < points.Count; i++)
                                 {
                                     var p = points[i];
                                     var eventId = eventIdsToCheck[i];
-                                    if (!existingEventIds.Contains(eventId))
+                                    
+                                    // Check DB existing AND current batch existing to prevent EF Tracking Exception
+                                    if (!existingEventIds.Contains(eventId) && uniqueEventIdsInBatch.Add(eventId))
                                     {
                                         newPoints.Add(p);
                                         processedEvents.Add(new ProcessedEvent
@@ -359,10 +362,23 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to commit batch of {Count} GPS points to the database. Messages will not be ACKed.", points.Count);
-                    // We do NOT acknowledge these messages. Since they are not ACKed, they will be preserved
-                    // in RabbitMQ's persistent store. If the connection drops or the service restarts,
-                    // RabbitMQ will automatically requeue and redeliver them.
+                    _logger.LogError(ex, "Failed to commit batch of {Count} GPS points to the database. Messages will be NACKed to DLQ.", points.Count);
+                    
+                    ulong maxDeliveryTag = 0;
+                    foreach (var tag in deliveryTags)
+                    {
+                        if (tag > maxDeliveryTag) maxDeliveryTag = tag;
+                    }
+
+                    if (maxDeliveryTag > 0 && _channel != null)
+                    {
+                        lock (_channel) 
+                        {
+                            // NACK the batch. requeue: false sends them to the Dead Letter Queue.
+                            _channel.BasicNack(maxDeliveryTag, multiple: true, requeue: false);
+                        }
+                        _logger.LogInformation("Batch of {Count} GPS points successfully NACKed up to tag {Tag}.", points.Count, maxDeliveryTag);
+                    }
                 }
             }
         }

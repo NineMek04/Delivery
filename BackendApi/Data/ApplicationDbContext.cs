@@ -268,6 +268,11 @@ namespace BackendApi.Data
                 entity.Property(u => u.Role).HasMaxLength(20);
             });
 
+            // --- MELTDOWN REMEDIATION INDEXES (Phase 8.5) ---
+            modelBuilder.Entity<Order>().HasIndex(o => new { o.State, o.OfferExpiresAt });
+            modelBuilder.Entity<Order>().HasIndex(o => o.CreatedAt);
+            modelBuilder.Entity<Rider>().HasIndex(r => new { r.State, r.IsDeleted });
+
             base.OnModelCreating(modelBuilder);
         }
 

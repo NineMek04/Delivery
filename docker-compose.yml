@@ -21,6 +21,8 @@ services:
       - "random_page_cost=1.1"
       - "-c"
       - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -35,6 +37,26 @@ services:
       timeout: 5s
       retries: 5
 
+  # 1.5 PgBouncer (Connection Pooling)
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: delivery-pgbouncer
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_HOST=db
+      - DB_NAME=delivery_db
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=10000
+      - DEFAULT_POOL_SIZE=100
+      - AUTH_TYPE=scram-sha-256
+    ports:
+      - "6432:5432"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   # 2. ระบบประมวลผลหลัก (.NET 8) [cite: 27, 68]
   backend:
     build:
@@ -44,7 +66,7 @@ services:
     restart: unless-stopped
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=${POSTGRES_PASSWORD};Maximum Pool Size=1024;
+      - ConnectionStrings__DefaultConnection=Host=pgbouncer;Database=delivery_db;Username=postgres;Password=${POSTGRES_PASSWORD};Maximum Pool Size=100;Timeout=5;CommandTimeout=5;
       - ConnectionStrings__Redis=redis:6379
       - AI_SERVICE_URL=http://ai-service:8000
       - VAULT_ADDR=http://vault:8200

@@ -51,7 +51,7 @@ public class TelemetryBroadcastWorker : BackgroundService
         // Warm up: Perform an initial database query to populate the aggregator immediately at startup
         try
         {
-            await RefreshDatabaseSnapshotsAsync(stoppingToken);
+            await RefreshDatabaseSnapshotsAsync(stoppingToken, refreshHotspots: true);
         }
         catch (Exception ex)
         {
@@ -68,9 +68,10 @@ public class TelemetryBroadcastWorker : BackgroundService
                 tickCount++;
 
                 // Every 5 seconds, query PostgreSQL to update active riders count, queue size, and rider utilization.
+                // We run demand hotspots analysis every 60 seconds (every 60 ticks) to avoid massive CPU overhead.
                 if (tickCount % 5 == 0)
                 {
-                    await RefreshDatabaseSnapshotsAsync(stoppingToken);
+                    await RefreshDatabaseSnapshotsAsync(stoppingToken, refreshHotspots: tickCount % 60 == 0);
                 }
 
                 // Every 2 seconds, broadcast the aggregated metrics via SignalR to Admin dashboards.
@@ -90,16 +91,21 @@ public class TelemetryBroadcastWorker : BackgroundService
         }
     }
 
-    private async Task RefreshDatabaseSnapshotsAsync(CancellationToken ct)
+    private async Task RefreshDatabaseSnapshotsAsync(CancellationToken ct, bool refreshHotspots = false)
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var riders = await dbContext.Riders.AsNoTracking().ToListAsync(ct);
-        var activeRiders = riders.Count(r => r.State != RiderState.OFFLINE);
-        var busy = riders.Count(r => r.State == RiderState.BUSY);
-        var idle = riders.Count(r => r.State == RiderState.IDLE || r.State == RiderState.RESERVED);
-        var offline = riders.Count(r => r.State == RiderState.OFFLINE || r.State == RiderState.STALE);
+        // Optimized state count query to avoid pulling the entire Riders table into memory
+        var stateCounts = await dbContext.Riders.AsNoTracking()
+            .GroupBy(r => r.State)
+            .Select(g => new { State = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var activeRiders = stateCounts.Where(s => s.State != RiderState.OFFLINE).Sum(s => s.Count);
+        var busy = stateCounts.Where(s => s.State == RiderState.BUSY).Sum(s => s.Count);
+        var idle = stateCounts.Where(s => s.State == RiderState.IDLE || s.State == RiderState.RESERVED).Sum(s => s.Count);
+        var offline = stateCounts.Where(s => s.State == RiderState.OFFLINE || s.State == RiderState.STALE).Sum(s => s.Count);
 
         var queueSize = await dbContext.Orders.AsNoTracking()
             .Where(o => o.State == OrderState.MATCHING || o.State == OrderState.OFFERING)
@@ -109,7 +115,8 @@ public class TelemetryBroadcastWorker : BackgroundService
             .Where(o => o.State == OrderState.COMPLETED)
             .CountAsync(ct);
 
-        double avgDeliveries = riders.Count > 0 ? completedOrdersCount / (double)riders.Count : 0.0;
+        var totalRidersCount = stateCounts.Sum(s => s.Count);
+        double avgDeliveries = totalRidersCount > 0 ? completedOrdersCount / (double)totalRidersCount : 0.0;
 
         _aggregator.UpdateSnapshot(
             activeRidersCount: activeRiders,
@@ -120,37 +127,40 @@ public class TelemetryBroadcastWorker : BackgroundService
             averageDeliveriesPerRider: Math.Round(avgDeliveries, 1)
         );
 
-        // 1. ค้นหา Demand Hotspots (พิกัดร้านค้าที่มีออเดอร์หนาแน่นที่สุดในช่วงเวลา 1 ชั่วโมง)
-        var oneHourAgo = DateTime.UtcNow.AddHours(-1);
-        var recentOrders = await dbContext.Orders.AsNoTracking()
-            .Where(o => o.CreatedAt >= oneHourAgo && o.PickupLocation != null)
-            .Select(o => new { Lat = o.PickupLocation!.Y, Lng = o.PickupLocation!.X })
-            .ToListAsync(ct);
-
-        var hotspots = recentOrders
-            .GroupBy(o => new { LatGrid = Math.Round(o.Lat, 3), LngGrid = Math.Round(o.Lng, 3) })
-            .Select(g => new { Lat = g.Key.LatGrid, Lng = g.Key.LngGrid, Count = g.Count() })
-            .OrderByDescending(g => g.Count)
-            .Take(10)
-            .ToList();
-
-        // 2. บันทึกลง Redis operational cache (Heatmap) เพื่อดึงไปแสดงฝั่ง Dashboard ทันที
-        try
+        if (refreshHotspots)
         {
-            var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
-            var db = redis.GetDatabase();
-            var hotspotsJson = JsonSerializer.Serialize(hotspots);
-            await db.StringSetAsync("riders:hotspots:heatmap", hotspotsJson, TimeSpan.FromHours(1));
+            // 1. ค้นหา Demand Hotspots (พิกัดร้านค้าที่มีออเดอร์หนาแน่นที่สุดในช่วงเวลา 1 ชั่วโมง)
+            var oneHourAgo = DateTime.UtcNow.AddHours(-1);
+            var recentOrders = await dbContext.Orders.AsNoTracking()
+                .Where(o => o.CreatedAt >= oneHourAgo && o.PickupLocation != null)
+                .Select(o => new { Lat = o.PickupLocation!.Y, Lng = o.PickupLocation!.X })
+                .ToListAsync(ct);
 
-            if (hotspots.Any())
+            var hotspots = recentOrders
+                .GroupBy(o => new { LatGrid = Math.Round(o.Lat, 3), LngGrid = Math.Round(o.Lng, 3) })
+                .Select(g => new { Lat = g.Key.LatGrid, Lng = g.Key.LngGrid, Count = g.Count() })
+                .OrderByDescending(g => g.Count)
+                .Take(10)
+                .ToList();
+
+            // 2. บันทึกลง Redis operational cache (Heatmap) เพื่อดึงไปแสดงฝั่ง Dashboard ทันที
+            try
             {
-                _logger.LogInformation("[Predictive Dispatch] Analyzed demand hotspots grid. Top hotspot count: {Count} orders at ({Lat}, {Lng})", 
-                    hotspots[0].Count, hotspots[0].Lat, hotspots[0].Lng);
+                var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
+                var db = redis.GetDatabase();
+                var hotspotsJson = JsonSerializer.Serialize(hotspots);
+                await db.StringSetAsync("riders:hotspots:heatmap", hotspotsJson, TimeSpan.FromHours(1));
+
+                if (hotspots.Any())
+                {
+                    _logger.LogInformation("[Predictive Dispatch] Analyzed demand hotspots grid. Top hotspot count: {Count} orders at ({Lat}, {Lng})", 
+                        hotspots[0].Count, hotspots[0].Lat, hotspots[0].Lng);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to cache Demand Hotspots to Redis.");
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to cache Demand Hotspots to Redis.");
+            }
         }
     }
 

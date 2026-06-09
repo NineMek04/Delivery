@@ -1,0 +1,206 @@
+# Phase 9: Ultimate System Stress Test (Production-Grade Load Test Plan)
+
+เป้าหมายของ Phase นี้คือการค้นหาขีดจำกัดที่แท้จริงของระบบ (Breaking Point) และตรวจสอบความเสถียรเมื่อต้องรับโหลดผสมผสาน (Combined Load) ในระยะยาว ตามข้อกำหนดที่ตกลงไว้ร่วมกัน โดยจะดำเนินการตามลำดับ Stage เพื่อวิเคราะห์คอขวดทีละจุด
+
+> [!IMPORTANT]
+> แผนนี้ทำเพื่อเสนอแนวทางการทดสอบเท่านั้น **ยังไม่มีการรันสคริปต์ใดๆ จนกว่าจะได้รับการอนุมัติ**
+
+---
+
+## 🛠️ Prerequisites: เครื่องมือที่ต้องเตรียมก่อนเริ่มทดสอบ (Must-Have)
+
+ก่อนเริ่มรันสคริปต์ใดๆ จะต้องสร้างเครื่องมือ Monitor ข้อมูลดังต่อไปนี้ให้เรียบร้อย:
+
+### A. Docker Resource Monitoring (CSV Export)
+สคริปต์ดึง `docker stats --no-stream` ทุกๆ 5 วินาที สำหรับ container ต่อไปนี้:
+`backend`, `postgres`, `redis`, `rabbitmq`, `ai-engine`, `nginx`
+ผลลัพธ์จะถูกบันทึกลงไฟล์ `docker_stats_run_X.csv` 
+
+### B. Prometheus Metric Snapshot & Additional Telemetry
+บันทึกค่า Snapshot ของ Metrics ก่อนและหลังทดสอบ เพื่อดู System Degradation:
+- **RabbitMQ/General**: `delivery_auth_failed_logins_total`, `delivery_dispatch_queue_depth`, `delivery_rabbitmq_connection_status`, `delivery_rabbitmq_reconnects_total`
+- **RabbitMQ Publisher Confirms**: `delivery_rabbitmq_publish_ack_seconds`, `delivery_rabbitmq_publish_nack_total` (เพื่อดูว่า message หายก่อนถึง Broker หรือไม่ในช่วง Chaos)
+- **Redis Resilience**: `delivery_redis_reconnects_total` (จับตาดูตอน Restart Redis)
+- **.NET GC & Memory Leak Detection**: `dotnet_gc_heap_size`, `dotnet_gc_collection_count`, `dotnet_gc_pause_time`, `process_working_set_bytes` (เปรียบเทียบ Working Set และ Heap ก่อน/หลังโหลดเพื่อหา Memory Leak หรือ Retention) พร้อมกับทำ **Forced GC Analysis** โดยการสั่ง `GC.Collect()` หลังจบแต่ละ Stage แล้ววัด Heap ก่อน-หลัง หาก Heap ไม่ลดลงแปลว่ามี Retention/Leak ซ่อนอยู่
+- **.NET ThreadPool Saturation**: `dotnet_threadpool_queue_length`, `dotnet_threadpool_thread_count`, `dotnet_threadpool_completed_items` (เพื่อจับคอขวดระดับ Runtime ก่อนถึง Database)
+- **PostgreSQL Connection Pool (Npgsql)**: Pool Busy, Pool Waiting, Pool Timeout (ป้องกัน API พังจาก Pool หมดก่อน CPU เต็ม)
+- **AI Queue Metrics & Visibility**: แยกเป็น `Inference Execution Time`, `Queue Time`, `Total Time`, `Solver CPU Time`, `Solver Wall Time` พร้อมจับตาดู AI Active Workers, AI Timeout Count, AI Rejected Requests (เพื่อแยกชัดเจนว่าตันที่คิวสะสม หรือตันที่ CPU จริง)
+- **SignalR Connection Recovery**: Connected Clients, Reconnect Attempts, Reconnect Success, Disconnected Clients, และ **Pending Outbound Messages** (หาก Hub ส่งข้อความออกไม่ทัน คิวนี้จะโตขึ้นก่อนระบบล้ม)
+- **RabbitMQ End-to-End Latency & Lag**: Publish Rate, Consume Rate, Consumer Lag (publish_rate - consume_rate) และการนำ Timestamp มาหา Event Processing Latency (P50, P95, P99)
+
+### C. OOMKilled Detection Script
+สคริปต์รันหลังจบแต่ละ Stage จะทำการรัน `docker inspect` กับทุก Container เพื่อหา `"OOMKilled": true` แจ้งเตือนอัตโนมัติหากมี Container ไหนโดน Kill เพราะ Memory เต็ม
+
+### D. Event Queue Monitoring (RabbitMQ)
+สคริปต์ตรวจจับและพิมพ์สถานะของ Queue ทุกๆ X วินาที เพื่อดู Queue สะสม:
+- Queue Depth, Messages Ready, Messages Unacked, Consumer Count
+
+### E. Database & Redis Telemetry (Post-Stage Extraction)
+หลังจบทุก Stage จะต้องทำการ Export ข้อมูลเพิ่มเติมเพื่อนำไปทำ Phase 10:
+- **PostgreSQL**: 
+  - คิวรี่ `pg_stat_statements` เพื่อหา Top Queries by Total Time, Top Queries by Calls, และ Top Queries by Mean Time
+  - คิวรี่ `pg_stat_activity` (count, wait_event_type, wait_event) เพื่อตรวจสอบ Saturation ว่าติดที่ CPU, Lock, IO, หรือ Connection Pool
+- **Redis Health**: ดึงสถิติ `used_memory`, `connected_clients`, `instantaneous_ops_per_sec`, `keyspace_hits`, `keyspace_misses`, และ `mem_fragmentation_ratio` (เกณฑ์: < 1.5 ปกติ, > 2.0 แจ้งเตือน, > 3.0 วิกฤต)
+
+### F. Data Integrity Validation
+สคริปต์ตรวจสอบข้อมูลหลังจบแต่ละ Stage:
+- เช็ค Duplicate Orders, Orphan Records, Missing Events, Invalid Status Transitions (ระบบรอดแต่ข้อมูลห้ามเละ)
+- ในเหตุการณ์ Chaos ทดสอบการกู้คืน (Message Recovery Validation): ต้องวัดจำนวน Messages Published, Consumed, Lost, และ Duplicated โดยมีเกณฑ์ว่า **Lost = 0** (At-Least-Once Delivery)
+- **Chaos Recovery Validation**: นอกจาก Recovery Time ต้องเก็บ Recovery Success Rate ด้วย (เช่น Recovered Consumers = 100%, Recovered SignalR = 99.9%, Recovered Dispatch = 100%)
+
+---
+
+## 🎯 Success Criteria & Recovery SLOs (เกณฑ์ผ่านการทดสอบระดับสูง)
+
+การทดสอบถือว่าผ่าน หากอยู่ในขอบเขตต่อไปนี้ (ในช่วงการรันแบบปกติ/Combined, ไม่นับ Breaking Point):
+- **API Latency**: p95 < 300ms
+- **SignalR Stability**: Disconnect Rate < 0.5% และ Reconnect Success > 99%
+- **AI Saturation**: Timeout Rate < 2%
+- **RabbitMQ Status**: Queue Depth < 200 (ไม่สะสมเกิน)
+- **Overall System**: Error Rate < 0.5% และ **No OOMKilled Containers**
+- **Recovery Service Level Objectives (SLOs)**:
+  - **RabbitMQ Recovery Time**: < 30 วินาที (และ Backlog Drain Time < 60 วินาที)
+  - **Redis Recovery Time**: < 60 วินาที
+  - **AI Engine Recovery Time**: < 120 วินาที
+
+---
+
+## 🚀 ลำดับการทดสอบ (Execution Stages)
+
+จะทำการรันตามลำดับทีละด่าน ไม่รันรวมกันในตอนแรก เพื่อแยกปัญหาให้ชัดเจน
+
+> [!NOTE]
+> **Warm-up Phase:** ก่อนเริ่มเก็บ Metrics อย่างเป็นทางการในทุก Stage (1-5) จะต้องทำการรันสคริปต์โหลดระดับเบาเป็นเวลา 2-5 นาที เพื่อให้เกิดการทำ JIT Compilation, EF Core Query Cache, สร้าง Connection Pools และเปิด RabbitMQ Channels ให้เข้าสู่ Steady State ป้องกันการเพี้ยนของตัวเลขช่วงแรกเริ่ม
+
+### Stage 0: Baseline Benchmark
+- **เป้าหมาย:** สร้างตัวอ้างอิงสถานะระบบขณะว่างเปล่า (Idle) 
+- **รูปแบบ:** รันปล่อยระบบว่างไว้ 10 นาที
+- **Metrics:** Idle CPU/RAM, Redis Memory, PostgreSQL Connections, RabbitMQ Queues (dispatch=0, etc.)
+- **GC Baseline Validation:** เก็บ GC Heap ที่ 0 min, 5 min, และ 10 min แล้วคำนวณ **Heap Growth Rate** เพื่อเช็คหา Memory Retention/Timer Leak แอบแฝงตั้งแต่ช่วงระบบว่าง
+
+### Stage 1: SignalR Only Stress
+- **เป้าหมาย:** ทดสอบ Hub throughput, Redis pipeline, Memory growth, Connection storm
+- **รูปแบบ:** 2,000 Riders
+- **Metrics ที่วัดเพิ่ม:** Active connections, Messages/sec, Redis ops/sec & latency, Memory per connection
+- **จุดที่ต้องสังเกต:** ถ้า Error เกิดตอนช่วง 150 วินาทีแรก (Connection Storm) ถือว่ารับได้ แต่ถ้าเกิดระหว่างส่งพิกัดแสดงว่าคอขวดเกิดที่ Redis/CPU
+
+### Stage 2: Breaking Point API Load Test
+- **เป้าหมาย:** ทดสอบขีดจำกัด Kestrel และ PostgreSQL Connection Pool
+- **Metrics ที่วัด:** RPS, p50/p95/p99, HTTP 429/500, PG Active Connections
+- **Post-Test Action:** เก็บ `pg_stat_statements` เพื่อหา Top 10 Slow Queries และ Most Called Queries
+- **Test Patterns:**
+  1. **Ramp-up:** ไต่ระดับทีละสเตป 100 -> 200 -> 500 -> 1000 RPS
+  2. **Spike:** ดีดตัวจาก 100 ไป 2000 RPS ทันที (จำลอง Flash Sale / Peak hour)
+  3. **Sustained:** แช่โหลด 1,000 RPS ต่อเนื่อง 15 นาที เพื่อดู Leakage
+
+### Stage 2.5: Database Lock Contention Test
+- **เป้าหมาย:** เจาะหาปัญหา Row Lock, Deadlock และ Transaction Contention โดยเฉพาะ
+- **รูปแบบ:** ยิงคำขอ `Order Accept`, `Order Assign`, `Order Complete` ปริมาณมหาศาลพร้อมกัน
+- **Metrics:** เก็บตาราง `pg_locks` คิวรี่ `pg_stat_activity` และคิวรี่ `SELECT * FROM pg_stat_database;` เพื่อหา Deadlocks
+- **เกณฑ์ผ่าน:** สังเกต `wait_event_type = Lock` และ **Deadlocks = 0 ตลอดการทดสอบ**
+
+### Stage 2.6: Connection Pool Exhaustion Test
+- **เป้าหมาย:** บังคับให้เกิดสภาวะ Pool หมดจริง เพื่อทดสอบพฤติกรรมระบบว่าจะคืน 503 ทันที หรือ Hang ทั้งระบบ
+- **รูปแบบ:** เปิด Transaction ค้างไว้จำนวนมาก หรือยิง Endpoint ที่ทำงานช้าซึ่งถือ Connection นานๆ เพื่อให้ Pool เต็ม
+- **Metrics:** Npgsql `Pool Waiting`, `Pool Timeout`
+- **เกณฑ์ผ่าน:** ระบบต้องตัดและคืน Error (เช่น HTTP 503 หรือ Timeout Exception) รวดเร็ว **ห้าม Hang เด็ดขาด**
+
+### Stage 3: AI Engine Saturation Stress
+- **เป้าหมาย:** ทดสอบ CPU Bottleneck ของ OR-Tools (VRP) 
+- **รูปแบบ:** แยกเคสทดสอบชัดเจน:
+  - `Simple routing` (ไรเดอร์ 5, ออเดอร์ 1)
+  - `Medium routing` (ไรเดอร์ 50, ออเดอร์ 20)
+  - `Worst-case routing` (ไรเดอร์ 200, ออเดอร์ 100+)
+- **Metrics ที่วัด:** p50/p95/p99 Solver execution time, Queue wait time, Timeout count, Requests rejected, CPU usage 
+
+### Stage 4: Race Condition Extreme Stress
+- **เป้าหมาย:** หักล้างทฤษฎี Race Condition อย่างสมบูรณ์ 
+- **รูปแบบ:** ยิงคำขอให้ไรเดอร์ 100 คน กดยอมรับออเดอร์เดียวกันพร้อมกันในวินาทีเดียว
+- **เกณฑ์ผ่าน:** `Order Assigned = 1` เสมอ (ไม่มีกรณี Assigned = 2 ขึ้นไปเด็ดขาด) 
+
+### Stage 5: The Ultimate Combined Load Test (with Chaos Injection)
+- **เป้าหมาย:** จำลอง Production ของจริงที่มีโหลดทุกทิศทาง พร้อมทดสอบ Resilience (Retry/Circuit Breaker/Recovery)
+- **รูปแบบ:**
+  - 1,000 Riders ส่ง GPS ทุก 1 วินาที (SignalR)
+  - 500 RPS สาดเข้า API (HTTP)
+  - 50-100 Dispatch Requests/sec (RabbitMQ Event Processing)
+  - 100 AI Requests/sec (AI Engine)
+  - แทรก Race Condition Simulation เป็นระยะ
+- **Queue Backpressure Validation:** บังคับให้ Publisher Rate > Consumer Rate เป็นเวลา 3-5 นาที (เพื่อจำลอง Queue โต) จากนั้นสังเกตว่า Consumer สามารถตามเคลียร์ของจน Queue กลับมาเป็น 0 ได้ตามปกติหรือไม่
+- **Chaos Injection (ทดสอบพังระบบชั่วคราว):**
+  - **นาทีที่ 10**: `docker restart delivery-rabbitmq` (วัด Reconnect Logic & Message Recovery)
+  - **นาทีที่ 15**: `docker network disconnect <network> delivery-rabbitmq` (จำลอง Network Partition/Loss วัด Reconnect Time, Message Loss, Duplicate Processing)
+  - **นาทีที่ 20**: `docker restart delivery-redis` (วัด Cache Fallback & SignalR Backplane Resilience)
+  - **นาทีที่ 25**: `docker kill delivery-ai-engine` (วัด Circuit Breaker & Queue accumulation จนกว่า Docker จะ restart ขึ้นมาใหม่)
+  - **นาทีที่ 30**: **Failure Cascade Test** (Restart `delivery-rabbitmq` + `delivery-redis` **พร้อมกัน 1 ครั้ง**) เพื่อทดสอบว่าถ้าระบบ Infrastructure ล่มพร้อมกันหลายจุด ระบบใหญ่จะสามารถกอบกู้ตัวเองกลับมาได้หรือไม่
+- **ระยะเวลา:** 30 นาที ถึง 1 ชั่วโมง
+- **Capacity Degradation Detection:** ตรวจวัด p95 Latency ทุกๆ 15 นาที (0, 15, 30, 45, 60 นาที) เพื่อหา **Latency Drift %** ตรวจสอบว่าระบบมีอาการหน่วงสะสมหรือไม่
+- **เกณฑ์ผ่าน:** สังเกต Memory Growth, Connection Leak, Redis Fragmentation, และ PG Connection Exhaustion ตลอด 1 ชั่วโมง รวมถึงการรอดชีวิตจาก Chaos Events ตามเกณฑ์ Recovery SLOs
+
+<!-- 
+### Stage 5.5: Long-Running Soak Test (Commented out for future implementation)
+- **เป้าหมาย:** ค้นหาปัญหาที่ซ่อนอยู่ เช่น Connection/Timer Leak, Stale SignalR connections, และ Consumer degradation ในระยะยาว
+- **รูปแบบ:** รันโหลด 20-30% ของ Max Stable Capacity ต่อเนื่อง 12 ชั่วโมง
+- **Metrics ที่จับตาดูเป็นพิเศษ:** Heap Growth Trend, Working Set Trend, Thread Count Trend, Redis Memory Trend, Queue Depth Trend
+- **เกณฑ์ผ่าน:** ไม่มี Trend เพิ่มขึ้นแบบเชิงเส้น (Linear), ไม่มี Consumer ตาย, ไม่มี Reconnect Storm
+*หมายเหตุ: เก็บไว้ทดสอบเมื่อมีเวลาเพียงพอสำหรับการแช่ระบบ 12 ชั่วโมง*
+-->
+
+---
+
+## 📋 Phase 9 Final Capacity Report (สิ่งที่ส่งมอบหลังจบ Phase)
+
+เมื่อการทดสอบทั้ง 5 Stage เสร็จสิ้น จะต้องสรุปผลออกมาเป็น Baseline ของระบบ ดังนี้:
+
+```text
+Phase 9 Final Capacity Report
+
+Max Stable Riders: XXXX
+Max Stable API RPS: XXXX
+Max Stable AI Requests/sec: XXXX
+Max Stable Dispatch Events/sec: XXXX
+
+Peak PostgreSQL Connections: XXXX
+Peak Redis Ops/sec: XXXX
+Peak RabbitMQ Throughput: XXXX
+
+Peak Backend CPU: XXXX
+Peak Backend RAM: XXXX
+
+Peak AI CPU: XXXX
+Peak AI RAM: XXXX
+
+Peak Redis Memory: XXXX
+
+First Bottleneck: XXXX
+Second Bottleneck: XXXX
+
+Cold Start Latency (AI Engine): XXXX ms
+Warm Latency (AI Engine): XXXX ms
+
+Recovery Time After RabbitMQ Failure: XXXX (< 30s) / Backlog Drain Time: XXXX
+Recovery Time After Redis Failure: XXXX (< 60s) / Backlog Drain Time: XXXX
+Recovery Time After AI Failure: XXXX (< 120s) / Backlog Drain Time: XXXX
+
+Recovery Success Rate (MQ Consumers): XXXX
+Recovery Success Rate (SignalR): XXXX
+Recovery Success Rate (Dispatch): XXXX
+
+Latency Drift % (0 min vs 60 min): XXXX %
+
+OOM Events: 0
+Data Integrity Failures: 0 (Lost Messages: 0)
+
+### Capacity Curve Analysis
+| RPS | p95 Latency | Error % | CPU Backend | RAM Backend |
+| --- | --- | --- | --- | --- |
+| 100 | XXXms | X.X% | XX% | XXXMB |
+| 500 | XXXms | X.X% | XX% | XXXMB |
+| 1000 | XXXms | X.X% | XX% | XXXMB |
+| 1500 | XXXms | X.X% | XX% | XXXMB |
+| 2000 | XXXms | X.X% | XX% | XXXMB |
+
+Recommended Production Capacity: XXXX (คิดเป็น 60-70% ของ Breaking Point จาก Capacity Curve)
+Recommended Safety Margin: XXXX (เหลือไว้เผื่อ Peak Traffic, Deployments, GC Spikes, และ Failover)
+```
+รายงานนี้จะใช้เป็นบรรทัดฐานอ้างอิงเพื่อนำไปสู่ Phase 10: System Optimization ต่อไป

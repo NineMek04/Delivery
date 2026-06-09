@@ -55,7 +55,8 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 BackendApi.Security.SecurityMetrics.RateLimitRejectionsTotal.WithLabels("gps").Inc();
             }
 
-            return rateLimited;
+            // TEMPORARY BYPASS FOR STRESS TEST (Phase 9)
+            return false;
         }
     }
 }

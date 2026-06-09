@@ -138,6 +138,15 @@ async function main() {
   const shopId = partnerUser.user?.shopId;
   console.log(`  - Store Partner registered. ShopId: ${shopId}`);
 
+  // Force open the newly created shop in the database
+  try {
+    const { execSync } = require("child_process");
+    execSync(`docker exec -i delivery-db psql -U postgres -d delivery_db -c "UPDATE \\"Shops\\" SET \\"IsOpen\\" = true WHERE \\"Id\\" = '${shopId}';"`);
+    console.log(`  - Shop ${shopId} set to Open in PostgreSQL.`);
+  } catch (dbErr) {
+    console.warn("  - Warning: Failed to set shop to open directly, trying fallback:", dbErr.message);
+  }
+
   const customerEmail = `lock_cust_${timestamp}@test.com`;
   const customerUser = await registerUser(customerEmail, "Customer", "Lock Test Customer");
   if (!customerUser) {

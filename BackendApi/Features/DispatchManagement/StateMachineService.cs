@@ -81,7 +81,16 @@ public class StateMachineService
                 break;
         }
 
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrency conflict detected during transition of Order {OrderId} from {OldState} to {NewState}", 
+                order.Id, oldState, newState);
+            return false;
+        }
 
         // Update active order cache for the rider in Redis
         try

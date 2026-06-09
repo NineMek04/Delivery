@@ -232,10 +232,11 @@ namespace BackendApi.Data
                 if (InheritsFromGenericBase(entityType.ClrType, typeof(BaseEntity<>)) &&
                     entityType.FindProperty(nameof(BaseEntity<string>.RowVersion)) is not null)
                 {
+                    modelBuilder.Entity(entityType.ClrType).UseXminAsConcurrencyToken();
+
                     modelBuilder.Entity(entityType.ClrType)
                         .Property<byte[]>(nameof(BaseEntity<string>.RowVersion))
-                        .HasDefaultValue(Array.Empty<byte>())
-                        .IsRowVersion();
+                        .HasDefaultValue(Array.Empty<byte>());
                 }
 
                 if (typeof(ISoftDeletableEntity).IsAssignableFrom(entityType.ClrType))

@@ -1,4 +1,8 @@
-$data = Import-Csv stage1_signalr_v3.csv
+param(
+    [string]$File = "stage1_signalr_v3.csv"
+)
+
+$data = Import-Csv $File
 
 function Analyze-Container($name) {
     $cData = $data | Where-Object { $_.Container -eq $name }

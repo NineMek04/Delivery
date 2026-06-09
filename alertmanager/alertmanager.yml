@@ -1,0 +1,17 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 2h
+  receiver: 'discord-webhook'
+
+receivers:
+- name: 'discord-webhook'
+  discord_configs:
+  - webhook_url: 'https://discord.com/api/webhooks/PLACEHOLDER_WEBHOOK_URL_FOR_SECURITY_ALERTS'
+    send_resolved: true
+    title: '{{ template "discord.default.title" . }}'
+    message: '{{ template "discord.default.message" . }}'

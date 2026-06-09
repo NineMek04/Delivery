@@ -9,6 +9,8 @@ using BackendApi.Services.Dispatch;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
+using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 
 namespace BackendApi.Services.Tracking
 {
@@ -18,6 +20,7 @@ namespace BackendApi.Services.Tracking
         private readonly RiderPresenceService _presenceService;
         private readonly StateMachineService _stateMachine;
         private readonly IEventBus _eventBus;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<RiderPresenceManager> _logger;
         private readonly IServiceProvider _serviceProvider;
 
@@ -26,6 +29,7 @@ namespace BackendApi.Services.Tracking
             RiderPresenceService presenceService,
             StateMachineService stateMachine,
             IEventBus eventBus,
+            IHttpContextAccessor httpContextAccessor,
             ILogger<RiderPresenceManager> logger,
             IServiceProvider serviceProvider)
         {
@@ -33,6 +37,7 @@ namespace BackendApi.Services.Tracking
             _presenceService = presenceService;
             _stateMachine = stateMachine;
             _eventBus = eventBus;
+            _httpContextAccessor = httpContextAccessor;
             _logger = logger;
             _serviceProvider = serviceProvider;
         }
@@ -51,13 +56,15 @@ namespace BackendApi.Services.Tracking
             
             // Publish integration event to RabbitMQ for durable out-of-process state transition
             var riderId = rider.Id;
-            await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent
-            {
-                RiderId = riderId,
-                TargetState = (rider.State == RiderState.OFFLINE) ? "IDLE" : "RECOVER",
-                PreviousState = oldState.ToString(),
-                Reason = "connect"
-            });
+            var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+
+            await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent(
+                riderId,
+                (rider.State == RiderState.OFFLINE) ? "IDLE" : "RECOVER",
+                oldState.ToString(),
+                "connect",
+                correlationId
+            ));
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
         }
@@ -74,13 +81,15 @@ namespace BackendApi.Services.Tracking
             var riderId = rider.Id;
 
             // Publish integration event to RabbitMQ for durable out-of-process state transition
-            await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent
-            {
-                RiderId = riderId,
-                TargetState = "STALE",
-                PreviousState = oldState.ToString(),
-                Reason = "disconnect"
-            });
+            var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+
+            await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent(
+                riderId,
+                "STALE",
+                oldState.ToString(),
+                "disconnect",
+                correlationId
+            ));
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
         }

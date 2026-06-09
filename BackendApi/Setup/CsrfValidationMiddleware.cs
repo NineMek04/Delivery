@@ -115,6 +115,7 @@ public class CsrfValidationMiddleware
             {
                 _logger.LogWarning("CSRF: Missing Origin and Referer. IP: {Ip}, Path: {Path}",
                     context.Connection.RemoteIpAddress, context.Request.Path);
+                BackendApi.Security.SecurityMetrics.CsrfRejectionsTotal.WithLabels("missing_origin").Inc();
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 await context.Response.WriteAsJsonAsync(new { Message = "Missing Origin or Referer" });
                 return;
@@ -125,6 +126,7 @@ public class CsrfValidationMiddleware
             {
                 _logger.LogWarning("CSRF: Origin/Referer validation failed. Value: {Origin}, Path: {Path}",
                     originToValidate, context.Request.Path);
+                BackendApi.Security.SecurityMetrics.CsrfRejectionsTotal.WithLabels("invalid_origin").Inc();
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 await context.Response.WriteAsJsonAsync(new { Message = "Origin Validation Failed" });
                 return;
@@ -141,6 +143,7 @@ public class CsrfValidationMiddleware
                     string.IsNullOrEmpty(cookieToken) ? "missing" : "present",
                     string.IsNullOrEmpty(headerToken) ? "missing" : "present");
 
+                BackendApi.Security.SecurityMetrics.CsrfRejectionsTotal.WithLabels("token_mismatch").Inc();
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 await context.Response.WriteAsJsonAsync(new { Message = "CSRF Token Validation Failed" });
                 return;

@@ -22,6 +22,7 @@ public sealed class LoginAttemptService
 
     public bool IsLockedOut(string key, out TimeSpan retryAfter, out bool wasUnlocked)
     {
+        key = key.Trim().ToLowerInvariant();
         retryAfter = TimeSpan.Zero;
         wasUnlocked = false;
 
@@ -49,6 +50,7 @@ public sealed class LoginAttemptService
 
     public void RegisterFailure(string key)
     {
+        key = key.Trim().ToLowerInvariant();
         var state = _cache.GetOrCreate(key, entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = LockoutDuration;
@@ -72,6 +74,7 @@ public sealed class LoginAttemptService
 
     public void Reset(string key)
     {
+        key = key.Trim().ToLowerInvariant();
         _cache.Remove(key);
     }
 

@@ -21,10 +21,13 @@ public class DispatchTaskQueue : IDispatchTaskQueue
     public async ValueTask QueueTaskAsync(DispatchTask task)
     {
         await _queue.Writer.WriteAsync(task);
+        BackendApi.Security.SecurityMetrics.DispatchQueueDepth.Set(_queue.Reader.Count);
     }
 
     public async ValueTask<DispatchTask> DequeueAsync(CancellationToken cancellationToken)
     {
-        return await _queue.Reader.ReadAsync(cancellationToken);
+        var task = await _queue.Reader.ReadAsync(cancellationToken);
+        BackendApi.Security.SecurityMetrics.DispatchQueueDepth.Set(_queue.Reader.Count);
+        return task;
     }
 }

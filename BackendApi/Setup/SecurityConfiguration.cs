@@ -16,14 +16,27 @@ public static class SecurityConfiguration
         IConfiguration configuration)
     {
         var jwtKey = configuration["Jwt:Key"];
+        var issuerSigningKeys = new List<SecurityKey>();
 
-        if (string.IsNullOrWhiteSpace(jwtKey) ||
-            jwtKey.Contains("__SET_VIA_USER_SECRETS_OR_ENV__", StringComparison.OrdinalIgnoreCase) ||
-            jwtKey.Contains("replace-with", StringComparison.OrdinalIgnoreCase) ||
-            jwtKey.Length < 32)
+        var keysSection = configuration.GetSection("Jwt:Keys");
+        if (keysSection.Exists())
         {
-            throw new InvalidOperationException(
-                "Jwt:Key must be provided via user secrets or environment variables and be at least 32 characters long.");
+            foreach (var child in keysSection.GetChildren())
+            {
+                if (!string.IsNullOrWhiteSpace(child.Value) && child.Value.Length >= 32)
+                {
+                    issuerSigningKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(child.Value)) { KeyId = child.Key });
+                }
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(jwtKey) && jwtKey.Length >= 32 && !jwtKey.Contains("__SET_VIA_USER_SECRETS_OR_ENV__", StringComparison.OrdinalIgnoreCase))
+        {
+            issuerSigningKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)) { KeyId = "default" });
+        }
+
+        if (issuerSigningKeys.Count == 0)
+        {
+            throw new InvalidOperationException("Valid Jwt:Key or Jwt:Keys must be provided via configuration and be at least 32 characters long.");
         }
 
         services.AddMemoryCache();
@@ -33,6 +46,16 @@ public static class SecurityConfiguration
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.OnRejected = async (context, token) =>
+            {
+                SecurityMetrics.RateLimitRejectionsTotal.WithLabels("global").Inc();
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await context.HttpContext.Response.WriteAsJsonAsync(new
+                {
+                    Message = "มีคำขอมากเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง"
+                }, token);
+            };
 
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                 RateLimitPartition.GetFixedWindowLimiter(
@@ -68,7 +91,7 @@ public static class SecurityConfiguration
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = configuration["Jwt:Issuer"],
                 ValidAudience = configuration["Jwt:Audience"],
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                IssuerSigningKeys = issuerSigningKeys,
                 ClockSkew = TimeSpan.FromMinutes(5)
             };
 

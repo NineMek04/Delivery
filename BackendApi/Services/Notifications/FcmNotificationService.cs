@@ -75,6 +75,12 @@ namespace BackendApi.Services.Notifications
             return successCount;
         }
 
+        private static string MaskToken(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return string.Empty;
+            return token.Length <= 10 ? "***" : token[..10] + "***";
+        }
+
         public async Task<bool> SendNotificationToTokenAsync(string token, string title, string body, Dictionary<string, string>? data = null)
         {
             var projectId = _config["Firebase:ProjectId"];
@@ -83,14 +89,15 @@ namespace BackendApi.Services.Notifications
             // หากไม่มีการคอนฟิก ตั้งค่า Simulation Mode และบันทึก Structured Telemetry เข้าสู่ระบบทันที
             if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(serverKey))
             {
+                var maskedToken = MaskToken(token);
                 _logger.LogInformation(
                     "FCM [SIMULATION MODE] - Simulated Push sent to Token {Token}. Title: {Title}, Body: {Body}. Detail: {@NotificationPayload}",
-                    token[..Math.Min(token.Length, 15)] + "...",
+                    maskedToken,
                     title,
                     body,
                     new
                     {
-                        Token = token,
+                        Token = maskedToken,
                         Title = title,
                         Body = body,
                         Data = data ?? new Dictionary<string, string>(),
@@ -131,7 +138,7 @@ namespace BackendApi.Services.Notifications
                     }
                     
                     var errorResponse = await response.Content.ReadAsStringAsync();
-                    _logger.LogError("FCM request failed for token {Token}. Response: {Error}", token, errorResponse);
+                    _logger.LogError("FCM request failed for token {Token}. Response: {Error}", MaskToken(token), errorResponse);
                     return false;
                 }
 
@@ -169,7 +176,7 @@ namespace BackendApi.Services.Notifications
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "FCM delivery failed for token {Token}", token);
+                _logger.LogError(ex, "FCM delivery failed for token {Token}", MaskToken(token));
                 return false;
             }
         }

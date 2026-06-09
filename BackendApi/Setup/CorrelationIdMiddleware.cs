@@ -3,6 +3,7 @@ using Serilog.Context;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using BackendApi.Security;
 
 namespace BackendApi.Setup;
 
@@ -18,8 +19,7 @@ public class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId = context.Request.Headers[HeaderKey].FirstOrDefault() 
-                          ?? Guid.NewGuid().ToString();
+        var correlationId = CorrelationIdProvider.GetOrCreate(context);
         
         context.Items["CorrelationId"] = correlationId;
         

@@ -47,7 +47,10 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Database=delivery_db;Username=postgres;Password=${POSTGRES_PASSWORD};Maximum Pool Size=1024;
       - ConnectionStrings__Redis=redis:6379
       - AI_SERVICE_URL=http://ai-service:8000
-      - Jwt__Key=${JWT_SECRET}
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_ROLE_ID_FILE=/vault/approle/backend_role_id
+      - VAULT_SECRET_ID_FILE=/vault/approle/backend_secret_id
+      - VAULT_REQUIRED=true
       - Jwt__Issuer=DeliveryBackendApi
       - Jwt__Audience=DeliveryClients
       - Cors__AllowedOrigins__0=http://localhost
@@ -60,8 +63,6 @@ services:
       - MessageBroker__Host=rabbitmq
       - MessageBroker__Port=5672
       - MessageBroker__Username=${RABBITMQ_USER}
-      - MessageBroker__Password=${RABBITMQ_PASSWORD}
-      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +78,8 @@ services:
       start_period: 60s
     ports:
       - "5000:80"
+    volumes:
+      - vault_approle_data:/vault/approle:ro
 
   # 3. Redis — Realtime Speed Layer (GPS Cache, Distributed Lock, Rider Presence)
   redis:
@@ -101,8 +104,11 @@ services:
       dockerfile: Dockerfile
     container_name: delivery-ai
     environment:
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/delivery_db
-      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
+      - DATABASE_URL=postgresql://postgres@db:5432/delivery_db
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_ROLE_ID_FILE=/vault/approle/ai_role_id
+      - VAULT_SECRET_ID_FILE=/vault/approle/ai_secret_id
+      - VAULT_REQUIRED=true
     depends_on:
       db:
         condition: service_healthy
@@ -114,6 +120,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    volumes:
+      - vault_approle_data:/vault/approle:ro
 
   # 5. ระบบแดชบอร์ดแอดมิน (Angular)
   frontend:
@@ -191,9 +199,12 @@ services:
     container_name: delivery-prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules:/etc/prometheus/rules
     ports:
       - "9090:9090"
     restart: unless-stopped
+    depends_on:
+      - alertmanager
 
   # 11. Grafana (Dashboard)
   grafana:
@@ -203,6 +214,19 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: unless-stopped
+
+  # 13. Alertmanager (Security & Operational Alerts)
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: delivery-alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
     restart: unless-stopped
 
   # 12. RabbitMQ Message Broker (Real-time Event Architecture)
@@ -222,8 +246,40 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # 14. HashiCorp Vault (Secrets Management - Local Dev Mode)
+  vault:
+    image: hashicorp/vault:latest
+    container_name: delivery-vault
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=root
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_approle_data:/vault/approle
+    restart: unless-stopped
+
+  vault-bootstrap:
+    image: hashicorp/vault:latest
+    container_name: delivery-vault-bootstrap
+    user: "root"
+    depends_on:
+      - vault
+    volumes:
+      - ./scripts/vault-bootstrap.sh:/vault-bootstrap.sh
+      - vault_approle_data:/vault/approle
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
+    entrypoint: ["sh", "/vault-bootstrap.sh"]
+
 volumes:
   postgres_data:
   redis_data:
   seq_data:
   grafana_data:
+  vault_approle_data:

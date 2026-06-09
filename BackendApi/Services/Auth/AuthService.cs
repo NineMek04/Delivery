@@ -20,7 +20,7 @@ public sealed class AuthService : IAuthService
         AuthConstants.StorePartnerRole
     ];
 
-    private const string DefaultDummyHash = "100000.SHA256.AAAAAAAAAAAAAAAAAAAAAA==.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    private readonly string _dummyHash;
 
     private readonly ApplicationDbContext _dbContext;
     private readonly ITokenService _tokenService;
@@ -43,6 +43,9 @@ public sealed class AuthService : IAuthService
         _configuration = configuration;
         _logger = logger;
         _httpContextAccessor = httpContextAccessor;
+
+        _dummyHash = _configuration.GetValue<string>("Authentication:DummyPasswordHash") 
+                     ?? PasswordHasher.HashPassword("dummy-password");
     }
 
     public async Task<ServiceResult<AuthResponse>> LoginAsync(
@@ -51,15 +54,23 @@ public sealed class AuthService : IAuthService
         CancellationToken cancellationToken = default)
     {
         var email = NormalizeEmail(request.Email);
-        var lockoutKey = $"login:{clientIp}:{email}";
+        
+        // Find user first to determine lockout key (two-tier lockout key)
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+        var lockoutKey = user != null 
+            ? $"login:user:{user.Id}" 
+            : $"login:email:{email}";
 
         if (_loginAttemptService.IsLockedOut(lockoutKey, out var retryAfter, out var wasUnlocked))
         {
-            LogAuthEvent("AUTH_LOGIN", "ACCOUNT_LOCKOUT_ATTEMPT", null, email);
+            LogAuthEvent("AUTH_LOGIN", "ACCOUNT_LOCKOUT_ATTEMPT", user?.Id, email, user?.RiderId);
 
             _logger.LogWarning(
-                "Login attempt blocked for {Email} from {IP} because lockout is active (ACCOUNT_LOCKOUT_ATTEMPT)",
+                "Login attempt blocked for {Email} (User: {UserId}) from {IP} because lockout is active (ACCOUNT_LOCKOUT_ATTEMPT)",
                 email,
+                user?.Id ?? "N/A",
                 clientIp);
 
             var retrySecs = (int)Math.Ceiling(retryAfter.TotalSeconds);
@@ -75,18 +86,14 @@ public sealed class AuthService : IAuthService
 
         if (wasUnlocked)
         {
-            LogAuthEvent("AUTH_LOGIN", "ACCOUNT_UNLOCKED", null, email);
-            _logger.LogInformation("Account {Email} has been unlocked (lockout duration expired)", email);
+            LogAuthEvent("AUTH_LOGIN", "ACCOUNT_UNLOCKED", user?.Id, email, user?.RiderId);
+            _logger.LogInformation("Account {Email} (User: {UserId}) has been unlocked (lockout duration expired)", email, user?.Id ?? "N/A");
         }
-
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
         bool isValidPassword;
         if (user is null)
         {
-            var dummyHash = _configuration.GetValue<string>("Authentication:DummyPasswordHash") ?? DefaultDummyHash;
-            PasswordHasher.VerifyPassword(request.Password, dummyHash);
+            PasswordHasher.VerifyPassword(request.Password, _dummyHash);
             isValidPassword = false;
         }
         else
@@ -96,12 +103,14 @@ public sealed class AuthService : IAuthService
 
         if (!isValidPassword)
         {
+            SecurityMetrics.AuthFailedLoginsTotal.WithLabels("invalid_credentials").Inc();
             _loginAttemptService.RegisterFailure(lockoutKey);
 
             if (_loginAttemptService.IsLockedOut(lockoutKey, out var retryAfterAfterFailure, out _))
             {
+                SecurityMetrics.AuthLockoutsTotal.Inc();
                 LogAuthEvent("AUTH_LOGIN", "ACCOUNT_LOCKED", user?.Id, email, user?.RiderId);
-                _logger.LogWarning("Account {Email} has been locked for 15 minutes due to 5 failed login attempts", email);
+                _logger.LogWarning("Account {Email} (User: {UserId}) has been locked for 15 minutes due to 5 failed login attempts", email, user?.Id ?? "N/A");
 
                 var retrySecs = (int)Math.Ceiling(retryAfterAfterFailure.TotalSeconds);
                 var lockedUntilUtc = DateTimeOffset.UtcNow.Add(retryAfterAfterFailure);
@@ -122,7 +131,7 @@ public sealed class AuthService : IAuthService
                 "INVALID_CREDENTIALS");
         }
 
-        if (!user.IsActive)
+        if (!user!.IsActive)
         {
             LogAuthEvent("AUTH_LOGIN", "AUTH_LOGIN_FAILED_ACCOUNT_DISABLED", user.Id, user.Email, user.RiderId);
 

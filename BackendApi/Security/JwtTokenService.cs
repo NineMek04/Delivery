@@ -16,10 +16,23 @@ public sealed class JwtTokenService : ITokenService
 
     public string CreateAccessToken(TokenSubject subject, DateTime expiresAtUtc)
     {
-        var jwtKey = _configuration["Jwt:Key"];
+        var currentKeyId = _configuration["Jwt:CurrentKeyId"];
+        string? jwtKey = null;
+
+        if (!string.IsNullOrEmpty(currentKeyId))
+        {
+            jwtKey = _configuration[$"Jwt:Keys:{currentKeyId}"];
+        }
+
         if (string.IsNullOrEmpty(jwtKey))
         {
-            throw new InvalidOperationException("JWT configuration 'Jwt:Key' is missing.");
+            jwtKey = _configuration["Jwt:Key"];
+            currentKeyId = "default";
+        }
+
+        if (string.IsNullOrEmpty(jwtKey) || jwtKey.Length < 32)
+        {
+            throw new InvalidOperationException("Valid JWT configuration is missing or too short.");
         }
 
         var claimsList = new List<Claim>
@@ -36,7 +49,10 @@ public sealed class JwtTokenService : ITokenService
         }
         var claims = claimsList.ToArray();
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        {
+            KeyId = currentKeyId
+        };
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(

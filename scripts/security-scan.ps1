@@ -18,6 +18,18 @@ if (Test-Path $dotnetDir) {
         } else {
             Write-Host "[+] Dotnet vulnerability check passed." -ForegroundColor Green
         }
+
+        Write-Host ""
+        Write-Host "Checking for deprecated .NET packages..." -ForegroundColor Cyan
+        $deprecatedOut = dotnet list BackendApi.csproj package --deprecated
+        $deprecatedStr = $deprecatedOut -join "`n"
+        Write-Host $deprecatedStr
+        if ($deprecatedStr -match "has the following deprecated packages") {
+            Write-Host "[-] Dotnet deprecated package check failed: Deprecated packages detected!" -ForegroundColor Red
+            $HasVulnerabilities = $true
+        } else {
+            Write-Host "[+] No deprecated .NET packages found." -ForegroundColor Green
+        }
     }
     catch {
         Write-Host "[-] Failed to run dotnet scan command: $_" -ForegroundColor Red
@@ -46,6 +58,11 @@ if (Test-Path $angularDir) {
         } else {
             Write-Host "[+] Npm audit passed." -ForegroundColor Green
         }
+
+        Write-Host ""
+        Write-Host "Checking for outdated npm packages (Informational)..." -ForegroundColor Cyan
+        npm outdated
+        # npm outdated exits with 1 when packages are outdated. We do not fail the build for this, just display it.
     }
     catch {
         Write-Host "[-] Failed to run npm audit command: $_" -ForegroundColor Red

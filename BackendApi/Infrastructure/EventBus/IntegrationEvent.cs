@@ -22,6 +22,10 @@ public record IntegrationEvent
         CreationDate = DateTime.UtcNow;
     }
 
+    public IntegrationEvent(string? correlationId) : this(Guid.NewGuid(), DateTime.UtcNow, correlationId)
+    {
+    }
+
     [JsonConstructor]
     public IntegrationEvent(Guid id, DateTime creationDate, string? correlationId = null)
     {

@@ -48,7 +48,7 @@ namespace BackendApi.UnitTests.Dispatch
             
             _dbContext = new ApplicationDbContext(options, _currentUserServiceMock.Object);
 
-            _stateMachineMock = new Mock<StateMachineService>(null!, null!, null!, null!);
+            _stateMachineMock = new Mock<StateMachineService>(null!, null!, null!, null!, null!);
             _lockServiceMock = new Mock<RedisLockService>(new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<ILogger<RedisLockService>>().Object);
             _presenceServiceMock = new Mock<RiderPresenceService>(new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<ILogger<RiderPresenceService>>().Object);
             _routingServiceMock = new Mock<OsrmRoutingService>(new System.Net.Http.HttpClient(), new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<IConfiguration>().Object, new Mock<ILogger<OsrmRoutingService>>().Object);

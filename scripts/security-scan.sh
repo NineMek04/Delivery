@@ -20,6 +20,17 @@ if [ -d "$DOTNET_DIR" ]; then
     else
         echo -e "\e[32m[+] Dotnet vulnerability check passed.\e[0m"
     fi
+
+    echo ""
+    echo "Checking for deprecated .NET packages..."
+    DEPRECATED_OUT=$(dotnet list BackendApi.csproj package --deprecated || true)
+    echo "$DEPRECATED_OUT"
+    if echo "$DEPRECATED_OUT" | grep -q "has the following deprecated packages"; then
+        echo -e "\e[31m[-] Dotnet deprecated package check failed: Deprecated packages detected!\e[0m"
+        HAS_VULNERABILITIES=1
+    else
+        echo -e "\e[32m[+] No deprecated .NET packages found.\e[0m"
+    fi
     cd "$SCRIPT_DIR"
 else
     echo "BackendApi directory not found. Skipping."
@@ -38,6 +49,10 @@ if [ -d "$ANGULAR_DIR" ]; then
     else
         echo -e "\e[32m[+] Npm audit passed.\e[0m"
     fi
+
+    echo ""
+    echo "Checking for outdated npm packages (Informational)..."
+    npm outdated || true
     cd "$SCRIPT_DIR"
 else
     echo "admin-dashboard directory not found. Skipping."

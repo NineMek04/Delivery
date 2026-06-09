@@ -180,6 +180,8 @@ public class OrderService : IOrderService
         // Publish Order Created Integration Event asynchronously to RabbitMQ
         try
         {
+            var correlationId = CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+
             await _eventBus.PublishAsync(new OrderCreatedIntegrationEvent(
                 savedOrder.Id,
                 savedOrder.RefNumber,
@@ -189,7 +191,8 @@ public class OrderService : IOrderService
                 savedOrder.DropoffLocation?.Y ?? 0,
                 savedOrder.DropoffLocation?.X ?? 0,
                 savedOrder.DistanceKm,
-                savedOrder.DeliveryFee
+                savedOrder.DeliveryFee,
+                correlationId
             ));
         }
         catch (Exception ex)
@@ -205,7 +208,7 @@ public class OrderService : IOrderService
         // Enqueue background dispatch task to the Channel-based queue
         try
         {
-            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            var correlationId = CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
             await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.CreateOrder, savedOrder.Id, correlationId));
         }
         catch (Exception ex)
@@ -530,7 +533,7 @@ public class OrderService : IOrderService
 
         try
         {
-            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            var correlationId = CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
             await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.RetryOrder, order.Id, correlationId));
         }
         catch (Exception ex)
@@ -588,7 +591,7 @@ public class OrderService : IOrderService
         // Enqueue background batch dispatch task to the Channel-based queue
         try
         {
-            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            var correlationId = CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
             await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.BatchGroup, batchGroupId, correlationId));
         }
         catch (Exception ex)

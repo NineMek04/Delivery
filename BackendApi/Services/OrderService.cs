@@ -199,8 +199,8 @@ public class OrderService : IOrderService
 
         var responseDto = _mapper.Map<OrderDto>(savedOrder);
 
-        // Broadcast to store partners group via SignalR
-        await _orderNotifier.NotifyOrderCreatedAsync(responseDto, cancellationToken);
+        // Broadcast to the specific store's group via SignalR
+        await _orderNotifier.NotifyOrderCreatedAsync(responseDto, cancellationToken, shopId: savedOrder.ShopId);
 
         // Enqueue background dispatch task to the Channel-based queue
         try
@@ -306,7 +306,7 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
         if (user?.RiderId is null)
-            return (StatusCodes.Status401Unauthorized, ApiResponse<List<OrderDto>>.Fail("Rider profile not linked to this user."));
+            return (StatusCodes.Status403Forbidden, ApiResponse<List<OrderDto>>.Fail("Rider profile not linked to this user."));
 
         var orders = await _db.GetQuery<Order>(asNoTracking: true)
             .Include(o => o.Items)
@@ -335,6 +335,23 @@ public class OrderService : IOrderService
         return (StatusCodes.Status200OK, ApiResponse<List<OrderDto>>.Ok(dtos));
     }
 
+    public async Task<(int StatusCode, ApiResponse<List<OrderDto>> Response)> GetShopOrdersAsync(
+        string shopId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(shopId))
+            return (StatusCodes.Status400BadRequest, ApiResponse<List<OrderDto>>.Fail("ShopId is required."));
+
+        var orders = await _db.GetQuery<Order>(asNoTracking: true)
+            .Include(o => o.Items)
+            .Where(o => o.ShopId == shopId)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var dtos = _mapper.Map<List<OrderDto>>(orders);
+        return (StatusCodes.Status200OK, ApiResponse<List<OrderDto>>.Ok(dtos));
+    }
+
     public async Task<(int StatusCode, ApiResponse<OrderDto> Response)> UpdateOrderStatusAsync(
         string id,
         UpdateOrderStatusDto dto,
@@ -349,9 +366,20 @@ public class OrderService : IOrderService
         if (role != AuthConstants.AdminRole && role != AuthConstants.DispatcherRole)
         {
             var user = await _db.GetObjectByKeyAsync<BackendApi.Models.User>(currentUserId ?? string.Empty, cancellationToken);
-            if (user == null || order.AssignedRiderId != user.RiderId)
+            if (user == null)
+                return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("ไม่พบข้อมูลผู้ใช้"));
+
+            if (role == AuthConstants.StorePartnerRole)
             {
-                return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้รับมอบหมายให้ทำออเดอร์นี้"));
+                // StorePartner สามารถ update status ได้เฉพาะ order ของร้านตัวเอง
+                if (user.ShopId == null || order.ShopId != user.ShopId)
+                    return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้เป็นเจ้าของร้านที่รับออเดอร์นี้"));
+            }
+            else
+            {
+                // Rider: ต้องเป็น rider ที่ถูก assign
+                if (order.AssignedRiderId != user.RiderId)
+                    return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้รับมอบหมายให้ทำออเดอร์นี้"));
             }
         }
 
@@ -407,12 +435,18 @@ public class OrderService : IOrderService
 
     public async Task<(int StatusCode, ApiResponse<OrderDto> Response)> AcceptOrderByStoreAsync(
         string id,
-        string? customerId,
+        string? currentUserId,
         CancellationToken cancellationToken)
     {
         var order = await _db.GetObjectByKeyAsync<Order>(id, cancellationToken);
         if (order is null)
             return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("Order not found."));
+
+        var user = await _db.GetObjectByKeyAsync<BackendApi.Models.User>(currentUserId ?? string.Empty, cancellationToken);
+        if (user?.ShopId is null || order.ShopId != user.ShopId)
+        {
+            return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("Store partner is not allowed to accept this order."));
+        }
 
         if (order.State != Core.StateMachines.OrderState.CREATED)
         {
@@ -426,10 +460,22 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        if (!string.IsNullOrEmpty(customerId))
+        try
+        {
+            var correlationId = _httpContextAccessor.HttpContext?.Items["CorrelationId"] as string;
+            await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.CreateOrder, order.Id, correlationId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue dispatch task after store accepted order {OrderId}", order.Id);
+        }
+
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, cancellationToken);
+
+        if (!string.IsNullOrEmpty(order.CustomerId))
         {
             await _orderNotifier.NotifyOrderAcceptedByStoreAsync(
-                order.Id, order.State.ToString(), customerId, cancellationToken);
+                order.Id, order.State.ToString(), order.CustomerId, cancellationToken);
         }
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ร้านค้ายอมรับออเดอร์สำเร็จ"));

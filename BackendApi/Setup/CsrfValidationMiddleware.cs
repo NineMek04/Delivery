@@ -87,6 +87,13 @@ public class CsrfValidationMiddleware
             return;
         }
 
+        // Skip CSRF validation if request has Authorization header (Bearer token auth)
+        if (context.Request.Headers.ContainsKey("Authorization"))
+        {
+            await _next(context);
+            return;
+        }
+
         // 4. Validate CSRF only if client is authenticated via Cookie (Dashboard)
         if (context.Request.Cookies.ContainsKey(BackendApi.Security.AuthConstants.AccessTokenCookieName))
         {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:isar/isar.dart';
@@ -54,8 +55,14 @@ class GpsBufferService {
   Future<Isar> _getIsar() async {
     if (_isar != null) return _isar!;
     
-    final dbDir = await getDatabasesPath();
-    _logger.i('📂 Opening Isar database in path: $dbDir');
+    final String dbDir;
+    if (kIsWeb) {
+      dbDir = '';
+      _logger.i('📂 Opening Isar database for Web (IndexedDB mode)');
+    } else {
+      dbDir = await getDatabasesPath();
+      _logger.i('📂 Opening Isar database in path: $dbDir');
+    }
     
     _isar = await Isar.open(
       [GpsPointSchema],
@@ -63,6 +70,7 @@ class GpsBufferService {
     );
     return _isar!;
   }
+
 
   /// Starts the background periodic synchronize scheduler.
   Future<void> startSyncTimer() async {

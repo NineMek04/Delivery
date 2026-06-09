@@ -136,9 +136,10 @@ services:
     container_name: delivery-rider-app
     ports:
       - "8080:80"
-    depends_on:
-      backend:
-        condition: service_healthy
+    volumes:
+      - ./rider_app/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
   # 7. ระบบคำนวณเส้นทางถนน Dijkstra (Offline OSRM Server)
   osrm:

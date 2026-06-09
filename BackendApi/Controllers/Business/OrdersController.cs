@@ -86,10 +86,25 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
-    /// อัปเดตสถานะของออเดอร์ (เช่น Rider กดรับของแล้วเริ่มส่ง, ส่งเสร็จแล้ว)
+    /// ดูออเดอร์ทั้งหมดของร้านค้าที่ StorePartner ที่ล็อกอินอยู่เป็นเจ้าของ
+    /// </summary>
+    [HttpGet("shop")]
+    [Authorize(Roles = AuthConstants.StorePartnerRole)]
+    public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetShopOrders(CancellationToken cancellationToken)
+    {
+        var shopIdClaim = User.FindFirst("shop_id")?.Value;
+        if (string.IsNullOrWhiteSpace(shopIdClaim))
+            return BadRequest(ApiResponse<List<OrderDto>>.Fail("ไม่พบ ShopId ใน Token"));
+
+        var (statusCode, response) = await _orderService.GetShopOrdersAsync(shopIdClaim, cancellationToken);
+        return StatusCode(statusCode, response);
+    }
+
+    /// <summary>
+    /// อัปเดตสถานะของออเดอร์ (Rider, Admin, หรือ StorePartner)
     /// </summary>
     [HttpPatch("{id}/status")]
-    [Authorize(Roles = $"{AuthConstants.RiderRole},{AuthConstants.AdminRole}")] // Rider หรือ Admin (Defense-in-depth)
+    [Authorize(Roles = $"{AuthConstants.RiderRole},{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
     public async Task<ActionResult<ApiResponse<OrderDto>>> UpdateOrderStatus(
         string id,
         [FromBody] UpdateOrderStatusDto dto,
@@ -104,13 +119,12 @@ public class OrdersController : DeliveryControllerBase
     /// ร้านค้าพันธมิตรยอมรับออเดอร์จากลูกค้า
     /// </summary>
     [HttpPost("{id}/accept-by-store")]
-    [Authorize]
+    [Authorize(Roles = AuthConstants.StorePartnerRole)]
     public async Task<ActionResult<ApiResponse<OrderDto>>> AcceptOrderByStore(
         string id,
-        [FromQuery] string? customerId = null,
         CancellationToken cancellationToken = default)
     {
-        var (statusCode, response) = await _orderService.AcceptOrderByStoreAsync(id, customerId, cancellationToken);
+        var (statusCode, response) = await _orderService.AcceptOrderByStoreAsync(id, CurrentUserId, cancellationToken);
         return StatusCode(statusCode, response);
     }
 

@@ -110,7 +110,18 @@ public partial class TrackingHub : Hub
         }
         else if (role == AuthConstants.StorePartnerRole)
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, "stores");
+            var shopId = Context.User?.FindFirst("shop_id")?.Value;
+            if (!string.IsNullOrWhiteSpace(shopId))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"store:{shopId}");
+                _logger.LogInformation("StorePartner {UserId} connected to shop group store:{ShopId}", userId, shopId);
+            }
+            else
+            {
+                // Fallback to generic stores group if shopId not in token (legacy compatibility)
+                await Groups.AddToGroupAsync(Context.ConnectionId, "stores");
+                _logger.LogWarning("StorePartner {UserId} connected without ShopId claim — added to generic 'stores' group", userId);
+            }
         }
 
         await base.OnConnectedAsync();

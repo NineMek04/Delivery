@@ -26,6 +26,13 @@ class DispatchOffer {
     final orderRaw =
         readField<Map<String, dynamic>>(json, 'Order') ??
         readField<Map<String, dynamic>>(json, 'order');
+    final ordersRaw =
+        readField<List<dynamic>>(json, 'Orders') ??
+        readField<List<dynamic>>(json, 'orders');
+    final firstOrderRaw = orderRaw ??
+        (ordersRaw != null && ordersRaw.isNotEmpty && ordersRaw.first is Map
+            ? Map<String, dynamic>.from(ordersRaw.first as Map)
+            : null);
 
     final routeRaw =
         readField<Map<String, dynamic>>(json, 'PickupRoute') ??
@@ -43,8 +50,8 @@ class DispatchOffer {
       expiresAt: expiresRaw != null ? DateTime.tryParse(expiresRaw) : null,
       riderId:
           readField<String>(json, 'RiderId') ?? readField<String>(json, 'riderId'),
-      order: orderRaw != null
-          ? DispatchOfferOrder.fromJson(orderRaw)
+      order: firstOrderRaw != null
+          ? DispatchOfferOrder.fromJson(firstOrderRaw)
           : const DispatchOfferOrder(id: ''),
       pickupRoute: routeRaw != null
           ? DispatchPickupRoute.fromJson(routeRaw)

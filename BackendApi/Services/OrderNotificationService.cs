@@ -41,6 +41,15 @@ public class OrderNotificationService
                 cancellationToken);
         }
 
+        if (!string.IsNullOrWhiteSpace(order.ShopId))
+        {
+            await _hubContext.Clients.Group($"store:{order.ShopId}").SendAsync(
+                "OrderStatusChanged",
+                order.Id,
+                order.State.ToString(),
+                cancellationToken);
+        }
+
         if (!string.IsNullOrWhiteSpace(order.CustomerId))
         {
             await _hubContext.Clients.Group($"customer:{order.CustomerId}").SendAsync(
@@ -52,11 +61,18 @@ public class OrderNotificationService
     }
 
     /// <summary>
-    /// แจ้ง stores group เมื่อ Order ใหม่ถูกสร้าง
+    /// แจ้ง store group เมื่อ Order ใหม่ถูกสร้าง — ส่งเฉพาะร้านที่เกี่ยวข้อง
     /// </summary>
-    public async Task NotifyOrderCreatedAsync(object orderDto, CancellationToken cancellationToken = default)
+    public async Task NotifyOrderCreatedAsync(object orderDto, CancellationToken cancellationToken = default, string? shopId = null)
     {
-        await _hubContext.Clients.Group("stores").SendAsync(
+        // ถ้ามี shopId → ส่งเฉพาะร้านนั้น (shop-specific group)
+        // ถ้าไม่มี shopId → broadcast ไปทุก stores (fallback)
+        var groupName = !string.IsNullOrWhiteSpace(shopId)
+            ? $"store:{shopId}"
+            : "stores";
+
+        _logger.LogInformation("Notifying group {Group} of new OrderCreated event", groupName);
+        await _hubContext.Clients.Group(groupName).SendAsync(
             "OrderCreated", orderDto, cancellationToken);
     }
 

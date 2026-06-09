@@ -17,6 +17,8 @@ import '../features/profile/screens/profile_screen.dart';
 import '../features/store/screens/store_home_screen.dart';
 import '../features/store/screens/store_summary_screen.dart';
 import '../features/store/screens/store_profile_screen.dart';
+import '../features/store/screens/store_orders_screen.dart';
+import '../features/store/providers/store_orders_provider.dart';
 
 // Customer imports
 import '../features/stores/store_list_screen.dart';
@@ -152,6 +154,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/store',
             name: 'storeHome',
             builder: (context, state) => const StoreHomeScreen(),
+          ),
+          GoRoute(
+            path: '/store/orders',
+            name: 'storeOrders',
+            builder: (context, state) => const StoreOrdersScreen(),
           ),
           GoRoute(
             path: '/store/summary',
@@ -296,13 +303,16 @@ class MainShell extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // Store Shell — StorePartner Bottom Navigation
 // ═══════════════════════════════════════════════════════════════════
-class StoreShell extends StatelessWidget {
+class StoreShell extends ConsumerWidget {
   final Widget child;
 
   const StoreShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ordersState = ref.watch(storeOrdersProvider);
+    final badgeCount = ordersState.newOrderBadgeCount;
+
     return Theme(
       data: AppTheme.darkTheme,
       child: Scaffold(
@@ -310,18 +320,28 @@ class StoreShell extends StatelessWidget {
         bottomNavigationBar: NavigationBar(
           selectedIndex: _calculateSelectedIndex(context),
           onDestinationSelected: (index) => _onItemTapped(index, context),
-          destinations: const [
-            NavigationDestination(
+          destinations: [
+            const NavigationDestination(
               icon: Icon(Icons.storefront_outlined),
               selectedIcon: Icon(Icons.storefront),
               label: 'ร้านค้า',
             ),
             NavigationDestination(
+              icon: badgeCount > 0
+                  ? Badge(
+                      label: Text('$badgeCount'),
+                      child: const Icon(Icons.receipt_long_outlined),
+                    )
+                  : const Icon(Icons.receipt_long_outlined),
+              selectedIcon: const Icon(Icons.receipt_long),
+              label: 'ออเดอร์',
+            ),
+            const NavigationDestination(
               icon: Icon(Icons.analytics_outlined),
               selectedIcon: Icon(Icons.analytics),
               label: 'สรุป',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person),
               label: 'โปรไฟล์',
@@ -335,8 +355,9 @@ class StoreShell extends StatelessWidget {
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location == '/store') return 0;
-    if (location == '/store/summary') return 1;
-    if (location == '/store/profile') return 2;
+    if (location == '/store/orders') return 1;
+    if (location == '/store/summary') return 2;
+    if (location == '/store/profile') return 3;
     return 0;
   }
 
@@ -345,8 +366,10 @@ class StoreShell extends StatelessWidget {
       case 0:
         context.goNamed('storeHome');
       case 1:
-        context.goNamed('storeSummary');
+        context.goNamed('storeOrders');
       case 2:
+        context.goNamed('storeSummary');
+      case 3:
         context.goNamed('storeProfile');
     }
   }

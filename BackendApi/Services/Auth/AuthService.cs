@@ -440,7 +440,7 @@ public sealed class AuthService : IAuthService
         var lifetimeHours = _configuration.GetValue("Authentication:SessionLifetimeHours", 24);
         var expiresAt = DateTime.UtcNow.AddHours(lifetimeHours);
 
-        var subject = new TokenSubject(user.Id, user.Email, user.FullName, user.Role);
+        var subject = new TokenSubject(user.Id, user.Email, user.FullName, user.Role, user.ShopId);
         var accessToken = _tokenService.CreateAccessToken(subject, expiresAt);
         var refreshToken = GenerateRefreshToken();
 

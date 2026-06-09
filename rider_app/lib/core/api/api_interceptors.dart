@@ -25,6 +25,7 @@ class AuthInterceptor extends Interceptor {
     final authService = _ref.read(authServiceProvider.notifier);
     final token = authService.currentToken;
 
+    _logger.d('AuthInterceptor: sending request to ${options.path} (hasToken: ${token != null && token.isNotEmpty})');
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }

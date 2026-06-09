@@ -9,6 +9,7 @@ import 'package:logger/logger.dart';
 import '../database/local_database_service.dart';
 import '../../models/auth_response.dart';
 import '../api/api_helpers.dart';
+import '../api/delivery_api_client.dart';
 import '../config/app_constants.dart';
 import '../config/environment.dart';
 import 'auth_constants.dart';
@@ -230,9 +231,10 @@ class AuthService extends Notifier<AuthStatus> {
       }
 
       // สร้าง Dio instance แยกเพื่อหลีกเลี่ยง interceptor loop
+      final baseUrl = ref.read(deliveryApiClientProvider).options.baseUrl;
       final dio = Dio(
         BaseOptions(
-          baseUrl: Environment.apiUrl,
+          baseUrl: baseUrl,
           connectTimeout: Environment.connectTimeout,
           receiveTimeout: Environment.receiveTimeout,
           headers: {

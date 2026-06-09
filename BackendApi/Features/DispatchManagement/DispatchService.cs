@@ -380,6 +380,19 @@ public class DispatchService
                 EndLat = firstOrder.PickupLocation?.Y,
                 EndLng = firstOrder.PickupLocation?.X
             },
+            Order = new
+            {
+                firstOrder.Id,
+                PickupLat = firstOrder.PickupLocation?.Y,
+                PickupLng = firstOrder.PickupLocation?.X,
+                DropoffLat = firstOrder.DropoffLocation?.Y,
+                DropoffLng = firstOrder.DropoffLocation?.X,
+                firstOrder.SlaLimitMinutes,
+                DistanceKm = firstOrder.DistanceKm,
+                DeliveryFee = firstOrder.DeliveryFee,
+                EncodedPolyline = firstOrder.EncodedPolyline,
+                Sequence = firstOrder.BatchSequence
+            },
             Orders = orders.Select(o => new
             {
                 o.Id,

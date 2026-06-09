@@ -22,7 +22,7 @@ public sealed class JwtTokenService : ITokenService
             throw new InvalidOperationException("JWT configuration 'Jwt:Key' is missing.");
         }
 
-        var claims = new[]
+        var claimsList = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.NameIdentifier, subject.UserId),
@@ -30,6 +30,11 @@ public sealed class JwtTokenService : ITokenService
             new Claim(ClaimTypes.Name, subject.DisplayName),
             new Claim(ClaimTypes.Role, subject.Role)
         };
+        if (!string.IsNullOrWhiteSpace(subject.ShopId))
+        {
+            claimsList.Add(new Claim("shop_id", subject.ShopId));
+        }
+        var claims = claimsList.ToArray();
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

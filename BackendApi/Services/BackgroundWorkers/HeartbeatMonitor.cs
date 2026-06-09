@@ -39,14 +39,23 @@ public class HeartbeatMonitor : BackgroundService
             try
             {
                 await CheckRiderHeartbeatsAsync(stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Graceful shutdown — stop the loop cleanly
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in HeartbeatMonitor");
+                // Wait before retrying, but still respect cancellation
+                try { await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken); }
+                catch (OperationCanceledException) { break; }
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
+
+        _logger.LogInformation("HeartbeatMonitor stopped");
     }
 
     private async Task CheckRiderHeartbeatsAsync(CancellationToken ct)

@@ -9,7 +9,7 @@ class WebSafeStorage implements SafeStorage {
   @override
   Future<String?> read({required String key}) async {
     try {
-      return html.window.localStorage[key];
+      return html.window.sessionStorage[key];
     } catch (_) {
       return _inMemoryFallback[key];
     }
@@ -18,7 +18,7 @@ class WebSafeStorage implements SafeStorage {
   @override
   Future<void> write({required String key, required String value}) async {
     try {
-      html.window.localStorage[key] = value;
+      html.window.sessionStorage[key] = value;
     } catch (_) {
       _inMemoryFallback[key] = value;
     }
@@ -27,7 +27,7 @@ class WebSafeStorage implements SafeStorage {
   @override
   Future<void> delete({required String key}) async {
     try {
-      html.window.localStorage.remove(key);
+      html.window.sessionStorage.remove(key);
     } catch (_) {
       _inMemoryFallback.remove(key);
     }

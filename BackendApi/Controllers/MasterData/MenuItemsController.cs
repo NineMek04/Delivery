@@ -23,6 +23,41 @@ namespace BackendApi.Controllers.MasterData
         }
 
         /// <summary>
+        /// ดึงรายการเมนูสินค้าทั้งหมด (กรองเฉพาะร้านที่เปิดอยู่)
+        /// </summary>
+        [HttpGet]
+        public override async Task<ActionResult<PaginatedResult<MenuItemDto>>> GetAll(
+            [FromQuery] string? search = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var query = DB.GetQuery<MenuItem>()
+                .Include(m => m.Shop)
+                .Where(m => m.Shop != null && m.Shop.IsOpen);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+                query = query.Where(m => m.Name.ToLower().Contains(term) || (m.Description != null && m.Description.ToLower().Contains(term)));
+            }
+
+            var result = await query
+                .OrderBy(m => m.Name)
+                .Include(m => m.Options)
+                    .ThenInclude(o => o.Items)
+                .ToPaginatedListAsync(page, pageSize, cancellationToken);
+
+            return Ok(new PaginatedResult<MenuItemDto>
+            {
+                Items = result.Items.Adapt<List<MenuItemDto>>(),
+                TotalCount = result.TotalCount,
+                Page = result.Page,
+                PageSize = result.PageSize
+            });
+        }
+
+        /// <summary>
         /// ดึงรายการเมนูสินค้าทั้งหมดของร้านค้าหนึ่งร้าน (แบ่งหน้า)
         /// </summary>
         [HttpGet("shop/{shopId}")]

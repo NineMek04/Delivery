@@ -192,7 +192,9 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
     setState(() => _isSaving = true);
     try {
       final shopApi = ref.read(shopApiServiceProvider);
-      await shopApi.update(shop.id, {'IsOpen': isOpen});
+      final data = shop.toJson();
+      data['IsOpen'] = isOpen;
+      await shopApi.update(shop.id, data);
       ref.invalidate(currentShopProvider);
     } catch (e) {
       if (mounted) {
@@ -550,13 +552,12 @@ class _EditShopFormSheetState extends ConsumerState<_EditShopFormSheet> {
     setState(() => _isSaving = true);
 
     try {
-      final data = <String, dynamic>{
-        'Name': _nameController.text.trim(),
-        'MenuName': _menuNameController.text.trim(),
-        'MenuPrice': double.parse(_menuPriceController.text.trim()),
-        'PrepTimeMinutes': int.parse(_prepTimeController.text.trim()),
-        'OpeningHours': _openingHoursController.text.trim(),
-      };
+      final data = widget.shop.toJson();
+      data['Name'] = _nameController.text.trim();
+      data['MenuName'] = _menuNameController.text.trim();
+      data['MenuPrice'] = double.parse(_menuPriceController.text.trim());
+      data['PrepTimeMinutes'] = int.parse(_prepTimeController.text.trim());
+      data['OpeningHours'] = _openingHoursController.text.trim();
 
       if (_selectedLocation != null) {
         data['Lat'] = _selectedLocation!.latitude;

@@ -30,14 +30,21 @@ public class DispatchTimeoutWorker : BackgroundService
             try
             {
                 await CheckExpiredOffersAsync(stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in DispatchTimeoutWorker");
+                try { await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); }
+                catch (OperationCanceledException) { break; }
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
+
+        _logger.LogInformation("DispatchTimeoutWorker stopped");
     }
 
     private async Task CheckExpiredOffersAsync(CancellationToken ct)

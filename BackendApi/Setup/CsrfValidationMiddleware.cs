@@ -37,7 +37,7 @@ public class CsrfValidationMiddleware
             }
             else
             {
-                _allowedCorsOrigins = new[] { "http://localhost:4200", "http://localhost:3000", "http://localhost:5173", "http://localhost:80" };
+                _allowedCorsOrigins = new[] { "http://localhost:4200", "http://localhost:3000", "http://localhost:5173", "http://localhost:80", "http://localhost:8080" };
             }
         }
 

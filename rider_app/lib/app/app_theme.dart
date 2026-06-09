@@ -25,6 +25,7 @@ class AppTheme {
   static const Color surfaceDark = Color(0xFF0B0F19);
   static const Color surfaceCard = Color(0xFF151F32);
   static const Color surfaceElevated = Color(0xFF1E293B);
+  static const Color borderColor = Color(0xFF1E293B);
 
   // Light Theme Surfaces (มินิมอลโมเดิร์น โทนขาวนวลและเทาอ่อน)
   static const Color lightBackground = Color(0xFFF8FAFC);

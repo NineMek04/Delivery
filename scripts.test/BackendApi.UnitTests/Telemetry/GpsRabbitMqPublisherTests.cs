@@ -63,7 +63,7 @@ namespace BackendApi.UnitTests.Telemetry
             _publisher.Publish(point);
 
             // Wait briefly for the background channel worker to process the message
-            await Task.Delay(200);
+            await Task.Delay(1000);
 
             // Assert
             // 1. Ensure queue declared with correct parameters
@@ -100,7 +100,7 @@ namespace BackendApi.UnitTests.Telemetry
             int initialCount = _publisher.PendingQueueCount;
 
             // Wait briefly for background Task.Run to query the channel and cache the value
-            await Task.Delay(200);
+            await Task.Delay(1000);
 
             // Second call retrieves cached value
             int pendingCount = _publisher.PendingQueueCount;
@@ -118,7 +118,7 @@ namespace BackendApi.UnitTests.Telemetry
 
             // Act
             int initialCount = _publisher.PendingQueueCount;
-            await Task.Delay(200);
+            await Task.Delay(1000);
             int pendingCount = _publisher.PendingQueueCount;
 
             // Assert

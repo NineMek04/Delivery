@@ -86,3 +86,7 @@ osrm_data/
 *.osm.pbf
 
 scripts.test/Test_Breaking-Point/LogsTest/*
+
+
+
+*.txt

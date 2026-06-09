@@ -1,3 +1,6 @@
+import '../api/web_url_resolver_stub.dart'
+    if (dart.library.html) '../api/web_url_resolver_web.dart';
+
 /// Environment configuration for the Rider App.
 ///
 /// ─── Build targets ───────────────────────────────────────────────────────
@@ -23,7 +26,13 @@ class Environment {
   static const String apiPrefix = '/api/v1';
 
   static String get apiUrl {
-    if (apiBaseUrl.isEmpty) return apiPrefix;
+    if (apiBaseUrl.isEmpty) {
+      final origin = getWindowOrigin();
+      if (origin.isNotEmpty) {
+        return '$origin$apiPrefix';
+      }
+      return apiPrefix;
+    }
     final base = apiBaseUrl.endsWith('/')
         ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
         : apiBaseUrl;
@@ -31,7 +40,13 @@ class Environment {
   }
 
   static String get signalRUrl {
-    if (apiBaseUrl.isEmpty) return '/hubs/tracking';
+    if (apiBaseUrl.isEmpty) {
+      final origin = getWindowOrigin();
+      if (origin.isNotEmpty) {
+        return '$origin/hubs/tracking';
+      }
+      return '/hubs/tracking';
+    }
     final base = apiBaseUrl.endsWith('/')
         ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
         : apiBaseUrl;
@@ -39,7 +54,13 @@ class Environment {
   }
 
   static String get chatHubUrl {
-    if (apiBaseUrl.isEmpty) return '/hubs/chat';
+    if (apiBaseUrl.isEmpty) {
+      final origin = getWindowOrigin();
+      if (origin.isNotEmpty) {
+        return '$origin/hubs/chat';
+      }
+      return '/hubs/chat';
+    }
     final base = apiBaseUrl.endsWith('/')
         ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
         : apiBaseUrl;

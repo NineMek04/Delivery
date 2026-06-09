@@ -39,6 +39,9 @@ class GpsBufferService {
   bool _isSyncing = false;
   bool _isSyncingStatus = false;
 
+  // Web fallback storage
+  final List<Map<String, dynamic>> _webGpsPoints = [];
+
   // Adaptive sampling state
   double? _lastBufferedLat;
   double? _lastBufferedLng;
@@ -141,6 +144,28 @@ class GpsBufferService {
         _lastBufferedHeading = heading;
       }
 
+      if (kIsWeb) {
+        _webGpsPoints.add({
+          'id': DateTime.now().millisecondsSinceEpoch + Random().nextInt(1000),
+          'latitude': latitude,
+          'longitude': longitude,
+          'accuracy': accuracy,
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
+        });
+
+        if (_webGpsPoints.length >= 10000) {
+          _webGpsPoints.removeRange(0, _webGpsPoints.length - 10000 + 1);
+          _logger.w('⚠️ Offline GPS buffer limit reached (10,000). Purged oldest points (FIFO).');
+        }
+
+        _logger.d('📍 [Web] Buffered GPS point in memory: ($latitude, $longitude)');
+
+        if (_webGpsPoints.length >= 10 && !_isSyncing) {
+          syncBufferedPoints();
+        }
+        return;
+      }
+
       final isar = await _getIsar();
       
       final point = GpsPoint()
@@ -186,6 +211,57 @@ class GpsBufferService {
     _isSyncing = true;
 
     try {
+      if (kIsWeb) {
+        final points = _webGpsPoints.take(100).toList();
+        if (points.isEmpty) {
+          _isSyncing = false;
+          return;
+        }
+
+        _logger.d('📡 [Web] Syncing batch of ${points.length} buffered GPS points from memory...');
+
+        final List<Map<String, dynamic>> payload = points.map((p) {
+          return {
+            'Latitude': p['latitude'],
+            'Longitude': p['longitude'],
+            'Accuracy': p['accuracy'],
+            'Timestamp': p['timestamp'],
+          };
+        }).toList();
+
+        final List<int> pointIds = points.map((p) => p['id'] as int).toList();
+
+        final response = await _dio.post(
+          'telemetry/gps/batch',
+          data: payload,
+        );
+
+        final pingHeader = response.headers.value('X-Recommended-Ping');
+        if (pingHeader != null) {
+          final newInterval = int.tryParse(pingHeader);
+          if (newInterval != null) {
+            updateSyncInterval(newInterval);
+          }
+        }
+
+        if (response.statusCode == 200) {
+          _logger.i('✅ [Web] Batch upload of ${points.length} GPS points succeeded. Purging memory buffer.');
+          final idsToRemove = pointIds.toSet();
+          _webGpsPoints.removeWhere((p) => idsToRemove.contains(p['id']));
+
+          if (_webGpsPoints.isNotEmpty) {
+            final jitterDelay = 500 + Random().nextInt(1500);
+            Future.delayed(Duration(milliseconds: jitterDelay), () => syncBufferedPoints());
+          }
+        } else if (response.statusCode == 429) {
+          _logger.w('⚠️ [Web] Ingestion batch throttled (429). Keeping points in memory.');
+        } else {
+          _logger.w('⚠️ [Web] Ingestion batch returned status: ${response.statusCode}. Keeping points.');
+        }
+        _isSyncing = false;
+        return;
+      }
+
       final isar = await _getIsar();
       
       // Query up to 100 points ordered by chronological ID ascending (FIFO)
@@ -342,6 +418,12 @@ class GpsBufferService {
 
   /// Clears all buffered GPS points from Isar database to prevent data contamination across user sessions.
   Future<void> clearBuffer() async {
+    if (kIsWeb) {
+      _webGpsPoints.clear();
+      _logger.i('🧹 [Web] Successfully cleared memory GPS buffer.');
+      return;
+    }
+
     try {
       final isar = await _getIsar();
       await isar.writeTxn(() async {

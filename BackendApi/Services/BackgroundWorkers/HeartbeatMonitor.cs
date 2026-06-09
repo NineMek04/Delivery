@@ -34,25 +34,34 @@ public class HeartbeatMonitor : BackgroundService
     {
         _logger.LogInformation("HeartbeatMonitor started");
 
-        while (!stoppingToken.IsCancellationRequested)
+        // Safe initial execution on startup (prevent host crash)
+        try
         {
-            try
+            await CheckRiderHeartbeatsAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Initial HeartbeatMonitor check failed on startup");
+        }
+
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await CheckRiderHeartbeatsAsync(stoppingToken);
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                try
+                {
+                    await CheckRiderHeartbeatsAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in HeartbeatMonitor");
+                }
             }
-            catch (OperationCanceledException)
-            {
-                // Graceful shutdown — stop the loop cleanly
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in HeartbeatMonitor");
-                // Wait before retrying, but still respect cancellation
-                try { await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken); }
-                catch (OperationCanceledException) { break; }
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Graceful shutdown
         }
 
         _logger.LogInformation("HeartbeatMonitor stopped");

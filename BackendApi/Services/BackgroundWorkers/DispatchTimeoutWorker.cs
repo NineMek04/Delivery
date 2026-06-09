@@ -25,23 +25,34 @@ public class DispatchTimeoutWorker : BackgroundService
     {
         _logger.LogInformation("DispatchTimeoutWorker started");
 
-        while (!stoppingToken.IsCancellationRequested)
+        // Safe initial execution on startup (prevent host crash)
+        try
         {
-            try
+            await CheckExpiredOffersAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Initial DispatchTimeoutWorker check failed on startup");
+        }
+
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await CheckExpiredOffersAsync(stoppingToken);
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                try
+                {
+                    await CheckExpiredOffersAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in DispatchTimeoutWorker");
+                }
             }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in DispatchTimeoutWorker");
-                try { await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); }
-                catch (OperationCanceledException) { break; }
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Graceful shutdown
         }
 
         _logger.LogInformation("DispatchTimeoutWorker stopped");

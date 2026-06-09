@@ -59,35 +59,38 @@ public class TelemetryBroadcastWorker : BackgroundService
         }
 
         ulong tickCount = 0;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await Task.Delay(1000, stoppingToken);
-                tickCount++;
-
-                // Every 5 seconds, query PostgreSQL to update active riders count, queue size, and rider utilization.
-                // We run demand hotspots analysis every 60 seconds (every 60 ticks) to avoid massive CPU overhead.
-                if (tickCount % 5 == 0)
+                try
                 {
-                    await RefreshDatabaseSnapshotsAsync(stoppingToken, refreshHotspots: tickCount % 60 == 0);
-                }
+                    tickCount++;
 
-                // Every 2 seconds, broadcast the aggregated metrics via SignalR to Admin dashboards.
-                if (tickCount % 2 == 0)
+                    // Every 5 seconds, query PostgreSQL to update active riders count, queue size, and rider utilization.
+                    // We run demand hotspots analysis every 60 seconds (every 60 ticks) to avoid massive CPU overhead.
+                    if (tickCount % 5 == 0)
+                    {
+                        await RefreshDatabaseSnapshotsAsync(stoppingToken, refreshHotspots: tickCount % 60 == 0);
+                    }
+
+                    // Every 2 seconds, broadcast the aggregated metrics via SignalR to Admin dashboards.
+                    if (tickCount % 2 == 0)
+                    {
+                        await BroadcastTelemetryAsync(stoppingToken);
+                    }
+                }
+                catch (Exception ex)
                 {
-                    await BroadcastTelemetryAsync(stoppingToken);
+                    _logger.LogError(ex, "Error in TelemetryBroadcastWorker execution loop.");
                 }
             }
-            catch (OperationCanceledException)
-            {
-                // Graceful shutdown
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in TelemetryBroadcastWorker execution loop.");
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Graceful shutdown
         }
     }
 

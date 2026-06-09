@@ -17,36 +17,39 @@ public class PartitionMaintenanceWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // First run immediately on startup, then daily at 02:00 UTC
+        _logger.LogInformation("PartitionMaintenanceWorker started");
+
+        // First run immediately on startup
         await CreatePartitionsSafeAsync(stoppingToken);
 
-        while (!stoppingToken.IsCancellationRequested)
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
+        var lastRunDate = DateTime.UtcNow.Date;
+
+        try
         {
-            try
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                var now = DateTime.UtcNow;
-                var nextRun = new DateTime(now.Year, now.Month, now.Day, 2, 0, 0, DateTimeKind.Utc);
-                if (now >= nextRun)
+                try
                 {
-                    nextRun = nextRun.AddDays(1);
+                    var now = DateTime.UtcNow;
+                    if (now.Hour >= 2 && now.Date > lastRunDate)
+                    {
+                        await CreatePartitionsSafeAsync(stoppingToken);
+                        lastRunDate = now.Date;
+                    }
                 }
-
-                var delay = nextRun - now;
-                _logger.LogInformation("PartitionMaintenanceWorker waiting for {Delay} until {NextRun}", delay, nextRun);
-                await Task.Delay(delay, stoppingToken);
-
-                await CreatePartitionsSafeAsync(stoppingToken);
-            }
-            catch (TaskCanceledException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in PartitionMaintenanceWorker delay loop");
-                await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in PartitionMaintenanceWorker execution loop");
+                }
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Graceful shutdown
+        }
+
+        _logger.LogInformation("PartitionMaintenanceWorker stopped");
     }
 
     private async Task CreatePartitionsSafeAsync(CancellationToken ct)

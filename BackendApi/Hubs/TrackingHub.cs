@@ -67,18 +67,11 @@ public partial class TrackingHub : Hub
 
         if (role is null || userId is null)
         {
-            // Allow anonymous connections from localhost for the local testing E2E map
-            var httpContext = Context.GetHttpContext();
-            var remoteIp = httpContext?.Connection.RemoteIpAddress;
-            var isLocal = remoteIp != null && (System.Net.IPAddress.IsLoopback(remoteIp)
-                || remoteIp.Equals(System.Net.IPAddress.Parse("::1")));
-            if (isLocal)
-            {
-                await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
-                await base.OnConnectedAsync();
-                return;
-            }
-
+            // [SECURITY FIX] Anonymous loopback bypass removed.
+            // Any connection without a valid JWT must be rejected — regardless of origin IP.
+            // Rationale: loopback IP can be spoofed via misconfigured reverse-proxy X-Real-IP headers,
+            // and any process on the same host would gain unrestricted admin-group access.
+            _logger.LogWarning("SignalR connection rejected: missing role or userId claim. ConnectionId={ConnectionId}", Context.ConnectionId);
             Context.Abort();
             return;
         }

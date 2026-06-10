@@ -45,7 +45,12 @@ namespace BackendApi.Services.Ai
             double startLat, double startLng, double endLat, double endLng)
         {
             var db = _redis.GetDatabase();
-            var cacheKey = $"route:cache:{startLat:F5}:{startLng:F5}:{endLat:F5}:{endLng:F5}";
+            // [CULTURE FIX] Use InvariantCulture to prevent locale-specific decimal separators
+            // (e.g. German/French OS uses comma instead of dot) from corrupting Redis cache keys.
+            var cacheKey = string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "route:cache:{0:F5}:{1:F5}:{2:F5}:{3:F5}",
+                startLat, startLng, endLat, endLng);
 
             // 1. ค้นหา Cache จาก Redis
             try
@@ -243,25 +248,34 @@ namespace BackendApi.Services.Ai
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
-                    using var document = JsonDocument.Parse(json);
-                    var root = document.RootElement;
-                    
-                    if (root.TryGetProperty("waypoints", out var waypoints))
+
+                    // [RESILIENCE FIX] Wrap JSON parsing in try-catch so that a malformed OSRM
+                    // response (HTTP 200 but invalid/empty JSON) gracefully returns sequential fallback
+                    // instead of throwing JsonException / KeyNotFoundException up to BatchEvaluator.
+                    List<int>? parsed = null;
+                    try
                     {
-                        var originalIndexes = new List<int>();
-                        foreach (var waypoint in waypoints.EnumerateArray())
+                        using var document = JsonDocument.Parse(json);
+                        var root = document.RootElement;
+
+                        if (root.TryGetProperty("waypoints", out var waypoints))
                         {
-                            var originalIndex = waypoint.GetProperty("waypoint_index").GetInt32();
-                            originalIndexes.Add(originalIndex);
+                            var originalIndexes = new List<int>();
+                            foreach (var waypoint in waypoints.EnumerateArray())
+                            {
+                                var originalIndex = waypoint.GetProperty("waypoint_index").GetInt32();
+                                originalIndexes.Add(originalIndex);
+                            }
+                            parsed = originalIndexes;
                         }
-                        
-                        // waypoints array describes the stops in the order they are visited.
-                        // However, OSRM sets waypoint_index to indicate the ORIGINAL input index.
-                        // Example: If visited order is input[0], input[2], input[1], the array has:
-                        // waypoint_index = 0, 2, 1
-                        
-                        return originalIndexes;
                     }
+                    catch (Exception parseEx)
+                    {
+                        _logger.LogWarning(parseEx, "OSRM trip response JSON parse failed. Falling back to sequential order.");
+                    }
+
+                    if (parsed != null)
+                        return parsed;
                 }
 
                 _logger.LogWarning("OSRM trip returned unsuccessful status: {Status}. Falling back to sequential.", response.StatusCode);

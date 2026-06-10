@@ -66,7 +66,6 @@ public class DispatchTimeoutWorker : BackgroundService
 
         var now = DateTime.UtcNow;
 
-        // หา Orders ที่ OFFERING แล้วเกิน OfferExpiresAt
         var expiredOrders = await dbContext.Orders
             .Where(o =>
                 o.State == OrderState.OFFERING &&
@@ -74,23 +73,26 @@ public class DispatchTimeoutWorker : BackgroundService
                 o.OfferExpiresAt < now)
             .ToListAsync(ct);
 
-        foreach (var order in expiredOrders)
-        {
-            if (ct.IsCancellationRequested) break;
-            if (order.AssignedRiderId is null || order.CurrentOfferId is null)
-                continue;
-
-            _logger.LogWarning(
-                "Offer expired: Order {OrderId} → Rider {RiderId} (offer {OfferId})",
-                order.Id, order.AssignedRiderId, order.CurrentOfferId);
-
-            await offerHandler.RejectOrTimeoutAsync(
-                order.CurrentOfferId, order.AssignedRiderId);
-        }
-
         if (expiredOrders.Count > 0)
         {
-            _logger.LogInformation("Processed {Count} expired offers", expiredOrders.Count);
+            var uniqueOffers = expiredOrders
+                .Where(o => o.CurrentOfferId != null && o.AssignedRiderId != null)
+                .GroupBy(o => new { o.CurrentOfferId, o.AssignedRiderId })
+                .Select(g => new { g.Key.CurrentOfferId, g.Key.AssignedRiderId, OrderIds = g.Select(o => o.Id).ToList() })
+                .ToList();
+
+            foreach (var offer in uniqueOffers)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                _logger.LogWarning(
+                    "Offer expired: Offer {OfferId} (Orders: {OrderIds}) → Rider {RiderId}",
+                    offer.CurrentOfferId, string.Join(", ", offer.OrderIds), offer.AssignedRiderId);
+
+                await offerHandler.RejectOrTimeoutAsync(offer.CurrentOfferId!, offer.AssignedRiderId!);
+            }
+
+            _logger.LogInformation("Processed {Count} expired offers", uniqueOffers.Count);
         }
     }
 }

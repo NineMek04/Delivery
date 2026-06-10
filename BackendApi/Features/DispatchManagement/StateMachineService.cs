@@ -59,91 +59,98 @@ public class StateMachineService
     /// </summary>
     public virtual async Task<bool> TransitionOrderAsync(Order order, OrderState newState)
     {
-        if (!OrderStateRules.IsValidTransition(order.State, newState))
+        var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+        using (_logger.BeginScope(new Dictionary<string, object>
         {
-            _logger.LogWarning(
-                "Invalid order transition: {OrderId} from {From} → {To}",
-                order.Id, order.State, newState);
-            return false;
-        }
-
-        var oldState = order.State;
-        order.State = newState;
-
-        // Auto-set timestamps
-        switch (newState)
+            ["CorrelationId"] = correlationId,
+            ["OrderId"] = order.Id,
+            ["RiderId"] = order.AssignedRiderId ?? string.Empty
+        }))
         {
-            case OrderState.ASSIGNED:
-                order.AssignedAt = DateTime.UtcNow;
-                break;
-            case OrderState.COMPLETED:
-                order.CompletedAt = DateTime.UtcNow;
-                break;
-        }
-
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogWarning(ex, "Concurrency conflict detected during transition of Order {OrderId} from {OldState} to {NewState}", 
-                order.Id, oldState, newState);
-            return false;
-        }
-
-        // Update active order cache for the rider in Redis
-        try
-        {
-            var db = _redis.GetDatabase();
-            if (!string.IsNullOrEmpty(order.AssignedRiderId))
+            if (!OrderStateRules.IsValidTransition(order.State, newState))
             {
-                var activeOrderKey = $"riders:active_order:{order.AssignedRiderId}";
-                if (newState == OrderState.ASSIGNED || newState == OrderState.PICKING_UP || newState == OrderState.DELIVERING)
+                _logger.LogWarning(
+                    "Invalid order transition: {OrderId} from {From} → {To}",
+                    order.Id, order.State, newState);
+                return false;
+            }
+
+            var oldState = order.State;
+            order.State = newState;
+
+            // Auto-set timestamps
+            switch (newState)
+            {
+                case OrderState.ASSIGNED:
+                    order.AssignedAt = DateTime.UtcNow;
+                    break;
+                case OrderState.COMPLETED:
+                    order.CompletedAt = DateTime.UtcNow;
+                    break;
+            }
+
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrency conflict detected during transition of Order {OrderId} from {OldState} to {NewState}", 
+                    order.Id, oldState, newState);
+                return false;
+            }
+
+            // Update active order cache for the rider in Redis
+            try
+            {
+                var db = _redis.GetDatabase();
+                if (!string.IsNullOrEmpty(order.AssignedRiderId))
                 {
-                    await db.HashSetAsync(activeOrderKey, new[]
+                    var activeOrderKey = $"riders:active_order:{order.AssignedRiderId}";
+                    if (newState == OrderState.ASSIGNED || newState == OrderState.PICKING_UP || newState == OrderState.DELIVERING)
                     {
-                        new HashEntry("order_id", order.Id),
-                        new HashEntry("customer_id", order.CustomerId ?? string.Empty)
-                    });
-                    await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
-                }
-                else
-                {
-                    await db.KeyDeleteAsync(activeOrderKey);
+                        await db.HashSetAsync(activeOrderKey, new[]
+                        {
+                            new HashEntry("order_id", order.Id),
+                            new HashEntry("customer_id", order.CustomerId ?? string.Empty)
+                        });
+                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
+                    }
+                    else
+                    {
+                        await db.KeyDeleteAsync(activeOrderKey);
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to update active order cache in Redis for Rider {RiderId}", order.AssignedRiderId);
-        }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to update active order cache in Redis for Rider {RiderId}", order.AssignedRiderId);
+            }
 
-        // Publish Order Status Changed Integration Event asynchronously to RabbitMQ
-        try
-        {
-            var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+            // Publish Order Status Changed Integration Event asynchronously to RabbitMQ
+            try
+            {
+                await _eventBus.PublishAsync(new OrderStatusChangedIntegrationEvent(
+                    order.Id,
+                    order.RefNumber,
+                    oldState,
+                    order.State,
+                    order.AssignedRiderId,
+                    order.CustomerId,
+                    correlationId
+                ));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to publish OrderStatusChangedIntegrationEvent for Order {OrderId}", order.Id);
+            }
 
-            await _eventBus.PublishAsync(new OrderStatusChangedIntegrationEvent(
-                order.Id,
-                order.RefNumber,
-                oldState,
-                order.State,
-                order.AssignedRiderId,
-                order.CustomerId,
-                correlationId
-            ));
+            _logger.LogInformation(
+                "Order {OrderId} transitioned: {From} → {To}",
+                order.Id, oldState, newState);
+
+            return true;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish OrderStatusChangedIntegrationEvent for Order {OrderId}", order.Id);
-        }
-
-        _logger.LogInformation(
-            "Order {OrderId} transitioned: {From} → {To}",
-            order.Id, oldState, newState);
-
-        return true;
     }
 
     // ── Rider State Transitions ────────────────────────────────────
@@ -168,35 +175,52 @@ public class StateMachineService
     /// </summary>
     public virtual async Task<bool> TransitionRiderAsync(Rider rider, RiderState newState)
     {
-        if (!RiderStateRules.IsValidTransition(rider.State, newState))
+        var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+        using (_logger.BeginScope(new Dictionary<string, object>
         {
-            _logger.LogWarning(
-                "Invalid rider transition: {RiderId} from {From} → {To}",
-                rider.Id, rider.State, newState);
-            return false;
-        }
-
-        var oldState = rider.State;
-        rider.State = newState;
-
-        await _dbContext.SaveChangesAsync();
-
-        // Update rider status cache in Redis
-        try
+            ["CorrelationId"] = correlationId,
+            ["RiderId"] = rider.Id
+        }))
         {
-            var db = _redis.GetDatabase();
-            var statusCacheKey = $"riders:status:{rider.Id}";
-            await db.StringSetAsync(statusCacheKey, newState.ToString(), TimeSpan.FromHours(24));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to update rider status cache in Redis for Rider {RiderId}", rider.Id);
-        }
+            if (!RiderStateRules.IsValidTransition(rider.State, newState))
+            {
+                _logger.LogWarning(
+                    "Invalid rider transition: {RiderId} from {From} → {To}",
+                    rider.Id, rider.State, newState);
+                return false;
+            }
 
-        _logger.LogInformation(
-            "Rider {RiderId} transitioned: {From} → {To}",
-            rider.Id, oldState, newState);
+            var oldState = rider.State;
+            rider.State = newState;
 
-        return true;
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrency conflict detected during transition of Rider {RiderId} from {OldState} to {NewState}", 
+                    rider.Id, oldState, newState);
+                return false;
+            }
+
+            // Update rider status cache in Redis
+            try
+            {
+                var db = _redis.GetDatabase();
+                var statusCacheKey = $"riders:status:{rider.Id}";
+                await db.StringSetAsync(statusCacheKey, newState.ToString(), TimeSpan.FromHours(24));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to update rider status cache in Redis for Rider {RiderId}", rider.Id);
+            }
+
+            _logger.LogInformation(
+                "Rider {RiderId} transitioned: {From} → {To}",
+                rider.Id, oldState, newState);
+
+            return true;
+        }
     }
 }

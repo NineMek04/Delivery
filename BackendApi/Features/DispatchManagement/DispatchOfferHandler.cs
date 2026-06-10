@@ -51,7 +51,7 @@ public class DispatchOfferHandler
     public async Task<bool> AcceptOfferAsync(string riderId, string offerId, int version)
     {
         var db = _redis.GetDatabase();
-        var lockKey = $"lock:accept:offer:{offerId}";
+        var lockKey = $"lock:offer:{offerId}";
 
         // 1. ดึง Redis Distributed Lock เพื่อป้องกัน Race Condition จากการกดยอมรับพร้อมกัน
         var acquired = await db.StringSetAsync(lockKey, "locked", TimeSpan.FromSeconds(5), When.NotExists);
@@ -157,41 +157,81 @@ public class DispatchOfferHandler
     /// </summary>
     public async Task RejectOrTimeoutAsync(string offerId, string riderId)
     {
-        // ปลดล็อค Rider
-        await _lockService.ReleaseLockAsync(riderId, offerId);
-        
-        var rider = await _dbContext.Riders.FindAsync(riderId);
-        if (rider != null && rider.State == RiderState.RESERVED)
+        var db = _redis.GetDatabase();
+        var lockKey = $"lock:offer:{offerId}";
+
+        var acquired = await db.StringSetAsync(lockKey, "locked", TimeSpan.FromSeconds(5), When.NotExists);
+        if (!acquired)
         {
-            await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
+            _logger.LogWarning("Reject/Timeout skipped: offer {OfferId} is currently being processed by another action", offerId);
+            return;
         }
 
-        // เปลี่ยน Order กลุ่มนี้กลับเป็น MATCHING → หาคนใหม่
-        var orders = await _dbContext.Orders
-            .Where(o => o.CurrentOfferId == offerId && o.State == OrderState.OFFERING)
-            .OrderBy(o => o.BatchSequence)
-            .ToListAsync();
-            
-        if (orders.Count == 0) return;
-
-        bool allTransitioned = true;
-        foreach (var order in orders)
+        try
         {
-            if (!await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
+            // ปลดล็อค Rider
+            await _lockService.ReleaseLockAsync(riderId, offerId);
+            
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            try
             {
-                allTransitioned = false;
+                var rider = await _dbContext.Riders.FindAsync(riderId);
+                if (rider != null && rider.State == RiderState.RESERVED)
+                {
+                    if (!await _stateMachine.TransitionRiderAsync(rider, RiderState.IDLE))
+                    {
+                        await transaction.RollbackAsync();
+                        return;
+                    }
+                }
+
+                // เปลี่ยน Order กลุ่มนี้กลับเป็น MATCHING → หาคนใหม่
+                var orders = await _dbContext.Orders
+                    .Where(o => o.CurrentOfferId == offerId && o.State == OrderState.OFFERING)
+                    .OrderBy(o => o.BatchSequence)
+                    .ToListAsync();
+                    
+                if (orders.Count == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return;
+                }
+
+                bool allTransitioned = true;
+                foreach (var order in orders)
+                {
+                    if (!await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
+                    {
+                        allTransitioned = false;
+                        break;
+                    }
+                }
+
+                if (!allTransitioned)
+                {
+                    await transaction.RollbackAsync();
+                    return;
+                }
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Orders ({Count}) re-dispatching after rejection/timeout from Rider {RiderId}",
+                    orders.Count, riderId);
+
+                // Re-dispatch: หาคนถัดไป — resolve DispatchService via DI เพื่อหลีกเลี่ยง circular dependency
+                var dispatchService = _serviceProvider.GetRequiredService<DispatchService>();
+                await dispatchService.FindAndOfferAsync(orders);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error occurred during RejectOrTimeoutAsync for offer {OfferId}", offerId);
             }
         }
-
-        if (allTransitioned)
+        finally
         {
-            _logger.LogInformation(
-                "Orders ({Count}) re-dispatching after rejection/timeout from Rider {RiderId}",
-                orders.Count, riderId);
-
-            // Re-dispatch: หาคนถัดไป — resolve DispatchService via DI เพื่อหลีกเลี่ยง circular dependency
-            var dispatchService = _serviceProvider.GetRequiredService<DispatchService>();
-            await dispatchService.FindAndOfferAsync(orders);
+            await db.KeyDeleteAsync(lockKey);
         }
     }
 }

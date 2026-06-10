@@ -271,28 +271,54 @@ public class DispatchService
             o.AssignedRiderId
         }).ToList();
 
-        foreach (var order in orders)
+        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        try
         {
-            order.CurrentOfferId = offerId;
-            order.OfferVersion++;
-            order.OfferExpiresAt = DateTime.UtcNow.Add(timeout);
-            order.AssignedRiderId = riderId;
-
-            if (!await _stateMachine.TransitionOrderAsync(order, OrderState.OFFERING))
+            foreach (var order in orders)
             {
-                // Rollback properties on failure to prevent stale state in memory
-                foreach (var orig in originalValues)
-                {
-                    orig.Order.CurrentOfferId = orig.CurrentOfferId;
-                    orig.Order.OfferVersion = orig.OfferVersion;
-                    orig.Order.OfferExpiresAt = orig.OfferExpiresAt;
-                    orig.Order.AssignedRiderId = orig.AssignedRiderId;
-                }
+                order.CurrentOfferId = offerId;
+                order.OfferVersion++;
+                order.OfferExpiresAt = DateTime.UtcNow.Add(timeout);
+                order.AssignedRiderId = riderId;
 
-                if (!isInjection) await _lockService.ReleaseLockAsync(riderId, offerId);
-                if (!isInjection) await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
-                return false;
+                if (!await _stateMachine.TransitionOrderAsync(order, OrderState.OFFERING))
+                {
+                    await transaction.RollbackAsync();
+
+                    // Rollback properties on failure to prevent stale state in memory
+                    foreach (var orig in originalValues)
+                    {
+                        orig.Order.CurrentOfferId = orig.CurrentOfferId;
+                        orig.Order.OfferVersion = orig.OfferVersion;
+                        orig.Order.OfferExpiresAt = orig.OfferExpiresAt;
+                        orig.Order.AssignedRiderId = orig.AssignedRiderId;
+                    }
+
+                    if (!isInjection) await _lockService.ReleaseLockAsync(riderId, offerId);
+                    if (!isInjection) await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
+                    return false;
+                }
             }
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            // Rollback properties on failure to prevent stale state in memory
+            foreach (var orig in originalValues)
+            {
+                orig.Order.CurrentOfferId = orig.CurrentOfferId;
+                orig.Order.OfferVersion = orig.OfferVersion;
+                orig.Order.OfferExpiresAt = orig.OfferExpiresAt;
+                orig.Order.AssignedRiderId = orig.AssignedRiderId;
+            }
+
+            if (!isInjection) await _lockService.ReleaseLockAsync(riderId, offerId);
+            if (!isInjection) await _stateMachine.TransitionRiderAsync(riderId, RiderState.IDLE);
+
+            _logger.LogError(ex, "Transaction failed while offering Rider {RiderId} for offer {OfferId}", riderId, offerId);
+            return false;
         }
 
         var firstOrder = orders.First();

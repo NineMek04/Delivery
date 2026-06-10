@@ -122,6 +122,9 @@ public class RouteWaypointDto
 
     [JsonPropertyName("lng")]
     public double Lng { get; set; }
+
+    [JsonPropertyName("vehicle_id")]
+    public int? VehicleId { get; set; }
 }
 
 public class RoutingResponseDto

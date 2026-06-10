@@ -39,35 +39,33 @@ public class RiderPresenceService
         try
         {
             var batch = _db.CreateBatch();
+            var tasks = new List<Task>();
 
             // GEOADD สำหรับ spatial query (GEORADIUS)
-            _ = batch.GeoAddAsync(GeoKey, lng, lat, riderId);
+            tasks.Add(batch.GeoAddAsync(GeoKey, lng, lat, riderId));
 
             // Hash สำหรับเก็บรายละเอียด (timestamp, lat, lng, speed_kmh)
             var gpsKey = GpsPrefix + riderId;
-            _ = batch.HashSetAsync(gpsKey, new[]
+            tasks.Add(batch.HashSetAsync(gpsKey, new[]
             {
                 new HashEntry("lat", lat),
                 new HashEntry("lng", lng),
                 new HashEntry("updated_at", DateTime.UtcNow.Ticks),
                 new HashEntry("speed_kmh", speedKmh)
-            });
-            _ = batch.KeyExpireAsync(gpsKey, TimeSpan.FromHours(24));
+            }));
+            tasks.Add(batch.KeyExpireAsync(gpsKey, TimeSpan.FromHours(24)));
 
             // เพิ่มค่าความเร็วลง Speed Buffer (5-point Moving Average)
             if (speedKmh > 0)
             {
                 var bufferKey = SpeedBufferPrefix + riderId;
-                _ = batch.ListRightPushAsync(bufferKey, speedKmh);
-                _ = batch.ListTrimAsync(bufferKey, -SpeedBufferSize, -1); // เก็บแค่ 5 จุดล่าสุด
-                _ = batch.KeyExpireAsync(bufferKey, TimeSpan.FromMinutes(5));
+                tasks.Add(batch.ListRightPushAsync(bufferKey, speedKmh));
+                tasks.Add(batch.ListTrimAsync(bufferKey, -SpeedBufferSize, -1)); // เก็บแค่ 5 จุดล่าสุด
+                tasks.Add(batch.KeyExpireAsync(bufferKey, TimeSpan.FromMinutes(5)));
             }
 
-            // Fire-and-forget: StackExchange.Redis IBatch.Execute() is inherently
-            // non-awaitable. This is by design for hot-path GPS presence updates
-            // where we trade consistency for throughput.
             batch.Execute();
-            await Task.CompletedTask;
+            await Task.WhenAll(tasks);
 
             _logger.LogDebug("GPS updated: Rider {RiderId} → ({Lat}, {Lng}), Speed: {Speed} km/h", riderId, lat, lng, speedKmh);
         }
@@ -201,23 +199,22 @@ public class RiderPresenceService
         }
     }
 
-    /// <summary>
-    /// ลบข้อมูลทั้งหมดของ Rider ออกจาก Redis (เมื่อ OFFLINE)
-    /// </summary>
     public async Task RemoveRiderAsync(string riderId)
     {
         try
         {
             var batch = _db.CreateBatch();
-
-            _ = batch.GeoRemoveAsync(GeoKey, riderId);
-            _ = batch.KeyDeleteAsync(GpsPrefix + riderId);
-            _ = batch.KeyDeleteAsync(HeartbeatPrefix + riderId);
-            _ = batch.KeyDeleteAsync("riders:status:" + riderId);
-            _ = batch.KeyDeleteAsync("riders:active_order:" + riderId);
+            var tasks = new List<Task>
+            {
+                batch.GeoRemoveAsync(GeoKey, riderId),
+                batch.KeyDeleteAsync(GpsPrefix + riderId),
+                batch.KeyDeleteAsync(HeartbeatPrefix + riderId),
+                batch.KeyDeleteAsync("riders:status:" + riderId),
+                batch.KeyDeleteAsync("riders:active_order:" + riderId)
+            };
 
             batch.Execute();
-            await Task.CompletedTask;
+            await Task.WhenAll(tasks);
 
             _logger.LogInformation("Rider {RiderId} removed from Redis presence", riderId);
         }

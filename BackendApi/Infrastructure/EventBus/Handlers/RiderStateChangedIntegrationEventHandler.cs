@@ -53,7 +53,12 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                 {
                     if (rider.State == RiderState.OFFLINE)
                     {
-                        await _stateMachine.TransitionRiderAsync(rider, RiderState.IDLE);
+                        var hasActiveJob = await _dbContext.Orders.AnyAsync(o => 
+                            o.AssignedRiderId == @event.RiderId && 
+                            (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
+                            
+                        var newState = hasActiveJob ? RiderState.BUSY : RiderState.IDLE;
+                        await _stateMachine.TransitionRiderAsync(rider, newState);
                     }
                     else
                     {

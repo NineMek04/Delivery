@@ -84,29 +84,37 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_
     # 7. Format results
     if solution:
         route_sequence = []
-        index = routing.Start(0) # Start with vehicle 0
         total_distance = 0
         
-        while not routing.IsEnd(index):
+        for vehicle_id in range(num_vehicles):
+            index = routing.Start(vehicle_id)
+            
+            # Skip empty vehicle routes (directly goes to end)
+            if routing.IsEnd(solution.Value(routing.NextVar(index))):
+                continue
+                
+            while not routing.IsEnd(index):
+                node_index = manager.IndexToNode(index)
+                route_sequence.append({
+                    "sequence": len(route_sequence) + 1,
+                    "location_id": locations[node_index].id,
+                    "lat": locations[node_index].lat,
+                    "lng": locations[node_index].lng,
+                    "vehicle_id": vehicle_id
+                })
+                previous_index = index
+                index = solution.Value(routing.NextVar(index))
+                total_distance += routing.GetArcCostForVehicle(previous_index, index, vehicle_id)
+
+            # Add last node
             node_index = manager.IndexToNode(index)
             route_sequence.append({
                 "sequence": len(route_sequence) + 1,
                 "location_id": locations[node_index].id,
                 "lat": locations[node_index].lat,
-                "lng": locations[node_index].lng
+                "lng": locations[node_index].lng,
+                "vehicle_id": vehicle_id
             })
-            previous_index = index
-            index = solution.Value(routing.NextVar(index))
-            total_distance += routing.GetArcCostForVehicle(previous_index, index, 0)
-
-        # Add last node
-        node_index = manager.IndexToNode(index)
-        route_sequence.append({
-            "sequence": len(route_sequence) + 1,
-            "location_id": locations[node_index].id,
-            "lat": locations[node_index].lat,
-            "lng": locations[node_index].lng
-        })
 
         return {
             "status": "SUCCESS",

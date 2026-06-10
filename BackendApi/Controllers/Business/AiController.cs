@@ -37,4 +37,21 @@ public class AiController : DeliveryControllerBase
 
         return Ok(ApiResponse<RoutingResponseDto>.Ok(result, "คำนวณเส้นทาง VRP สำเร็จ"));
     }
+
+    /// <summary>
+    /// จัดอันดับไรเดอร์ที่เหมาะสมที่สุดสำหรับออเดอร์
+    /// </summary>
+    [HttpPost("dispatch/rank")]
+    public async Task<ActionResult<ApiResponse<DispatchRankResponseDto>>> RankDispatchCandidates(
+        [FromBody] DispatchRankRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _aiService.RankDispatchCandidatesAsync(request, cancellationToken);
+        if (result == null)
+        {
+            return BadRequest(ApiResponse<DispatchRankResponseDto>.Fail("ไม่สามารถจัดอันดับไรเดอร์ได้"));
+        }
+
+        return Ok(ApiResponse<DispatchRankResponseDto>.Ok(result, "จัดอันดับไรเดอร์สำเร็จ"));
+    }
 }

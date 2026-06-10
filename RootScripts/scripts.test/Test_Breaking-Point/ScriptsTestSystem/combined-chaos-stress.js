@@ -219,7 +219,7 @@ function startHttpLoad() {
 // AI load simulator
 function startAiLoad() {
   const aiHeaders = {
-    "X-API-Key": AI_KEY,
+    "Authorization": `Bearer ${adminToken}`,
     "Content-Type": "application/json",
   };
 
@@ -234,7 +234,7 @@ function startAiLoad() {
       let promise;
       if (isOptimize) {
         // Optimize
-        promise = axios.post(`${AI_URL}/api/optimize-route`, {
+        promise = axios.post(`${API_URL}/api/v1/ai/optimize-route`, {
           locations: [
             { id: "depot", lat: 17.4138, lng: 102.7872 },
             { id: "p1", lat: 17.415, lng: 102.79 },
@@ -246,7 +246,7 @@ function startAiLoad() {
         }, { headers: aiHeaders, timeout: 5000 });
       } else {
         // Rank
-        promise = axios.post(`${AI_URL}/api/v1/dispatch/rank`, {
+        promise = axios.post(`${API_URL}/api/v1/ai/dispatch/rank`, {
           context: { timestamp: new Date().toISOString(), city: "udon-thani" },
           order: { id: "opt-1", pickup: [17.4138, 102.7872], dropoff: [17.42, 102.8], sla_limit_minutes: 30 },
           candidates: Array.from({ length: 10 }).map((_, idx) => ({

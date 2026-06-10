@@ -27,6 +27,16 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_
     if len(locations) < 2:
         return {"status": "FAILED", "message": "ต้องมีจุดพิกัดอย่างน้อย 2 จุดขึ้นไป"}
 
+    if depot < 0 or depot >= len(locations):
+        return {"status": "FAILED", "message": "Invalid depot parameter"}
+
+    if pickups_deliveries:
+        for pair in pickups_deliveries:
+            if len(pair) != 2:
+                return {"status": "FAILED", "message": "Invalid pickups_deliveries format"}
+            if not (0 <= pair[0] < len(locations)) or not (0 <= pair[1] < len(locations)):
+                return {"status": "FAILED", "message": "Invalid index in pickups_deliveries parameters"}
+
     # 1. Create Distance Matrix
     distance_matrix = compute_distance_matrix(locations)
 
@@ -89,7 +99,7 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_
         for vehicle_id in range(num_vehicles):
             index = routing.Start(vehicle_id)
             
-            # Skip empty vehicle routes (directly goes to end)
+            # Skip empty vehicle routes (directly goes to end depot)
             if routing.IsEnd(solution.Value(routing.NextVar(index))):
                 continue
                 

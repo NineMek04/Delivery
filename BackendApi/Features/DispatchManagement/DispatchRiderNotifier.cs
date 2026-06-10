@@ -52,6 +52,8 @@ public class DispatchRiderNotifier
         _ = _backgroundTaskQueue.QueueBackgroundWorkItemAsync(async (serviceProvider, cancellationToken) =>
         {
             using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
+            using (Serilog.Context.LogContext.PushProperty("OrderId", orderId))
+            using (Serilog.Context.LogContext.PushProperty("RiderId", riderId))
             {
                 try
                 {

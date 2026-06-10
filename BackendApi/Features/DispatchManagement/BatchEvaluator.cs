@@ -87,24 +87,27 @@ public class BatchEvaluator
             var batchId = $"BATCH-{Guid.NewGuid():N}"[..16];
             o.BatchGroupId = batchId;
             
-            // ใช้ OSRM /trip เพื่อจัดลำดับ Dropoff ที่ดีที่สุด
-            // จุด 0: Pickup (ใช้จุดกึ่งกลางหรือใช้จุดของออเดอร์แรก)
-            // จุด 1: Dropoff O
-            // จุด 2: Dropoff Target
+            // 4 points for Same-Direction grouping:
+            // Point 0: Sibling Pickup
+            // Point 1: Target Pickup
+            // Point 2: Sibling Dropoff
+            // Point 3: Target Dropoff
             var points = new List<(double Lat, double Lng)>
             {
                 (o.PickupLocation.Y, o.PickupLocation.X),
+                (targetOrder.PickupLocation.Y, targetOrder.PickupLocation.X),
                 (o.DropoffLocation.Y, o.DropoffLocation.X),
                 (targetOrder.DropoffLocation.Y, targetOrder.DropoffLocation.X)
             };
 
             var seq = await _routingService.GetOptimizedTripSequenceAsync(points);
             
-            // seq[0] คือ Pickup, seq[1] คือ จุดที่ 1, seq[2] คือ จุดที่ 2
-            if (seq.Count == 3)
+            if (seq.Count == 4)
             {
-                // ถ้า seq[1] == 1 แปลว่า O ไปก่อน Target
-                if (seq[1] == 1)
+                var idxDropoff1 = seq.IndexOf(2);
+                var idxDropoff2 = seq.IndexOf(3);
+                
+                if (idxDropoff1 < idxDropoff2)
                 {
                     o.BatchSequence = 1;
                     targetOrder.BatchSequence = 2;

@@ -436,10 +436,21 @@ public class OrderService : IOrderService
         {
             if (order.AssignedRiderId != null)
             {
-                var rider = await _db.GetObjectByKeyAsync<Rider>(order.AssignedRiderId, cancellationToken);
-                if (rider != null)
+                var hasActiveOrders = await _db.GetQuery<Order>()
+                    .AnyAsync(o => o.AssignedRiderId == order.AssignedRiderId 
+                                && o.Id != order.Id 
+                                && (o.State == Core.StateMachines.OrderState.ASSIGNED 
+                                 || o.State == Core.StateMachines.OrderState.PICKING_UP 
+                                 || o.State == Core.StateMachines.OrderState.DELIVERING), 
+                               cancellationToken);
+
+                if (!hasActiveOrders)
                 {
-                    await _stateMachine.TransitionRiderAsync(rider, Core.StateMachines.RiderState.IDLE);
+                    var rider = await _db.GetObjectByKeyAsync<Rider>(order.AssignedRiderId, cancellationToken);
+                    if (rider != null)
+                    {
+                        await _stateMachine.TransitionRiderAsync(rider, Core.StateMachines.RiderState.IDLE);
+                    }
                 }
             }
         }
@@ -513,10 +524,21 @@ public class OrderService : IOrderService
 
         if (order.AssignedRiderId != null)
         {
-            var rider = await _db.GetObjectByKeyAsync<Rider>(order.AssignedRiderId, cancellationToken);
-            if (rider != null)
+            var hasActiveOrders = await _db.GetQuery<Order>()
+                .AnyAsync(o => o.AssignedRiderId == order.AssignedRiderId 
+                            && o.Id != order.Id 
+                            && (o.State == Core.StateMachines.OrderState.ASSIGNED 
+                             || o.State == Core.StateMachines.OrderState.PICKING_UP 
+                             || o.State == Core.StateMachines.OrderState.DELIVERING), 
+                           cancellationToken);
+
+            if (!hasActiveOrders)
             {
-                await _stateMachine.TransitionRiderAsync(rider, Core.StateMachines.RiderState.IDLE);
+                var rider = await _db.GetObjectByKeyAsync<Rider>(order.AssignedRiderId, cancellationToken);
+                if (rider != null)
+                {
+                    await _stateMachine.TransitionRiderAsync(rider, Core.StateMachines.RiderState.IDLE);
+                }
             }
         }
 

@@ -14,7 +14,7 @@
 - **อย่าให้ Redis กลายเป็น source of truth (สำคัญมาก)**:
   - **Redis**: ทำหน้าที่เป็น *operational realtime state* (เช่น GPS buffer, presence, live locks)
   - **PostgreSQL**: ทำหน้าที่เป็น *persistent truth* (ข้อมูลสถานะ Orders, Riders, Transactions) เสมอ
-- **Single Test Hub**: รวบรวมเทสไฟล์ทั้งหมด (C# xUnit, Python PyTest, JS E2E/Load tests) ไว้ที่ `scripts.test/` เท่านั้น ยกเว้น Angular spec (`*.spec.ts`) ให้วางข้างคอมโพเนนต์ตามมาตรฐาน Angular CLI
+- **Single Test Hub**: รวบรวมเทสไฟล์ทั้งหมด (C# xUnit, Python PyTest, JS E2E/Load tests) ไว้ที่ `RootScripts/scripts.test/` เท่านั้น ยกเว้น Angular spec (`*.spec.ts`) ให้วางข้างคอมโพเนนต์ตามมาตรฐาน Angular CLI
 
 
 ## 3. Workflow & Logging Rules

@@ -85,7 +85,7 @@ BackendApi/logs/*.txt
 osrm_data/
 *.osm.pbf
 
-scripts.test/Test_Breaking-Point/LogsTest/*
+RootScripts/scripts.test/Test_Breaking-Point/LogsTest/*
 
 
 

@@ -1,0 +1,19 @@
+{
+  "sessionId": "c565918d-b5fa-4a2f-b43c-a586129e3a63",
+  "suiteType": "simulator",
+  "status": "CANCELLED",
+  "summary": {
+    "suiteType": "simulator",
+    "status": "CANCELLED",
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "successRate": 0,
+    "durationMs": 209846,
+    "generatedAt": "2026-06-08T03:00:12.402Z"
+  },
+  "testCases": [],
+  "error": "Test container exited with non-zero code: 137",
+  "completedAt": "2026-06-08T03:00:12.402Z"
+}

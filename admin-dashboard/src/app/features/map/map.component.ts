@@ -243,9 +243,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private loadActiveOrders(): void {
     this.orderService.getAll(1, 100).subscribe({
       next: (orders) => {
-        const active = orders.filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status || ''));
-        this.activeOrders = active;
-        this.drawOrdersOnMap(active);
+        // เก็บ activeOrders ทั้งหมดที่ยังไม่ COMPLETED/CANCELLED สำหรับ logic อื่น (เช่น cancelRiderOrder)
+        this.activeOrders = orders.filter(o => !['COMPLETED', 'CANCELLED'].includes(o.status || ''));
+        // วาดบนแผนที่เฉพาะออเดอร์ที่ Assigned/Delivering (มีไรเดอร์แล้ว) เพื่อไม่ให้ mock/pending orders โผล่
+        const drawableOrders = orders.filter(o => ['ASSIGNED', 'DELIVERING', 'PICKING_UP'].includes(o.status || ''));
+        this.drawOrdersOnMap(drawableOrders);
       }
     });
   }

@@ -156,60 +156,61 @@ public static class DataSeeder
             // 3. Seed Orders (ออเดอร์ในสถานะที่หลากหลายสำหรับใช้ทดสอบ flow)
             var orders = new List<Order>
             {
-                // 1. Order ใหม่ที่กำลังรอประมวลผล (CREATED)
+                // 1. Order ทดสอบ (COMPLETED) — เพื่อไม่ให้โผล่เป็น active บน Admin Dashboard
                 new Order
                 {
                     Id = "99999999-9999-9999-9999-000000000001",
-                    State = OrderState.CREATED,
+                    State = OrderState.COMPLETED,
                     PickupLocation = new Point(102.7872, 17.4138) { SRID = 4326 }, // Udon Center
                     DropoffLocation = new Point(102.8072, 17.4038) { SRID = 4326 }, // UD Town
                     DistanceKm = 4.5,
                     DeliveryFee = 75.00m,
-                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(1),
+                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(-3),
+                    AssignedRiderId = rider1Id,
+                    AssignedAt = DateTime.UtcNow.AddHours(-4),
+                    CompletedAt = DateTime.UtcNow.AddHours(-3),
                     IsDeleted = false
                 },
-                // 2. Order ที่ระบบส่งเข้า AI เพื่อคำนวณและจับคู่ไรเดอร์ (MATCHING)
+                // 2. Order ทดสอบ (CANCELLED)
                 new Order
                 {
                     Id = "99999999-9999-9999-9999-000000000002",
-                    State = OrderState.MATCHING,
+                    State = OrderState.CANCELLED,
                     PickupLocation = new Point(102.7918, 17.3938) { SRID = 4326 }, // Rajabhat University area
                     DropoffLocation = new Point(102.7718, 17.4238) { SRID = 4326 }, // Nong Prajak
                     DistanceKm = 3.8,
                     DeliveryFee = 68.00m,
-                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(2),
+                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(-2),
                     IsDeleted = false
                 },
-                // 3. Order ที่ AI เลือกไรเดอร์แล้ว และระบบกำลังส่ง Offer ไปหา Rider 1 (OFFERING)
+                // 3. Order ทดสอบ (COMPLETED)
                 new Order
                 {
                     Id = "99999999-9999-9999-9999-000000000003",
-                    State = OrderState.OFFERING,
+                    State = OrderState.COMPLETED,
                     PickupLocation = new Point(102.7850, 17.4100) { SRID = 4326 },
                     DropoffLocation = new Point(102.8050, 17.4200) { SRID = 4326 },
                     DistanceKm = 2.5,
                     DeliveryFee = 55.00m,
-                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(1.5),
-                    CurrentOfferId = "mock-offer-1001",
-                    OfferVersion = 1,
-                    OfferExpiresAt = DateTime.UtcNow.AddMinutes(5),
+                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(-5),
+                    AssignedRiderId = rider2Id,
+                    AssignedAt = DateTime.UtcNow.AddHours(-6),
+                    CompletedAt = DateTime.UtcNow.AddHours(-5),
                     IsDeleted = false
                 },
-                // 4. Order ที่ถูกกดรับและมอบหมายงานให้ Rider 2 เรียบร้อย (ASSIGNED)
+                // 4. Order ทดสอบ (CANCELLED)
                 new Order
                 {
                     Id = "99999999-9999-9999-9999-000000000004",
-                    State = OrderState.ASSIGNED,
+                    State = OrderState.CANCELLED,
                     PickupLocation = new Point(102.8100, 17.4000) { SRID = 4326 },
                     DropoffLocation = new Point(102.8200, 17.3800) { SRID = 4326 },
                     DistanceKm = 3.1,
                     DeliveryFee = 61.00m,
-                    ExpectedDeliveryTime = DateTime.UtcNow.AddMinutes(45),
-                    AssignedRiderId = rider2Id,
-                    AssignedAt = DateTime.UtcNow.AddMinutes(-10),
+                    ExpectedDeliveryTime = DateTime.UtcNow.AddHours(-1),
                     IsDeleted = false
                 },
-                // 5. Order ที่ถูกจัดส่งสำเร็จเรียบร้อย (COMPLETED)
+                // 5. Order ทดสอบ (COMPLETED)
                 new Order
                 {
                     Id = "99999999-9999-9999-9999-000000000005",

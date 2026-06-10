@@ -169,7 +169,7 @@ public static class ServiceSetup
                 client.BaseAddress = new Uri(aiServiceUrl);
             }
 
-            var apiKey = configuration["AI_SERVICE_API_KEY"];
+            var apiKey = configuration["AI_SERVICE_API_KEY"] ?? configuration["AiServiceApiKey"];
             if (!string.IsNullOrWhiteSpace(apiKey))
             {
                 client.DefaultRequestHeaders.Add("X-API-Key", apiKey);

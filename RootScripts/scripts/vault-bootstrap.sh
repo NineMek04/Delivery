@@ -21,7 +21,8 @@ vault kv put secret/delivery/backend \
   Jwt__CurrentKeyId="v2" \
   Jwt__Keys__v1="previous_legacy_secret_key_that_is_at_least_32_chars_12345678" \
   Jwt__Keys__v2="${JWT_SECRET}" \
-  RabbitMqPassword="${RABBITMQ_PASSWORD}"
+  RabbitMqPassword="${RABBITMQ_PASSWORD}" \
+  AiServiceApiKey="${AI_SERVICE_API_KEY}"
 
 vault kv put secret/delivery/ai \
   PostgresPassword="${POSTGRES_PASSWORD}" \

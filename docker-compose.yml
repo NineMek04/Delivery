@@ -78,7 +78,7 @@ services:
       - Cors__AllowedOrigins__4=http://localhost:8081
       - Routing__LocalOsrmUrl=http://osrm:5000
       - Authentication__RequireSecureCookie=false
-      - MessageBroker__Host=rabbitmq
+      - MessageBroker__Host=delivery-rabbitmq
       - MessageBroker__Port=5672
       - MessageBroker__Username=${RABBITMQ_USER}
     depends_on:

@@ -1,0 +1,17 @@
+{
+  "name": "test_breaking-point",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@microsoft/signalr": "^10.0.0",
+    "axios": "^1.17.0"
+  }
+}

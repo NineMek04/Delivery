@@ -1,4 +1,5 @@
 import os
+import secrets
 from fastapi import Security, HTTPException, status
 from fastapi.security.api_key import APIKeyHeader
 
@@ -12,7 +13,7 @@ def verify_api_key(api_key: str = Security(api_key_header)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="AI Service API Key is not configured on the server."
         )
-    if api_key != expected_api_key:
+    if not api_key or not secrets.compare_digest(api_key, expected_api_key):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or missing API Key."

@@ -3,6 +3,8 @@ using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BackendApi.Services.Dispatch;
 
@@ -171,7 +173,7 @@ public class DispatchOfferHandler
 
         try
         {
-            // ปลดล็อค Rider
+            // ปลดล็อค Rider Lock
             await _lockService.ReleaseLockAsync(riderId, offerId);
             
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -195,13 +197,31 @@ public class DispatchOfferHandler
                     
                 if (orders.Count == 0)
                 {
-                    await transaction.RollbackAsync();
+                    // FIX: Commit เพื่อให้ Rider เปลี่ยนเป็น IDLE สำเร็จ ไม่ติดใน RESERVED state จาก Rollback
+                    await transaction.CommitAsync();
                     return;
                 }
 
                 bool allTransitioned = true;
                 foreach (var order in orders)
                 {
+                    if (order.BatchGroupId != null)
+                    {
+                        // Check if there are other active orders in the same batch not part of this offer
+                        var otherActiveOrdersInBatch = await _dbContext.Orders
+                            .AnyAsync(o => o.BatchGroupId == order.BatchGroupId 
+                                        && o.Id != order.Id 
+                                        && o.CurrentOfferId != offerId);
+                        
+                        if (otherActiveOrdersInBatch)
+                        {
+                            _logger.LogInformation("Detaching dynamically injected/split order {OrderId} from batch {BatchId} due to rejection/timeout", 
+                                order.Id, order.BatchGroupId);
+                            order.BatchGroupId = null;
+                            order.BatchSequence = 0;
+                        }
+                    }
+
                     if (!await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
                     {
                         allTransitioned = false;

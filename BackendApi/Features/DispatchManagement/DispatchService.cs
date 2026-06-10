@@ -147,10 +147,11 @@ public class DispatchService
                 // จับกลุ่ม
                 if (activeOrders.First().BatchGroupId == null)
                 {
+                    int seq = 1;
                     foreach (var ao in activeOrders)
                     {
                         ao.BatchGroupId = batchId;
-                        ao.BatchSequence = 1;
+                        ao.BatchSequence = seq++;
                     }
                 }
                 order.BatchGroupId = batchId;
@@ -158,7 +159,15 @@ public class DispatchService
                 await _dbContext.SaveChangesAsync();
 
                 // ยิง Injection Offer ให้ Rider คนนี้
-                await TryOfferToRiderAsync(new List<Order> { order }, rider.Id, isInjection: true);
+                var offerSuccess = await TryOfferToRiderAsync(new List<Order> { order }, rider.Id, isInjection: true);
+                if (!offerSuccess)
+                {
+                    // Rollback dynamic injection batch pairing
+                    order.BatchGroupId = null;
+                    order.BatchSequence = 0;
+                    await _dbContext.SaveChangesAsync();
+                    return false;
+                }
                 return true;
             }
         }
@@ -359,13 +368,16 @@ public class DispatchService
             }
         }
 
-        // Re-calculate ETA ด้วย OSRM pickup duration + Rider velocity จริง (อัปเดตแค่ order แรกก่อน หรือทั้งหมดถ้าต้องการ)
+        // Re-calculate ETA ด้วย OSRM pickup duration + Rider velocity จริง (สะสมลำดับขั้นตอนก่อนหน้าใน Batch)
         if (pickupRouteDurationSeconds.HasValue && firstOrder.RouteDurationSeconds > 0)
         {
             try
             {
                 var riderSpeed = await _presenceService.GetRiderSpeedAsync(riderId);
-                foreach (var order in orders)
+                var sortedOrders = orders.OrderBy(o => o.BatchSequence).ToList();
+                double cumulativePickupSeconds = pickupRouteDurationSeconds.Value;
+
+                foreach (var order in sortedOrders)
                 {
                     var etaRequest = new PredictEtaRequestDto
                     {
@@ -377,7 +389,7 @@ public class DispatchService
                         RouteDurationSeconds = order.RouteDurationSeconds,
                         CurrentTime = DateTime.UtcNow.ToString("O"),
                         RiderSpeedKmh = riderSpeed > 0 ? riderSpeed : null,
-                        OsrmPickupDurationSeconds = pickupRouteDurationSeconds.Value
+                        OsrmPickupDurationSeconds = cumulativePickupSeconds
                     };
 
                     var etaResult = await _aiService.PredictEtaAsync(etaRequest);
@@ -385,6 +397,9 @@ public class DispatchService
                     {
                         order.ExpectedDeliveryTime = newEta;
                     }
+
+                    // สะสมระยะเวลาเดินทางและเวลาในการส่งมอบ (180 วินาที) ของออเดอร์นี้สำหรับออเดอร์ถัดไป
+                    cumulativePickupSeconds += order.RouteDurationSeconds + 180;
                 }
             }
             catch (Exception ex)

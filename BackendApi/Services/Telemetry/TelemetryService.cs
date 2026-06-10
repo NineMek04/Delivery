@@ -90,6 +90,13 @@ namespace BackendApi.Services.Telemetry
                 now = DateTime.UtcNow;
             }
 
+            // Prevent deep historical GPS points spamming (DoS)
+            if (now < DateTime.UtcNow.AddMinutes(-15))
+            {
+                _logger.LogWarning("Discarding stale GPS point for Rider {RiderId}. Age is too old.", riderId);
+                return;
+            }
+
             // 2. ข้ามการทำ Snap-to-Road ใน Hot Path ไปก่อนเพื่อป้องกัน Thread Pool Exhaustion
             // OSRM HTTP Request จะบล็อก Thread และเกิด Timeout (1.5s) หากมีโหลด 500 req/sec
             // ในสถาปัตยกรรม V4, แอป Rider จะแสดงผล Snap เองที่ฝั่ง Client แล้ว ส่ง raw พิกัดมาได้เลย
@@ -305,9 +312,13 @@ namespace BackendApi.Services.Telemetry
         {
             if (batchPoints == null || batchPoints.Count == 0) return;
 
-            // 1. กรองจุดที่คลาดเคลื่อนเบื้องต้น (Drift Protection) และขอบเขตพิกัด
+            var minTimestamp = DateTime.UtcNow.AddMinutes(-15);
+            var maxTimestamp = DateTime.UtcNow.AddMinutes(1);
+
+            // 1. กรองจุดที่คลาดเคลื่อนเบื้องต้น (Drift Protection) ขอบเขตพิกัด และช่วงเวลาที่ยอมรับได้
             var validPoints = batchPoints
                 .Where(p => p.Latitude >= -90 && p.Latitude <= 90 && p.Longitude >= -180 && p.Longitude <= 180 && p.Accuracy <= 50)
+                .Where(p => p.Timestamp >= minTimestamp && p.Timestamp <= maxTimestamp)
                 .OrderBy(p => p.Timestamp) // เรียงลำดับตามเวลาแบบเรียงขึ้น (Ascending)
                 .ToList();
 

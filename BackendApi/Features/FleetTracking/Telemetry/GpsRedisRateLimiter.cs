@@ -38,6 +38,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// <summary>
         /// Checks if the location update for the given rider should be rate limited.
         /// Returns true if it should be rate limited (blocked), or false if it is allowed.
+        /// If Redis is unavailable, returns false (bypass) to maintain GPS update availability.
         /// </summary>
         public async Task<bool> ShouldRateLimitAsync(string riderId, int pendingQueueCount)
         {
@@ -46,8 +47,19 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             int intervalSeconds = GetRecommendedInterval(pendingQueueCount);
 
-            // Attempt to set key atomically if it does not exist (meaning rate limit window has expired)
-            var rateLimited = !await db.StringSetAsync(key, "1", TimeSpan.FromSeconds(intervalSeconds), When.NotExists);
+            bool rateLimited;
+            try
+            {
+                // Attempt to set key atomically if it does not exist (meaning rate limit window has expired)
+                rateLimited = !await db.StringSetAsync(key, "1", TimeSpan.FromSeconds(intervalSeconds), When.NotExists);
+            }
+            catch (Exception ex)
+            {
+                // [RESILIENCE FIX] Redis connection failure must not halt GPS updates.
+                // Fail-open: bypass rate limiting temporarily so riders can still report location.
+                _logger.LogWarning(ex, "Redis unavailable during GPS rate-limit check for Rider {RiderId}. Bypassing rate limit.", riderId);
+                return false;
+            }
 
             if (rateLimited)
             {

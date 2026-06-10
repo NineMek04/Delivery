@@ -69,7 +69,7 @@
 - **ห้าม** เพิ่ม GiST index บนฟิลด์ที่ไม่ใช่ geometry type
 - **ห้าม** เขียนข้อมูลลง `.docs/AI-CHANGELOG/` โดยอัตโนมัติ — ต้องถามผู้ใช้ก่อนเสมอ (ให้สร้างหรืออัปเดตไฟล์ตามวันที่)
 - **ห้าม** เขียน, แก้ไข, หรือลบ entries เก่าใน `.docs/AI-CHANGELOG/`
-- **ห้าม** ลบไฟล์ Layer 1 archives (`PROJECT-SPEC.md`, `AI-BLUEPRINT.md`, `.docs/AI-CHANGELOG/`, `OSRM-SETUP.md`, `docker-compose.yml`)
+- **ห้าม** ลบไฟล์ Layer 1 archives (`Documents/PROJECT-SPEC.md`, `Documents/AI-BLUEPRINT.md`, `.docs/AI-CHANGELOG/`, `Documents/OSRM-SETUP.md`, `docker-compose.yml`)
 
 ### ✅ ต้องทำเสมอ (Mandatory Patterns)
 - ยึด codebase จริงเป็น source of truth เมื่อขัดแย้งกับ docs

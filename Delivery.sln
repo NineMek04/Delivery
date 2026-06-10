@@ -1,15 +1,15 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi", "BackendApi\BackendApi.csproj", "{494E2E43-757D-2D5F-1B51-BF2742664A95}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi.IntegrationTests", "scripts.test\BackendApi.IntegrationTests\BackendApi.IntegrationTests.csproj", "{ACBC5228-EB92-4F11-9E48-4E7F41C79B47}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi.IntegrationTests", "RootScripts\scripts.test\BackendApi.IntegrationTests\BackendApi.IntegrationTests.csproj", "{ACBC5228-EB92-4F11-9E48-4E7F41C79B47}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts.test", "scripts.test", "{B3D4A575-A882-19B9-3684-F5D2EB42E87E}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts.test", "RootScripts\scripts.test", "{B3D4A575-A882-19B9-3684-F5D2EB42E87E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi.UnitTests", "scripts.test\BackendApi.UnitTests\BackendApi.UnitTests.csproj", "{F4045C1E-65FC-4761-AE0F-BB811B7EA303}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendApi.UnitTests", "RootScripts\scripts.test\BackendApi.UnitTests\BackendApi.UnitTests.csproj", "{F4045C1E-65FC-4761-AE0F-BB811B7EA303}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

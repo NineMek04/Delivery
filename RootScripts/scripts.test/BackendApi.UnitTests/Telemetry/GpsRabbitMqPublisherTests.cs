@@ -59,6 +59,9 @@ namespace BackendApi.UnitTests.Telemetry
             var basicPropertiesMock = new Mock<IBasicProperties>();
             _channelMock.Setup(c => c.CreateBasicProperties()).Returns(basicPropertiesMock.Object);
 
+            var batchMock = new Mock<IBasicPublishBatch>();
+            _channelMock.Setup(c => c.CreateBasicPublishBatch()).Returns(batchMock.Object);
+
             // Act
             _publisher.Publish(point);
 
@@ -79,14 +82,16 @@ namespace BackendApi.UnitTests.Telemetry
             basicPropertiesMock.VerifySet(p => p.Persistent = true, Times.AtLeastOnce);
             basicPropertiesMock.VerifySet(p => p.Type = nameof(TrackPoint), Times.AtLeastOnce);
 
-            // 3. Ensure publish called with correct exchange, queue, and payload
-            _channelMock.Verify(c => c.BasicPublish(
+            // 3. Ensure batch publishing was used with correct parameters
+            batchMock.Verify(b => b.Add(
                 "", // exchange
                 "gps_telemetry_queue", // routingKey
                 true, // mandatory
                 basicPropertiesMock.Object,
-                It.IsAny<ReadOnlyMemory<byte>>()
+                It.IsAny<byte[]>()
             ), Times.AtLeastOnce);
+
+            batchMock.Verify(b => b.Publish(), Times.AtLeastOnce);
         }
 
         [Fact]

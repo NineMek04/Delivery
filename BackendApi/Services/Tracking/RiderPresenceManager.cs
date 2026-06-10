@@ -60,10 +60,12 @@ namespace BackendApi.Services.Tracking
 
             await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent(
                 riderId,
-                (rider.State == RiderState.OFFLINE) ? "IDLE" : "RECOVER",
-                oldState.ToString(),
-                "connect",
-                correlationId
+                targetState:  null,   // handler resolves IDLE vs BUSY from active orders
+                previousState: oldState,
+                reason: (rider.State == RiderState.OFFLINE)
+                    ? RiderTransitionReason.Connect
+                    : RiderTransitionReason.Recover,
+                correlationId: correlationId
             ));
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);
@@ -85,10 +87,10 @@ namespace BackendApi.Services.Tracking
 
             await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent(
                 riderId,
-                "STALE",
-                oldState.ToString(),
-                "disconnect",
-                correlationId
+                targetState:  RiderState.STALE,
+                previousState: oldState,
+                reason: RiderTransitionReason.Disconnect,
+                correlationId: correlationId
             ));
 
             return new RiderConnectionResult(user.RiderId, rider.State, oldState);

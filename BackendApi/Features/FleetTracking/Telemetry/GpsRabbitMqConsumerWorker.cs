@@ -170,14 +170,19 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                     else
                     {
                         _logger.LogWarning("Discarding malformed GPS message. Routing to DLQ.");
-                        _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                        // [THREAD-SAFETY FIX] IModel is not thread-safe — wrap all BasicNack/Ack calls in lock
+                        if (_channel != null)
+                            lock (_channel)
+                                _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error processing incoming GPS message. Routing to DLQ.");
-                    // Send negative ACK without requeue (to DLQ)
-                    _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                    // [THREAD-SAFETY FIX] IModel is not thread-safe — wrap all BasicNack/Ack calls in lock
+                    if (_channel != null)
+                        lock (_channel)
+                            _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
                 }
             };
 

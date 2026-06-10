@@ -28,6 +28,24 @@ namespace BackendApi.Hubs
 
         private static string OrderChatGroup(string orderId) => $"order-chat:{orderId}";
 
+        public override async Task OnConnectedAsync()
+        {
+            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (userId != null && role == AuthConstants.RiderRole)
+            {
+                var user = await _db.GetQuery<User>()
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+                if (user?.RiderId != null)
+                {
+                    Context.Items["RiderId"] = user.RiderId;
+                }
+            }
+
+            await base.OnConnectedAsync();
+        }
+
         /// <summary>
         /// ไรเดอร์ ลูกค้า หรือร้านค้า ขอเข้าร่วมห้องแชทของออเดอร์
         /// เมื่อผ่านการตรวจสอบสิทธิ์ ระบบจะดึงประวัติข้อความเก่าส่งกลับไปให้ผ่าน ChatHistoryReceived
@@ -51,6 +69,12 @@ namespace BackendApi.Hubs
                 throw new HubException("Order not found.");
             }
 
+            // จำกัดการดึงประวัติเฉพาะออเดอร์ที่เกิดไม่เกิน 7 วัน
+            if (order.CreatedAt < DateTime.UtcNow.AddDays(-7))
+            {
+                throw new HubException("Cannot access chat history for orders older than 7 days.");
+            }
+
             // ตรวจสอบสิทธิ์การเข้าคุยในออเดอร์นี้
             bool isAuthorized = await VerifyUserAccess(order, userId, role);
             if (!isAuthorized)
@@ -61,10 +85,11 @@ namespace BackendApi.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, OrderChatGroup(orderId));
             _logger.LogInformation("User {UserId} ({Role}) joined chat group for Order {OrderId}", userId, role, orderId);
 
-            // ดึงประวัติแชทเก่าเรียงตามลำดับเวลา
+            // ดึงประวัติแชทล่าสุด 50 ข้อความเรียงย้อนหลัง
             var history = await _db.GetQuery<ChatMessage>()
                 .Where(m => m.OrderId == orderId)
-                .OrderBy(m => m.CreatedAt)
+                .OrderByDescending(m => m.CreatedAt)
+                .Take(50)
                 .Select(m => new
                 {
                     m.Id,
@@ -75,6 +100,9 @@ namespace BackendApi.Hubs
                     m.CreatedAt
                 })
                 .ToListAsync();
+
+            // Reverse ข้อความกลับเพื่อให้แสดงผลจากเก่าไปหาใหม่ (Chronological Order)
+            history.Reverse();
 
             await Clients.Caller.SendAsync("ChatHistoryReceived", orderId, history);
         }
@@ -95,6 +123,14 @@ namespace BackendApi.Hubs
             if (string.IsNullOrWhiteSpace(messageText))
             {
                 throw new HubException("Message content cannot be empty.");
+            }
+
+            // [DoS FIX] Prevent oversized payloads from being written to the database.
+            // Aligned with ChatMessage.Message [MaxLength(1000)] constraint.
+            const int MaxMessageLength = 1000;
+            if (messageText.Length > MaxMessageLength)
+            {
+                throw new HubException($"Message exceeds the maximum allowed length of {MaxMessageLength} characters.");
             }
 
             // ตรวจสอบความถูกต้องของออเดอร์
@@ -164,10 +200,21 @@ namespace BackendApi.Hubs
 
             if (role == AuthConstants.RiderRole)
             {
-                // ดึงข้อมูลผู้ใช้เพื่อหารหัส RiderId
+                // ใช้ RiderId จากแคชใน Context.Items เพื่อหลีกเลี่ยง SQL Query Spam
+                if (Context.Items.TryGetValue("RiderId", out var cachedRiderId) && cachedRiderId is string riderId)
+                {
+                    return order.AssignedRiderId == riderId;
+                }
+
+                // Fallback ดึงค่าจาก DB ในกรณีจำกัด (หากหลุดแคช)
                 var user = await _db.GetQuery<User>()
                     .FirstOrDefaultAsync(u => u.Id == userId);
-                return user != null && order.AssignedRiderId == user.RiderId;
+                if (user?.RiderId != null)
+                {
+                    Context.Items["RiderId"] = user.RiderId;
+                    return order.AssignedRiderId == user.RiderId;
+                }
+                return false;
             }
 
             if (role == AuthConstants.CustomerRole)
@@ -177,10 +224,9 @@ namespace BackendApi.Hubs
 
             if (role == AuthConstants.StorePartnerRole)
             {
-                // ตรวจหาร้านค้าและสิทธิ์ผู้ใช้
-                var user = await _db.GetQuery<User>()
-                    .FirstOrDefaultAsync(u => u.Id == userId);
-                return user != null && order.ShopId == user.ShopId;
+                // ดึง ShopId จาก JWT Claims ตรงๆ (shop_id) ไม่ต้องเรียกฐานข้อมูลตาราง Users
+                var shopId = Context.User?.FindFirst("shop_id")?.Value;
+                return shopId != null && order.ShopId == shopId;
             }
 
             return false;

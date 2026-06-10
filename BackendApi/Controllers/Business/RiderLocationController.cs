@@ -146,6 +146,12 @@ namespace BackendApi.Controllers.Business
                     status = statusRedis.ToString();
                 }
 
+                // FILTER: Only return riders who are actually online
+                if (status != "IDLE" && status != "RESERVED" && status != "BUSY")
+                {
+                    continue; // Skip OFFLINE, STALE, or unknown status
+                }
+
                 locations.Add(new RiderLocationDto
                 {
                     RiderId = riderId,

@@ -80,10 +80,53 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
     }
   }
 
-  Future<void> _placeOrder() async {
+  bool _validateOrderBeforeSubmit() {
     final cart = ref.read(cartProvider);
-    if (cart.items.isEmpty) return;
+    if (cart.items.isEmpty) {
+      _showValidationError('ไม่มีสินค้าในตะกร้า');
+      return false;
+    }
 
+    if (_dropoffLat == 0.0 && _dropoffLng == 0.0) {
+      _showValidationError('ไม่พบพิกัดจัดส่งที่ถูกต้อง กรุณาเปิดบริการระบุตำแหน่ง');
+      return false;
+    }
+
+    for (final shop in _shops) {
+      if (!shop.isOpen) {
+        _showValidationError('ร้าน "${shop.name}" ปิดให้บริการชั่วคราวในขณะนี้ ไม่สามารถสั่งซื้อได้');
+        return false;
+      }
+    }
+
+    // Limit maximum distance per shop to 25 km
+    for (final shop in _shops) {
+      final shopLat = shop.lat ?? 17.4138;
+      final shopLng = shop.lng ?? 102.7872;
+      final dist = Geolocator.distanceBetween(shopLat, shopLng, _dropoffLat, _dropoffLng) / 1000.0;
+      if (dist > 25.0) {
+        _showValidationError('ร้าน "${shop.name}" อยู่ไกลเกินไป (ระยะทาง ${dist.toStringAsFixed(1)} กม. เกินระยะสูงสุด 25 กม.)');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _showValidationError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange[800],
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _placeOrder() async {
+    if (!_validateOrderBeforeSubmit()) return;
+
+    final cart = ref.read(cartProvider);
     try {
       await ref.read(cartProvider.notifier).checkout(
         dropoffLat: _dropoffLat,

@@ -162,14 +162,6 @@ namespace BackendApi.Controllers.MasterData
             if (existing is null)
                 return NotFound(ApiResponse.Fail("ไม่พบข้อมูลร้านค้าที่ต้องการแก้ไข", code: "NOT_FOUND"));
 
-            // อัปเดตเฉพาะฟิลด์ที่ปรับปรุงได้ (ป้องกันการเขียนทับด้วยข้อมูลว่างเปล่าหากส่งเฉพาะบางฟิลด์)
-            existing.Name = string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name;
-            existing.MenuName = string.IsNullOrWhiteSpace(dto.MenuName) ? existing.MenuName : dto.MenuName;
-            existing.MenuPrice = dto.MenuPrice > 0 ? dto.MenuPrice : existing.MenuPrice;
-            existing.IsOpen = dto.IsOpen;
-            existing.PrepTimeMinutes = dto.PrepTimeMinutes > 0 ? dto.PrepTimeMinutes : existing.PrepTimeMinutes;
-            existing.OpeningHours = dto.OpeningHours ?? existing.OpeningHours;
-
             if (dto.Lat.HasValue && dto.Lng.HasValue)
             {
                 var factory = NetTopologySuite.NtsGeometryServices.Instance
@@ -177,6 +169,22 @@ namespace BackendApi.Controllers.MasterData
                 existing.Location = factory.CreatePoint(
                     new NetTopologySuite.Geometries.Coordinate(dto.Lng.Value, dto.Lat.Value));
             }
+
+            if (dto.IsOpen)
+            {
+                if (existing.Location == null || (existing.Location.X == 0 && existing.Location.Y == 0))
+                {
+                    return BadRequest(ApiResponse.Fail("โปรดปักหมุดพิกัดร้านค้าบนแผนที่ให้ถูกต้องก่อนเปิดรับออเดอร์", code: "INVALID_LOCATION"));
+                }
+            }
+
+            // อัปเดตเฉพาะฟิลด์ที่ปรับปรุงได้ (ป้องกันการเขียนทับด้วยข้อมูลว่างเปล่าหากส่งเฉพาะบางฟิลด์)
+            existing.Name = string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name;
+            existing.MenuName = string.IsNullOrWhiteSpace(dto.MenuName) ? existing.MenuName : dto.MenuName;
+            existing.MenuPrice = dto.MenuPrice > 0 ? dto.MenuPrice : existing.MenuPrice;
+            existing.IsOpen = dto.IsOpen;
+            existing.PrepTimeMinutes = dto.PrepTimeMinutes > 0 ? dto.PrepTimeMinutes : existing.PrepTimeMinutes;
+            existing.OpeningHours = dto.OpeningHours ?? existing.OpeningHours;
 
             DB.UpdateObject(existing);
             await DB.CommitChangesAsync(cancellationToken);

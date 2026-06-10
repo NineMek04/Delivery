@@ -470,6 +470,12 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private handleOrderStatusChanged(data: any): void {
+    if (data.status === 'DELIVERING') {
+      if (this.pickupRouteLine) {
+        this.pickupRouteLine.remove();
+        this.pickupRouteLine = null;
+      }
+    }
     if (['COMPLETED', 'CANCELLED'].includes(data.status)) {
       if (this.pickupRouteLine) {
         this.pickupRouteLine.remove();

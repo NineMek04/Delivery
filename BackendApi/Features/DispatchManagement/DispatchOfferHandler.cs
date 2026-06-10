@@ -133,10 +133,12 @@ public class DispatchOfferHandler
                 return false;
             }
 
-            // แจ้ง Admin Dashboard
+            // แจ้ง Admin Dashboard และ ร้านค้า ลูกค้า
+            var orderNotifier = _serviceProvider.GetRequiredService<OrderNotificationService>();
             foreach (var order in orders)
             {
                 await _adminNotifier.NotifyOrderAssignedAsync(order.Id, riderId, order.AssignedAt);
+                await orderNotifier.NotifyOrderStatusChangedAsync(order);
             }
 
             _logger.LogInformation(

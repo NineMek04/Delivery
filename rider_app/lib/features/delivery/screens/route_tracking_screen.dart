@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -8,9 +9,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/location/tile_cache_service.dart';
+import '../../../core/signalr/signalr_service.dart';
+import '../../tracking/providers/tracking_provider.dart';
+import '../../tracking/services/simulated_journey_service.dart';
 
-// Mock Provider for demonstration
-final locationProvider = StateProvider<LatLng>((ref) => const LatLng(17.4138, 102.7872));
+final locationStateProvider = StateProvider<LatLng>((ref) => const LatLng(17.4138, 102.7872));
 
 class RouteTrackingScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -24,65 +27,116 @@ class RouteTrackingScreen extends ConsumerStatefulWidget {
 class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   final MapController _mapController = MapController();
   bool _isPickedUp = false;
+  bool _isTrackingStarted = false;
+  double _currentDistance = double.infinity;
   String? _dbDir;
 
   @override
   void initState() {
     super.initState();
     _loadDbDir();
+    Future.microtask(() => ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId));
   }
 
   Future<void> _loadDbDir() async {
     try {
       final dbPath = await getDatabasesPath();
-      if (mounted) {
-        setState(() {
-          _dbDir = dbPath;
-        });
-      }
+      if (mounted) setState(() => _dbDir = dbPath);
     } catch (_) {}
   }
-
-  // Mock Route Data
-  final LatLng _pickupLocation = const LatLng(17.4200, 102.7900);
-  final LatLng _dropoffLocation = const LatLng(17.4000, 102.7800);
-  final List<LatLng> _routePoints = [
-    const LatLng(17.4138, 102.7872),
-    const LatLng(17.4150, 102.7880),
-    const LatLng(17.4200, 102.7900),
-  ];
 
   void _callCustomer() async {
     final Uri launchUri = Uri(scheme: 'tel', path: '0812345678');
     if (await canLaunchUrl(launchUri)) {
       await launchUrl(launchUri);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch phone app.')),
-        );
-      }
     }
   }
 
-  void _markStatus() {
+  void _startGpsTracking(ActiveOrderState state) {
+    if (state.order == null) return;
+    final order = state.order!;
+    
+    setState(() => _isTrackingStarted = true);
+    ref.read(signalRServiceProvider.notifier).updateStatus('PICKING_UP');
+
+    final simService = ref.read(simulatedJourneyProvider);
+    
+    // Simulate route to pickup
+    List<LatLng> pickupRoute = [];
+    if (order.pickupLat != null && order.pickupLng != null) {
+      final pickup = LatLng(order.pickupLat!, order.pickupLng!);
+      pickupRoute = [
+        ref.read(locationStateProvider),
+        pickup,
+      ];
+    }
+
+    simService.onDistanceUpdated = (dist) {
+      if (mounted) setState(() => _currentDistance = dist);
+    };
+
+    simService.startJourney(
+      routeCoords: pickupRoute, 
+      destination: LatLng(order.pickupLat!, order.pickupLng!), 
+      locationStateController: ref.read(locationStateProvider.notifier),
+    );
+  }
+
+  void _markStatus(ActiveOrderState state) {
+    if (state.order == null) return;
+    final order = state.order!;
+    final simService = ref.read(simulatedJourneyProvider);
+    final signalR = ref.read(signalRServiceProvider.notifier);
+
     if (!_isPickedUp) {
       setState(() {
         _isPickedUp = true;
+        _currentDistance = double.infinity;
       });
-      // In a real app, we'd fetch a new route to the dropoff here
-    } else {
-      // Proceed to Delivery Confirmation
-      // context.goNamed('delivery_confirmation', pathParameters: {'id': widget.orderId});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Navigating to Delivery Confirmation...')),
+      signalR.updateStatus('DELIVERING');
+
+      // Start next leg (to customer)
+      List<LatLng> deliveryRoute = [];
+      if (order.encodedPolyline != null) {
+        deliveryRoute = simService.decodePolyline(order.encodedPolyline!);
+      } else if (order.dropoffLat != null && order.dropoffLng != null) {
+        deliveryRoute = [
+          ref.read(locationStateProvider),
+          LatLng(order.dropoffLat!, order.dropoffLng!),
+        ];
+      }
+
+      simService.startJourney(
+        routeCoords: deliveryRoute, 
+        destination: LatLng(order.dropoffLat!, order.dropoffLng!), 
+        locationStateController: ref.read(locationStateProvider.notifier),
       );
+
+    } else {
+      simService.stopJourney();
+      signalR.updateStatus('COMPLETED');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Delivery Completed!')),
+      );
+      if (mounted) {
+        context.pop();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentLocation = ref.watch(locationProvider);
+    final currentLocation = ref.watch(locationStateProvider);
+    final state = ref.watch(activeOrderProvider);
+    
+    if (state.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (state.order == null) return const Scaffold(body: Center(child: Text('Order not found')));
+
+    final order = state.order!;
+    final pickupLocation = LatLng(order.pickupLat ?? 17.4138, order.pickupLng ?? 102.7872);
+    final dropoffLocation = LatLng(order.dropoffLat ?? 17.4000, order.dropoffLng ?? 102.7800);
+    
+    final bool canSlide = _isTrackingStarted && _currentDistance <= 50;
 
     return Scaffold(
       appBar: AppBar(
@@ -102,7 +156,6 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
       ),
       body: Stack(
         children: [
-          // Flutter Map
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -117,28 +170,17 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                     ? CachedTileProvider(dbDir: _dbDir!)
                     : NetworkTileProvider(),
               ),
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: _routePoints,
-                    strokeWidth: 4.0,
-                    color: Colors.blueAccent,
-                  ),
-                ],
-              ),
               MarkerLayer(
                 markers: [
-                  // Rider Marker
                   Marker(
                     point: currentLocation,
                     width: 40,
                     height: 40,
                     child: const Icon(Icons.motorcycle, color: Colors.blue, size: 30),
                   ),
-                  // Pickup Marker
                   if (!_isPickedUp)
                     Marker(
-                      point: _pickupLocation,
+                      point: pickupLocation,
                       width: 40,
                       height: 40,
                       child: Container(
@@ -146,9 +188,8 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                         child: const Icon(Icons.store, color: Colors.white, size: 20),
                       ),
                     ),
-                  // Dropoff Marker
                   Marker(
-                    point: _dropoffLocation,
+                    point: dropoffLocation,
                     width: 40,
                     height: 40,
                     child: Container(
@@ -161,7 +202,6 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
             ],
           ),
 
-          // Bottom Sheet Overlay
           Positioned(
             left: 0,
             right: 0,
@@ -178,7 +218,6 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ETA and Distance
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -190,8 +229,8 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                             style: GoogleFonts.poppins(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            '12 mins',
-                            style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                            'Status: ${order.status}',
+                            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
                         ],
                       ),
@@ -203,7 +242,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                             style: GoogleFonts.poppins(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            '3.2 km',
+                            _currentDistance == double.infinity ? '--' : '${(_currentDistance).toStringAsFixed(0)} m',
                             style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
                           ),
                         ],
@@ -212,29 +251,36 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // Action Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _markStatus,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isPickedUp ? Colors.green : Colors.orange,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
+                  if (!_isTrackingStarted)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _startGpsTracking(state),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          'START GPS TRACKING',
+                          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
                       ),
-                      child: Text(
-                        _isPickedUp ? 'MARK DELIVERED' : 'MARK PICKED UP',
-                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
+                    )
+                  else
+                    SlideToConfirm(
+                      text: _isPickedUp ? 'Slide to Complete' : 'Slide to Pick Up',
+                      isEnabled: canSlide,
+                      color: _isPickedUp ? Colors.green : Colors.orange,
+                      onConfirmed: () {
+                        _markStatus(state);
+                      },
                     ),
-                  ),
                 ],
               ),
             ),
           ),
           
-          // Re-center button
           Positioned(
             right: 16,
             bottom: 180,
@@ -248,6 +294,100 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class SlideToConfirm extends StatefulWidget {
+  final String text;
+  final VoidCallback onConfirmed;
+  final bool isEnabled;
+  final Color color;
+
+  const SlideToConfirm({
+    Key? key,
+    required this.text,
+    required this.onConfirmed,
+    this.isEnabled = true,
+    this.color = Colors.orange,
+  }) : super(key: key);
+
+  @override
+  State<SlideToConfirm> createState() => _SlideToConfirmState();
+}
+
+class _SlideToConfirmState extends State<SlideToConfirm> {
+  double _position = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        const sliderWidth = 60.0;
+        final maxPosition = maxWidth - sliderWidth;
+
+        return Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: widget.isEnabled ? widget.color : Colors.grey[300],
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Text(
+                  widget.isEnabled ? widget.text : 'Too far to confirm',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: widget.isEnabled ? Colors.white : Colors.grey[500],
+                  ),
+                ),
+              ),
+              if (widget.isEnabled)
+                Positioned(
+                  left: _position,
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: (details) {
+                      setState(() {
+                        _position += details.delta.dx;
+                        if (_position < 0) _position = 0;
+                        if (_position > maxPosition) _position = maxPosition;
+                      });
+                    },
+                    onHorizontalDragEnd: (details) {
+                      if (_position > maxPosition * 0.8) {
+                        setState(() {
+                          _position = maxPosition;
+                        });
+                        // Reset slider immediately after slight delay so it can be reused
+                        Future.delayed(const Duration(milliseconds: 300), () {
+                          if (mounted) setState(() => _position = 0);
+                        });
+                        widget.onConfirmed();
+                      } else {
+                        setState(() => _position = 0);
+                      }
+                    },
+                    child: Container(
+                      width: sliderWidth,
+                      height: 60,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Colors.black12, blurRadius: 4),
+                        ],
+                      ),
+                      child: Icon(Icons.arrow_forward_ios, color: widget.color),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -72,7 +72,7 @@ public class DispatchService
     public async Task<bool> StartDispatchAsync(string orderId)
     {
         var order = await _dbContext.Orders.FindAsync(orderId);
-        if (order is null || order.State != OrderState.CREATED)
+        if (order is null || (order.State != OrderState.CREATED && order.State != OrderState.MATCHING))
         {
             _logger.LogWarning("Cannot dispatch order {OrderId}: not found or invalid state {State}",
                 orderId, order?.State);
@@ -80,8 +80,11 @@ public class DispatchService
         }
 
         // เปลี่ยนสถานะเป็น MATCHING
-        if (!await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
-            return false;
+        if (order.State == OrderState.CREATED)
+        {
+            if (!await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
+                return false;
+        }
 
         // ค้นหา Rider ที่อยู่ใกล้
         await FindAndOfferAsync(new List<Order> { order });
@@ -95,7 +98,7 @@ public class DispatchService
     public async Task<bool> StartBatchDispatchAsync(string batchGroupId)
     {
         var orders = await _dbContext.Orders
-            .Where(o => o.BatchGroupId == batchGroupId && o.State == OrderState.CREATED)
+            .Where(o => o.BatchGroupId == batchGroupId && (o.State == OrderState.CREATED || o.State == OrderState.MATCHING))
             .OrderBy(o => o.BatchSequence)
             .ToListAsync();
 
@@ -103,7 +106,10 @@ public class DispatchService
 
         foreach (var order in orders)
         {
-            await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING);
+            if (order.State == OrderState.CREATED)
+            {
+                await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING);
+            }
         }
 
         await FindAndOfferAsync(orders);
@@ -116,7 +122,7 @@ public class DispatchService
     public async Task<bool> TryInjectOrderAsync(string orderId)
     {
         var order = await _dbContext.Orders.FindAsync(orderId);
-        if (order is null || order.State != OrderState.CREATED) return false;
+        if (order is null || (order.State != OrderState.CREATED && order.State != OrderState.MATCHING)) return false;
 
         // ดึงไรเดอร์ที่กำลัง PICKING_UP
         var busyRiders = await _dbContext.Riders

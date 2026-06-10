@@ -195,6 +195,30 @@ export class TrackingSignalRService {
       this._riderLocations.next(new Map(currentMap));
     });
 
+    // Listen to rider status updates (e.g. online, offline, idle)
+    this.hubConnection.on('RiderStatusUpdated', (data: any) => {
+      const currentMap = this._riderLocations.getValue();
+      const riderId = data.riderId || data.RiderId;
+      const newStatus = data.newStatus || data.NewStatus || 'OFFLINE';
+      
+      const existing = currentMap.get(riderId);
+      if (existing) {
+        existing.status = newStatus;
+        existing.timestamp = data.timestamp || data.Timestamp || new Date().toISOString();
+        currentMap.set(riderId, { ...existing });
+      } else {
+        currentMap.set(riderId, {
+          riderId: riderId,
+          latitude: 0,
+          longitude: 0,
+          status: newStatus,
+          timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
+        });
+      }
+      this._riderLocations.next(new Map(currentMap));
+      this.addAlert('Rider Status', `Rider RID-${riderId.substring(0, 6).toUpperCase()} went ${newStatus.toLowerCase()}`, 'info');
+    });
+
     // Listen to OSRM road-snapped updates
     this.hubConnection.on('RiderLocationSnapped', (data: any) => {
       const currentMap = this._riderLocations.getValue();

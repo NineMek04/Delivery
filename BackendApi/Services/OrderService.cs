@@ -220,18 +220,7 @@ public class OrderService : IOrderService
         // Broadcast to the specific store's group via SignalR
         await _orderNotifier.NotifyOrderCreatedAsync(responseDto, cancellationToken, shopId: savedOrder.ShopId);
 
-        // Enqueue background dispatch task to the Channel-based queue
-        try
-        {
-            var correlationId = CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
-            await _dispatchQueue.QueueTaskAsync(new DispatchTask(DispatchTaskType.CreateOrder, savedOrder.Id, correlationId));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to enqueue dispatch task for order {OrderId}", savedOrder.Id);
-        }
-
-        return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(responseDto, "Order created and dispatch process started."));
+        return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(responseDto, "Order created successfully. Waiting for store acceptance."));
     }
 
     public async Task<(int StatusCode, ApiResponse<PaginatedResult<OrderDto>> Response)> GetOrdersAsync(

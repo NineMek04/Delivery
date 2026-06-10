@@ -28,6 +28,7 @@ namespace BackendApi.Services.BackgroundWorkers
         private const string QueueName = "gps_snap_queue";
         private readonly IServiceProvider _serviceProvider;
         private readonly IConfiguration _configuration;
+        private readonly IHostApplicationLifetime _appLifetime;
         private readonly ILogger<OsrmSnapWorker> _logger;
         private readonly IConnectionMultiplexer _redis;
         private readonly IHubContext<TrackingHub> _hubContext;
@@ -40,12 +41,14 @@ namespace BackendApi.Services.BackgroundWorkers
         public OsrmSnapWorker(
             IServiceProvider serviceProvider,
             IConfiguration configuration,
+            IHostApplicationLifetime appLifetime,
             ILogger<OsrmSnapWorker> logger,
             IConnectionMultiplexer redis,
             IHubContext<TrackingHub> hubContext)
         {
             _serviceProvider = serviceProvider;
             _configuration = configuration;
+            _appLifetime = appLifetime;
             _logger = logger;
             _redis = redis;
             _hubContext = hubContext;
@@ -243,7 +246,9 @@ namespace BackendApi.Services.BackgroundWorkers
             }
             catch (Exception ex)
             {
-                _logger.LogCritical(ex, "Failed to initialize RabbitMQ for OsrmSnapWorker.");
+                // [FAIL-FAST FIX] Stop application to trigger orchestrator container restart on connection loss during init
+                _logger.LogCritical(ex, "Failed to initialize RabbitMQ for OsrmSnapWorker. Exiting application.");
+                _appLifetime.StopApplication();
                 return;
             }
 

@@ -23,6 +23,30 @@ public enum RiderState
 }
 
 /// <summary>
+/// Reason/trigger for a RiderStateChangedIntegrationEvent.
+/// Using an enum prevents magic-string typos that would silently mis-route
+/// or discard messages in RiderStateChangedIntegrationEventHandler.
+///
+/// "RECOVER" is intentionally a reason here, NOT a RiderState — it describes
+/// the reconnect-from-STALE scenario; the handler resolves the actual target
+/// state (IDLE or BUSY) by checking active orders.
+/// </summary>
+public enum RiderTransitionReason
+{
+    /// <summary>Rider app connected / signed in (OFFLINE → IDLE or BUSY)</summary>
+    Connect,
+
+    /// <summary>Rider reconnected after STALE (STALE → IDLE or BUSY)</summary>
+    Recover,
+
+    /// <summary>Rider SignalR disconnected unexpectedly (any → STALE)</summary>
+    Disconnect,
+
+    /// <summary>Heartbeat monitor moved rider from STALE → OFFLINE after threshold</summary>
+    HeartbeatTimeout,
+}
+
+/// <summary>
 /// กฎการเปลี่ยนสถานะ Rider — ป้องกัน Illegal State Transition
 /// </summary>
 public static class RiderStateRules

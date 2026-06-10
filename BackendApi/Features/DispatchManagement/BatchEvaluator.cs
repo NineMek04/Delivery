@@ -48,17 +48,37 @@ public class BatchEvaluator
         if (sameShopOrders.Any())
         {
             var sibling = sameShopOrders.First();
-            var batchId = $"BATCH-{Guid.NewGuid():N}"[..16];
-            
-            sibling.BatchGroupId = batchId;
-            sibling.BatchSequence = 1;
-            
-            targetOrder.BatchGroupId = batchId;
-            targetOrder.BatchSequence = 2;
 
-            await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Grouped order {TargetId} with {SiblingId} (Same-Shop). BatchId: {BatchId}", targetOrder.Id, sibling.Id, batchId);
-            return batchId;
+            // [DOUBLE-BATCH FIX] Re-fetch sibling inside a fresh tracked read so that
+            // EF xmin concurrency token (RowVersion) catches concurrent modifications.
+            // If another request already claimed this sibling, BatchGroupId will be non-null
+            // and we fall through to Same-Direction grouping.
+            var siblingFresh = await _dbContext.Orders.FindAsync(sibling.Id);
+            if (siblingFresh != null && siblingFresh.BatchGroupId == null)
+            {
+                var batchId = $"BATCH-{Guid.NewGuid():N}"[..16];
+                
+                siblingFresh.BatchGroupId = batchId;
+                siblingFresh.BatchSequence = 1;
+                
+                targetOrder.BatchGroupId = batchId;
+                targetOrder.BatchSequence = 2;
+
+                try
+                {
+                    await _dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Grouped order {TargetId} with {SiblingId} (Same-Shop). BatchId: {BatchId}", targetOrder.Id, sibling.Id, batchId);
+                    return batchId;
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // Another request claimed sibling concurrently — fall through to direction grouping
+                    _logger.LogWarning("Batch grouping concurrency conflict for sibling {SiblingId}. Falling through to Same-Direction.", sibling.Id);
+                    targetOrder.BatchGroupId = null;
+                    targetOrder.BatchSequence = 0;
+                    _dbContext.Entry(siblingFresh).Reload();
+                }
+            }
         }
 
         // 2. Same-Direction Grouping (Dropoff <= 5km)
@@ -107,7 +127,14 @@ public class BatchEvaluator
                 var idxDropoff1 = seq.IndexOf(2);
                 var idxDropoff2 = seq.IndexOf(3);
                 
-                if (idxDropoff1 < idxDropoff2)
+                // [FIX] Guard against -1 when OSRM snaps two points to the same road node
+                if (idxDropoff1 < 0 || idxDropoff2 < 0)
+                {
+                    // Cannot determine reliable order — use default sequence
+                    o.BatchSequence = 1;
+                    targetOrder.BatchSequence = 2;
+                }
+                else if (idxDropoff1 < idxDropoff2)
                 {
                     o.BatchSequence = 1;
                     targetOrder.BatchSequence = 2;

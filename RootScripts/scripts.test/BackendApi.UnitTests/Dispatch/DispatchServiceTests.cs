@@ -40,6 +40,7 @@ namespace BackendApi.UnitTests.Dispatch
             // Set up DB Context with In-Memory Database
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
                 .Options;
 
             _currentUserServiceMock = new Mock<ICurrentUserService>();

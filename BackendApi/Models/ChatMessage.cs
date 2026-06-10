@@ -23,7 +23,7 @@ namespace BackendApi.Models
         public string SenderRole { get; set; } = string.Empty; // "Rider", "Customer", "Shop"
 
         [Required]
-        [MaxLength(2000)]
+        [MaxLength(1000)]
         public string Message { get; set; } = string.Empty;
     }
 }

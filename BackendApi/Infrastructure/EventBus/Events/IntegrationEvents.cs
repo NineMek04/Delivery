@@ -115,22 +115,32 @@ public record RiderLocationUpdatedIntegrationEvent : IntegrationEvent
 /// <summary>
 /// Event published when a rider's presence or online state changes,
 /// ensuring durable, out-of-process persistence of rider states.
+///
+/// [MAGIC-STRING FIX] TargetState and Reason are now strongly-typed enums.
+/// RiderTransitionReason.Recover maps to the reconnect-from-STALE flow;
+/// the handler resolves the actual RiderState (IDLE/BUSY) from active orders.
 /// </summary>
 public record RiderStateChangedIntegrationEvent : IntegrationEvent
 {
     public string RiderId { get; init; } = null!;
-    public string TargetState { get; init; } = null!; // "IDLE", "STALE", "BUSY", "OFFLINE"
-    public string? PreviousState { get; init; }
-    public string Reason { get; init; } = null!; // "connect", "disconnect", "heartbeat"
+
+    /// <summary>Target state for direct transitions (STALE, OFFLINE).
+    /// For Connect/Recover the handler determines IDLE vs BUSY from active orders.</summary>
+    public RiderState? TargetState { get; init; }
+
+    public RiderState? PreviousState { get; init; }
+
+    /// <summary>What triggered this event — replaces the former free-text Reason string.</summary>
+    public RiderTransitionReason Reason { get; init; }
 
     public RiderStateChangedIntegrationEvent() { }
 
     [JsonConstructor]
     public RiderStateChangedIntegrationEvent(
         string riderId,
-        string targetState,
-        string? previousState,
-        string reason,
+        RiderState? targetState,
+        RiderState? previousState,
+        RiderTransitionReason reason,
         string? correlationId = null)
         : base(correlationId)
     {

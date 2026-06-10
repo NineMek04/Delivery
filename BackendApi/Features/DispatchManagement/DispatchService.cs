@@ -142,6 +142,21 @@ public class DispatchService
             // ตรวจสอบ Compatibility (Same Shop) - เพื่อความเรียบง่ายในเฟสแรก รองรับเฉพาะร้านเดียวกัน
             if (activeOrders.Any(o => o.ShopId == order.ShopId))
             {
+                // [RACE CONDITION FIX #1] Acquire a short-lived injection lock on this rider
+                // before writing BatchGroupId. Two concurrent inject requests for the same
+                // BUSY rider would both pass the ShopId check above because neither modifies
+                // the rider row — a Redis SETNX with a 3-second TTL serialises them safely.
+                var injectionLockKey = $"dispatch:inject_lock:rider:{rider.Id}";
+                var injectionLockId  = $"INJ-{Guid.NewGuid():N}"[..12];
+                var injectionLockTtl = TimeSpan.FromSeconds(3); // shortest viable window
+                if (!await _lockService.TryAcquireRiderLockAsync(injectionLockKey, injectionLockId, injectionLockTtl))
+                {
+                    _logger.LogDebug("Injection lock contention for Rider {RiderId} — skipping concurrent inject.", rider.Id);
+                    continue;
+                }
+
+                try
+                {
                 var batchId = activeOrders.First().BatchGroupId ?? $"BATCH-{Guid.NewGuid():N}"[..16];
                 
                 // จับกลุ่ม
@@ -156,6 +171,19 @@ public class DispatchService
                 }
                 order.BatchGroupId = batchId;
                 order.BatchSequence = activeOrders.Count + 1;
+
+                // [STATE MACHINE FIX #2] CREATED → MATCHING is required before OFFERING.
+                // Without this transition, TransitionOrderAsync(OFFERING) returns false
+                // (OrderStateRules rejects CREATED → OFFERING) and the order stays CREATED
+                // forever while BatchGroupId is already written — causing a Ghost Batch.
+                if (order.State != OrderState.MATCHING && !await _stateMachine.TransitionOrderAsync(order, OrderState.MATCHING))
+                {
+                    order.BatchGroupId  = null;
+                    order.BatchSequence = 0;
+                    _logger.LogWarning("TryInjectOrderAsync: CREATED→MATCHING transition failed for Order {OrderId}.", orderId);
+                    return false;
+                }
+
                 await _dbContext.SaveChangesAsync();
 
                 // ยิง Injection Offer ให้ Rider คนนี้
@@ -169,6 +197,11 @@ public class DispatchService
                     return false;
                 }
                 return true;
+                }
+                finally
+                {
+                    await _lockService.ReleaseLockAsync(injectionLockKey, injectionLockId);
+                }
             }
         }
 

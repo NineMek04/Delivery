@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using BackendApi.Models.DTOs;
 
 namespace BackendApi.Services.Ai;
@@ -8,6 +9,21 @@ public class AiService : IAiService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<AiService> _logger;
+
+    /// <summary>
+    /// [SNAKE_CASE FIX] Python/Pydantic endpoints expect snake_case field names
+    /// (pickup_lat, rider_speed_kmh, etc.). Default System.Text.Json serialises
+    /// with camelCase, which Pydantic rejects with 422 when extra="forbid".
+    /// Using SnakeCaseLower here ensures all PostAsJsonAsync / ReadFromJsonAsync
+    /// calls for this client use the correct naming convention without touching
+    /// any other HttpClient in the system.
+    /// </summary>
+    private static readonly JsonSerializerOptions _snakeCaseOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNameCaseInsensitive = true   // tolerant deserialization
+    };
 
     public AiService(HttpClient httpClient, ILogger<AiService> logger)
     {
@@ -19,7 +35,7 @@ public class AiService : IAiService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/v1/dispatch/rank", request, cancellationToken);
+            var response = await _httpClient.PostAsJsonAsync("/api/v1/dispatch/rank", request, _snakeCaseOptions, cancellationToken);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -28,7 +44,7 @@ public class AiService : IAiService
                 return GenerateFallbackResponse(request);
             }
 
-            var result = await response.Content.ReadFromJsonAsync<DispatchRankResponseDto>(cancellationToken: cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<DispatchRankResponseDto>(_snakeCaseOptions, cancellationToken);
             return result ?? GenerateFallbackResponse(request);
         }
         catch (Exception ex)
@@ -42,7 +58,7 @@ public class AiService : IAiService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/optimize-route", request, cancellationToken);
+            var response = await _httpClient.PostAsJsonAsync("/api/optimize-route", request, _snakeCaseOptions, cancellationToken);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -51,7 +67,7 @@ public class AiService : IAiService
                 return GenerateFallbackRoutingResponse(request);
             }
 
-            var result = await response.Content.ReadFromJsonAsync<RoutingResponseDto>(cancellationToken: cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<RoutingResponseDto>(_snakeCaseOptions, cancellationToken);
             return result ?? GenerateFallbackRoutingResponse(request);
         }
         catch (Exception ex)
@@ -65,7 +81,7 @@ public class AiService : IAiService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/v1/predict-eta", request, cancellationToken);
+            var response = await _httpClient.PostAsJsonAsync("/api/v1/predict-eta", request, _snakeCaseOptions, cancellationToken);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -74,7 +90,7 @@ public class AiService : IAiService
                 return GenerateFallbackEtaResponse(request);
             }
 
-            var result = await response.Content.ReadFromJsonAsync<PredictEtaResponseDto>(cancellationToken: cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<PredictEtaResponseDto>(_snakeCaseOptions, cancellationToken);
             return result ?? GenerateFallbackEtaResponse(request);
         }
         catch (Exception ex)

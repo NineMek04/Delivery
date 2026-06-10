@@ -175,6 +175,7 @@ public static class ServiceSetup
                 client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
             }
         })
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler())
         .AddStandardResilienceHandler(options =>
         {
             // Total timeout across all attempts

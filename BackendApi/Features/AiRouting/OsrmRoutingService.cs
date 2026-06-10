@@ -81,73 +81,97 @@ namespace BackendApi.Services.Ai
             // รวม Retry และ Circuit Breaker เข้าด้วยกัน
             var resilientPolicy = Policy.WrapAsync(retryPolicy, _circuitBreakerPolicy);
 
-            return await resilientPolicy.ExecuteAsync(async () =>
+            try
             {
-                // ตรวจสอบพิกัดเริ่มต้นและสิ้นสุด
-                var lat1 = startLat.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                var lng1 = startLng.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                var lat2 = endLat.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                var lng2 = endLng.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-                // พยายามเรียก Local OSRM ก่อน
-                var url = $"{_localOsrmUrl}/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=full&geometries=geojson";
-                
-                HttpResponseMessage response;
-                try
+                return await resilientPolicy.ExecuteAsync(async () =>
                 {
+                    // ตรวจสอบพิกัดเริ่มต้นและสิ้นสุด
+                    var lat1 = startLat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var lng1 = startLng.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var lat2 = endLat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var lng2 = endLng.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                    // [PDPA FIX] Local OSRM only — public fallback removed to prevent GPS data leakage.
+                    // When local OSRM is unavailable the Polly circuit breaker opens and
+                    // the outer catch returns a safe Haversine straight-line estimate.
+                    var url = $"{_localOsrmUrl}/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=full&geometries=geojson";
+                    
                     _logger.LogInformation("Calling Local OSRM: {Url}", url);
-                    response = await _httpClient.GetAsync(url);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Local OSRM request failed. Trying Public OSRM as fallback for demo.");
-                    var publicUrl = $"http://router.project-osrm.org/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=full&geometries=geojson";
-                    response = await _httpClient.GetAsync(publicUrl);
-                }
+                    HttpResponseMessage response = await _httpClient.GetAsync(url);
 
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync();
-                    using var document = JsonDocument.Parse(json);
-                    var root = document.RootElement;
-                    if (root.TryGetProperty("routes", out var routes) && routes.GetArrayLength() > 0)
+                    if (response.IsSuccessStatusCode)
                     {
-                        var firstRoute = routes[0];
-                        var distance = firstRoute.GetProperty("distance").GetDouble();
-                        var duration = firstRoute.GetProperty("duration").GetDouble();
-                        
-                        var geometry = firstRoute.GetProperty("geometry");
-                        var coords = geometry.GetProperty("coordinates");
-                        var list = new List<double[]>();
-                        foreach (var point in coords.EnumerateArray())
+                        var json = await response.Content.ReadAsStringAsync();
+                        using var document = JsonDocument.Parse(json);
+                        var root = document.RootElement;
+                        if (root.TryGetProperty("routes", out var routes) && routes.GetArrayLength() > 0)
                         {
-                            // OSRM คืนค่าเป็น [lng, lat] เสมอ ให้สลับเป็น [lat, lng] เพื่อป้อนเข้า PolylineEncoder
-                            var lng = point[0].GetDouble();
-                            var lat = point[1].GetDouble();
-                            list.Add(new double[] { lat, lng });
-                        }
+                            var firstRoute = routes[0];
+                            var distance = firstRoute.GetProperty("distance").GetDouble();
+                            var duration = firstRoute.GetProperty("duration").GetDouble();
+                            
+                            var geometry = firstRoute.GetProperty("geometry");
+                            var coords = geometry.GetProperty("coordinates");
+                            var list = new List<double[]>();
+                            foreach (var point in coords.EnumerateArray())
+                            {
+                                // OSRM คืนค่าเป็น [lng, lat] เสมอ ให้สลับเป็น [lat, lng] เพื่อป้อนเข้า PolylineEncoder
+                                var lng = point[0].GetDouble();
+                                var lat = point[1].GetDouble();
+                                list.Add(new double[] { lat, lng });
+                            }
 
-                        // เข้ารหัสพิกัดด้วย Google Polyline (ประหยัดพื้นที่จัดเก็บ 99%)
-                        var polyline = PolylineEncoder.Encode(list);
+                            // เข้ารหัสพิกัดด้วย Google Polyline (ประหยัดพื้นที่จัดเก็บ 99%)
+                            var polyline = PolylineEncoder.Encode(list);
 
-                        // บันทึกผลลัพธ์ลง Redis Cache (เก็บไว้ 24 ชั่วโมง)
-                        try
-                        {
-                            var cacheData = new { polyline, distance, duration };
-                            await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(cacheData), TimeSpan.FromHours(24));
-                            _logger.LogInformation("Route details successfully saved to Redis Cache: {Key}", cacheKey);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to write route cache to Redis.");
-                        }
+                            // บันทึกผลลัพธ์ลง Redis Cache (เก็บไว้ 24 ชั่วโมง)
+                            try
+                            {
+                                var cacheData = new { polyline, distance, duration };
+                                await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(cacheData), TimeSpan.FromHours(24));
+                                _logger.LogInformation("Route details successfully saved to Redis Cache: {Key}", cacheKey);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to write route cache to Redis.");
+                            }
 
-                        return (polyline, distance, duration);
+                            return (polyline, distance, duration);
+                        }
                     }
-                }
 
-                throw new HttpRequestException($"OSRM routing server returned unsuccessful status: {response.StatusCode}");
-            });
+                    throw new HttpRequestException($"OSRM routing server returned unsuccessful status: {response.StatusCode}");
+                });
+            }
+            catch (Exception ex)
+            {
+                // Local OSRM unavailable (circuit open, timeout, connection refused).
+                // Fall back to Haversine straight-line — safe, local, no external calls.
+                _logger.LogWarning(ex, "Local OSRM unavailable for GetRouteDetailsAsync. Falling back to Haversine estimate.");
+                return HaversineRouteFallback(startLat, startLng, endLat, endLng);
+            }
+        }
+
+        /// <summary>
+        /// [PDPA SAFE] Haversine straight-line fallback — used when local OSRM is unavailable.
+        /// Returns an empty polyline, straight-line distance (meters), and estimated duration
+        /// based on average urban speed (25 km/h). No GPS data leaves the local network.
+        /// </summary>
+        private static (string Polyline, double DistanceMeters, double DurationSeconds) HaversineRouteFallback(
+            double startLat, double startLng, double endLat, double endLng)
+        {
+            const double R = 6_371_000; // Earth radius in metres
+            var dLat = (endLat - startLat) * Math.PI / 180.0;
+            var dLon = (endLng - startLng) * Math.PI / 180.0;
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
+                  + Math.Cos(startLat * Math.PI / 180.0) * Math.Cos(endLat * Math.PI / 180.0)
+                  * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+            var distanceMeters = R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            // Assume 25 km/h urban average; add 20% buffer
+            var durationSeconds = (distanceMeters / 1000.0 / 25.0) * 3600.0 * 1.2;
+
+            return (string.Empty, distanceMeters, durationSeconds);
         }
 
         /// <summary>
@@ -169,17 +193,8 @@ namespace BackendApi.Services.Ai
                 return await resilientPolicy.ExecuteAsync(async () =>
                 {
                     var url = $"{_localOsrmUrl}/nearest/v1/driving/{lngStr},{latStr}?number=1";
-                    HttpResponseMessage response;
-                    try
-                    {
-                        response = await _httpClient.GetAsync(url);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Local OSRM nearest query failed. Falling back to public OSRM nearest API.");
-                        var publicUrl = $"http://router.project-osrm.org/nearest/v1/driving/{lngStr},{latStr}?number=1";
-                        response = await _httpClient.GetAsync(publicUrl);
-                    }
+                    // [PDPA FIX] Local OSRM only — no public fallback to prevent GPS data leakage
+                    HttpResponseMessage response = await _httpClient.GetAsync(url);
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -233,17 +248,8 @@ namespace BackendApi.Services.Ai
                 // source=first means start at the pickup point, roundtrip=false means we don't return to pickup
                 var url = $"{_localOsrmUrl}/trip/v1/driving/{coordinatesStr}?source=first&roundtrip=false";
                 
-                HttpResponseMessage response;
-                try
-                {
-                    response = await _httpClient.GetAsync(url);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Local OSRM trip request failed. Trying Public OSRM.");
-                    var publicUrl = $"http://router.project-osrm.org/trip/v1/driving/{coordinatesStr}?source=first&roundtrip=false";
-                    response = await _httpClient.GetAsync(publicUrl);
-                }
+                // [PDPA FIX] Local OSRM only — no public fallback to prevent GPS data leakage
+                HttpResponseMessage response = await _httpClient.GetAsync(url);
 
                 if (response.IsSuccessStatusCode)
                 {

@@ -6,7 +6,7 @@ from app.core.security import verify_api_key
 router = APIRouter()
 
 @router.post("/rank", dependencies=[Depends(verify_api_key)])
-async def rank_dispatch_candidates(request: DispatchRankRequest):
+def rank_dispatch_candidates(request: DispatchRankRequest):
     """
     Phase A: Receive a list of idle Riders and return them ranked by suitability.
     """

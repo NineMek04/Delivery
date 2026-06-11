@@ -102,13 +102,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnInit(): void {
-    (window as any).angularComponentReference = {
-      zone: this.zone,
-      showRiderRoute: (id: string) => this.showRiderRoute(id),
-      contactRider: (id: string) => this.contactRider(id),
-      cancelRiderOrder: (id: string) => this.cancelRiderOrder(id)
-    };
-    
     this.trackingService.startConnection();
     this.trackingService.fetchInitialLocations();
 
@@ -179,7 +172,6 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.map) {
       this.map.remove();
     }
-    delete (window as any).angularComponentReference;
   }
 
   private initMap(): void {
@@ -314,6 +306,12 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.showOrderDetailModal = false;
   }
 
+  private escapeHtml(str: string): string {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
   private addShopToMap(shop: ShopDto): void {
     if (!this.map || !shop.lat || !shop.lng) return;
 
@@ -324,18 +322,22 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       iconAnchor: [13, 13]
     });
 
+    const escapedName = this.escapeHtml(shop.name || '');
+    const escapedMenuName = this.escapeHtml(shop.menuName || '');
+    const escapedMenuPrice = shop.menuPrice ?? 0;
+
     const popupContent = `
       <div style="font-family: 'Inter', sans-serif; min-width: 180px;">
-        <h4 style="margin: 0 0 6px; font-weight: 700; color: #ea580c; font-size: 13px;">🏪 ${shop.name}</h4>
+        <h4 style="margin: 0 0 6px; font-weight: 700; color: #ea580c; font-size: 13px;">🏪 ${escapedName}</h4>
         <div style="font-size: 11px; color: #4b5563; line-height: 1.5;">
-          <b>เมนูแนะนำ:</b> ${shop.menuName}<br>
-          <b>ราคา:</b> <span style="font-weight: 800; color: #10b981;">${shop.menuPrice} บาท</span>
+          <b>เมนูแนะนำ:</b> ${escapedMenuName}<br>
+          <b>ราคา:</b> <span style="font-weight: 800; color: #10b981;">${escapedMenuPrice} บาท</span>
         </div>
       </div>
     `;
 
     const marker = L.marker([shop.lat, shop.lng], { icon: shopIcon })
-      .bindTooltip(shop.name, {
+      .bindTooltip(escapedName, {
         permanent: false,
         direction: 'top',
         className: 'custom-shop-tooltip',
@@ -565,20 +567,23 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         iconAnchor: isActive ? [12, 12] : [8, 8]
       });
 
+      const escapedRiderId = this.escapeHtml(loc.riderId || '');
+      const escapedStatus = this.escapeHtml(loc.status || '');
+
       const popupContent = `
         <div style="font-family: 'Inter', sans-serif; min-width: 180px; padding: 5px;">
-          <strong style="color: ${isWinner ? '#3b82f6' : '#f3f4f6'}; font-size: 13px;">🛵 ไรเดอร์: RID-${loc.riderId.substring(0, 6).toUpperCase()}</strong><br>
+          <strong style="color: ${isWinner ? '#3b82f6' : '#f3f4f6'}; font-size: 13px;">🛵 ไรเดอร์: RID-${escapedRiderId.substring(0, 6).toUpperCase()}</strong><br>
           <hr style="margin: 6px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
           <span style="font-size: 11px; color: #9ca3af; line-height: 1.5;">
-            <b>สถานะ:</b> <span style="color: ${statusColor}; font-weight: bold;">${loc.status}</span><br>
+            <b>สถานะ:</b> <span style="color: ${statusColor}; font-weight: bold;">${escapedStatus}</span><br>
             <b>พิกัด:</b> ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}<br>
             <b>ความเร็ว:</b> ${loc.speedKmh ? loc.speedKmh.toFixed(1) : 0} km/h
           </span>
           <hr style="margin: 6px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
           <div style="display: grid; gap: 6px;">
-            <button style="width: 100%; background: #22c55e; color: black; border: none; padding: 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;" onclick="window.angularComponentReference.zone.run(() => { window.angularComponentReference.contactRider('${loc.riderId}'); })">📞 ติดต่อไรเดอร์</button>
-            <button style="width: 100%; background: #ef4444; color: white; border: none; padding: 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;" onclick="window.angularComponentReference.zone.run(() => { window.angularComponentReference.cancelRiderOrder('${loc.riderId}'); })">🛑 ยกเลิกออร์เดอร์</button>
-            <button style="width: 100%; background: #3b82f6; color: white; border: none; padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="window.angularComponentReference.zone.run(() => { window.angularComponentReference.showRiderRoute('${loc.riderId}'); })">🔍 เส้นทางย้อนหลัง</button>
+            <button class="btn-contact" style="width: 100%; background: #22c55e; color: black; border: none; padding: 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">📞 ติดต่อไรเดอร์</button>
+            <button class="btn-cancel" style="width: 100%; background: #ef4444; color: white; border: none; padding: 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">🛑 ยกเลิกออร์เดอร์</button>
+            <button class="btn-route" style="width: 100%; background: #3b82f6; color: white; border: none; padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer;">🔍 เส้นทางย้อนหลัง</button>
           </div>
         </div>
       `;
@@ -594,6 +599,20 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         const created = L.marker(next, { icon: customIcon })
           .bindPopup(popupContent)
           .addTo(this.map);
+
+        created.on('popupopen', () => {
+          const popupEl = created.getPopup()?.getElement();
+          if (!popupEl) return;
+          popupEl.querySelector('.btn-contact')?.addEventListener('click', () => {
+            this.zone.run(() => this.contactRider(riderId));
+          });
+          popupEl.querySelector('.btn-cancel')?.addEventListener('click', () => {
+            this.zone.run(() => this.cancelRiderOrder(riderId));
+          });
+          popupEl.querySelector('.btn-route')?.addEventListener('click', () => {
+            this.zone.run(() => this.showRiderRoute(riderId));
+          });
+        });
 
         this.markers.set(riderId, created);
         this.draw.markerMap.set(riderId, created);

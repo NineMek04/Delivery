@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using BackendApi.Core;
 using BackendApi.Core.Models;
@@ -9,6 +10,7 @@ using BackendApi.Features.FleetTracking.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Features.FleetTracking.Telemetry
 {
@@ -19,7 +21,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
     /// </summary>
     [Authorize]
     [ApiController]
-    [Route("api/telemetry")]
+    [Route("api/v1/telemetry")]
     public class TelemetryController : DeliveryControllerBase
     {
         private readonly TelemetryService _telemetryService;
@@ -50,10 +52,20 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 return BadRequest(ApiResponse<string>.Fail("Request body cannot be null."));
             }
 
-            var riderId = CurrentUserId;
+            var userId = CurrentUserId;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<string>.Fail("User could not be identified."));
+            }
+
+            var user = await DbContext.Users.AsNoTracking()
+                .Select(u => new { u.Id, u.RiderId })
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            var riderId = user?.RiderId;
             if (string.IsNullOrEmpty(riderId))
             {
-                return Unauthorized(ApiResponse<string>.Fail("Rider ID could not be identified."));
+                return Unauthorized(ApiResponse<string>.Fail("Rider ID could not be identified for this user."));
             }
 
             int currentQueueSize = _publisher.PendingQueueCount;
@@ -97,10 +109,20 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 return BadRequest(ApiResponse<string>.Fail("Batch size exceeds the maximum limit of 100 points."));
             }
 
-            var riderId = CurrentUserId;
+            var userId = CurrentUserId;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<string>.Fail("User could not be identified."));
+            }
+
+            var user = await DbContext.Users.AsNoTracking()
+                .Select(u => new { u.Id, u.RiderId })
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            var riderId = user?.RiderId;
             if (string.IsNullOrEmpty(riderId))
             {
-                return Unauthorized(ApiResponse<string>.Fail("Rider ID could not be identified."));
+                return Unauthorized(ApiResponse<string>.Fail("Rider ID could not be identified for this user."));
             }
 
             int currentQueueSize = _publisher.PendingQueueCount;

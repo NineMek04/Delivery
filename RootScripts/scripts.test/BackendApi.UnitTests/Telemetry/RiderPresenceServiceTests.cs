@@ -17,6 +17,7 @@ using BackendApi.Services.Telemetry;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Services.Ai;
 using BackendApi.Services;
+using BackendApi.Services.Tracking;
 
 namespace BackendApi.UnitTests.Telemetry
 {
@@ -33,6 +34,7 @@ namespace BackendApi.UnitTests.Telemetry
         private readonly Mock<TelemetryAggregator> _aggregatorMock;
         private readonly Mock<OsrmRoutingService> _routingServiceMock;
         private readonly Mock<IHubContext<TrackingHub>> _hubContextMock;
+        private readonly Mock<IRiderPresenceManager> _presenceManagerMock;
 
         public RiderPresenceServiceTests()
         {
@@ -59,6 +61,7 @@ namespace BackendApi.UnitTests.Telemetry
             _aggregatorMock = new Mock<TelemetryAggregator>();
             _routingServiceMock = new Mock<OsrmRoutingService>(new System.Net.Http.HttpClient(), new Mock<StackExchange.Redis.IConnectionMultiplexer>().Object, new Mock<IConfiguration>().Object, new Mock<ILogger<OsrmRoutingService>>().Object);
             _hubContextMock = new Mock<IHubContext<TrackingHub>>();
+            _presenceManagerMock = new Mock<IRiderPresenceManager>();
 
             _redisMock.Setup(r => r.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(_dbMock.Object);
             _dbMock.Setup(d => d.CreateBatch(It.IsAny<object>())).Returns(_batchMock.Object);
@@ -108,6 +111,7 @@ namespace BackendApi.UnitTests.Telemetry
             var telemetryService = new TelemetryService(
                 _dbContextMock.Object,
                 presenceService,
+                _presenceManagerMock.Object,
                 _rateLimiterMock.Object,
                 _gpsPublisherMock.Object,
                 _aggregatorMock.Object,
@@ -138,6 +142,7 @@ namespace BackendApi.UnitTests.Telemetry
             var telemetryService = new TelemetryService(
                 _dbContextMock.Object,
                 presenceServiceMock.Object,
+                _presenceManagerMock.Object,
                 _rateLimiterMock.Object,
                 _gpsPublisherMock.Object,
                 _aggregatorMock.Object,

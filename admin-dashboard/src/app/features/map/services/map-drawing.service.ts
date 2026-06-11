@@ -167,6 +167,16 @@ export class MapDrawingService implements OnDestroy {
       marker.on('dblclick', () => {
         this.mapInstance?.flyTo(latlng, 17, { animate: true, duration: 0.6 });
       });
+      marker.on('popupopen', () => {
+        const popupEl = marker.getPopup()?.getElement();
+        if (!popupEl) return;
+        popupEl.querySelector('.rp-btn.accept')?.addEventListener('click', () => {
+          (window as any)._riderAction?.('accept', riderId);
+        });
+        popupEl.querySelector('.rp-btn.reject')?.addEventListener('click', () => {
+          (window as any)._riderAction?.('reject', riderId);
+        });
+      });
       this.clusterMarkers.set(riderId, marker);
       this.clusterGroup.addLayer(marker);
     }
@@ -236,24 +246,34 @@ export class MapDrawingService implements OnDestroy {
     });
   }
 
+  private escapeHtml(str: string): string {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
   /** Build the popup HTML for a rider */
   public buildRiderPopupHtml(data: RiderPopupData): string {
     const color   = STATUS_COLORS[data.status.toUpperCase()] ?? '#64748b';
-    const initials = data.label.slice(-2).toUpperCase();
+    const escapedLabel = this.escapeHtml(data.label || '');
+    const escapedStatus = this.escapeHtml(data.status || '');
+    const escapedPhone = data.phone ? this.escapeHtml(data.phone) : '';
+    const escapedRiderId = this.escapeHtml(data.riderId || '');
+    const initials = escapedLabel.slice(-2).toUpperCase();
     return `
       <div class="rp-wrap">
         <div class="rp-header" style="border-left:4px solid ${color}">
           <div class="rp-avatar" style="background:${color}">${initials}</div>
           <div>
-            <div class="rp-name">${data.label}</div>
-            <div class="rp-status" style="color:${color}">${data.status}</div>
+            <div class="rp-name">${escapedLabel}</div>
+            <div class="rp-status" style="color:${color}">${escapedStatus}</div>
           </div>
         </div>
         <div class="rp-coords">${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}</div>
-        ${data.phone ? `<div class="rp-phone">📞 ${data.phone}</div>` : ''}
+        ${escapedPhone ? `<div class="rp-phone">📞 ${escapedPhone}</div>` : ''}
         <div class="rp-actions">
-          <button class="rp-btn accept" onclick="window._riderAction?.('accept','${data.riderId}')">✔ Accept</button>
-          <button class="rp-btn reject" onclick="window._riderAction?.('reject','${data.riderId}')">✖ Reject</button>
+          <button class="rp-btn accept">✔ Accept</button>
+          <button class="rp-btn reject">✖ Reject</button>
         </div>
       </div>`;
   }

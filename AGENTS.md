@@ -14,6 +14,8 @@
 - **SignalR Hub Core:** คลาส `TrackingHub` (และไฟล์ย่อยพาร์ท Partial Class) ทำหน้าที่เป็น **Pure Transport Layer** เท่านั้น (Validate, Authenticate, Route) ห้ามมี Business Logic หรือลอจิกเปลี่ยน State ฝังด้านในเด็ดขาด ให้ยิงส่งต่อเข้า Service Layer ทันที
 - **Anti-Overengineering:** ใช้สแต็กดั้งเดิม PostgreSQL (PostGIS) + Redis + RabbitMQ + SignalR เท่านั้น ห้ามเพิ่ม Kafka, CQRS เต็มรูปแบบ หรือ Saga Coordinator ซับซ้อน ให้ใช้เพียง Lightweight Compensating Action
 - **Idempotency Rule:** Consumer ทุกตัวบน RabbitMQ ต้องเช็คตาราง `ProcessedEvents` บน PostgreSQL ก่อนรัน Logic เสมอ เพื่อป้องกันข้อความซ้ำ
+- **Anti-Event-Loop-Blocking:** ห้ามใช้ `async def` กับ FastAPI endpoint ที่ทำงาน CPU-bound ล้วนๆ (เช่น OR-Tools, Haversine matrix) → ใช้ `def` ให้ FastAPI จัดการ Thread Pool
+- **Anti-XSS-Interpolation:** ห้ามทำ Raw String Interpolation ลง DOM ใน Angular/Leaflet popup → ต้อง escape input ก่อนเสมอ และใช้ Programmatic Event Binding แทน inline `onclick`
 
 ## 4. Trace Correlation Rules
 All logs must include:
@@ -36,6 +38,10 @@ All logs must include:
 1. **Single Test Hub Rule**: โฟลเดอร์รันการทดสอบทั้งหมด (C# Integration Tests, Python PyTest และ E2E Simulation/Load Tests) ต้องถูกรวบรวมไว้ภายใต้โฟลเดอร์เดียวคือ `RootScripts/scripts.test/test/` เท่านั้น (เช่น `RootScripts/scripts.test/BackendApi.IntegrationTests`, `RootScripts/scripts.test/ai-engine.tests`)
 2. **Exception**: สำหรับแอปพลิเคชันหน้าบ้าน Angular ยูสเคสไฟล์สเปกทดสอบระดับยูนิต (`*.spec.ts`) ให้สามารถวางไว้ควบคู่กับ Component นั้นๆ ตามมาตรฐานระบบ Angular CLI เพื่อรักษาโครงสร้างการทำงานและการ compile pipeline ของ Angular โครงการ
 3. **No Test Files in Core Directories**: ห้ามเขียนหรือสร้างโฟลเดอร์ทดสอบ (เช่น `tests/` หรือ `__tests__/`) ปนเปื้อนภายใน Context ไดเรกทอรีหลักของโปรเจค (เช่น `ai-engine/tests`) ให้ย้ายไปไว้ที่ `RootScripts/scripts.test/<component>.tests/` เท่านั้น
+4. **Load & Stress Test Log Rule**: เมื่อรัน Load/Stress Test ในห้องแล็บ `Test_Breaking-Point` ห้ามเขียนไฟล์ Log หรือ CSV ทิ้งไว้ในโฟลเดอร์รูทของ `LogsTest` ตรงๆ แต่ต้องจัดเก็บแยกโฟลเดอร์ตามวันที่ปัจจุบันในฟอร์แมต `LogsTest/YYYY-MM-DD/` และใช้รูปแบบการตั้งชื่อไฟล์ที่เหมือนกันเสมอ ได้แก่:
+   - `stage5_stats.csv` (สถิติตัววัด CPU/Mem ของด็อกเกอร์)
+   - `stage5_run.log` (ผลการรันหรือ stdout ของสคริปต์ทดสอบ k6/Stress test)
+   - `stage5_final_report.md` (รายงานสรุปประสิทธิภาพและการวิเคราะห์คอขวด)
 
 ## 7. Critical Code Protection Rules (Mandatory)
 

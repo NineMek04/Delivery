@@ -6,7 +6,7 @@ from app.core.security import verify_api_key
 router = APIRouter()
 
 @router.post("/optimize-route", dependencies=[Depends(verify_api_key)])
-async def optimize_route(request: RoutingRequest):
+def optimize_route(request: RoutingRequest):
     """
     VRP Optimization endpoint. Calculates the most efficient route sequence.
     """

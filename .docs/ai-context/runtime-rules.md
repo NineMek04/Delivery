@@ -62,6 +62,7 @@ known_pitfalls:
 | Models | OpenAPI generated จาก `src/app/api/generated/` เท่านั้น |
 | GPS Payload | ต้องมี fallback mapper (lat/Lat/latitude) |
 | RxJS | ห้าม nested subscribe — ใช้ takeUntilDestroyed |
+| 🔒 ห้าม Raw String Interpolation ลง DOM | ห้ามฝังตัวแปรจากภายนอก (เช่น `riderId`, `name`, `phone`) ลงใน HTML string โดยตรง (XSS Risk) → ต้อง escape ด้วย `escapeHtml()` utility ก่อนเสมอ และห้ามใช้ inline `onclick` handler → ใช้ Leaflet/Framework event binding แทน |
 
 ---
 
@@ -87,6 +88,7 @@ known_pitfalls:
 | Distance Matrix | Haversine ใน `geo_utils.py` เท่านั้น |
 | GPU | ห้ามเพิ่ม GPU dependency (dev machine: ASUS ROG) |
 | Endpoints | ห้าม break `/api/optimize-route` หรือ `/api/v1/dispatch/rank` |
+| 🔒 ห้าม `async def` กับงาน CPU-bound | ห้ามใช้ `async def` กับ endpoint ที่เรียก synchronous CPU-bound function (เช่น OR-Tools `solve_vrp`, `rank_candidates`) เพราะจะบล็อก event loop ของ FastAPI ทั้งหมด → ใช้ `def` เพื่อให้ FastAPI ส่งไป Thread Pool อัตโนมัติ |
 
 ---
 

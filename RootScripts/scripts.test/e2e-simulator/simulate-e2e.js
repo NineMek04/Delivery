@@ -30,6 +30,8 @@ const RUN_ID = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const UDON_CENTER = { lat: 17.4138, lng: 102.7872 };
 
 let adminToken = '';
+let storePartnerToken = '';
+let storePartnerShopId = '';
 let orderId = '';
 let activeOrder = null;
 let offerAccepted = false;
@@ -207,7 +209,36 @@ async function registerOrLoginRider(rider) {
   }
 }
 
+async function registerOrLoginStorePartner(email, name) {
+  try {
+    const response = await axios.post(`${API}/auth/register`, {
+      email: email,
+      password: PASSWORD,
+      fullName: name,
+      role: 'StorePartner'
+    });
+    const value = unwrapValue(response);
+    return {
+      token: value.accessToken || value.AccessToken,
+      user: value.user || value.User
+    };
+  } catch (error) {
+    if (error.response?.status !== 409) throw error;
+    return login(email, PASSWORD);
+  }
+}
+
 async function createShop() {
+  const storePartnerEmail = `sim-store-${RUN_ID}@delivery.test`;
+  const storePartnerName = `Sim Store Partner ${RUN_ID}`;
+  const storePartner = await registerOrLoginStorePartner(storePartnerEmail, storePartnerName);
+  storePartnerToken = storePartner.token;
+  storePartnerShopId = storePartner.user?.shopId || storePartner.user?.ShopId;
+  
+  if (!storePartnerShopId) {
+    throw new Error(`Store partner has no shopId in auth response`);
+  }
+
   const menus = [
     ['Udon Basil Bowl Sim', 'Crispy pork basil rice', 69],
     ['Nong Prajak Noodle Sim', 'Beef noodle special', 85],
@@ -217,19 +248,20 @@ async function createShop() {
   const [name, menuName, menuPrice] = menus[randomInt(0, menus.length - 1)];
   const location = randomPointAround(UDON_CENTER, 2.2);
 
-  const response = await axios.post(`${API}/shops`, {
+  const response = await axios.put(`${API}/shops/${storePartnerShopId}`, {
     name: `${name} ${RUN_ID}`,
     menuName,
     menuPrice,
     lat: location.lat,
-    lng: location.lng
+    lng: location.lng,
+    isOpen: true
   }, {
-    headers: { Authorization: `Bearer ${adminToken}` }
+    headers: { Authorization: `Bearer ${storePartnerToken}` }
   });
 
   const shop = unwrapValue(response);
   const resultShop = {
-    id: shop.id || shop.Id,
+    id: shop.id || shop.Id || storePartnerShopId,
     name: shop.name || shop.Name || name,
     menuName: shop.menuName || shop.MenuName || menuName,
     menuPrice: shop.menuPrice || shop.MenuPrice || menuPrice,
@@ -367,8 +399,8 @@ async function moveAlong(conn, rider, coords, label) {
   process.stdout.write('\n');
 }
 
-async function updateStatus(token, status) {
-  await axios.patch(`${API}/orders/${orderId}/status`, { status }, {
+async function updateStatus(token, id, status) {
+  await axios.patch(`${API}/orders/${id}/status`, { status }, {
     headers: { Authorization: `Bearer ${token}` }
   });
   log('Order', `Status -> ${status}`);
@@ -383,6 +415,7 @@ async function runDelivery(conn, rider, offer) {
   console.log(`\n>> ACTIVE_RIDER | ${rider.name}\n`);
 
   const order = offer.order || activeOrder;
+  const currentOrderId = order.id || order.Id;
   const pickup = {
     lat: order.pickupLat ?? order.PickupLat,
     lng: order.pickupLng ?? order.PickupLng
@@ -394,7 +427,7 @@ async function runDelivery(conn, rider, offer) {
 
   const pickupPolyline = offer.pickupRoute?.encodedPolyline || offer.pickupRoute?.EncodedPolyline;
   const pickupRoute = await bestRoute(rider.current, pickup, pickupPolyline, 'Rider -> Store');
-  await updateStatus(rider.token, 'PICKING_UP');
+  await updateStatus(rider.token, currentOrderId, 'PICKING_UP');
   await moveAlong(conn, rider, pickupRoute, 'to pickup');
 
   log(rider.name, `Picked up menu/order at store (${pickup.lat.toFixed(5)}, ${pickup.lng.toFixed(5)})`);
@@ -402,17 +435,17 @@ async function runDelivery(conn, rider, offer) {
 
   const deliveryPolyline = order.encodedPolyline || order.EncodedPolyline;
   const deliveryRoute = await bestRoute(pickup, dropoff, deliveryPolyline, 'Store -> Dropoff');
-  await updateStatus(rider.token, 'DELIVERING');
+  await updateStatus(rider.token, currentOrderId, 'DELIVERING');
   await moveAlong(conn, rider, deliveryRoute, 'to dropoff');
 
-  await updateStatus(rider.token, 'COMPLETED');
+  await updateStatus(rider.token, currentOrderId, 'COMPLETED');
   console.log(`\n>> RIDER_GPS | ${rider.id} | ${rider.name} | ${dropoff.lat} | ${dropoff.lng} | COMPLETED\n`);
   console.log('\n>> SIMULATION_PROGRESS | 100\n');
-  log('Simulator', `Completed Order ${orderId} with ${rider.name}`);
+  log('Simulator', `Completed Order ${currentOrderId} with ${rider.name}`);
 
   await sleep(3000);
   await Promise.allSettled(riderConnections.map(item => item.conn.stop()));
-  logTest("E2E Delivery Lifecycle", "PASS", "Delivery completed successfully", `Rider=${rider.name}, Order=${orderId}`);
+  logTest("E2E Delivery Lifecycle", "PASS", "Delivery completed successfully", `Rider=${rider.name}, Order=${currentOrderId}`);
   finishProcess(0);
 }
 
@@ -521,12 +554,26 @@ async function main() {
 
   const order = await createOrder(shop, dropoff);
   logTest("Create Order", "PASS", "Order created", `OrderId=${order.id || order.Id}`);
-  log('Order', `Created ${(order.id || order.Id || '').slice(0, 8)}. AI dispatch scan should now appear on the map.`);
+  log('Order', `Created ${(order.id || order.Id || '').slice(0, 8)}.`);
+
+  // StorePartner accepts the order to transition it to MATCHING and trigger dispatch
+  log('Order', `Accepting order ${orderId} as StorePartner to start matching...`);
+  await axios.post(`${API}/orders/${orderId}/accept-by-store`, {}, {
+    headers: { Authorization: `Bearer ${storePartnerToken}` }
+  });
+  log('Order', `Order ${orderId} accepted by store. AI dispatch scan should now start.`);
   
   if (process.env.DELIVERY_SIM_SCENARIO === 'BATCH') {
     const dropoff2 = randomPointAround({ lat: shop.lat, lng: shop.lng }, randomFloat(1.3, 4.0));
     const order2 = await createOrder(shop, dropoff2);
-    log('Order', `Created BATCH sibling ${(order2.id || order2.Id || '').slice(0, 8)}.`);
+    const orderId2 = order2.id || order2.Id;
+    log('Order', `Created BATCH sibling ${orderId2.slice(0, 8)}.`);
+
+    // StorePartner accepts the second order too
+    await axios.post(`${API}/orders/${orderId2}/accept-by-store`, {}, {
+      headers: { Authorization: `Bearer ${storePartnerToken}` }
+    });
+    log('Order', `BATCH sibling ${orderId2.slice(0, 8)} accepted by store.`);
   }
   
   log('Order', `Menu ready for simulated pickup: ${shop.menuName}`);

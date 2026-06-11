@@ -27,7 +27,6 @@ class AppConstants {
 
   // ── Order Status ───────────────────────────────────────────────────
   /// ตรงกับ Order.Status ใน BackendApi/Models/Order.cs
-  static const String orderPending = 'PENDING';
   static const String orderAssigned = 'ASSIGNED';
   static const String orderDelivering = 'DELIVERING';
   static const String orderCompleted = 'COMPLETED';

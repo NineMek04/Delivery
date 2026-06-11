@@ -7,6 +7,7 @@ namespace BackendApi.Services.BackgroundWorkers;
 public class DispatchTaskQueue : IDispatchTaskQueue
 {
     private readonly Channel<DispatchTask> _queue;
+    private int _count = 0;
 
     public DispatchTaskQueue()
     {
@@ -21,13 +22,15 @@ public class DispatchTaskQueue : IDispatchTaskQueue
     public async ValueTask QueueTaskAsync(DispatchTask task)
     {
         await _queue.Writer.WriteAsync(task);
-        BackendApi.Security.SecurityMetrics.DispatchQueueDepth.Set(_queue.Reader.Count);
+        Interlocked.Increment(ref _count);
+        BackendApi.Security.SecurityMetrics.DispatchQueueDepth.Set(_count);
     }
 
     public async ValueTask<DispatchTask> DequeueAsync(CancellationToken cancellationToken)
     {
         var task = await _queue.Reader.ReadAsync(cancellationToken);
-        BackendApi.Security.SecurityMetrics.DispatchQueueDepth.Set(_queue.Reader.Count);
+        Interlocked.Decrement(ref _count);
+        BackendApi.Security.SecurityMetrics.DispatchQueueDepth.Set(_count);
         return task;
     }
 }

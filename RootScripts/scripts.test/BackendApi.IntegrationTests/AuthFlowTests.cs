@@ -64,7 +64,7 @@ public class AuthFlowTests : IAsyncLifetime
         var uniqueEmail = $"testuser_{Guid.NewGuid():N}@test.com";
 
         // ── Step 1: Register ──────────────────────────────────────
-        var registerPayload = new RegisterPayload(uniqueEmail, "TestPass123!", "Test User", "Admin");
+        var registerPayload = new RegisterPayload(uniqueEmail, "TestPass123!", "Test User", "Customer");
         var registerResponse = await _client.PostAsJsonAsync("/api/v1/auth/register", registerPayload);
 
         // Registration might be 201 or 200 depending on implementation
@@ -136,6 +136,22 @@ public class AuthFlowTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("Dispatcher")]
+    public async Task Register_WithPrivilegedRole_Returns400(string role)
+    {
+        var payload = new RegisterPayload(
+            $"blocked_{Guid.NewGuid():N}@test.com",
+            "TestPass123!",
+            "Blocked Privileged User",
+            role);
+
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/register", payload);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task Refresh_WithInvalidToken_Returns401Or400()
     {
@@ -169,7 +185,7 @@ public class AuthFlowTests : IAsyncLifetime
         var refreshToken = registerBody.Value.RefreshToken;
 
         // Change password
-        var changePasswordPayload = new ChangePasswordPayload("TestPass123!", "NewPass123!");
+        var changePasswordPayload = new ChangePasswordPayload("TestPass123!", "NewPassword123!");
         var changePasswordRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
         {
             Content = JsonContent.Create(changePasswordPayload)
@@ -185,7 +201,7 @@ public class AuthFlowTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, oldLoginResponse.StatusCode);
 
         // Attempt login with new password -> should succeed
-        var newLoginPayload = new LoginPayload(uniqueEmail, "NewPass123!");
+        var newLoginPayload = new LoginPayload(uniqueEmail, "NewPassword123!");
         var newLoginResponse = await _client.PostAsJsonAsync("/api/v1/auth/login", newLoginPayload);
         Assert.True(newLoginResponse.IsSuccessStatusCode);
 

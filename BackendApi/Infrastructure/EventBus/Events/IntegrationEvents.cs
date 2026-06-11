@@ -57,6 +57,7 @@ public record OrderStatusChangedIntegrationEvent : IntegrationEvent
     public OrderState NewState { get; init; }
     public string? AssignedRiderId { get; init; }
     public string? CustomerId { get; init; }
+    public string? ShopId { get; init; }
 
     public OrderStatusChangedIntegrationEvent() { }
 
@@ -68,7 +69,8 @@ public record OrderStatusChangedIntegrationEvent : IntegrationEvent
         OrderState newState, 
         string? assignedRiderId,
         string? customerId,
-        string? correlationId = null)
+        string? correlationId = null,
+        string? shopId = null)
         : base(correlationId)
     {
         OrderId = orderId;
@@ -77,6 +79,7 @@ public record OrderStatusChangedIntegrationEvent : IntegrationEvent
         NewState = newState;
         AssignedRiderId = assignedRiderId;
         CustomerId = customerId;
+        ShopId = shopId;
     }
 }
 

@@ -1,4 +1,4 @@
-﻿#!/bin/sh
+#!/bin/sh
 export VAULT_ADDR='http://vault:8200'
 
 # Wait for vault to be ready
@@ -10,7 +10,7 @@ done
 echo "Vault is up. Configuring..."
 
 export VAULT_ADDR='http://vault:8200'
-export VAULT_TOKEN='root'
+: "${VAULT_TOKEN:?VAULT_TOKEN must be provided}"
 
 # Enable KV v2 at secret/
 vault secrets enable -path=secret -version=2 kv || true
@@ -18,9 +18,8 @@ vault secrets enable -path=secret -version=2 kv || true
 # Put delivery secrets (reading from env injected by docker-compose)
 vault kv put secret/delivery/backend \
   PostgresPassword="${POSTGRES_PASSWORD}" \
-  Jwt__CurrentKeyId="v2" \
-  Jwt__Keys__v1="previous_legacy_secret_key_that_is_at_least_32_chars_12345678" \
-  Jwt__Keys__v2="${JWT_SECRET}" \
+  Jwt__CurrentKeyId="current" \
+  Jwt__Keys__current="${JWT_SECRET}" \
   RabbitMqPassword="${RABBITMQ_PASSWORD}" \
   AiServiceApiKey="${AI_SERVICE_API_KEY}"
 

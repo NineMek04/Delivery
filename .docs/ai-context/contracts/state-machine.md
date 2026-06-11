@@ -64,7 +64,7 @@ DELIVERING
   ▼ (Rider UpdateStatus → COMPLETED)
 COMPLETED ← terminal
 
-Any state ──(Admin cancel)──► CANCELLED ← terminal
+Any non-terminal state ──(Admin cancel)──► CANCELLED ← terminal
 ```
 
 ### Valid Transitions (StateMachineService rules)
@@ -78,7 +78,7 @@ Any state ──(Admin cancel)──► CANCELLED ← terminal
 | `ASSIGNED` | `PICKING_UP` | Rider status update | Rider (PATCH /orders/{id}/status) |
 | `PICKING_UP` | `DELIVERING` | Rider status update | Rider (PATCH /orders/{id}/status) |
 | `DELIVERING` | `COMPLETED` | Rider status update | Rider (PATCH /orders/{id}/status) |
-| Any | `CANCELLED` | Admin cancel | Admin (POST /orders/{id}/cancel) |
+| Any non-terminal state | `CANCELLED` | Admin cancel | Admin (POST /orders/{id}/cancel) |
 
 ---
 
@@ -197,4 +197,3 @@ public enum RiderState
 ```
 
 > ⚠️ **ห้ามใช้:** `PENDING`, `DELIVERED`, `OFFERED`, `ASSIGNED`, `PICKING_UP`, `DELIVERING` (สำหรับ Rider) — ให้ใช้ตาม enum นี้
-

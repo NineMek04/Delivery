@@ -32,6 +32,8 @@ namespace BackendApi.UnitTests.Telemetry
             // Setup default config values
             _configMock.Setup(c => c["MessageBroker:Host"]).Returns("localhost");
             _configMock.Setup(c => c["MessageBroker:Port"]).Returns("5672");
+            _configMock.Setup(c => c["MessageBroker:Username"]).Returns("test-user");
+            _configMock.Setup(c => c["MessageBroker:Password"]).Returns("test-password");
 
             // Setup application stopping token mock to prevent null refs
             var cancellationTokenSource = new CancellationTokenSource();

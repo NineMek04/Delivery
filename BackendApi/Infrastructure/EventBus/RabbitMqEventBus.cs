@@ -59,8 +59,12 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
             var host = _configuration["MessageBroker:Host"] ?? _configuration["MessageBroker__Host"] ?? "localhost";
             var portStr = _configuration["MessageBroker:Port"] ?? _configuration["MessageBroker__Port"] ?? "5672";
-            var username = _configuration["MessageBroker:Username"] ?? _configuration["MessageBroker__Username"] ?? "guest";
-            var password = _configuration["MessageBroker:Password"] ?? _configuration["MessageBroker__Password"] ?? "guest";
+            var username = _configuration["MessageBroker:Username"] ??
+                _configuration["MessageBroker__Username"] ??
+                throw new InvalidOperationException("MessageBroker:Username is required.");
+            var password = _configuration["MessageBroker:Password"] ??
+                _configuration["MessageBroker__Password"] ??
+                throw new InvalidOperationException("MessageBroker:Password is required.");
 
             int.TryParse(portStr, out var port);
 
@@ -383,14 +387,14 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             }
             else
             {
-                _logger.LogWarning("Event payload missing 'Id' property. Skipping idempotency check.");
-                eventId = Guid.Empty;
+                throw new InvalidDataException(
+                    $"Event payload for '{eventName}' is missing the required Id property.");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to parse event ID from payload for event {EventName}", eventName);
-            eventId = Guid.Empty;
+            throw;
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -398,19 +402,16 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
         foreach (var handlerType in _handlers[eventName])
         {
-            if (eventId != Guid.Empty)
-            {
-                // Idempotency: check if this event has already been processed by this handler
-                var alreadyProcessed = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
-                    dbContext.ProcessedEvents,
-                    p => p.EventId == eventId && p.HandlerName == handlerType.Name
-                );
+            // Idempotency: check if this event has already been processed by this handler
+            var alreadyProcessed = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                dbContext.ProcessedEvents,
+                p => p.EventId == eventId && p.HandlerName == handlerType.Name
+            );
 
-                if (alreadyProcessed)
-                {
-                    _logger.LogWarning("Duplicate event detected. Skipping execution of handler {HandlerName} for event {EventId}", handlerType.Name, eventId);
-                    continue;
-                }
+            if (alreadyProcessed)
+            {
+                _logger.LogWarning("Duplicate event detected. Skipping execution of handler {HandlerName} for event {EventId}", handlerType.Name, eventId);
+                continue;
             }
 
             var handler = scope.ServiceProvider.GetService(handlerType);
@@ -435,17 +436,14 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                 await (Task)method.Invoke(handler, new[] { integrationEvent })!;
             }
 
-            if (eventId != Guid.Empty)
+            // Record event as successfully processed by this handler
+            dbContext.ProcessedEvents.Add(new BackendApi.Models.ProcessedEvent
             {
-                // Record event as successfully processed by this handler
-                dbContext.ProcessedEvents.Add(new BackendApi.Models.ProcessedEvent
-                {
-                    EventId = eventId,
-                    HandlerName = handlerType.Name,
-                    ProcessedAt = DateTime.UtcNow
-                });
-                await dbContext.SaveChangesAsync();
-            }
+                EventId = eventId,
+                HandlerName = handlerType.Name,
+                ProcessedAt = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync();
         }
     }
 

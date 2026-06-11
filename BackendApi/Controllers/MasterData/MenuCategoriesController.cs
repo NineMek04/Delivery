@@ -3,6 +3,7 @@ using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Security;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -64,10 +65,14 @@ namespace BackendApi.Controllers.MasterData
         /// สร้างหมวดหมู่สินค้าใหม่
         /// </summary>
         [HttpPost]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
         public async Task<ActionResult<MenuCategoryDto>> CreateCategory(
             [FromBody] CreateMenuCategoryDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (!CanManageShop(dto.ShopId))
+                return Forbid();
+
             var entity = dto.Adapt<MenuCategory>();
 
             DB.InsertObject(entity);
@@ -81,6 +86,7 @@ namespace BackendApi.Controllers.MasterData
         /// อัปเดตข้อมูลหมวดหมู่สินค้า
         /// </summary>
         [HttpPut("{id}")]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
         public async Task<ActionResult<MenuCategoryDto>> UpdateCategory(
             string id,
             [FromBody] UpdateMenuCategoryDto dto,
@@ -91,11 +97,42 @@ namespace BackendApi.Controllers.MasterData
             if (entity is null)
                 return NotFound(ApiResponse.Fail("ไม่พบข้อมูลหมวดหมู่สินค้า", code: "NOT_FOUND"));
 
+            if (!CanManageShop(entity.ShopId))
+                return Forbid();
+
             dto.Adapt(entity);
             DB.UpdateObject(entity);
             await DB.CommitChangesAsync(cancellationToken);
 
             return Ok(entity.Adapt<MenuCategoryDto>());
         }
+
+        [HttpDelete("{id}")]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
+        public override async Task<ActionResult> Delete(
+            string id,
+            CancellationToken cancellationToken = default)
+        {
+            var entity = await DB.GetObjectByKeyAsync<MenuCategory>(id, cancellationToken);
+            if (entity is null)
+                return NotFound(ApiResponse.Fail("ไม่พบข้อมูลหมวดหมู่สินค้า", code: "NOT_FOUND"));
+
+            if (!CanManageShop(entity.ShopId))
+                return Forbid();
+
+            await DB.DeleteObjectAsync<MenuCategory>(
+                id,
+                softDelete: true,
+                cancellationToken: cancellationToken);
+            await DB.CommitChangesAsync(cancellationToken);
+            return NoContent();
+        }
+
+        private bool CanManageShop(string shopId) =>
+            User.IsInRole(AuthConstants.AdminRole) ||
+            string.Equals(
+                User.FindFirst("shop_id")?.Value,
+                shopId,
+                StringComparison.Ordinal);
     }
 }

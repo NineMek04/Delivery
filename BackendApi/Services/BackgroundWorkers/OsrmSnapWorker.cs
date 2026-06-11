@@ -1,11 +1,15 @@
 using System;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using BackendApi.Data;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Hubs;
+using BackendApi.Models;
 using BackendApi.Services.Ai;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,8 +62,12 @@ namespace BackendApi.Services.BackgroundWorkers
         {
             var host = _configuration["MessageBroker:Host"] ?? _configuration["MessageBroker__Host"] ?? "localhost";
             var portStr = _configuration["MessageBroker:Port"] ?? _configuration["MessageBroker__Port"] ?? "5672";
-            var username = _configuration["MessageBroker:Username"] ?? _configuration["MessageBroker__Username"] ?? "guest";
-            var password = _configuration["MessageBroker:Password"] ?? _configuration["MessageBroker__Password"] ?? "guest";
+            var username = _configuration["MessageBroker:Username"] ??
+                _configuration["MessageBroker__Username"] ??
+                throw new InvalidOperationException("MessageBroker:Username is required.");
+            var password = _configuration["MessageBroker:Password"] ??
+                _configuration["MessageBroker__Password"] ??
+                throw new InvalidOperationException("MessageBroker:Password is required.");
 
             int.TryParse(portStr, out var port);
 
@@ -158,7 +166,9 @@ namespace BackendApi.Services.BackgroundWorkers
 
                     if (point != null)
                     {
-                        await ProcessSnapPointAsync(point);
+                        await ProcessSnapPointOnceAsync(
+                            point,
+                            _appLifetime.ApplicationStopping);
                         _channel.BasicAck(ea.DeliveryTag, multiple: false);
                     }
                     else
@@ -181,6 +191,52 @@ namespace BackendApi.Services.BackgroundWorkers
             );
 
             _logger.LogInformation("OsrmSnapWorker successfully subscribed to '{QueueName}' (with DLQ)", QueueName);
+        }
+
+        private async Task ProcessSnapPointOnceAsync(
+            TrackPoint point,
+            CancellationToken cancellationToken)
+        {
+            var eventId = GenerateGuidFromPoint(point);
+            const string handlerName = nameof(OsrmSnapWorker);
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+            var lockKey = BitConverter.ToInt64(eventId.ToByteArray(), 0);
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock({lockKey})",
+                cancellationToken);
+
+            var alreadyProcessed = await dbContext.ProcessedEvents
+                .AnyAsync(
+                    processed => processed.EventId == eventId &&
+                                 processed.HandlerName == handlerName,
+                    cancellationToken);
+            if (alreadyProcessed)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+
+            await ProcessSnapPointAsync(point);
+
+            dbContext.ProcessedEvents.Add(new ProcessedEvent
+            {
+                EventId = eventId,
+                HandlerName = handlerName,
+                ProcessedAt = DateTime.UtcNow
+            });
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        private static Guid GenerateGuidFromPoint(TrackPoint point)
+        {
+            var key = $"{point.RiderId}_{point.Timestamp.Ticks}";
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+            return new Guid(hash.AsSpan(0, 16));
         }
 
         private async Task ProcessSnapPointAsync(TrackPoint point)

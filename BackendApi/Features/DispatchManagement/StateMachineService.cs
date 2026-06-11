@@ -137,7 +137,8 @@ public class StateMachineService
                     order.State,
                     order.AssignedRiderId,
                     order.CustomerId,
-                    correlationId
+                    correlationId,
+                    order.ShopId
                 ));
             }
             catch (Exception ex)

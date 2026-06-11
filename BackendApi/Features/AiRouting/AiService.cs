@@ -188,34 +188,67 @@ public class AiService : IAiService
 
     private PredictEtaResponseDto GenerateFallbackEtaResponse(PredictEtaRequestDto request)
     {
-        var durationMinutes = request.RouteDurationSeconds > 0 
-            ? request.RouteDurationSeconds / 60.0 
-            : 15.0;
+        var currentTime = DateTimeOffset.TryParse(request.CurrentTime, out var parsedCurrentTime)
+            ? parsedCurrentTime
+            : DateTimeOffset.UtcNow;
+        var baseSeconds = request.RouteDurationSeconds > 0
+            ? request.RouteDurationSeconds
+            : 15 * 60.0;
 
-        if (request.TrafficLevel?.Equals("high", StringComparison.OrdinalIgnoreCase) == true)
+        var trafficMultiplier = request.TrafficLevel?.ToLowerInvariant() switch
         {
-            durationMinutes *= 1.5;
-        }
-        else if (request.TrafficLevel?.Equals("medium", StringComparison.OrdinalIgnoreCase) == true)
+            "heavy" or "high" => 1.5,
+            "medium" => 1.25,
+            "light" => 0.9,
+            _ => 1.0
+        };
+
+        if ((currentTime.Hour >= 7 && currentTime.Hour <= 9) ||
+            (currentTime.Hour >= 17 && currentTime.Hour <= 19))
         {
-            durationMinutes *= 1.25;
+            trafficMultiplier = Math.Max(trafficMultiplier, 1.3);
         }
 
-        if (request.WeatherCondition?.Equals("rainy", StringComparison.OrdinalIgnoreCase) == true)
+        var weatherMultiplier = request.WeatherCondition?.ToLowerInvariant() switch
         {
-            durationMinutes *= 1.3;
+            "rain" or "rainy" => 1.4,
+            "storm" => 1.8,
+            _ => 1.0
+        };
+
+        var velocityFactor = 1.0;
+        if (request.RiderSpeedKmh is > 0 && request.RouteDurationSeconds > 0)
+        {
+            var osrmAssumedSpeed =
+                (request.RouteDistanceMeters / 1000.0) /
+                (request.RouteDurationSeconds / 3600.0);
+            velocityFactor = Math.Clamp(osrmAssumedSpeed / request.RiderSpeedKmh.Value, 0.5, 3.0);
         }
 
-        var etaMinutes = Math.Ceiling(durationMinutes);
+        var dispatchPickupSeconds = request.OsrmPickupDurationSeconds is > 0
+            ? request.OsrmPickupDurationSeconds.Value + 120
+            : 600;
+        const double dropoffSeconds = 180;
+        var adjustedTravelSeconds =
+            baseSeconds * trafficMultiplier * weatherMultiplier * velocityFactor;
+        var totalSeconds = adjustedTravelSeconds + dispatchPickupSeconds + dropoffSeconds;
+        var etaMinutes = Math.Ceiling(totalSeconds / 60.0);
+        var etaTime = currentTime.AddSeconds(totalSeconds).ToUniversalTime();
+
         return new PredictEtaResponseDto
         {
             EtaMinutes = etaMinutes,
-            EtaDatetime = DateTime.UtcNow.AddMinutes(etaMinutes).ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            EtaDatetime = etaTime.ToString("yyyy-MM-ddTHH:mm:ssZ"),
             Confidence = 0.7,
             Factors = new Dictionary<string, object>
             {
                 { "fallback", true },
-                { "method", "haversine_rule" }
+                { "method", "rule_based_eta" },
+                { "base_travel_mins", baseSeconds / 60.0 },
+                { "dispatch_pickup_mins", dispatchPickupSeconds / 60.0 },
+                { "traffic_multiplier", trafficMultiplier },
+                { "weather_multiplier", weatherMultiplier },
+                { "velocity_factor", velocityFactor }
             }
         };
     }

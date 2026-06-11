@@ -72,8 +72,12 @@ accuracy: number   // meters, e.g. 12.5
 
 ```typescript
 await connection.invoke('UpdateStatus', status);
-// status: "IDLE" | "OFFLINE" | "PICKING_UP" | "DELIVERING"
+// RiderState: "OFFLINE" | "IDLE" | "RESERVED" | "BUSY" | "STALE"
 ```
+
+Mobile UI normally invokes only `IDLE` and `OFFLINE`. Order delivery phases
+(`PICKING_UP`, `DELIVERING`, `COMPLETED`) must be updated through the Order API,
+not sent as RiderState values.
 
 ---
 
@@ -88,8 +92,8 @@ await connection.invoke('AcceptOffer', offerId, offerVersion);
 **Server behavior:**
 1. ตรวจ `offerVersion` (ป้องกัน double-accept)
 2. Transition Order: `OFFERING` → `ASSIGNED`
-3. Transition Rider: `OFFERED` → `ASSIGNED`
-4. Broadcast `OrderStatusChanged` ไปยัง `"admins"` และ `"rider:{riderId}"`
+3. Transition Rider: `RESERVED` → `BUSY`
+4. Broadcast `OrderStatusChanged` object payload ไปยัง admin, rider, store และ customer groups ที่เกี่ยวข้อง
 
 ---
 
@@ -103,7 +107,7 @@ await connection.invoke('RejectOffer', offerId, orderId);
 
 **Server behavior:**
 1. Release Redis offer lock
-2. Rider: `OFFERED` → `IDLE`
+2. Rider: `RESERVED` → `IDLE`
 3. Order: re-dispatch ไปหา Rider คนถัดไป
 
 ---
@@ -233,7 +237,7 @@ connection.on('OnOfferReceived', (offer: OfferPayload) => {
 ```
 
 **Recipients:** group `"admins"` + group `"rider:{riderId}"`  
-สำหรับ Customer broadcast: group `"customer:{customerId}"` (เมื่อ Backend Tier 1 พร้อม)
+รวม group `"store:{shopId}"` และ `"customer:{customerId}"` เมื่อมีค่าใน Order
 
 ---
 
@@ -244,4 +248,4 @@ connection.on('OnOfferReceived', (offer: OfferPayload) => {
 | Admin / Dispatcher | `"admins"` |
 | Rider | `"rider:{riderId}"` |
 | Customer | `"customer:{userId}"` |
-| StorePartner | `"stores"` |
+| StorePartner | `"store:{shopId}"` (fallback legacy: `"stores"`) |

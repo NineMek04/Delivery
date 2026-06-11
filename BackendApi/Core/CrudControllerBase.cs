@@ -2,6 +2,7 @@ using BackendApi.Core.DataHandlers;
 using BackendApi.Core.Models;
 using Mapster;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq.Expressions;
 
 namespace BackendApi.Core;
 
@@ -19,6 +20,7 @@ public abstract class CrudControllerBase<TEntity, TDto> : DeliveryControllerBase
     /// <summary>
     /// ดึงข้อมูลทั้งหมด (แบบแบ่งหน้า)
     /// </summary>
+    /// <param name="search">ข้อความค้นหาในฟิลด์ string ที่ map อยู่ในฐานข้อมูล</param>
     /// <param name="page">หมายเลขหน้า (เริ่มจาก 1)</param>
     /// <param name="pageSize">จำนวนรายการต่อหน้า (สูงสุด 200)</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -31,7 +33,14 @@ public abstract class CrudControllerBase<TEntity, TDto> : DeliveryControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await DB.GetPaginatedListAsync<TEntity>(page, pageSize, cancellationToken);
+        var query = DB.GetQuery<TEntity>(asNoTracking: true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = ApplySearch(query, search);
+        }
+
+        var result = await query.ToPaginatedListAsync(page, pageSize, cancellationToken);
 
         return Ok(new PaginatedResult<TDto>
         {
@@ -40,6 +49,48 @@ public abstract class CrudControllerBase<TEntity, TDto> : DeliveryControllerBase
             Page = result.Page,
             PageSize = result.PageSize
         });
+    }
+
+    protected virtual IQueryable<TEntity> ApplySearch(
+        IQueryable<TEntity> query,
+        string search)
+    {
+        var mappedStringProperties = DbContext.Model
+            .FindEntityType(typeof(TEntity))?
+            .GetProperties()
+            .Where(property => property.ClrType == typeof(string) && property.PropertyInfo is not null)
+            .Select(property => property.PropertyInfo!)
+            .ToList();
+
+        if (mappedStringProperties is null || mappedStringProperties.Count == 0)
+        {
+            return query;
+        }
+
+        var parameter = Expression.Parameter(typeof(TEntity), "entity");
+        var normalizedTerm = Expression.Constant(search.Trim().ToLowerInvariant());
+        var toLowerMethod = typeof(string).GetMethod(nameof(string.ToLower), Type.EmptyTypes)!;
+        var containsMethod = typeof(string).GetMethod(nameof(string.Contains), [typeof(string)])!;
+        Expression? predicateBody = null;
+
+        foreach (var property in mappedStringProperties)
+        {
+            var propertyAccess = Expression.Property(parameter, property);
+            var notNull = Expression.NotEqual(propertyAccess, Expression.Constant(null, typeof(string)));
+            var normalizedProperty = Expression.Call(propertyAccess, toLowerMethod);
+            var contains = Expression.Call(normalizedProperty, containsMethod, normalizedTerm);
+            var propertyMatches = Expression.AndAlso(notNull, contains);
+            predicateBody = predicateBody is null
+                ? propertyMatches
+                : Expression.OrElse(predicateBody, propertyMatches);
+        }
+
+        if (predicateBody is null)
+        {
+            return query;
+        }
+
+        return query.Where(Expression.Lambda<Func<TEntity, bool>>(predicateBody, parameter));
     }
 
     /// <summary>

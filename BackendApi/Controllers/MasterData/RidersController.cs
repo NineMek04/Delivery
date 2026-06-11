@@ -4,8 +4,10 @@ using BackendApi.Core.Models;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Security;
 using BackendApi.Services.Tracking;
 using Mapster;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +16,7 @@ namespace BackendApi.Controllers.MasterData;
 /// <summary>
 /// จัดการข้อมูล Rider (ไรเดอร์/พนักงานขับรถ)
 /// </summary>
+[Authorize(Policy = AuthConstants.OperationsPolicy)]
 public class RidersController : CrudControllerBase<Rider, RiderDto>
 {
     private readonly ITrackingSearchService _searchService;

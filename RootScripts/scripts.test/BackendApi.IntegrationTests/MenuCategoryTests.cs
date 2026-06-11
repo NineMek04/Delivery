@@ -41,7 +41,7 @@ public class MenuCategoryTests : IAsyncLifetime
     private record ApiResponseWrapper<T>(bool Success, T? Value, string? Message, string? ErrorDetail);
 
     // ─── Utility ────────────────────────────────────────────────────
-    private async Task<string> RegisterAndGetTokenAsync()
+    private async Task<(string Token, string ShopId)> RegisterAndGetTokenAsync()
     {
         var email = $"partner_{Guid.NewGuid():N}@test.com";
         var payload = new RegisterPayload(email, "TestPass123!", "Partner Test User", "StorePartner");
@@ -50,8 +50,10 @@ public class MenuCategoryTests : IAsyncLifetime
 
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);
-        var token = doc.RootElement.GetProperty("value").GetProperty("accessToken").GetString();
-        return token!;
+        var value = doc.RootElement.GetProperty("value");
+        var token = value.GetProperty("accessToken").GetString();
+        var shopId = value.GetProperty("user").GetProperty("shopId").GetString();
+        return (token!, shopId!);
     }
 
     private HttpRequestMessage CreateAuthRequest(HttpMethod method, string uri, string token, object? body = null)
@@ -85,8 +87,8 @@ public class MenuCategoryTests : IAsyncLifetime
     public async Task CreateAndGetCategory_ReturnsOrderedByDisplayOrder()
     {
         // Arrange
-        var token = await RegisterAndGetTokenAsync();
-        var shop = await CreateShopAsync(token);
+        var (token, shopId) = await RegisterAndGetTokenAsync();
+        var shop = new ShopData(shopId, "Partner Test User");
 
         // 1. Create a category with DisplayOrder = 10
         var cat1Payload = new CreateMenuCategoryPayload("Dessert", "Sweet stuff", 10, shop.Id);
@@ -129,8 +131,8 @@ public class MenuCategoryTests : IAsyncLifetime
     public async Task UpdateCategory_UpdatesAllowedFieldsCorrectly()
     {
         // Arrange
-        var token = await RegisterAndGetTokenAsync();
-        var shop = await CreateShopAsync(token);
+        var (token, shopId) = await RegisterAndGetTokenAsync();
+        var shop = new ShopData(shopId, "Partner Test User");
 
         var createPayload = new CreateMenuCategoryPayload("Main Course", "Heavy meals", 1, shop.Id);
         var reqCreate = CreateAuthRequest(HttpMethod.Post, "/api/v1/MenuCategories", token, createPayload);

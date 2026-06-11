@@ -6,12 +6,14 @@ using Prometheus;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
 using BackendApi.Infrastructure.EventBus.Handlers;
+using Microsoft.AspNetCore.HttpOverrides;
 namespace BackendApi.Setup;
 
 public static class ApplicationSetup
 {
     public static WebApplication UseBackendApiPipeline(this WebApplication app)
     {
+        app.UseForwardedHeaders();
 
         if (app.Environment.IsDevelopment())
         {
@@ -40,9 +42,8 @@ public static class ApplicationSetup
             app.UseSecurityHeaders();
         }
 
-        app.UseRateLimiter();
-        
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
 
         // Anti-CSRF Middleware (After Authentication so we have User Context)
@@ -73,7 +74,7 @@ public static class ApplicationSetup
                 };
                 await context.Response.WriteAsync(JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true }));
             }
-        });
+        }).RequireAuthorization(BackendApi.Security.AuthConstants.OperationsPolicy);
 
         app.MapControllers();
 

@@ -30,16 +30,7 @@ namespace BackendApi.Services.Auth
             var userId = httpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
             var role = httpContext?.User?.FindFirstValue(ClaimTypes.Role) ?? "Admin";
 
-            // Extract client IP address safely
-            string? ip = httpContext?.Request?.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (string.IsNullOrEmpty(ip))
-            {
-                ip = httpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
-            }
-            else
-            {
-                ip = ip.Split(',')[0].Trim();
-            }
+            var ip = httpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
 
             var correlationId = httpContext?.Items["CorrelationId"]?.ToString() ?? "unknown";
             var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");

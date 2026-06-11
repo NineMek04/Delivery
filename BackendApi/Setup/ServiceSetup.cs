@@ -22,6 +22,7 @@ using NetTopologySuite.Geometries;
 using StackExchange.Redis;
 using BackendApi.Features.FleetTracking.Telemetry;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace BackendApi.Setup;
 
@@ -36,6 +37,17 @@ public static class ServiceSetup
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddBackendSecurity(configuration);
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor |
+                ForwardedHeaders.XForwardedProto;
+            options.ForwardLimit = 1;
+
+            // Backend ports are private/internal in production and loopback-only in dev.
+            options.KnownNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
 
         // --- Database ---
         services.AddDbContext<ApplicationDbContext>(options =>

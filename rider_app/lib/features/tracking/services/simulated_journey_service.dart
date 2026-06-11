@@ -54,7 +54,7 @@ class SimulatedJourneyService {
       signalR.updateLocation(
         currentLocation.latitude, 
         currentLocation.longitude, 
-        5.0, // heading/speed mock
+        5.0, // simulated GPS accuracy in meters
       );
 
       // Calculate distance to destination

@@ -47,26 +47,13 @@ docker compose down
 
 **แบบ Multi-line (คัดลอกทั้งหมดวางใน PowerShell):**
 ```powershell
-cd d:\Delivery\BackendApi
-$env:ASPNETCORE_ENVIRONMENT="Development"
-$env:ConnectionStrings__DefaultConnection="Host=localhost;Database=delivery_db;Username=postgres;Password=Admin@Ts2x04_;Maximum Pool Size=1024;"
-$env:ConnectionStrings__Redis="localhost:6379"
-$env:AI_SERVICE_URL="http://localhost:8000"
-$env:Routing__LocalOsrmUrl="http://localhost:5001"
-$env:MessageBroker__Host="localhost"
-$env:Jwt__Key="DeliverySmartRoutingSystem_SuperSecretKey_2024"
-$env:Jwt__Issuer="DeliveryBackendApi"
-$env:Jwt__Audience="DeliveryClients"
-$env:Authentication__RequireSecureCookie="false"
-$env:MessageBroker__Port="5672"
-$env:MessageBroker__Username="guest"
-$env:MessageBroker__Password="guest"
-dotnet run
+cd d:\Delivery
+.\start-backend.ps1
 ```
 
 **แบบบรรทัดเดียว (Single Line Copy-Paste):**
 ```powershell
-cd d:\Delivery\BackendApi; $env:ASPNETCORE_ENVIRONMENT="Development"; $env:ConnectionStrings__DefaultConnection="Host=localhost;Database=delivery_db;Username=postgres;Password=Admin@Ts2x04_;Maximum Pool Size=1024;"; $env:ConnectionStrings__Redis="localhost:6379"; $env:AI_SERVICE_URL="http://localhost:8000"; $env:Routing__LocalOsrmUrl="http://localhost:5001"; $env:MessageBroker__Host="localhost"; $env:Jwt__Key="DeliverySmartRoutingSystem_SuperSecretKey_2024"; $env:Jwt__Issuer="DeliveryBackendApi"; $env:Jwt__Audience="DeliveryClients"; $env:Authentication__RequireSecureCookie="false"; $env:MessageBroker__Port="5672"; $env:MessageBroker__Username="guest"; $env:MessageBroker__Password="guest"; dotnet run
+cd d:\Delivery; .\start-backend.ps1
 ```
 
 ---
@@ -77,15 +64,14 @@ cd d:\Delivery\BackendApi; $env:ASPNETCORE_ENVIRONMENT="Development"; $env:Conne
 **แบบ Multi-line (คัดลอกทั้งหมดวางใน PowerShell):**
 ```powershell
 cd d:\Delivery\ai-engine
-$env:DATABASE_URL="postgresql://postgres:Admin@Ts2x04_@localhost:5432/delivery_db"
-$env:AI_SERVICE_API_KEY="test-api-key"
+$env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"
 if (Test-Path "venv") { .\venv\Scripts\activate }
 uvicorn main:app --reload --port 8000
 ```
 
 **แบบบรรทัดเดียว (Single Line Copy-Paste):**
 ```powershell
-cd d:\Delivery\ai-engine; $env:DATABASE_URL="postgresql://postgres:Admin@Ts2x04_@localhost:5432/delivery_db"; $env:AI_SERVICE_API_KEY="test-api-key"; if (Test-Path "venv") { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000
+cd d:\Delivery\ai-engine; $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"; if (Test-Path "venv") { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000
 ```
 
 ---

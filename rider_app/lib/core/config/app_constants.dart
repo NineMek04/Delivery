@@ -22,7 +22,7 @@ class AppConstants {
   // ── Rider Status ───────────────────────────────────────────────────
   /// ตรงกับ Rider.Status ใน BackendApi/Models/Rider.cs
   static const String statusAvailable = 'IDLE';
-  static const String statusDelivering = 'DELIVERING';
+  static const String statusBusy = 'BUSY';
   static const String statusOffline = 'OFFLINE';
 
   // ── Order Status ───────────────────────────────────────────────────

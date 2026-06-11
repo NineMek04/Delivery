@@ -1972,26 +1972,6 @@
         }
       }
     },
-    "/api/v1/Orders/all": {
-      "delete": {
-        "tags": [
-          "Orders"
-        ],
-        "summary": "ลบข้อมูลออเดอร์ทั้งหมด (สำหรับ Simulator)",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/rider-locations": {
       "get": {
         "tags": [

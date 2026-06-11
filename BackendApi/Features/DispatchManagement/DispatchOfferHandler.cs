@@ -140,7 +140,7 @@ public class DispatchOfferHandler
             foreach (var order in orders)
             {
                 await _adminNotifier.NotifyOrderAssignedAsync(order.Id, riderId, order.AssignedAt);
-                await orderNotifier.NotifyOrderStatusChangedAsync(order);
+                await orderNotifier.NotifyOrderStatusChangedAsync(order, OrderState.OFFERING);
             }
 
             _logger.LogInformation(

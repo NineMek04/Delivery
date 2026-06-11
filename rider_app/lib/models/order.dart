@@ -17,6 +17,11 @@ class OrderDto {
   final String? trackingCode;
   final long? refNumber;
   final String? encodedPolyline;
+  final double routeDistanceMeters;
+  final double routeDurationSeconds;
+  final String? batchGroupId;
+  final int batchSequence;
+  final int batchSize;
   final List<OrderItemDto> items;
   final DateTime? createdAt;
   final DateTime? assignedAt;
@@ -24,7 +29,7 @@ class OrderDto {
 
   const OrderDto({
     required this.id,
-    this.status = 'PENDING',
+    this.status = 'CREATED',
     this.pickupLat,
     this.pickupLng,
     this.dropoffLat,
@@ -38,6 +43,11 @@ class OrderDto {
     this.trackingCode,
     this.refNumber,
     this.encodedPolyline,
+    this.routeDistanceMeters = 0,
+    this.routeDurationSeconds = 0,
+    this.batchGroupId,
+    this.batchSequence = 0,
+    this.batchSize = 0,
     this.items = const [],
     this.createdAt,
     this.assignedAt,
@@ -68,7 +78,7 @@ class OrderDto {
       status:
           readField<String>(json, 'Status') ??
           readField<String>(json, 'status') ??
-          'PENDING',
+          'CREATED',
       pickupLat: _toDouble(readField(json, 'PickupLat') ?? readField(json, 'pickupLat')),
       pickupLng: _toDouble(readField(json, 'PickupLng') ?? readField(json, 'pickupLng')),
       dropoffLat: _toDouble(readField(json, 'DropoffLat') ?? readField(json, 'dropoffLat')),
@@ -95,6 +105,29 @@ class OrderDto {
       encodedPolyline:
           readField<String>(json, 'EncodedPolyline') ??
           readField<String>(json, 'encodedPolyline'),
+      routeDistanceMeters:
+          _toDouble(
+            readField(json, 'RouteDistanceMeters') ??
+                readField(json, 'routeDistanceMeters'),
+          ) ??
+          0,
+      routeDurationSeconds:
+          _toDouble(
+            readField(json, 'RouteDurationSeconds') ??
+                readField(json, 'routeDurationSeconds'),
+          ) ??
+          0,
+      batchGroupId:
+          readField<String>(json, 'BatchGroupId') ??
+          readField<String>(json, 'batchGroupId'),
+      batchSequence:
+          readField<int>(json, 'BatchSequence') ??
+          readField<int>(json, 'batchSequence') ??
+          0,
+      batchSize:
+          readField<int>(json, 'BatchSize') ??
+          readField<int>(json, 'batchSize') ??
+          0,
       items: itemsRaw != null
           ? itemsRaw.map((e) => OrderItemDto.fromJson(Map<String, dynamic>.from(e as Map))).toList()
           : const [],
@@ -120,6 +153,11 @@ class OrderDto {
     if (trackingCode != null) 'TrackingCode': trackingCode,
     if (refNumber != null) 'RefNumber': refNumber,
     if (encodedPolyline != null) 'EncodedPolyline': encodedPolyline,
+    'RouteDistanceMeters': routeDistanceMeters,
+    'RouteDurationSeconds': routeDurationSeconds,
+    if (batchGroupId != null) 'BatchGroupId': batchGroupId,
+    'BatchSequence': batchSequence,
+    'BatchSize': batchSize,
     'Items': items.map((i) => i.toJson()).toList(),
     if (createdAt != null) 'CreatedAt': createdAt?.toIso8601String(),
     if (assignedAt != null) 'AssignedAt': assignedAt?.toIso8601String(),

@@ -1,8 +1,11 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using System.Security.Claims;
+using BackendApi.Data;
 using BackendApi.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace BackendApi.Setup;
@@ -59,7 +62,9 @@ public static class SecurityConfiguration
 
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    partitionKey: context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                                  context.Connection.RemoteIpAddress?.ToString() ??
+                                  "unknown",
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = configuration.GetValue("RateLimiting:Global:PermitLimit", 120),
@@ -68,13 +73,16 @@ public static class SecurityConfiguration
                         AutoReplenishment = true
                     }));
 
-            options.AddFixedWindowLimiter(AuthRateLimitPolicy, limiterOptions =>
-            {
-                limiterOptions.PermitLimit = configuration.GetValue("RateLimiting:Auth:PermitLimit", 10);
-                limiterOptions.Window = TimeSpan.FromMinutes(configuration.GetValue("RateLimiting:Auth:WindowMinutes", 1));
-                limiterOptions.QueueLimit = 0;
-                limiterOptions.AutoReplenishment = true;
-            });
+            options.AddPolicy(AuthRateLimitPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"auth:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = configuration.GetValue("RateLimiting:Auth:PermitLimit", 10),
+                        Window = TimeSpan.FromMinutes(configuration.GetValue("RateLimiting:Auth:WindowMinutes", 1)),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
         });
 
         services.AddAuthentication(options =>
@@ -92,7 +100,7 @@ public static class SecurityConfiguration
                 ValidIssuer = configuration["Jwt:Issuer"],
                 ValidAudience = configuration["Jwt:Audience"],
                 IssuerSigningKeys = issuerSigningKeys,
-                ClockSkew = TimeSpan.FromMinutes(5)
+                ClockSkew = TimeSpan.FromSeconds(30)
             };
 
             options.Events = new JwtBearerEvents
@@ -115,6 +123,30 @@ public static class SecurityConfiguration
                     }
 
                     return Task.CompletedTask;
+                },
+                OnTokenValidated = async context =>
+                {
+                    var userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                    var tokenRole = context.Principal?.FindFirstValue(ClaimTypes.Role);
+                    if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(tokenRole))
+                    {
+                        context.Fail("Required identity claims are missing.");
+                        return;
+                    }
+
+                    var dbContext = context.HttpContext.RequestServices
+                        .GetRequiredService<ApplicationDbContext>();
+                    var user = await dbContext.Users
+                        .AsNoTracking()
+                        .Where(candidate => candidate.Id == userId)
+                        .Select(candidate => new { candidate.IsActive, candidate.Role })
+                        .FirstOrDefaultAsync(context.HttpContext.RequestAborted);
+
+                    if (user is null || !user.IsActive ||
+                        !string.Equals(user.Role, tokenRole, StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Fail("The account is disabled or the token is stale.");
+                    }
                 }
             };
         });

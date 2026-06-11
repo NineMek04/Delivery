@@ -55,6 +55,7 @@ public static class OrderStateRules
         (OrderState.PICKING_UP, OrderState.DELIVERING) => true,
         (OrderState.PICKING_UP, OrderState.CANCELLED) => true,
         (OrderState.DELIVERING, OrderState.COMPLETED) => true,
+        (OrderState.DELIVERING, OrderState.CANCELLED) => true,
         _ => false
     };
 }

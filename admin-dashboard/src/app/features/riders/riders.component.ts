@@ -93,30 +93,6 @@ export class RidersComponent implements OnInit {
     this.loadRiders();
   }
 
-  deleteAllData() {
-    Swal.fire({
-      title: 'Are you sure?',
-      text: "You are about to delete ALL riders! This cannot be undone.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#475569',
-      confirmButtonText: 'Yes, delete all!'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        this.riderService.deleteAll().subscribe({
-          next: () => {
-            Swal.fire('Deleted!', 'All riders have been deleted.', 'success');
-            this.loadRiders();
-          },
-          error: (err) => {
-            Swal.fire('Error', 'Failed to delete riders: ' + (err.error?.message || err.message), 'error');
-          }
-        });
-      }
-    });
-  }
-
   onSearch(query: string) {
     this.query = query;
     this.currentPage = 1;

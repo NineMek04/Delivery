@@ -89,6 +89,14 @@
                 <strong>{{ order.distanceKm | number:'1.2-2' }} km</strong>
               </div>
               <div class="info-row">
+                <span>Road Distance</span>
+                <strong>{{ ((order.routeDistanceMeters ?? 0) / 1000) | number:'1.2-2' }} km</strong>
+              </div>
+              <div class="info-row">
+                <span>Road Duration</span>
+                <strong>{{ ((order.routeDurationSeconds ?? 0) / 60) | number:'1.0-1' }} min</strong>
+              </div>
+              <div class="info-row">
                 <span>Delivery Fee</span>
                 <strong class="highlight">{{ order.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }}</strong>
               </div>
@@ -97,6 +105,40 @@
                 <strong>{{ formatDate(order.expectedDeliveryTime) }}</strong>
               </div>
             </div>
+          </div>
+
+          <div class="info-section">
+            <div class="section-label">
+              <lucide-icon [img]="icons.Info" size="13"></lucide-icon> Ownership
+            </div>
+            <div class="info-rows">
+              <div class="info-row">
+                <span>Shop ID</span>
+                <code>{{ order.shopId ?? '—' }}</code>
+              </div>
+              <div class="info-row">
+                <span>Customer ID</span>
+                <code>{{ order.customerId ?? '—' }}</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-section" style="grid-column: 1 / -1;">
+            <div class="section-label">
+              <lucide-icon [img]="icons.Info" size="13"></lucide-icon> Order Items
+            </div>
+            @if (order.items?.length) {
+              <div class="info-rows">
+                @for (item of order.items; track item.id ?? $index) {
+                  <div class="info-row">
+                    <span>{{ item.quantity ?? 0 }}x {{ item.name ?? 'Unknown item' }}</span>
+                    <strong>{{ item.totalPrice ?? 0 | currency:'THB':'symbol-narrow':'1.0-0' }}</strong>
+                  </div>
+                }
+              </div>
+            } @else {
+              <p style="font-size: 12px; color: #64748b; margin-top: 8px;">No item data.</p>
+            }
           </div>
 
           <div class="info-section">
@@ -233,7 +275,7 @@
           Retry Dispatch
         </button>
       }
-      @if (['CREATED','MATCHING','OFFERING','ASSIGNED','PICKING_UP'].includes(order.status ?? '')) {
+      @if (['CREATED','MATCHING','OFFERING','ASSIGNED','PICKING_UP','DELIVERING'].includes(order.status ?? '')) {
         <button class="footer-btn danger" (click)="cancelOrder()">
           <lucide-icon [img]="icons.X" size="14"></lucide-icon>
           Cancel Order

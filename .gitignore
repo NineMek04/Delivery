@@ -87,6 +87,7 @@ osrm_data/
 
 RootScripts/scripts.test/Test_Breaking-Point/LogsTest/*
 
+*.sh text eol=lf
 
 
 *.txt

@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:isar/isar.dart';
 import 'package:logger/logger.dart';
-import 'package:sqflite/sqflite.dart' show getDatabasesPath;
+
 import '../api/delivery_api_client.dart';
-import '../../models/gps_point.dart';
 import '../database/local_database_service.dart';
 import '../config/app_constants.dart';
 
@@ -19,28 +18,25 @@ final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
   );
 });
 
-/// High-Performance Offline Location Buffer & Batch Ingestion Service (Isar NoSQL Engine)
-/// 
-/// This service acts as an offline shield for GPS points collected when:
-/// 1. The device is offline or has intermittent network connectivity.
-/// 2. The backend is throttled due to high load (rate-limited / backpressure).
-/// 
+/// GPS Buffer & Batch Ingestion Service
+///
+/// ใช้ in-memory buffer ทั้งบน Web และ Mobile เพื่อความเรียบง่ายและ
+/// compatibility กับ flutter web build
+///
 /// Data Flow:
-/// Geolocator stream -> LocationService -> GpsBufferService -> Isar (gpsPoints collection)
-/// Isar (gpsPoints collection) -> Batch uploads (POST /api/telemetry/gps/batch) -> Purge on 200 OK
+/// LocationService → GpsBufferService (in-memory) → POST /api/v1/telemetry/gps/batch
 class GpsBufferService {
   final Dio _dio;
   final LocalDatabaseService _db;
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
-  
-  Isar? _isar;
+
   Timer? _syncTimer;
-  int _syncIntervalSeconds = 5; // Default sync check interval
+  int _syncIntervalSeconds = 5;
   bool _isSyncing = false;
   bool _isSyncingStatus = false;
 
-  // Web fallback storage
-  final List<Map<String, dynamic>> _webGpsPoints = [];
+  // In-memory GPS point buffer (used on both Web and Mobile)
+  final List<Map<String, dynamic>> _gpsPoints = [];
 
   // Adaptive sampling state
   double? _lastBufferedLat;
@@ -53,61 +49,42 @@ class GpsBufferService {
   })  : _dio = dio,
         _db = db;
 
-  /// Retrieves or opens the Isar database instance.
-  /// Reuses SQLite directory path to keep all local files organized together.
-  Future<Isar> _getIsar() async {
-    if (_isar != null) return _isar!;
-    
-    final String dbDir;
-    if (kIsWeb) {
-      dbDir = '';
-      _logger.i('📂 Opening Isar database for Web (IndexedDB mode)');
-    } else {
-      dbDir = await getDatabasesPath();
-      _logger.i('📂 Opening Isar database in path: $dbDir');
-    }
-    
-    _isar = await Isar.open(
-      [GpsPointSchema],
-      directory: dbDir,
-    );
-    return _isar!;
-  }
-
-
-  /// Starts the background periodic synchronize scheduler.
-  Future<void> startSyncTimer() async {
+  /// Starts the background periodic sync scheduler.
+  void startSyncTimer() {
     _syncTimer?.cancel();
-    _logger.i('🛰️ Starting periodic GPS Isar Offline Sync Timer (every $_syncIntervalSeconds seconds)');
+    _logger.i('🛰️ Starting GPS sync timer (every $_syncIntervalSeconds seconds)');
     _syncTimer = Timer.periodic(Duration(seconds: _syncIntervalSeconds), (_) {
       syncBufferedPoints();
       syncPendingStatusUpdates();
     });
   }
 
-  /// Stops the periodic synchronizer.
+  /// Stops the periodic sync timer.
   void stopSyncTimer() {
     _syncTimer?.cancel();
     _syncTimer = null;
-    _logger.i('🛑 Stopped GPS Isar Offline Sync Timer');
+    _logger.i('🛑 Stopped GPS sync timer');
   }
 
-  /// Adjusts sync frequency dynamically based on backpressure warnings.
+  /// Adjusts sync frequency based on backend backpressure header.
   void updateSyncInterval(int intervalSeconds) {
-    if (intervalSeconds < 3) intervalSeconds = 3; // Enterprise guard: never spam under 3s
+    if (intervalSeconds < 3) intervalSeconds = 3;
     if (_syncIntervalSeconds != intervalSeconds) {
-      _logger.i('🔄 Dynamically adjusting telemetry sync interval: $_syncIntervalSeconds -> $intervalSeconds seconds');
+      _logger.i('🔄 Adjusting sync interval: $_syncIntervalSeconds → $intervalSeconds seconds');
       _syncIntervalSeconds = intervalSeconds;
-      if (_syncTimer != null) {
-        startSyncTimer();
-      }
+      if (_syncTimer != null) startSyncTimer();
     }
   }
 
-  /// Buffers a single location coordinate offline using Isar NoSQL.
-  /// Applies Adaptive Sampling to filter out redundant points when stationary.
-  Future<void> bufferLocation(double latitude, double longitude, double accuracy, {double? heading}) async {
+  /// Buffers a GPS coordinate with adaptive sampling.
+  Future<void> bufferLocation(
+    double latitude,
+    double longitude,
+    double accuracy, {
+    double? heading,
+  }) async {
     try {
+      // Adaptive sampling — skip point if not moved enough
       if (_lastBufferedLat != null && _lastBufferedLng != null) {
         final distance = Geolocator.distanceBetween(
           _lastBufferedLat!,
@@ -116,251 +93,121 @@ class GpsBufferService {
           longitude,
         );
 
-        bool shouldBuffer = false;
-        if (distance >= 15.0) { // Buffer if distance changed by >= 15 meters
-          shouldBuffer = true;
-        }
+        bool shouldBuffer = distance >= 15.0;
 
-        if (heading != null && _lastBufferedHeading != null) {
-          final headingDiff = (heading - _lastBufferedHeading!).abs();
-          final normalizedDiff = headingDiff > 180 ? 360 - headingDiff : headingDiff;
-          if (normalizedDiff >= 15.0) { // Buffer if heading changed by >= 15 degrees
-            shouldBuffer = true;
-          }
-        } else if (heading != null) {
+        if (!shouldBuffer && heading != null && _lastBufferedHeading != null) {
+          final diff = (heading - _lastBufferedHeading!).abs();
+          final normalized = diff > 180 ? 360 - diff : diff;
+          if (normalized >= 15.0) shouldBuffer = true;
+        } else if (!shouldBuffer && heading != null) {
           shouldBuffer = true;
         }
 
         if (!shouldBuffer) {
-          _logger.d('📍 GPS Point skipped (Adaptive Sampling): dist=${distance.toStringAsFixed(1)}m, heading change not significant.');
+          _logger.d('📍 GPS skipped (adaptive sampling): dist=${distance.toStringAsFixed(1)}m');
           return;
         }
       }
 
-      // Update last buffered state
       _lastBufferedLat = latitude;
       _lastBufferedLng = longitude;
-      if (heading != null) {
-        _lastBufferedHeading = heading;
-      }
+      if (heading != null) _lastBufferedHeading = heading;
 
-      if (kIsWeb) {
-        _webGpsPoints.add({
-          'id': DateTime.now().millisecondsSinceEpoch + Random().nextInt(1000),
-          'latitude': latitude,
-          'longitude': longitude,
-          'accuracy': accuracy,
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
-        });
-
-        if (_webGpsPoints.length >= 10000) {
-          _webGpsPoints.removeRange(0, _webGpsPoints.length - 10000 + 1);
-          _logger.w('⚠️ Offline GPS buffer limit reached (10,000). Purged oldest points (FIFO).');
-        }
-
-        _logger.d('📍 [Web] Buffered GPS point in memory: ($latitude, $longitude)');
-
-        if (_webGpsPoints.length >= 10 && !_isSyncing) {
-          syncBufferedPoints();
-        }
-        return;
-      }
-
-      final isar = await _getIsar();
-      
-      final point = GpsPoint()
-        ..latitude = latitude
-        ..longitude = longitude
-        ..accuracy = accuracy
-        ..timestamp = DateTime.now().toUtc().toIso8601String();
-
-      // Write to Isar via asynchronous transaction block
-      await isar.writeTxn(() async {
-        // Enforce FIFO if count >= 10,000
-        final currentCount = await isar.gpsPoints.count();
-        if (currentCount >= 10000) {
-          final excessCount = currentCount - 10000 + 1;
-          final oldestPoints = await isar.gpsPoints
-              .where()
-              .limit(excessCount)
-              .findAll();
-          if (oldestPoints.isNotEmpty) {
-            final oldestIds = oldestPoints.map((p) => p.id).toList();
-            await isar.gpsPoints.deleteAll(oldestIds);
-            _logger.w('⚠️ Offline GPS buffer limit reached (10,000). Purged $excessCount oldest points (FIFO).');
-          }
-        }
-        await isar.gpsPoints.put(point);
+      _gpsPoints.add({
+        'id': DateTime.now().millisecondsSinceEpoch + Random().nextInt(1000),
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
       });
-      
-      _logger.d('📍 Buffered GPS point in Isar locally: ($latitude, $longitude)');
 
-      // Proactive sync trigger: If queue is building up, trigger sync immediately
-      final count = await isar.gpsPoints.count();
-      if (count >= 10 && !_isSyncing) {
+      // Cap buffer at 10,000 points (FIFO)
+      if (_gpsPoints.length >= 10000) {
+        _gpsPoints.removeRange(0, _gpsPoints.length - 10000 + 1);
+        _logger.w('⚠️ GPS buffer limit (10,000) reached — purged oldest points');
+      }
+
+      _logger.d('📍 Buffered GPS (${kIsWeb ? "web" : "mobile"}): ($latitude, $longitude)');
+
+      // Proactive sync when buffer builds up
+      if (_gpsPoints.length >= 10 && !_isSyncing) {
         syncBufferedPoints();
       }
     } catch (e) {
-      _logger.e('❌ Failed to buffer location in Isar', error: e);
+      _logger.e('❌ Failed to buffer GPS point', error: e);
     }
   }
 
-  /// Chunks buffered GPS points from Isar database and syncs them to the backend REST endpoint.
+  /// Syncs buffered GPS points to the backend in batches of 100.
   Future<void> syncBufferedPoints() async {
-    if (_isSyncing) return;
+    if (_isSyncing || _gpsPoints.isEmpty) return;
     _isSyncing = true;
 
     try {
-      if (kIsWeb) {
-        final points = _webGpsPoints.take(100).toList();
-        if (points.isEmpty) {
-          _isSyncing = false;
-          return;
-        }
+      final batch = _gpsPoints.take(100).toList();
+      final batchIds = batch.map((p) => p['id'] as int).toList();
 
-        _logger.d('📡 [Web] Syncing batch of ${points.length} buffered GPS points from memory...');
+      _logger.d('📡 Syncing ${batch.length} GPS points to backend...');
 
-        final List<Map<String, dynamic>> payload = points.map((p) {
-          return {
-            'Latitude': p['latitude'],
-            'Longitude': p['longitude'],
-            'Accuracy': p['accuracy'],
-            'Timestamp': p['timestamp'],
-          };
-        }).toList();
-
-        final List<int> pointIds = points.map((p) => p['id'] as int).toList();
-
-        final response = await _dio.post(
-          'telemetry/gps/batch',
-          data: payload,
-        );
-
-        final pingHeader = response.headers.value('X-Recommended-Ping');
-        if (pingHeader != null) {
-          final newInterval = int.tryParse(pingHeader);
-          if (newInterval != null) {
-            updateSyncInterval(newInterval);
-          }
-        }
-
-        if (response.statusCode == 200) {
-          _logger.i('✅ [Web] Batch upload of ${points.length} GPS points succeeded. Purging memory buffer.');
-          final idsToRemove = pointIds.toSet();
-          _webGpsPoints.removeWhere((p) => idsToRemove.contains(p['id']));
-
-          if (_webGpsPoints.isNotEmpty) {
-            final jitterDelay = 500 + Random().nextInt(1500);
-            Future.delayed(Duration(milliseconds: jitterDelay), () => syncBufferedPoints());
-          }
-        } else if (response.statusCode == 429) {
-          _logger.w('⚠️ [Web] Ingestion batch throttled (429). Keeping points in memory.');
-        } else {
-          _logger.w('⚠️ [Web] Ingestion batch returned status: ${response.statusCode}. Keeping points.');
-        }
-        _isSyncing = false;
-        return;
-      }
-
-      final isar = await _getIsar();
-      
-      // Query up to 100 points ordered by chronological ID ascending (FIFO)
-      final points = await isar.gpsPoints
-          .where()
-          .limit(100)
-          .findAll();
-      
-      if (points.isEmpty) {
-        _isSyncing = false;
-        return;
-      }
-
-      _logger.d('📡 Syncing batch of ${points.length} buffered GPS points from Isar...');
-
-      // Transform Isar records into JSON array matching C# GpsBatchPointRequest
-      final List<Map<String, dynamic>> payload = points.map((p) {
-        return {
-          'Latitude': p.latitude,
-          'Longitude': p.longitude,
-          'Accuracy': p.accuracy,
-          'Timestamp': p.timestamp,
-        };
+      final payload = batch.map((p) => {
+        'Latitude': p['latitude'],
+        'Longitude': p['longitude'],
+        'Accuracy': p['accuracy'],
+        'Timestamp': p['timestamp'],
       }).toList();
 
-      final List<Id> pointIds = points.map((p) => p.id).toList();
+      final response = await _dio.post('telemetry/gps/batch', data: payload);
 
-      final response = await _dio.post(
-        'telemetry/gps/batch',
-        data: payload,
-      );
-
-      // Check header recommendation to adjust synchronization interval
+      // Respect backpressure recommendation from backend
       final pingHeader = response.headers.value('X-Recommended-Ping');
       if (pingHeader != null) {
         final newInterval = int.tryParse(pingHeader);
-        if (newInterval != null) {
-          updateSyncInterval(newInterval);
-        }
+        if (newInterval != null) updateSyncInterval(newInterval);
       }
 
       if (response.statusCode == 200) {
-        // Success: Clean successfully saved points out of Isar DB
-        _logger.i('✅ Batch upload of ${points.length} GPS points succeeded. Purging Isar buffer.');
-        
-        await isar.writeTxn(() async {
-          await isar.gpsPoints.deleteAll(pointIds);
-        });
-        
-        // If there are still backlogged items, run chained synchronization with randomized jitter delay
-        final remainingCount = await isar.gpsPoints.count();
-        if (remainingCount > 0) {
-          final jitterDelay = 500 + Random().nextInt(1500);
-          Future.delayed(Duration(milliseconds: jitterDelay), () => syncBufferedPoints());
+        _logger.i('✅ Batch upload of ${batch.length} GPS points succeeded');
+        final toRemove = batchIds.toSet();
+        _gpsPoints.removeWhere((p) => toRemove.contains(p['id']));
+
+        // Chain next batch if more remain
+        if (_gpsPoints.isNotEmpty) {
+          final jitter = 500 + Random().nextInt(1500);
+          Future.delayed(Duration(milliseconds: jitter), syncBufferedPoints);
         }
       } else if (response.statusCode == 429) {
-        // 429 Too Many Requests: Rate-limited/throttled. KEEP coordinates locally and backoff
-        _logger.w('⚠️ Ingestion batch throttled (429 Too Many Requests). Keeping points in Isar and slowing sync.');
+        _logger.w('⚠️ Batch throttled (429) — keeping points');
       } else {
-        _logger.w('⚠️ Ingestion batch returned status: ${response.statusCode}. Keeping points in Isar.');
+        _logger.w('⚠️ Batch upload returned ${response.statusCode} — keeping points');
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 429) {
-        _logger.w('⚠️ Ingestion batch throttled via exception (429 Too Many Requests). Keeping points in Isar and slowing sync.');
+        _logger.w('⚠️ Batch throttled via exception (429)');
       } else {
-        _logger.w('🔌 Network connectivity issue while uploading GPS batch: ${e.message}. Keeping points.');
+        _logger.w('🔌 Network error during GPS batch upload: ${e.message}');
       }
-      
-      // Parse header recommendations from error responses too
-      if (e.response != null) {
-        final statusCode = e.response!.statusCode;
-        final pingHeader = e.response!.headers.value('X-Recommended-Ping');
-        if (pingHeader != null) {
-          final newInterval = int.tryParse(pingHeader);
-          if (newInterval != null) {
-            updateSyncInterval(newInterval);
-          }
-        }
+      final pingHeader = e.response?.headers.value('X-Recommended-Ping');
+      if (pingHeader != null) {
+        final newInterval = int.tryParse(pingHeader);
+        if (newInterval != null) updateSyncInterval(newInterval);
       }
     } catch (e) {
-      _logger.e('❌ Unexpected error during offline Isar telemetry synchronization', error: e);
+      _logger.e('❌ Unexpected error during GPS batch sync', error: e);
     } finally {
       _isSyncing = false;
     }
   }
 
-  /// Synchronizes pending order status updates queued during offline mode.
+  /// Syncs pending offline order status updates stored in SQLite.
   Future<void> syncPendingStatusUpdates() async {
     if (_isSyncingStatus) return;
     _isSyncingStatus = true;
 
     try {
       final pendingList = await _db.getPendingStatusUpdates();
-      if (pendingList.isEmpty) {
-        _isSyncingStatus = false;
-        return;
-      }
+      if (pendingList.isEmpty) return;
 
-      _logger.d('📡 Syncing ${pendingList.length} pending order status updates from SQLite...');
+      _logger.d('📡 Syncing ${pendingList.length} pending order status updates...');
 
       for (final update in pendingList) {
         final id = update['id'] as int;
@@ -374,11 +221,12 @@ class GpsBufferService {
           );
 
           if (response.statusCode == 200 || response.statusCode == 204) {
-            _logger.i('✅ Successfully synced pending order status update: orderId=$orderId, status=$status');
+            _logger.i('✅ Synced status update: orderId=$orderId → $status');
             await _db.deletePendingStatusUpdate(id);
-          } else if (response.statusCode != null && response.statusCode! >= 400 && response.statusCode! < 500) {
-            // Drop & Log 4xx errors
-            _logger.e('❌ Received 4xx client error status code ${response.statusCode} for orderId=$orderId. Dropping status update.');
+          } else if (response.statusCode != null &&
+              response.statusCode! >= 400 &&
+              response.statusCode! < 500) {
+            _logger.e('❌ 4xx error for orderId=$orderId — dropping update');
             await _db.saveLocalErrorLog(
               'PATCH ${AppConstants.ordersEndpoint}/$orderId/status',
               'Client Error ${response.statusCode}: ${response.statusMessage}',
@@ -386,17 +234,16 @@ class GpsBufferService {
             );
             await _db.deletePendingStatusUpdate(id);
           } else {
-            _logger.w('⚠️ Failed to sync status update, status code: ${response.statusCode}');
+            _logger.w('⚠️ Status update failed (${response.statusCode}) — will retry');
             break;
           }
         } on DioException catch (dioErr) {
-          final statusCode = dioErr.response?.statusCode;
-          if (statusCode != null && statusCode >= 400 && statusCode < 500) {
-            // Drop & Log 4xx errors
-            _logger.e('❌ Received 4xx client error status code $statusCode for orderId=$orderId. Dropping status update.');
+          final code = dioErr.response?.statusCode;
+          if (code != null && code >= 400 && code < 500) {
+            _logger.e('❌ DioException 4xx for orderId=$orderId — dropping update');
             await _db.saveLocalErrorLog(
               'PATCH ${AppConstants.ordersEndpoint}/$orderId/status',
-              'DioException $statusCode: ${dioErr.response?.data ?? dioErr.message}',
+              'DioException $code: ${dioErr.response?.data ?? dioErr.message}',
               '{"Status": "$status"}',
             );
             await _db.deletePendingStatusUpdate(id);
@@ -416,22 +263,12 @@ class GpsBufferService {
     }
   }
 
-  /// Clears all buffered GPS points from Isar database to prevent data contamination across user sessions.
-  Future<void> clearBuffer() async {
-    if (kIsWeb) {
-      _webGpsPoints.clear();
-      _logger.i('🧹 [Web] Successfully cleared memory GPS buffer.');
-      return;
-    }
-
-    try {
-      final isar = await _getIsar();
-      await isar.writeTxn(() async {
-        await isar.gpsPoints.clear();
-      });
-      _logger.i('🧹 Successfully cleared Isar offline GPS buffer.');
-    } catch (e) {
-      _logger.e('❌ Failed to clear GPS buffer in Isar', error: e);
-    }
+  /// Clears all buffered GPS points.
+  void clearBuffer() {
+    _gpsPoints.clear();
+    _lastBufferedLat = null;
+    _lastBufferedLng = null;
+    _lastBufferedHeading = null;
+    _logger.i('🧹 GPS buffer cleared');
   }
 }

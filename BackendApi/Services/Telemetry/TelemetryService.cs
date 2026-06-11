@@ -6,6 +6,7 @@ using BackendApi.Data;
 using BackendApi.Hubs;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Ai;
+using BackendApi.Services.Tracking;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,7 @@ namespace BackendApi.Services.Telemetry
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly RiderPresenceService _presenceService;
+        private readonly IRiderPresenceManager _presenceManager;
         private readonly GpsRedisRateLimiter _rateLimiter;
         private readonly GpsRabbitMqPublisher _gpsPublisher;
         private readonly TelemetryAggregator _aggregator;
@@ -38,6 +40,7 @@ namespace BackendApi.Services.Telemetry
         public TelemetryService(
             ApplicationDbContext dbContext,
             RiderPresenceService presenceService,
+            IRiderPresenceManager presenceManager,
             GpsRedisRateLimiter rateLimiter,
             GpsRabbitMqPublisher gpsPublisher,
             TelemetryAggregator aggregator,
@@ -48,6 +51,7 @@ namespace BackendApi.Services.Telemetry
         {
             _dbContext = dbContext;
             _presenceService = presenceService;
+            _presenceManager = presenceManager;
             _rateLimiter = rateLimiter;
             _gpsPublisher = gpsPublisher;
             _aggregator = aggregator;
@@ -138,6 +142,7 @@ namespace BackendApi.Services.Telemetry
             if (!isHistoricalPoint)
             {
                 await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh);
+                await _presenceManager.HandleRiderHeartbeatAsync(riderId);
             }
 
             // 6. โยนพิกัดลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร

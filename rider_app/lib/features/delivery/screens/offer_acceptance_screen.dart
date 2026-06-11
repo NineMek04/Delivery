@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,27 +65,22 @@ class _OfferAcceptanceScreenState extends ConsumerState<OfferAcceptanceScreen> w
   }
 
   Future<void> _playAlert() async {
-    // Attempt to play vibration and sound
+    if (kIsWeb) return;
     bool? hasVibrator = await Vibration.hasVibrator();
     if (hasVibrator == true) {
       Vibration.vibrate(pattern: [500, 1000, 500, 1000]);
     }
-    // We would play a real asset sound if we had one here:
-    // await _audioPlayer.play(AssetSource('sounds/new_offer.mp3'));
   }
 
   void _acceptOffer() {
     HapticFeedback.heavyImpact();
     _cleanup();
-    // Navigate to Route Tracking Screen
-    // context.goNamed('route_tracking', pathParameters: {'id': widget.orderId});
-    if (mounted) context.pop(); // Mock pop for now
+    if (mounted) context.pop();
   }
 
   void _rejectOffer({bool autoDismiss = false}) {
     HapticFeedback.lightImpact();
     _cleanup();
-    // Inform backend of rejection if needed, then close
     if (mounted) {
       if (autoDismiss) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +95,7 @@ class _OfferAcceptanceScreenState extends ConsumerState<OfferAcceptanceScreen> w
     _timer.cancel();
     _audioPlayer.dispose();
     _animationController.dispose();
-    Vibration.cancel();
+    if (!kIsWeb) Vibration.cancel();
   }
 
   @override

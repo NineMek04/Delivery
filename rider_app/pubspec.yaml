@@ -12,59 +12,48 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # --- Networking ---
-  dio: ^5.7.0                         # HTTP client (เทียบ delivery-http-request.ts ใน Angular)
-  signalr_netcore: ^1.4.4             # SignalR client — import signalr_client.dart
+  dio: ^5.7.0
+  signalr_netcore: ^1.4.4
 
   # --- State Management ---
-  flutter_riverpod: ^2.6.1            # Riverpod — DI & state (เทียบ DI Container ใน .NET)
+  flutter_riverpod: ^2.6.1
 
   # --- Routing ---
-  go_router: ^14.8.1                  # Declarative routing
+  go_router: ^14.8.1
 
   # --- Auth & Security ---
-  flutter_secure_storage: ^9.2.4      # เก็บ JWT token อย่างปลอดภัย
-  jwt_decoder: ^2.0.1                 # Decode JWT (เทียบ jwt-decode ใน Angular)
+  flutter_secure_storage: ^9.2.4
+  jwt_decoder: ^2.0.1
 
   # --- Location & Map ---
-  geolocator: ^13.0.2                 # GPS tracking (หัวใจของ Rider App)
-  google_maps_flutter: ^2.10.0        # Google Maps (เผื่อไว้ — ยังไม่ใช้จนกว่าจะมี API Key)
-  flutter_map: ^7.0.2                 # OpenStreetMap — ใช้งานฟรี (ตัวหลักตอนนี้)
-  latlong2: ^0.9.1                    # LatLng utilities สำหรับ flutter_map
+  geolocator: ^13.0.2
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
   # --- UI/UX ---
-  google_fonts: ^6.2.1                # Typography
-  flutter_svg: ^2.0.17                # SVG icons/assets
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.17
 
   # --- Utilities ---
-  intl: ^0.20.2                       # i18n & date formatting
-  logger: ^2.5.0                      # Structured logging (เทียบ ILogger ใน .NET)
+  intl: ^0.20.2
+  logger: ^2.5.0
+  url_launcher: ^6.3.0
 
-  # --- Firebase / Push Notifications ---
-  firebase_core: ^3.1.0
-  firebase_messaging: ^15.0.1
+  # --- Local Database (SQLite — cross-platform, Web-safe with kIsWeb guard) ---
+  sqflite: ^2.4.0
+  path: ^1.9.0
 
-  # --- New UI Features ---
+  # --- Features (wrapped with kIsWeb / Platform guards in implementation) ---
   image_picker: ^1.1.2
   signature: ^5.4.1
   audioplayers: ^6.1.0
   vibration: ^1.9.0
-  url_launcher: ^6.3.0
-
-  # --- Local Database ---
-  sqflite: ^2.4.0
-  path: ^1.9.0
-  isar: ^3.1.0+1
-  isar_flutter_libs: ^3.1.0+1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  isar_generator: ^3.1.0+1
   build_runner: ^2.4.8
 
 flutter:
   uses-material-design: true
-  # assets:
-  #   - assets/images/
-  #   - assets/icons/

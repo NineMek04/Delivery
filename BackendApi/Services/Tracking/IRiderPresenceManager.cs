@@ -5,6 +5,7 @@ namespace BackendApi.Services.Tracking
 {
     public record RiderConnectionResult(string RiderId, RiderState State, RiderState? PreviousState = null);
     public record RiderStatusUpdateResult(bool Success, string? Message = null, RiderState? State = null, RiderState? PreviousState = null);
+    public record RiderLastLocation(double Lat, double Lng, DateTime UpdatedAt);
 
     public interface IRiderPresenceManager
     {
@@ -14,5 +15,6 @@ namespace BackendApi.Services.Tracking
         Task<RiderStatusUpdateResult> HandleRiderStatusUpdateAsync(string riderId, string status);
         Task<string?> GetRiderIdByUserIdAsync(string userId);
         Task<bool> HasActiveJobAsync(string riderId);
+        Task<RiderLastLocation?> GetLastKnownLocationForRiderAsync(string riderId);
     }
 }

@@ -88,11 +88,17 @@ public partial class TrackingHub : Hub
                 Context.Items["RiderId"] = connectResult.RiderId;
                 await Groups.AddToGroupAsync(Context.ConnectionId, RiderGroup(connectResult.RiderId));
 
-                // แจ้ง Admin Dashboard ว่ามีไรเดอร์ออนไลน์ใหม่
+                // ดึงพิกัดล่าสุดจาก Redis เพื่อส่งพร้อม status
+                // ถ้าไม่มีพิกัด (Rider เพิ่ง register) ให้ส่ง null → Dashboard จะข้าม marker
+                var lastLoc = await _presenceManager.GetLastKnownLocationForRiderAsync(connectResult.RiderId);
+
+                // แจ้ง Admin Dashboard ว่ามีไรเดอร์ออนไลน์ใหม่ พร้อมพิกัดล่าสุด
                 await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
                 {
                     RiderId = connectResult.RiderId,
                     NewStatus = connectResult.State.ToString(),
+                    Lat = lastLoc?.Lat,
+                    Lng = lastLoc?.Lng,
                     Timestamp = DateTime.UtcNow
                 });
             }

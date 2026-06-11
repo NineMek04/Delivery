@@ -178,5 +178,12 @@ namespace BackendApi.Services.Tracking
                 o.AssignedRiderId == riderId && 
                 (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
         }
+
+        public async Task<RiderLastLocation?> GetLastKnownLocationForRiderAsync(string riderId)
+        {
+            var loc = await _presenceService.GetLastKnownLocationAsync(riderId);
+            if (loc is null) return null;
+            return new RiderLastLocation(loc.Value.Lat, loc.Value.Lng, loc.Value.UpdatedAt);
+        }
     }
 }

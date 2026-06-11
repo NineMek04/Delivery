@@ -80,7 +80,7 @@ namespace BackendApi.UnitTests.Hubs
                 new Mock<IConfiguration>().Object,
                 new Mock<IEventBus>().Object,
                 new Mock<TelemetryAggregator>().Object,
-                new Mock<TelemetryService>(null!, null!, null!, null!, null!, null!, null!, null!, null!).Object,
+                new Mock<TelemetryService>(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!).Object,
                 logger.Object
             );
             hub.Context = ctx;

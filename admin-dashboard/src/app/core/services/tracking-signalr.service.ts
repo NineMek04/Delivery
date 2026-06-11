@@ -206,23 +206,33 @@ export class TrackingSignalRService {
       const currentMap = this._riderLocations.getValue();
       const riderId = data.riderId || data.RiderId;
       const newStatus = data.newStatus || data.NewStatus || 'OFFLINE';
-      
+      const lat = data.lat ?? data.Lat ?? null;
+      const lng = data.lng ?? data.Lng ?? null;
+
       const existing = currentMap.get(riderId);
       if (existing) {
-        existing.status = newStatus;
-        existing.timestamp = data.timestamp || data.Timestamp || new Date().toISOString();
-        currentMap.set(riderId, { ...existing });
-      } else {
+        // อัปเดต status (และพิกัดถ้ามี) ของ Rider ที่มีอยู่แล้ว
         currentMap.set(riderId, {
-          riderId: riderId,
-          latitude: 0,
-          longitude: 0,
+          ...existing,
+          status: newStatus,
+          // อัปเดตพิกัดเฉพาะเมื่อ backend ส่งมาและไม่ใช่ 0,0
+          latitude: (lat !== null && lat !== 0) ? lat : existing.latitude,
+          longitude: (lng !== null && lng !== 0) ? lng : existing.longitude,
+          timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
+        });
+      } else if (lat !== null && lng !== null && (lat !== 0 || lng !== 0)) {
+        // สร้าง entry ใหม่เฉพาะเมื่อมีพิกัดที่ถูกต้อง (ป้องกัน marker ที่ 0,0)
+        currentMap.set(riderId, {
+          riderId,
+          latitude: lat,
+          longitude: lng,
           status: newStatus,
           timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
         });
       }
+      // ถ้า Rider ใหม่ไม่มีพิกัด → ยังไม่สร้าง marker รอ RiderLocationUpdated ครั้งแรก
       this._riderLocations.next(new Map(currentMap));
-      this.addAlert('Rider Status', `Rider RID-${riderId.substring(0, 6).toUpperCase()} went ${newStatus.toLowerCase()}`, 'info');
+      this.addAlert('Rider Status', `Rider ${riderId.substring(0, 6).toUpperCase()} → ${newStatus}`, 'info');
     });
 
     // Listen to OSRM road-snapped updates

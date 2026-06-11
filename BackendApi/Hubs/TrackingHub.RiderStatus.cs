@@ -25,12 +25,17 @@ public partial class TrackingHub
         {
             if (result.PreviousState is not null)
             {
+                // ดึงพิกัดล่าสุดจาก Redis เพื่อส่งพร้อม status update
+                var lastLoc = await _presenceManager.GetLastKnownLocationForRiderAsync(riderId);
+
                 // Broadcast ไปยังกลุ่ม Admin (Telemetry Sync)
                 await Clients.Group(AdminGroup).SendAsync("RiderStatusUpdated", new
                 {
                     RiderId = riderId,
                     NewStatus = result.State.ToString(),
                     PreviousStatus = result.PreviousState.ToString(),
+                    Lat = lastLoc?.Lat,
+                    Lng = lastLoc?.Lng,
                     Reason = "explicit_update",
                     Timestamp = DateTime.UtcNow
                 });

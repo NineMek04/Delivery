@@ -90,6 +90,18 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         throw Exception(locState.error ?? 'Failed to start GPS tracking');
       }
 
+      // ส่งพิกัดปัจจุบันผ่าน SignalR ทันทีหลังเริ่ม GPS
+      // เพื่อให้ Admin Dashboard แสดง marker ทันทีโดยไม่ต้องรอ batch timer
+      final locState = ref.read(locationServiceProvider);
+      if (locState.latitude != null && locState.longitude != null) {
+        _logger.d("goOnline Step 4.5: Sending immediate GPS via SignalR");
+        await signalR.sendLocationUpdate(
+          lat: locState.latitude!,
+          lng: locState.longitude!,
+          accuracy: locState.accuracy ?? 10.0,
+        );
+      }
+
       _logger.d("goOnline Step 5: Listening SignalR Events");
       _listenSignalREvents();
 

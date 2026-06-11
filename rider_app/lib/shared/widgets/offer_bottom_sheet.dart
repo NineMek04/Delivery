@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -69,27 +70,31 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
   }
 
   void _startAlerts() async {
-    try {
-      _audioPlayer = AudioPlayer();
-      await _audioPlayer?.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/911/911-200.wav'));
-      _audioPlayer?.setReleaseMode(ReleaseMode.loop);
-    } catch (_) {}
+    if (!kIsWeb) {
+      try {
+        _audioPlayer = AudioPlayer();
+        await _audioPlayer?.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/911/911-200.wav'));
+        _audioPlayer?.setReleaseMode(ReleaseMode.loop);
+      } catch (_) {}
 
-    try {
-      if (await Vibration.hasVibrator() ?? false) {
-        Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0);
-      }
-    } catch (_) {}
+      try {
+        if (await Vibration.hasVibrator() ?? false) {
+          Vibration.vibrate(pattern: [500, 1000, 500, 1000], repeat: 0);
+        }
+      } catch (_) {}
+    }
   }
 
   void _stopAlerts() {
-    try {
-      _audioPlayer?.stop();
-      _audioPlayer?.dispose();
-    } catch (_) {}
-    try {
-      Vibration.cancel();
-    } catch (_) {}
+    if (!kIsWeb) {
+      try {
+        _audioPlayer?.stop();
+        _audioPlayer?.dispose();
+      } catch (_) {}
+      try {
+        Vibration.cancel();
+      } catch (_) {}
+    }
   }
 
   int _initialSeconds() {

@@ -96,8 +96,7 @@ class _OrderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = order.status.toUpperCase();
-    final isPending = status == 'CREATED' || status == 'PENDING';
-    final isPreparing = status == 'PREPARING';
+    final isPending = status == 'CREATED';
     final isCancelled = status == 'CANCELLED';
 
     Color statusColor;
@@ -108,10 +107,6 @@ class _OrderCard extends ConsumerWidget {
       statusColor = const Color(0xFFF59E0B);
       statusLabel = 'รอยืนยัน';
       statusIcon = Icons.hourglass_top;
-    } else if (isPreparing) {
-      statusColor = AppTheme.primaryColor;
-      statusLabel = 'กำลังเตรียม';
-      statusIcon = Icons.restaurant;
     } else if (isCancelled) {
       statusColor = AppTheme.errorColor;
       statusLabel = 'ยกเลิกแล้ว';

@@ -34,6 +34,7 @@ namespace BackendApi.Data
         public DbSet<FcmToken> FcmTokens { get; set; }
         public DbSet<ProcessedEvent> ProcessedEvents { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<DistributedLock> DistributedLocks { get; set; }
 
         public override int SaveChanges()
         {
@@ -105,6 +106,11 @@ namespace BackendApi.Data
             // ProcessedEvents — composite primary key for Idempotency
             modelBuilder.Entity<ProcessedEvent>()
                 .HasKey(pe => new { pe.EventId, pe.HandlerName });
+
+            // DistributedLocks — B-tree index for ExpiresAt fallback lock indexing
+            modelBuilder.Entity<DistributedLock>()
+                .HasIndex(dl => dl.ExpiresAt)
+                .HasDatabaseName("IX_DistributedLocks_ExpiresAt");
 
             // RiderLocationHistories — ไม่ลงทะเบียน Index ผ่าน EF Core Fluent API
             // เพราะตารางนี้เป็น Partitioned Table หลัง Migration Phase3EnterpriseSpatialScaling

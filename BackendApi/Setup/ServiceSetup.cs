@@ -122,6 +122,7 @@ public static class ServiceSetup
         services.AddHostedService<OsrmSnapWorker>();
         services.AddHostedService<DispatchBackgroundWorker>();
         services.AddHostedService<QueuedHostedService>();
+        services.AddHostedService<DbMaintenanceWorker>();
 
         // --- FluentValidation ---
         services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);

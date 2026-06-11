@@ -1,6 +1,7 @@
 using BackendApi.Data;
 using BackendApi.ServiceMigration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Serilog;
 
 namespace BackendApi.Setup;
@@ -43,9 +44,10 @@ public static class DatabaseMigrationSetup
             await PostgresAdvancedConfigurator.ConfigureSchemaAsync(context);
             Log.Information("✅ [ServiceMigration] Schema setup completed.");
 
-            // Seed mock data if tables are empty
-            Log.Information("🌱 Seeding mock data if database is empty...");
-            await DataSeeder.SeedAsync(context);
+            // Seed default data (and mock data if enabled)
+            var seedMockData = app.Configuration.GetValue<bool>("SeedMockData", false);
+            Log.Information("🌱 Seeding database (SeedMockData = {SeedMockData})...", seedMockData);
+            await DataSeeder.SeedAsync(context, seedMockData);
             Log.Information("✅ Database seeding process complete.");
         }
         catch (Exception ex)

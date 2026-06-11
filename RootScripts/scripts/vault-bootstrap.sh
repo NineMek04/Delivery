@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 export VAULT_ADDR='http://vault:8200'
 
 # Wait for vault to be ready

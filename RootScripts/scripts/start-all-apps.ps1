@@ -1,9 +1,20 @@
 param(
-  [string]$WorkspaceRoot = $PSScriptRoot
+  [string]$WorkspaceRoot = ""
 )
 
+# Resolve WorkspaceRoot robustly — $PSScriptRoot can be empty when run from VS Code Extension host
 if (!$WorkspaceRoot) {
-  $WorkspaceRoot = (Resolve-Path ".").Path
+  if ($PSScriptRoot) {
+    # Normal case: script run directly
+    $WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+  } elseif ($MyInvocation.MyCommand.Path) {
+    # VS Code Extension or dot-sourced: resolve from script path
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $WorkspaceRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
+  } else {
+    # Last resort: current directory
+    $WorkspaceRoot = (Resolve-Path ".").Path
+  }
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:logger/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +34,13 @@ class RiderSessionService extends Notifier<RiderSessionState> {
           final signalR = ref.read(signalRServiceProvider.notifier);
           await signalR.updateStatus(AppConstants.statusAvailable);
           await signalR.sendHeartbeat();
+
+          // Jitter: สุ่มหน่วงเวลา 500ms - 3500ms ก่อนเรียก API เพื่อกระจายโหลด (ป้องกัน Thundering Herd)
+          final randomDelay = Duration(milliseconds: 500 + math.Random().nextInt(3000));
+          await Future.delayed(randomDelay);
+
+          // Fetch latest active orders immediately on reconnection to prevent stale UI state
+          await ref.read(deliveryNotifierProvider.notifier).loadOrders();
         } catch (e) {
           _logger.w('Failed to restore status after reconnect: $e');
         }

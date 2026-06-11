@@ -146,6 +146,12 @@ export class TrackingSignalRService {
     this.hubConnection.onreconnected(connectionId => {
       console.log('SignalR Reconnected.', connectionId);
       this.addAlert('System', 'Connection restored.', 'success');
+      
+      // Jitter: สุ่มดีเลย์ 1-3 วินาทีก่อนดึงพิกัดใหม่ เพื่อกระจายโหลด (ป้องกัน Thundering Herd)
+      const jitter = Math.floor(Math.random() * 2000) + 1000;
+      setTimeout(() => {
+        this.fetchInitialLocations();
+      }, jitter);
     });
 
     this.hubConnection.onclose(error => {

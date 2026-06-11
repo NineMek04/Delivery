@@ -192,14 +192,5 @@ namespace BackendApi.Controllers.MasterData
             return Ok(existing.Adapt<ShopDto>());
         }
 
-        /// <summary>
-        /// ลบข้อมูลร้านค้าทั้งหมด (สำหรับ Simulator)
-        /// </summary>
-        [HttpDelete("all")]
-        public async Task<ActionResult<ApiResponse>> DeleteAll(CancellationToken cancellationToken = default)
-        {
-            await DB.GetQuery<Shop>().ExecuteDeleteAsync(cancellationToken);
-            return Ok(ApiResponse.Ok("ลบข้อมูลร้านค้าทั้งหมดสำเร็จ"));
-        }
     }
 }

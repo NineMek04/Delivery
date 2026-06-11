@@ -99,7 +99,7 @@ public class RidersController : CrudControllerBase<Rider, RiderDto>
 
         // อัปเดตเฉพาะฟิลด์ที่อนุญาต
         existing.Name = dto.Name;
-        
+
         if (!string.IsNullOrEmpty(dto.Status) && Enum.TryParse<BackendApi.Core.StateMachines.RiderState>(dto.Status, true, out var parsedState))
         {
             existing.State = parsedState;
@@ -111,13 +111,4 @@ public class RidersController : CrudControllerBase<Rider, RiderDto>
         return Ok(existing.Adapt<RiderDto>());
     }
 
-    /// <summary>
-    /// ลบข้อมูลไรเดอร์ทั้งหมด (สำหรับ Simulator)
-    /// </summary>
-    [HttpDelete("all")]
-    public async Task<ActionResult<ApiResponse>> DeleteAll(CancellationToken cancellationToken = default)
-    {
-        await DB.GetQuery<Rider>().ExecuteDeleteAsync(cancellationToken);
-        return Ok(ApiResponse.Ok("ลบข้อมูลไรเดอร์ทั้งหมดสำเร็จ"));
-    }
 }

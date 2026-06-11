@@ -166,15 +166,4 @@ public class OrdersController : DeliveryControllerBase
         var (statusCode, response) = await _orderService.BatchDispatchAsync(dto, cancellationToken);
         return StatusCode(statusCode, response);
     }
-
-    /// <summary>
-    /// ลบข้อมูลออเดอร์ทั้งหมด (สำหรับ Simulator)
-    /// </summary>
-    [HttpDelete("all")]
-    [Authorize(Policy = AuthConstants.OperationsPolicy)]
-    public async Task<ActionResult<ApiResponse>> DeleteAllOrders(CancellationToken cancellationToken)
-    {
-        var (statusCode, response) = await _orderService.DeleteAllOrdersAsync(cancellationToken);
-        return StatusCode(statusCode, response);
-    }
 }

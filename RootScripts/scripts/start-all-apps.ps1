@@ -135,7 +135,7 @@ if (Get-Command flutter -ErrorAction SilentlyContinue) {
 
 if ($flutterInPath) {
     Write-Host "`n[Rider App] Launching Flutter Rider App (Web) locally in a separate terminal..." -ForegroundColor Yellow
-    $riderCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [Rider App] Running locally on localhost:8080' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; flutter run -d chrome --web-port 8080 --dart-define=API_BASE_URL=http://localhost:5000;"
+    $riderCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [Rider App] Running locally on localhost:8083' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; flutter run -d chrome --web-port 8083 --dart-define=API_BASE_URL=http://localhost:5000;"
     Start-Process powershell -WindowStyle Normal -WorkingDirectory $riderPath -ArgumentList "-NoExit", "-Command", $riderCmd
 } else {
     Write-Host "`n[Rider App] Flutter SDK not detected locally. Falling back to Docker Rider App..." -ForegroundColor Yellow
@@ -143,7 +143,7 @@ if ($flutterInPath) {
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Failed to start Docker rider-app. Make sure Docker is running."
     } else {
-        Write-Host "Rider App container started. Serving at http://localhost:8080" -ForegroundColor Green
+        Write-Host "Rider App container started. Serving at http://localhost:8083" -ForegroundColor Green
     }
 }
 
@@ -153,7 +153,7 @@ Write-Host "  - .NET Backend API: http://localhost:5000" -ForegroundColor Gray
 Write-Host "  - AI FastAPI Engine: http://localhost:8000" -ForegroundColor Gray
 Write-Host "  - Angular Portals (Admin/Customer/Store): http://localhost:4200" -ForegroundColor Gray
 if ($flutterInPath) {
-    Write-Host "  - Flutter Rider Web App: http://localhost:8080" -ForegroundColor Gray
+    Write-Host "  - Flutter Rider Web App: http://localhost:8083" -ForegroundColor Gray
 }
 Write-Host "==========================================================" -ForegroundColor Green
 
@@ -169,15 +169,15 @@ Write-Host "`nOpening pages..." -ForegroundColor Cyan
 Write-Host "Opening web portals..." -ForegroundColor Green
 try {
     Start-Process "http://localhost:4200/map"             # 1. Admin Dashboard (Angular)
-    Start-Process "http://localhost:8080/#/customer"      # 2. Customer Portal (Flutter)
-    Start-Process "http://localhost:8080/#/store"         # 3. Store Portal (Flutter)
-    Start-Process "http://localhost:8080/#/"              # 4. Rider Portal (Flutter)
+    Start-Process "http://localhost:8083/#/customer"      # 2. Customer Portal (Flutter)
+    Start-Process "http://localhost:8083/#/store"         # 3. Store Portal (Flutter)
+    Start-Process "http://localhost:8083/#/"              # 4. Rider Portal (Flutter)
 } catch {
     Write-Warning "Failed to automatically open browser pages. You can manually visit them: "
     Write-Warning "  - Admin Map: http://localhost:4200/map"
-    Write-Warning "  - Customer Portal: http://localhost:8080/#/customer"
-    Write-Warning "  - Store Partner: http://localhost:8080/#/store"
-    Write-Warning "  - Rider App: http://localhost:8080/#/"
+    Write-Warning "  - Customer Portal: http://localhost:8083/#/customer"
+    Write-Warning "  - Store Partner: http://localhost:8083/#/store"
+    Write-Warning "  - Rider App: http://localhost:8083/#/"
 }
 
 

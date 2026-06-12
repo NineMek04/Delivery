@@ -28,7 +28,7 @@ final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
 ///
 /// Data Flow:
 /// LocationService → GpsBufferService (in-memory) → POST /api/v1/telemetry/gps/batch
-/// class GpsBufferService {
+class GpsBufferService {
   final Ref _ref;
   final Dio _dio;
   final LocalDatabaseService _db;

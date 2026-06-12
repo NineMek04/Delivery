@@ -12,8 +12,8 @@ import '../../models/dispatch_offer.dart';
 /// Bottom sheet รับ/ปฏิเสธงาน พร้อม countdown 30 วินาที.
 class OfferBottomSheet extends StatefulWidget {
   final DispatchOffer offer;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
+  final Future<void> Function() onAccept;
+  final Future<void> Function() onReject;
 
   const OfferBottomSheet({
     super.key,
@@ -25,8 +25,8 @@ class OfferBottomSheet extends StatefulWidget {
   static Future<void> show(
     BuildContext context, {
     required DispatchOffer offer,
-    required VoidCallback onAccept,
-    required VoidCallback onReject,
+    required Future<void> Function() onAccept,
+    required Future<void> Function() onReject,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -49,19 +49,25 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
   late int _secondsLeft;
   Timer? _timer;
   AudioPlayer? _audioPlayer;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
     _secondsLeft = _initialSeconds();
     _startAlerts();
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_secondsLeft <= 1) {
         _timer?.cancel();
         _stopAlerts();
         if (mounted) {
           Navigator.of(context).pop();
-          widget.onReject();
+          unawaited(widget.onReject().catchError((_) {}));
         }
         return;
       }
@@ -94,6 +100,24 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
       try {
         Vibration.cancel();
       } catch (_) {}
+    }
+  }
+
+  Future<void> _submit(Future<void> Function() action) async {
+    if (_isSubmitting) return;
+
+    _timer?.cancel();
+    _stopAlerts();
+    setState(() => _isSubmitting = true);
+
+    try {
+      await action();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _startAlerts();
+      _startCountdown();
     }
   }
 
@@ -135,7 +159,9 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: _secondsLeft / Environment.offerCountdownSeconds,
+            value: (_secondsLeft / Environment.offerCountdownSeconds)
+                .clamp(0.0, 1.0)
+                .toDouble(),
             minHeight: 6,
             borderRadius: BorderRadius.circular(4),
           ),
@@ -155,22 +181,18 @@ class _OfferBottomSheetState extends State<OfferBottomSheet> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () {
-              _timer?.cancel();
-              _stopAlerts();
-              Navigator.of(context).pop();
-              widget.onAccept();
-            },
-            child: const Text('รับงาน'),
+            onPressed: _isSubmitting ? null : () => _submit(widget.onAccept),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('รับงาน'),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: () {
-              _timer?.cancel();
-              _stopAlerts();
-              Navigator.of(context).pop();
-              widget.onReject();
-            },
+            onPressed: _isSubmitting ? null : () => _submit(widget.onReject),
             child: const Text('ปฏิเสธ'),
           ),
         ],

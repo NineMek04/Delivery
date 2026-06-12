@@ -987,9 +987,17 @@ class _MenuFormSheetState extends ConsumerState<_MenuFormSheet> {
       final data = <String, dynamic>{
         'Name': _nameController.text.trim(),
         'Price': double.parse(_priceController.text.trim()),
-        'ShopId': widget.shopId,
-        'MenuCategoryId': _selectedCategoryId ?? '',
       };
+
+      if (widget.existingItem == null) {
+        data['ShopId'] = widget.shopId;
+      }
+      if (_selectedCategoryId != null) {
+        data['MenuCategoryId'] = _selectedCategoryId;
+      } else if (widget.existingItem?.menuCategoryId != null) {
+        // An empty value explicitly removes an existing category on update.
+        data['MenuCategoryId'] = '';
+      }
 
       if (_descriptionController.text.trim().isNotEmpty) {
         data['Description'] = _descriptionController.text.trim();

@@ -57,7 +57,21 @@ class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
       appBar: AppBar(title: const Text('ออเดอร์ของฉัน')),
       body: ordersAsync.when(
         data: (orders) => orders.isEmpty
-            ? const Center(child: Text('คุณยังไม่มีรายการสั่งซื้อ'))
+            ? RefreshIndicator(
+                onRefresh: () => ref.refresh(customerOrdersProvider.future),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(height: 160),
+                    Icon(Icons.receipt_long_outlined, size: 64),
+                    SizedBox(height: 16),
+                    Text(
+                      'คุณยังไม่มีรายการสั่งซื้อ',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
             : RefreshIndicator(
                 onRefresh: () => ref.refresh(customerOrdersProvider.future),
                 child: ListView.builder(
@@ -70,7 +84,30 @@ class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
                 ),
               ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('เกิดข้อผิดพลาด: $err')),
+        error: (err, stack) => RefreshIndicator(
+          onRefresh: () => ref.refresh(customerOrdersProvider.future),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(24),
+            children: [
+              const SizedBox(height: 120),
+              const Icon(Icons.cloud_off_outlined, size: 64),
+              const SizedBox(height: 16),
+              const Text(
+                'ไม่สามารถโหลดรายการสั่งซื้อได้',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: FilledButton.icon(
+                  onPressed: () => ref.invalidate(customerOrdersProvider),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('ลองอีกครั้ง'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

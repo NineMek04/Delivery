@@ -32,31 +32,24 @@ final currentShopProvider = FutureProvider<ShopDto?>((ref) async {
   
   if (shopId == null || shopId.isEmpty) {
     debugPrint('[StoreProviders] shopId is missing in local storage. Fetching fresh session...');
-    try {
-      final authApi = ref.read(authApiServiceProvider);
-      final sessionUser = await authApi.getSession();
-      shopId = sessionUser.shopId;
-      debugPrint('[StoreProviders] Fresh session fetched. ShopId: $shopId');
-      if (shopId != null && shopId.isNotEmpty) {
-        await authService.setUserData(sessionUser.toJson());
-      }
-    } catch (e) {
-      debugPrint('[StoreProviders] Failed to fetch session fallback: $e');
+    final authApi = ref.read(authApiServiceProvider);
+    final sessionUser = await authApi.getSession();
+    shopId = sessionUser.shopId;
+    debugPrint('[StoreProviders] Fresh session fetched. ShopId: $shopId');
+    if (shopId != null && shopId.isNotEmpty) {
+      await authService.setUserData(sessionUser.toJson());
     }
   }
 
   if (shopId == null || shopId.isEmpty) {
-    debugPrint('[StoreProviders] shopId is null or empty. Cannot load shop.');
-    return null;
+    throw const ApiException(
+      'The signed-in store account is not linked to a shop.',
+      code: 'SHOP_CONTEXT_MISSING',
+    );
   }
 
-  try {
-    final shopApi = ref.read(shopApiServiceProvider);
-    return await shopApi.getById(shopId);
-  } catch (e) {
-    debugPrint('[StoreProviders] Failed to load shop ($shopId): $e');
-    return null;
-  }
+  final shopApi = ref.read(shopApiServiceProvider);
+  return shopApi.getById(shopId);
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -72,15 +65,15 @@ class MenuCategoriesNotifier extends AsyncNotifier<List<MenuCategoryDto>> {
   @override
   Future<List<MenuCategoryDto>> build() async {
     final shop = await ref.watch(currentShopProvider.future);
-    if (shop == null) return [];
-
-    try {
-      final categoryApi = ref.read(menuCategoryApiServiceProvider);
-      return await categoryApi.getByShop(shop.id);
-    } catch (e) {
-      debugPrint('[MenuCategoriesNotifier] Failed to load categories: $e');
-      return [];
+    if (shop == null) {
+      throw const ApiException(
+        'Shop data is unavailable.',
+        code: 'SHOP_CONTEXT_MISSING',
+      );
     }
+
+    final categoryApi = ref.read(menuCategoryApiServiceProvider);
+    return categoryApi.getByShop(shop.id);
   }
 
   Future<MenuCategoryDto> addCategory(String name, {String? description}) async {
@@ -95,7 +88,8 @@ class MenuCategoriesNotifier extends AsyncNotifier<List<MenuCategoryDto>> {
       'DisplayOrder': 0,
     });
     
-    ref.invalidateSelf();
+    final currentList = state.value ?? const <MenuCategoryDto>[];
+    state = AsyncValue.data([...currentList, newCat]);
     return newCat;
   }
 
@@ -117,30 +111,37 @@ class MenuItemsNotifier extends AsyncNotifier<List<MenuItemDto>> {
   @override
   Future<List<MenuItemDto>> build() async {
     final shop = await ref.watch(currentShopProvider.future);
-    if (shop == null) return [];
-
-    try {
-      final menuApi = ref.read(menuItemApiServiceProvider);
-      final result = await menuApi.getByShop(shop.id, pageSize: 200);
-      return result.items;
-    } catch (e) {
-      debugPrint('[MenuItemsNotifier] Failed to load menu items: $e');
-      return [];
+    if (shop == null) {
+      throw const ApiException(
+        'Shop data is unavailable.',
+        code: 'SHOP_CONTEXT_MISSING',
+      );
     }
+
+    final menuApi = ref.read(menuItemApiServiceProvider);
+    final result = await menuApi.getByShop(shop.id, pageSize: 200);
+    return result.items;
   }
 
-  Future<void> addItem(Map<String, dynamic> data) async {
+  Future<MenuItemDto> addItem(Map<String, dynamic> data) async {
     debugPrint('[MenuItemsNotifier] addItem: $data');
     final menuApi = ref.read(menuItemApiServiceProvider);
-    await menuApi.create(data);
-    ref.invalidateSelf();
+    final created = await menuApi.create(data);
+    final currentList = state.value ?? const <MenuItemDto>[];
+    state = AsyncValue.data([...currentList, created]);
+    return created;
   }
 
-  Future<void> updateItem(String id, Map<String, dynamic> data) async {
+  Future<MenuItemDto> updateItem(String id, Map<String, dynamic> data) async {
     debugPrint('[MenuItemsNotifier] updateItem: $id with $data');
     final menuApi = ref.read(menuItemApiServiceProvider);
-    await menuApi.update(id, data);
-    ref.invalidateSelf();
+    final updated = await menuApi.update(id, data);
+    final currentList = state.value ?? const <MenuItemDto>[];
+    state = AsyncValue.data([
+      for (final item in currentList)
+        if (item.id == id) updated else item,
+    ]);
+    return updated;
   }
 
   Future<void> deleteItem(String id) async {

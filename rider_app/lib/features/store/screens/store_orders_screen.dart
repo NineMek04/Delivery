@@ -69,6 +69,11 @@ class _StoreOrdersScreenState extends ConsumerState<StoreOrdersScreen> {
         onRefresh: () => ref.read(storeOrdersProvider.notifier).loadOrders(),
         child: ordersState.isLoading
             ? const Center(child: CircularProgressIndicator())
+            : ordersState.error != null
+                ? _ErrorState(
+                    onRetry: () =>
+                        ref.read(storeOrdersProvider.notifier).loadOrders(),
+                  )
             : ordersState.orders.isEmpty
                 ? _EmptyState()
                 : ListView.separated(
@@ -81,6 +86,48 @@ class _StoreOrdersScreenState extends ConsumerState<StoreOrdersScreen> {
                     },
                   ),
       ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 120),
+        Icon(
+          Icons.cloud_off_outlined,
+          size: 72,
+          color: AppTheme.errorColor.withValues(alpha: 0.8),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'ไม่สามารถโหลดออเดอร์ได้',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppTheme.textMuted),
+        ),
+        const SizedBox(height: 20),
+        Center(
+          child: FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('ลองอีกครั้ง'),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -98,6 +145,11 @@ class _OrderCard extends ConsumerWidget {
     final status = order.status.toUpperCase();
     final isPending = status == 'CREATED';
     final isCancelled = status == 'CANCELLED';
+    final isProcessing = ref.watch(
+      storeOrdersProvider.select(
+        (state) => state.processingOrderIds.contains(order.id),
+      ),
+    );
 
     Color statusColor;
     String statusLabel;
@@ -295,8 +347,15 @@ class _OrderCard extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _reject(context, ref),
-                      icon: const Icon(Icons.close, size: 16),
+                      onPressed:
+                          isProcessing ? null : () => _reject(context, ref),
+                      icon: isProcessing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.close, size: 16),
                       label: const Text('ปฏิเสธ'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.errorColor,
@@ -309,8 +368,15 @@ class _OrderCard extends ConsumerWidget {
                   Expanded(
                     flex: 2,
                     child: FilledButton.icon(
-                      onPressed: () => _accept(context, ref),
-                      icon: const Icon(Icons.check, size: 16),
+                      onPressed:
+                          isProcessing ? null : () => _accept(context, ref),
+                      icon: isProcessing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.check, size: 16),
                       label: const Text('รับออเดอร์'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
@@ -414,8 +480,11 @@ class _OrderCard extends ConsumerWidget {
 class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 120),
+        Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
@@ -437,6 +506,7 @@ class _EmptyState extends StatelessWidget {
           ),
         ],
       ),
+      ],
     );
   }
 }

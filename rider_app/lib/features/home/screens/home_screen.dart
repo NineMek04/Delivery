@@ -48,14 +48,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context,
       offer: offer,
       onAccept: () async {
-        await ref.read(homeNotifierProvider.notifier).acceptOffer();
-        if (mounted) {
-          ErrorDialog.showSuccess(context, 'รับงานแล้ว');
-          context.goNamed('activeDelivery');
+        try {
+          await ref.read(homeNotifierProvider.notifier).acceptOffer();
+          if (mounted) {
+            ErrorDialog.showSuccess(context, 'รับงานแล้ว');
+            context.goNamed('activeDelivery');
+          }
+        } catch (e) {
+          if (mounted) {
+            await ErrorDialog.show(
+              context,
+              title: 'รับงานไม่สำเร็จ',
+              message: e.toString(),
+            );
+          }
+          rethrow;
         }
       },
-      onReject: () {
-        ref.read(homeNotifierProvider.notifier).rejectOffer();
+      onReject: () async {
+        try {
+          await ref.read(homeNotifierProvider.notifier).rejectOffer();
+        } catch (e) {
+          if (mounted) {
+            await ErrorDialog.show(
+              context,
+              title: 'ปฏิเสธงานไม่สำเร็จ',
+              message: e.toString(),
+            );
+          }
+          rethrow;
+        }
       },
     );
   }

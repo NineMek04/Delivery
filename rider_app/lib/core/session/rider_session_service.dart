@@ -94,8 +94,13 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         _logger.i(
           '🔌 Restoring online rider session state from local database',
         );
-        state = state.copyWith(isOnline: true);
-        Future.microtask(() => goOnline());
+        Future.microtask(() async {
+          try {
+            await goOnline();
+          } catch (e) {
+            _logger.w('Failed to restore rider online session: $e');
+          }
+        });
       }
     } catch (e) {
       _logger.e(
@@ -112,11 +117,14 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       _logger.w('❌ goOnline rejected: user role is not Rider (role: $role)');
       throw Exception('Only riders can go online.');
     }
-    if (state.isOnline && !state.isTransitioning) return;
+    if (state.isOnline || state.isTransitioning) return;
 
     state = state.copyWith(isTransitioning: true, error: null);
 
     try {
+      _logger.d("goOnline Step 0: Listening SignalR Events");
+      _listenSignalREvents();
+
       _logger.d("goOnline Step 1: Connecting SignalR");
       final signalR = ref.read(signalRServiceProvider.notifier);
       await signalR.connect();
@@ -147,9 +155,6 @@ class RiderSessionService extends Notifier<RiderSessionState> {
           locState.accuracy ?? 10.0,
         );
       }
-
-      _logger.d("goOnline Step 5: Listening SignalR Events");
-      _listenSignalREvents();
 
       _logger.d("goOnline Step 6: Setting State to Online");
       state = state.copyWith(
@@ -211,7 +216,10 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   }
 
   void setIncomingOffer(DispatchOffer? offer) {
-    state = state.copyWith(incomingOffer: offer);
+    state = state.copyWith(
+      incomingOffer: offer,
+      clearOffer: offer == null,
+    );
   }
 
   Future<void> acceptOffer(DispatchOffer offer) async {

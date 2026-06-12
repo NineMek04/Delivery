@@ -2,6 +2,8 @@ using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Services.Dispatch;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
+using Serilog.Context;
 
 namespace BackendApi.Services.BackgroundWorkers;
 
@@ -14,6 +16,8 @@ public class DispatchTimeoutWorker : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DispatchTimeoutWorker> _logger;
+    private readonly ConcurrentDictionary<string, DateTime> _nextMatchingRetryAt = new();
+    private static readonly TimeSpan MatchingRetryInterval = TimeSpan.FromSeconds(15);
 
     public DispatchTimeoutWorker(IServiceProvider serviceProvider, ILogger<DispatchTimeoutWorker> logger)
     {
@@ -29,6 +33,7 @@ public class DispatchTimeoutWorker : BackgroundService
         try
         {
             await CheckExpiredOffersAsync(stoppingToken);
+            await CheckStalledMatchingOrdersAsync(stoppingToken);
         }
         catch (Exception ex)
         {
@@ -43,6 +48,7 @@ public class DispatchTimeoutWorker : BackgroundService
                 try
                 {
                     await CheckExpiredOffersAsync(stoppingToken);
+                    await CheckStalledMatchingOrdersAsync(stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -93,6 +99,59 @@ public class DispatchTimeoutWorker : BackgroundService
             }
 
             _logger.LogInformation("Processed {Count} expired offers", uniqueOffers.Count);
+        }
+    }
+
+    private async Task CheckStalledMatchingOrdersAsync(CancellationToken ct)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var dispatchService = scope.ServiceProvider.GetRequiredService<DispatchService>();
+        var now = DateTime.UtcNow;
+        var staleBefore = now.Subtract(TimeSpan.FromSeconds(10));
+
+        var matchingOrderIds = await dbContext.Orders
+            .AsNoTracking()
+            .Where(order =>
+                order.State == OrderState.MATCHING &&
+                (order.UpdatedAt ?? order.CreatedAt) < staleBefore)
+            .OrderBy(order => order.UpdatedAt ?? order.CreatedAt)
+            .Select(order => order.Id)
+            .Take(50)
+            .ToListAsync(ct);
+
+        foreach (var orderId in matchingOrderIds)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            if (_nextMatchingRetryAt.TryGetValue(orderId, out var nextRetryAt) &&
+                nextRetryAt > now)
+            {
+                continue;
+            }
+
+            _nextMatchingRetryAt[orderId] = now.Add(MatchingRetryInterval);
+            var correlationId = Guid.NewGuid().ToString("N");
+            using (LogContext.PushProperty("CorrelationId", correlationId))
+            using (LogContext.PushProperty("OrderId", orderId))
+            using (LogContext.PushProperty("RiderId", string.Empty))
+            {
+                _logger.LogInformation(
+                    "Retrying dispatch for Order {OrderId} still in MATCHING state",
+                    orderId);
+
+                await dispatchService.StartDispatchAsync(orderId);
+            }
+
+            var currentState = await dbContext.Orders
+                .AsNoTracking()
+                .Where(order => order.Id == orderId)
+                .Select(order => order.State)
+                .FirstOrDefaultAsync(ct);
+            if (currentState != OrderState.MATCHING)
+            {
+                _nextMatchingRetryAt.TryRemove(orderId, out _);
+            }
         }
     }
 }

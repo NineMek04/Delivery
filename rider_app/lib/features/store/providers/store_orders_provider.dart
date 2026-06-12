@@ -17,12 +17,14 @@ class StoreOrdersState {
   final bool isLoading;
   final String? error;
   final int newOrderBadgeCount; // unread new orders
+  final Set<String> processingOrderIds;
 
   const StoreOrdersState({
     this.orders = const [],
     this.isLoading = false,
     this.error,
     this.newOrderBadgeCount = 0,
+    this.processingOrderIds = const {},
   });
 
   StoreOrdersState copyWith({
@@ -30,12 +32,14 @@ class StoreOrdersState {
     bool? isLoading,
     String? error,
     int? newOrderBadgeCount,
+    Set<String>? processingOrderIds,
   }) {
     return StoreOrdersState(
       orders: orders ?? this.orders,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       newOrderBadgeCount: newOrderBadgeCount ?? this.newOrderBadgeCount,
+      processingOrderIds: processingOrderIds ?? this.processingOrderIds,
     );
   }
 }
@@ -175,6 +179,8 @@ class StoreOrdersNotifier extends Notifier<StoreOrdersState> {
   // ── Accept / Reject ─────────────────────────────────────────────────────────
 
   Future<bool> acceptOrder(String orderId) async {
+    if (state.processingOrderIds.contains(orderId)) return false;
+    _setProcessing(orderId, true);
     try {
       final orderApi = ref.read(orderApiServiceProvider);
       final updated = await orderApi.acceptOrderByStore(orderId);
@@ -182,12 +188,15 @@ class StoreOrdersNotifier extends Notifier<StoreOrdersState> {
       return true;
     } catch (e) {
       debugPrint('[StoreOrdersNotifier] acceptOrder error: $e');
-      state = state.copyWith(error: e.toString());
       return false;
+    } finally {
+      _setProcessing(orderId, false);
     }
   }
 
   Future<bool> rejectOrder(String orderId) async {
+    if (state.processingOrderIds.contains(orderId)) return false;
+    _setProcessing(orderId, true);
     try {
       final orderApi = ref.read(orderApiServiceProvider);
       final updated = await orderApi.rejectOrderByStore(orderId);
@@ -195,9 +204,20 @@ class StoreOrdersNotifier extends Notifier<StoreOrdersState> {
       return true;
     } catch (e) {
       debugPrint('[StoreOrdersNotifier] rejectOrder error: $e');
-      state = state.copyWith(error: e.toString());
       return false;
+    } finally {
+      _setProcessing(orderId, false);
     }
+  }
+
+  void _setProcessing(String orderId, bool isProcessing) {
+    final updated = {...state.processingOrderIds};
+    if (isProcessing) {
+      updated.add(orderId);
+    } else {
+      updated.remove(orderId);
+    }
+    state = state.copyWith(processingOrderIds: updated);
   }
 
   void _replaceOrder(OrderDto updated) {

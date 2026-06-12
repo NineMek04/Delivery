@@ -158,6 +158,9 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   ngAfterViewInit(): void {
     this.initMap();
     this.draw.initializeMap(this.map);
+    const currentLocations = this.trackingService.getRiderLocations();
+    this.updateMapMarkers(currentLocations);
+    this.updateRiderList(currentLocations);
     this.loadExistingShops();
     this.loadActiveOrders();
   }
@@ -560,8 +563,25 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
     locationMap.forEach((loc, riderId) => {
       let marker = this.markers.get(riderId);
+      if (!this.matchesRiderFilter(loc)) {
+        marker?.remove();
+        return;
+      }
+
       const isWinner = riderId === this.assignedRiderId;
-      const next = L.latLng(loc.latitude, loc.longitude);
+      const hasSnappedPosition = loc.isSnapped &&
+        Number.isFinite(loc.snappedLat) &&
+        Number.isFinite(loc.snappedLng) &&
+        !(loc.snappedLat === 0 && loc.snappedLng === 0);
+      const displayLat = hasSnappedPosition
+        ? loc.snappedLat!
+        : loc.latitude;
+      const displayLng = hasSnappedPosition
+        ? loc.snappedLng!
+        : loc.longitude;
+      if (!Number.isFinite(displayLat) || !Number.isFinite(displayLng) ||
+          (displayLat === 0 && displayLng === 0)) return;
+      const next = L.latLng(displayLat, displayLng);
 
       const isActive = isWinner || ['RESERVED', 'BUSY'].includes(loc.status);
       const statusColor = isWinner
@@ -590,7 +610,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           <hr style="margin: 6px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
           <span style="font-size: 11px; color: #9ca3af; line-height: 1.5;">
             <b>สถานะ:</b> <span style="color: ${statusColor}; font-weight: bold;">${escapedStatus}</span><br>
-            <b>พิกัด:</b> ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}<br>
+            <b>พิกัด:</b> ${displayLat.toFixed(5)}, ${displayLng.toFixed(5)}<br>
             <b>ความเร็ว:</b> ${loc.speedKmh ? loc.speedKmh.toFixed(1) : 0} km/h
           </span>
           <hr style="margin: 6px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
@@ -603,6 +623,9 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       `;
 
       if (marker) {
+        if (!this.map.hasLayer(marker)) {
+          marker.addTo(this.map);
+        }
         this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, loc.isSnapped, () => {
           if (this.simAutoFollow && isWinner) {
             this.map.setView(next);
@@ -638,11 +661,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private updateRiderList(locationMap: Map<string, RiderLocationUpdate>): void {
     const list: any[] = [];
     locationMap.forEach((loc, riderId) => {
-      const matchesFilter =
-        this.filterStatus === 'ALL' ||
-        loc.status === this.filterStatus ||
-        (this.filterStatus === 'OFFLINE' && loc.status === 'STALE');
-      if (!matchesFilter) return;
+      if (!this.matchesRiderFilter(loc)) return;
 
       const isWinner = riderId === this.assignedRiderId;
       list.push({
@@ -660,11 +679,17 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     this.riders = list;
   }
 
+  private matchesRiderFilter(loc: RiderLocationUpdate): boolean {
+    return this.filterStatus === 'ALL' ||
+      loc.status === this.filterStatus ||
+      (this.filterStatus === 'OFFLINE' && loc.status === 'STALE');
+  }
+
   setFilterStatus(status: string): void {
     this.filterStatus = status;
-    if (this.riders.length > 0) {
-      this.updateRiderList(this.trackingService.getRiderLocations());
-    }
+    const locations = this.trackingService.getRiderLocations();
+    this.updateMapMarkers(locations);
+    this.updateRiderList(locations);
   }
 
   showRiderRoute(riderId: string): void {

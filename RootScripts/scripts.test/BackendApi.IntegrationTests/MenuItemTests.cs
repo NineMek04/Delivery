@@ -47,11 +47,12 @@ public class MenuItemTests : IAsyncLifetime
         string? Description,
         decimal Price,
         string? ImageUrl,
-        string ShopId
+        string ShopId,
+        string? MenuCategoryId
     );
 
     private record PaginatedResultWrapper<T>(List<T> Items, int TotalCount, int Page, int PageSize);
-    private record ApiResponseWrapper<T>(bool Success, T? Value, string? Message, string? ErrorDetail);
+    private record ApiResponseWrapper<T>(int Status, bool Success, T? Value, string? Message, string? ErrorDetail);
 
     // ─── Utility ────────────────────────────────────────────────────
     private async Task<(string Token, string ShopId)> RegisterAndGetTokenAsync()
@@ -109,16 +110,21 @@ public class MenuItemTests : IAsyncLifetime
             Description: "เผ็ดสะใจหมูกรอบเน้นๆ",
             Price: 85.00m,
             ImageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-            ShopId: shop.Id
+            ShopId: shop.Id,
+            MenuCategoryId: string.Empty
         );
 
         var reqCreate = CreateAuthRequest(HttpMethod.Post, "/api/v1/menuitems", token, createPayload);
         var resCreate = await _client.SendAsync(reqCreate);
         Assert.True(resCreate.IsSuccessStatusCode, $"Create failed: {resCreate.StatusCode} - {await resCreate.Content.ReadAsStringAsync()}");
+        Assert.Equal(HttpStatusCode.Created, resCreate.StatusCode);
 
         var wCreate = await resCreate.Content.ReadFromJsonAsync<ApiResponseWrapper<MenuItemData>>(_jsonOpts);
         Assert.NotNull(wCreate?.Value);
+        Assert.Equal((int)HttpStatusCode.Created, wCreate.Status);
+        Assert.True(wCreate.Success);
         var menuItem = wCreate.Value;
+        Assert.Null(menuItem.MenuCategoryId);
         Assert.Equal("กระเพราหมูกรอบ", menuItem.Name);
 
         // 2. Get menu items for shop (should return the created item)

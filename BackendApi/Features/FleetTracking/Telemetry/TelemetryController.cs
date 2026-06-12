@@ -84,7 +84,13 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             }
 
             // Normal ingestion path
-            await _telemetryService.ProcessLocationUpdateAsync(riderId, request.Latitude, request.Longitude, request.Accuracy);
+            // The controller already consumed the rider's rate-limit window above.
+            await _telemetryService.ProcessLocationUpdateAsync(
+                riderId,
+                request.Latitude,
+                request.Longitude,
+                request.Accuracy,
+                bypassRateLimit: true);
 
             return Ok(ApiResponse<string>.Ok("Coordinate accepted and processed."));
         }

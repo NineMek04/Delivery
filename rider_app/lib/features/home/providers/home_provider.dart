@@ -23,6 +23,7 @@ class HomeNotifier extends Notifier<HomeState> {
         isTransitioning: next.isTransitioning,
         sessionError: next.error,
         incomingOffer: next.incomingOffer,
+        clearOffer: next.incomingOffer == null,
         signalRConnected:
             ref.read(signalRServiceProvider) == SignalRConnectionState.connected,
       );

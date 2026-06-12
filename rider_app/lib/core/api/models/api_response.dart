@@ -2,12 +2,14 @@ import '../api_helpers.dart';
 
 /// Standard API Response wrapper (`ApiResponse` / `ApiResponse<T>`).
 class ApiResponse {
+  final int? status;
   final bool success;
   final String? message;
   final String? errorDetail;
   final String? code;
 
   const ApiResponse({
+    this.status,
     required this.success,
     this.message,
     this.errorDetail,
@@ -16,6 +18,7 @@ class ApiResponse {
 
   factory ApiResponse.fromJson(Map<String, dynamic> json) {
     return ApiResponse(
+      status: readField<num>(json, 'Status')?.toInt(),
       success: readField<bool>(json, 'Success') ?? false,
       message: readField<String>(json, 'Message'),
       errorDetail: readField<String>(json, 'ErrorDetail'),
@@ -25,6 +28,7 @@ class ApiResponse {
 }
 
 class ApiResponseValue<T> {
+  final int? status;
   final bool success;
   final String? message;
   final String? errorDetail;
@@ -32,6 +36,7 @@ class ApiResponseValue<T> {
   final T? value;
 
   const ApiResponseValue({
+    this.status,
     required this.success,
     this.message,
     this.errorDetail,
@@ -45,6 +50,7 @@ class ApiResponseValue<T> {
   ) {
     final rawValue = readField<dynamic>(json, 'Value') ?? readField<dynamic>(json, 'value');
     return ApiResponseValue(
+      status: readField<num>(json, 'Status')?.toInt(),
       success: readField<bool>(json, 'Success') ?? false,
       message: readField<String>(json, 'Message'),
       errorDetail: readField<String>(json, 'ErrorDetail'),

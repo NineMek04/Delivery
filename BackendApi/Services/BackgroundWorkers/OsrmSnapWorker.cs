@@ -169,18 +169,36 @@ namespace BackendApi.Services.BackgroundWorkers
                         await ProcessSnapPointOnceAsync(
                             point,
                             _appLifetime.ApplicationStopping);
-                        _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                        if (_channel != null)
+                        {
+                            lock (_channel)
+                            {
+                                _channel.BasicAck(ea.DeliveryTag, multiple: false);
+                            }
+                        }
                     }
                     else
                     {
                         _logger.LogWarning("Discarding malformed snap GPS message. Routing to DLQ.");
-                        _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                        if (_channel != null)
+                        {
+                            lock (_channel)
+                            {
+                                _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error processing snap GPS message. Routing to DLQ.");
-                    _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                    if (_channel != null)
+                    {
+                        lock (_channel)
+                        {
+                            _channel.BasicNack(ea.DeliveryTag, multiple: false, requeue: false);
+                        }
+                    }
                 }
             };
 

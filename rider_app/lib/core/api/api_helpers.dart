@@ -56,6 +56,7 @@ ApiResponseValue<List<T>> parseApiListResponse<T>(
   }
 
   return ApiResponseValue(
+    status: readField<num>(json, 'Status')?.toInt(),
     success: readField<bool>(json, 'Success') ?? false,
     message: readField<String>(json, 'Message'),
     errorDetail: readField<String>(json, 'ErrorDetail'),
@@ -67,7 +68,8 @@ ApiResponseValue<List<T>> parseApiListResponse<T>(
 void ensureSuccess<T>(ApiResponseValue<T> response) {
   if (!response.success) {
     throw ApiException(
-      response.message ?? 'Request failed',
+      response.message ?? response.errorDetail ?? 'Request failed',
+      statusCode: response.status,
       code: response.code,
     );
   }
@@ -80,7 +82,9 @@ DioException wrapDioError(DioException error) {
   final data = error.response?.data;
   if (data is Map) {
     final map = asMap(data);
-    final message = readField<String>(map, 'Message') ?? error.message;
+    final message = readField<String>(map, 'Message') ??
+        readField<String>(map, 'ErrorDetail') ??
+        error.message;
     return DioException(
       requestOptions: error.requestOptions,
       response: error.response,

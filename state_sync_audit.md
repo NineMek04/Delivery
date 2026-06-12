@@ -36,7 +36,7 @@
 | ✅ **BUG-21** | Outdated Telemetry Route prefix in Integration Tests (ไม่มี `/v1` ทำให้ 9 เทสเคสรันล้มเหลว) | **Resolved (แก้ไขแล้ว)** | MEDIUM |
 | ✅ **BUG-22** | Speed (speedKmh) Property Mapping Gap in Angular (ทำให้ค่าความเร็วบน Dashboard เป็น 0 เสมอ) | **Resolved (แก้ไขแล้ว)** | MEDIUM |
 | ✅ **GAP-03** | Speed Buffer Cache Key Leak in Redis Presence Cleanup (คีย์ตกค้างใน Redis หลัง Rider ออฟไลน์) | **Resolved (แก้ไขแล้ว)** | LOW |
-
+| ✅ **BUG-23** | Thread-Safety Risk in RabbitMQ BasicAck / BasicNack within OsrmSnapWorker | **Resolved (แก้ไขแล้ว)** | HIGH |
 
 ---
 
@@ -474,4 +474,18 @@ foreach (var order in sortedOrders)
 #### สถานะการแก้ไข (Resolution)
 - **แก้ไขเรียบร้อยแล้ว**: เพิ่มลอจิกทำความสะอาดคีย์ List ความเร็วบัฟเฟอร์ใน Redis เมื่อไรเดอร์ออฟไลน์
 - **Backend**: ใน [RiderPresenceService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/Redis/RiderPresenceService.cs) ในส่วนเมธอด `RemoveRiderAsync(riderId)` ได้เพิ่มคำสั่งล้างข้อมูลคีย์ความเร็ว `batch.KeyDeleteAsync(SpeedBufferPrefix + riderId)` ลงในกระบวนการ Batch ลบข้อมูลของ Redis ทำให้เมื่อไรเดอร์หลุดการเชื่อมต่อหรือออฟไลน์ ข้อมูลบัฟเฟอร์ความเร็วเคลื่อนที่สะสมทั้งหมดจะถูกถอนและลบออกทันทีเพื่อป้องกันการรั่วไหลและการสะสมข้อมูลขยะ (Cache memory leak) ใน Redis
+
+---
+
+## ✅ BUG-23 — Resolved: Thread-Safety Risk in RabbitMQ BasicAck / BasicNack within OsrmSnapWorker
+
+#### ปัญหา
+- ในคลาส [OsrmSnapWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/OsrmSnapWorker.cs) มีการเปิดใช้งานโมดูลการประมวลผลข้อความแบบไม่ซิงโครนัสผ่านการตั้งค่า `DispatchConsumersAsync = true` ของ RabbitMQ 
+- เนื่องจากช่องสัญญาณ `IModel` ของ RabbitMQ .NET Client ไม่เป็นแบบ Thread-Safe สำหรับการเข้าใช้งานพร้อมกัน การตอบกลับ ACK หรือ NACK แบบไร้การควบคุมความปลอดภัยจากหลายฟีดเทรดพร้อมๆ กันภายใต้โหลดสูง จะส่งผลให้เกิด Connection drop หรือ Channel closure
+- ส่งผลให้ในสภาวะที่มีอัตราพิกัดส่งเข้าจำนวนมาก (High Load) การสแน็ปเส้นทางของไรเดอร์อาจจะสะดุด หยุดทำงาน หรือทำให้กระบวนการทำงานหลุดการเชื่อมต่อจาก Message Broker
+
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: เพิ่มเทคนิค Thread Locking ในการเรียกใช้งาน BasicAck และ BasicNack ในส่วนประมวลผลการรับสัญญาณ
+- **Backend**: ใน [OsrmSnapWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/OsrmSnapWorker.cs) ปรับเปลี่ยนการเรียกใช้คำสั่ง `_channel.BasicAck` และ `_channel.BasicNack` ให้ทำงานอยู่ภายในบล็อกความปลอดภัย `lock (_channel)` เพื่อป้องกันการเข้าแทรกแทรงพร้อมกันจากคิวการประมวลผลแบบขนาน (Concurrent calls) ช่วยรักษาช่องเชื่อมต่อกับ RabbitMQ ภายใต้โหลดสูงให้อย่างมั่นคงและมีเสถียรภาพสูงสุด
+
 

@@ -93,13 +93,21 @@ export class TrackingSignalRService {
     const url = environment.config.baseConfig.apiUrl.replace('/api/v1', '') + '/api/v1/rider-locations';
     this.http.get<any>(url).subscribe({
       next: (response) => {
-        if (response?.isSuccess && Array.isArray(response.data)) {
-          const currentMap = this._riderLocations.getValue();
-          for (const rider of response.data) {
-            currentMap.set(rider.riderId || rider.RiderId, {
-              riderId: rider.riderId || rider.RiderId,
-              latitude: rider.lat ?? rider.Lat ?? 0,
-              longitude: rider.lng ?? rider.Lng ?? 0,
+        const success = response?.success ?? response?.Success ?? response?.isSuccess;
+        const riders = response?.value ?? response?.Value ?? response?.data;
+        if (success === true && Array.isArray(riders)) {
+          const currentMap = new Map(this._riderLocations.getValue());
+          for (const rider of riders) {
+            const riderId = rider.riderId || rider.RiderId;
+            const rawLat = this.toCoordinate(rider.lat ?? rider.Lat, -90, 90);
+            const rawLng = this.toCoordinate(rider.lng ?? rider.Lng, -180, 180);
+            if (!riderId || rawLat === null || rawLng === null ||
+                (rawLat === 0 && rawLng === 0)) continue;
+
+            currentMap.set(riderId, {
+              riderId,
+              latitude: rawLat,
+              longitude: rawLng,
               snappedLat: rider.snappedLat ?? rider.SnappedLat,
               snappedLng: rider.snappedLng ?? rider.SnappedLng,
               isSnapped: rider.isSnapped ?? rider.IsSnapped ?? false,
@@ -108,7 +116,7 @@ export class TrackingSignalRService {
               timestamp: rider.updatedAt ?? rider.UpdatedAt ?? new Date().toISOString()
             });
           }
-          this._riderLocations.next(new Map(currentMap));
+          this._riderLocations.next(currentMap);
         }
       },
       error: (err) => console.error('Failed to fetch initial rider locations from Redis API', err)
@@ -136,11 +144,12 @@ export class TrackingSignalRService {
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // Retry logic
       .build();
 
+    this.addListeners();
+
     this.hubConnection.start()
       .then(() => {
         console.log('SignalR connected to TrackingHub');
         this.addAlert('System', 'Connected to real-time dispatch network.', 'success');
-        this.addListeners();
       })
       .catch(err => {
         console.error('Error while starting connection: ' + err);
@@ -193,12 +202,25 @@ export class TrackingSignalRService {
 
     // Listen to rider location updates with robust coordinate property mapping
     this.hubConnection.on('RiderLocationUpdated', (data: any) => {
-      const currentMap = this._riderLocations.getValue();
+      const currentMap = new Map(this._riderLocations.getValue());
+      const riderId = data.riderId || data.RiderId;
+      const latitude = this.toCoordinate(
+        data.latitude ?? data.lat ?? data.Lat,
+        -90,
+        90
+      );
+      const longitude = this.toCoordinate(
+        data.longitude ?? data.lng ?? data.Lng,
+        -180,
+        180
+      );
+      if (!riderId || latitude === null || longitude === null ||
+          (latitude === 0 && longitude === 0)) return;
       
       const mappedData: RiderLocationUpdate = {
-        riderId: data.riderId || data.RiderId,
-        latitude: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)),
-        longitude: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        riderId,
+        latitude,
+        longitude,
         snappedLat: data.snappedLat != null ? data.snappedLat : (data.SnappedLat != null ? data.SnappedLat : undefined),
         snappedLng: data.snappedLng != null ? data.snappedLng : (data.SnappedLng != null ? data.SnappedLng : undefined),
         isSnapped: data.isSnapped != null ? data.isSnapped : (data.IsSnapped != null ? data.IsSnapped : false),
@@ -208,7 +230,7 @@ export class TrackingSignalRService {
       };
 
       currentMap.set(mappedData.riderId, mappedData);
-      this._riderLocations.next(new Map(currentMap));
+      this._riderLocations.next(currentMap);
     });
 
     // Listen to rider status updates (e.g. online, offline, idle)
@@ -247,23 +269,35 @@ export class TrackingSignalRService {
 
     // Listen to OSRM road-snapped updates
     this.hubConnection.on('RiderLocationSnapped', (data: any) => {
-      const currentMap = this._riderLocations.getValue();
+      const currentMap = new Map(this._riderLocations.getValue());
       const riderId = data.riderId || data.RiderId;
       const existing = currentMap.get(riderId);
+      const latitude = this.toCoordinate(
+        data.latitude ?? data.lat ?? data.Lat,
+        -90,
+        90
+      );
+      const longitude = this.toCoordinate(
+        data.longitude ?? data.lng ?? data.Lng,
+        -180,
+        180
+      );
+      if (!riderId || latitude === null || longitude === null ||
+          (latitude === 0 && longitude === 0)) return;
       
       const mappedData: RiderLocationUpdate = {
         riderId: riderId,
-        latitude: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)),
-        longitude: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
-        snappedLat: data.latitude != null ? data.latitude : (data.lat != null ? data.lat : (data.Lat != null ? data.Lat : 0)), // Map Snapped update overrides
-        snappedLng: data.longitude != null ? data.longitude : (data.lng != null ? data.lng : (data.Lng != null ? data.Lng : 0)),
+        latitude: existing?.latitude ?? latitude,
+        longitude: existing?.longitude ?? longitude,
+        snappedLat: latitude,
+        snappedLng: longitude,
         isSnapped: true,
         status: data.status || data.Status || existing?.status || 'OFFLINE',
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
       };
 
       currentMap.set(mappedData.riderId, mappedData);
-      this._riderLocations.next(new Map(currentMap));
+      this._riderLocations.next(currentMap);
     });
 
     // OfferReceived — Backend ยิงไปหา Rider โดยตรง (group rider:{id})
@@ -341,5 +375,11 @@ export class TrackingSignalRService {
 
     // Keep only last 10 alerts for local observable fallback
     this._alerts.next([newAlert, ...currentAlerts].slice(0, 10));
+  }
+
+  private toCoordinate(value: unknown, min: number, max: number): number | null {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
+    return parsed;
   }
 }

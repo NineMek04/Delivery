@@ -6,6 +6,8 @@ import '../../../core/api/services/order_api_service.dart';
 import '../../../core/signalr/store_signalr_service.dart';
 import '../../../models/order.dart';
 
+import 'store_providers.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // StoreOrdersState — holds the list of incoming/active orders for the store
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,14 +86,28 @@ class StoreOrdersNotifier extends Notifier<StoreOrdersState> {
     final signalR = ref.read(storeSignalRServiceProvider.notifier);
 
     _orderCreatedSub?.cancel();
-    _orderCreatedSub = signalR.onOrderCreated.listen((event) {
+    _orderCreatedSub = signalR.onOrderCreated.listen((event) async {
       debugPrint('[StoreOrdersNotifier] 🔔 New order via SignalR: ${event.order.id}');
-      // Prepend new order and increment badge
-      final updatedOrders = [event.order, ...state.orders];
-      state = state.copyWith(
-        orders: updatedOrders,
-        newOrderBadgeCount: state.newOrderBadgeCount + 1,
-      );
+      try {
+        final shop = await ref.read(currentShopProvider.future);
+        if (shop == null || event.order.shopId != shop.id) {
+          debugPrint('[StoreOrdersNotifier] Ignoring order for different shop: ${event.order.shopId} (my shop: ${shop?.id})');
+          return;
+        }
+
+        // Avoid adding duplicate orders
+        final exists = state.orders.any((o) => o.id == event.order.id);
+        if (exists) return;
+
+        // Prepend new order and increment badge
+        final updatedOrders = [event.order, ...state.orders];
+        state = state.copyWith(
+          orders: updatedOrders,
+          newOrderBadgeCount: state.newOrderBadgeCount + 1,
+        );
+      } catch (e) {
+        debugPrint('[StoreOrdersNotifier] Error processing SignalR onOrderCreated: $e');
+      }
     });
 
     _orderStatusSub?.cancel();

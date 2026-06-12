@@ -295,7 +295,7 @@ class AuthService extends Notifier<AuthStatus> {
       await ref.read(localDatabaseServiceProvider).clearAllData();
     } catch (_) {}
     try {
-      await ref.read(gpsBufferServiceProvider).clearBuffer();
+      ref.read(gpsBufferServiceProvider).clearBuffer();
     } catch (_) {}
     await _storage.delete(key: AppConstants.accessTokenKey);
     await _storage.delete(key: AppConstants.refreshTokenKey);
@@ -474,7 +474,7 @@ class AuthService extends Notifier<AuthStatus> {
       await ref.read(localDatabaseServiceProvider).clearAllData();
     } catch (_) {}
     try {
-      await ref.read(gpsBufferServiceProvider).clearBuffer();
+      ref.read(gpsBufferServiceProvider).clearBuffer();
     } catch (_) {}
     await _storage.delete(key: AppConstants.accessTokenKey);
     await _storage.delete(key: AppConstants.refreshTokenKey);

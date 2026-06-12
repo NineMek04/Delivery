@@ -112,9 +112,28 @@ class _OrderCard extends ConsumerWidget {
       statusLabel = 'ยกเลิกแล้ว';
       statusIcon = Icons.cancel;
     } else {
-      statusColor = AppTheme.accentColor;
-      statusLabel = status;
-      statusIcon = Icons.check_circle;
+      final s = status.toUpperCase();
+      if (s == 'COMPLETED') {
+        statusColor = AppTheme.accentColor;
+        statusLabel = 'ส่งสำเร็จ';
+        statusIcon = Icons.check_circle;
+      } else if (s == 'MATCHING' || s == 'OFFERING') {
+        statusColor = AppTheme.primaryColor;
+        statusLabel = 'รับออเดอร์แล้ว (กำลังหาคนขับ)';
+        statusIcon = Icons.search;
+      } else if (s == 'ASSIGNED' || s == 'PICKING_UP') {
+        statusColor = Colors.blue;
+        statusLabel = 'คนขับกำลังมารับ';
+        statusIcon = Icons.delivery_dining;
+      } else if (s == 'DELIVERING') {
+        statusColor = Colors.purple;
+        statusLabel = 'กำลังจัดส่ง';
+        statusIcon = Icons.local_shipping;
+      } else {
+        statusColor = AppTheme.accentColor;
+        statusLabel = status;
+        statusIcon = Icons.check_circle;
+      }
     }
 
     final totalItems = order.items.fold<int>(0, (sum, i) => sum + i.quantity);

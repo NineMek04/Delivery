@@ -11,6 +11,9 @@ import '../database/local_database_service.dart';
 import '../location/location_service.dart';
 import '../signalr/signalr_service.dart';
 
+import '../auth/auth_service.dart';
+import '../auth/auth_constants.dart';
+
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
 /// Coordinates rider online mode: SignalR + GPS + hub status.
@@ -22,13 +25,27 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   RiderSessionState build() {
     ref.onDispose(_disposeSubscriptions);
 
-    _loadSessionState();
+    // Listen for auth transitions to trigger restoring online state
+    ref.listen<AuthStatus>(authServiceProvider, (previous, next) {
+      if (next == AuthStatus.authenticated) {
+        _loadSessionState();
+      }
+    });
+
+    // If already authenticated during build (e.g. provider rebuilt)
+    final initialAuth = ref.read(authServiceProvider);
+    if (initialAuth == AuthStatus.authenticated) {
+      _loadSessionState();
+    }
 
     // ฟังเหตุการณ์ Reconnect ของ SignalR เพื่อตั้งค่าออนไลน์คนขับคืนมาอัตโนมัติ
     ref.listen<SignalRConnectionState>(signalRServiceProvider, (previous, next) async {
       if (previous == SignalRConnectionState.reconnecting &&
           next == SignalRConnectionState.connected &&
           state.isOnline) {
+        final role = ref.read(authServiceProvider.notifier).userRole;
+        if (role != AuthConstants.roleRider) return;
+
         _logger.i('🔄 SignalR reconnected — restoring status to IDLE and sending heartbeat');
         try {
           final signalR = ref.read(signalRServiceProvider.notifier);
@@ -51,11 +68,16 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   }
 
   Future<void> _loadSessionState() async {
+    final role = ref.read(authServiceProvider.notifier).userRole;
+    if (role != AuthConstants.roleRider) {
+      _logger.d('⏳ Skipping rider session restore: user is not a rider (role: $role)');
+      return;
+    }
     try {
       final db = ref.read(localDatabaseServiceProvider);
       final isOnline = await db.getIsOnline();
       
-      if (isOnline) {
+      if (isOnline && !state.isOnline && !state.isTransitioning) {
         _logger.i('🔌 Restoring online rider session state from local database');
         state = state.copyWith(isOnline: true);
         Future.microtask(() => goOnline());
@@ -67,6 +89,11 @@ class RiderSessionService extends Notifier<RiderSessionState> {
 
   /// Go online: connect SignalR, set IDLE, start GPS.
   Future<void> goOnline() async {
+    final role = ref.read(authServiceProvider.notifier).userRole;
+    if (role != AuthConstants.roleRider) {
+      _logger.w('❌ goOnline rejected: user role is not Rider (role: $role)');
+      throw Exception('Only riders can go online.');
+    }
     if (state.isOnline && !state.isTransitioning) return;
 
     state = state.copyWith(isTransitioning: true, error: null);
@@ -95,10 +122,10 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       final locState = ref.read(locationServiceProvider);
       if (locState.latitude != null && locState.longitude != null) {
         _logger.d("goOnline Step 4.5: Sending immediate GPS via SignalR");
-        await signalR.sendLocationUpdate(
-          lat: locState.latitude!,
-          lng: locState.longitude!,
-          accuracy: locState.accuracy ?? 10.0,
+        await signalR.updateLocation(
+          locState.latitude!,
+          locState.longitude!,
+          locState.accuracy ?? 10.0,
         );
       }
 

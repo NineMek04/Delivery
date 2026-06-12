@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
 import '../config/environment.dart';
 import 'gps_buffer_service.dart';
+import '../auth/auth_service.dart';
+import '../auth/auth_constants.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -40,6 +42,11 @@ class LocationService extends Notifier<LocationState> {
 
   /// ตรวจสอบ permissions และเริ่ม GPS tracking.
   Future<bool> startTracking() async {
+    final role = ref.read(authServiceProvider.notifier).userRole;
+    if (role != AuthConstants.roleRider) {
+      _logger.w('❌ startTracking rejected: user role is not Rider (role: $role)');
+      return false;
+    }
     ref.read(gpsBufferServiceProvider).startSyncTimer();
     if (kIsWeb) {
       _logger.i('🌐 Web Platform detected. Attempting to start GPS (with Mock fallback)...');

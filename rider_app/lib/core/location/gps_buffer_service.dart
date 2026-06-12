@@ -10,9 +10,12 @@ import 'package:logger/logger.dart';
 import '../api/delivery_api_client.dart';
 import '../database/local_database_service.dart';
 import '../config/app_constants.dart';
+import '../auth/auth_service.dart';
+import '../auth/auth_constants.dart';
 
 final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
   return GpsBufferService(
+    ref: ref,
     dio: ref.watch(deliveryApiClientProvider),
     db: ref.watch(localDatabaseServiceProvider),
   );
@@ -26,6 +29,7 @@ final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
 /// Data Flow:
 /// LocationService → GpsBufferService (in-memory) → POST /api/v1/telemetry/gps/batch
 class GpsBufferService {
+  final Ref _ref;
   final Dio _dio;
   final LocalDatabaseService _db;
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
@@ -44,13 +48,20 @@ class GpsBufferService {
   double? _lastBufferedHeading;
 
   GpsBufferService({
+    required Ref ref,
     required Dio dio,
     required LocalDatabaseService db,
-  })  : _dio = dio,
+  })  : _ref = ref,
+        _dio = dio,
         _db = db;
 
   /// Starts the background periodic sync scheduler.
   void startSyncTimer() {
+    final role = _ref.read(authServiceProvider.notifier).userRole;
+    if (role != AuthConstants.roleRider) {
+      _logger.d('⏳ Skipping GPS sync timer start: user is not a rider (role: $role)');
+      return;
+    }
     _syncTimer?.cancel();
     _logger.i('🛰️ Starting GPS sync timer (every $_syncIntervalSeconds seconds)');
     _syncTimer = Timer.periodic(Duration(seconds: _syncIntervalSeconds), (_) {
@@ -83,6 +94,10 @@ class GpsBufferService {
     double accuracy, {
     double? heading,
   }) async {
+    final role = _ref.read(authServiceProvider.notifier).userRole;
+    if (role != AuthConstants.roleRider) {
+      return;
+    }
     try {
       // Adaptive sampling — skip point if not moved enough
       if (_lastBufferedLat != null && _lastBufferedLng != null) {
@@ -141,6 +156,19 @@ class GpsBufferService {
   /// Syncs buffered GPS points to the backend in batches of 100.
   Future<void> syncBufferedPoints() async {
     if (_isSyncing || _gpsPoints.isEmpty) return;
+
+    final authStatus = _ref.read(authServiceProvider);
+    if (authStatus != AuthStatus.authenticated) {
+      _logger.d('⏳ Skipping GPS sync: not authenticated');
+      return;
+    }
+
+    final role = _ref.read(authServiceProvider.notifier).userRole;
+    if (role != AuthConstants.roleRider) {
+      _logger.d('⏳ Skipping GPS sync: user is not a rider (role: $role)');
+      return;
+    }
+
     _isSyncing = true;
 
     try {

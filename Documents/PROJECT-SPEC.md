@@ -447,7 +447,7 @@ pytest -v
 เครื่องมือที่ช่วยส่งเสริมทักษะความสังเกตแก่ทีมผู้ดูแลระบบ (SysAdmins):
 
 ### 13.1 Service Monitoring URLs
-- **RabbitMQ Management Dashboard:** `http://localhost:15672` (ใช้ user: `guest` / pass: `guest` สำหรับมอนิเตอร์ Queue Backlogs และข้อความที่หล่นใน Dead Letter Queue)
+- **RabbitMQ Management Dashboard:** `http://localhost:15672` (ใช้ค่า `RABBITMQ_USER` / `RABBITMQ_PASSWORD` จากไฟล์ `.env` สำหรับมอนิเตอร์ Queue Backlogs และข้อความที่หล่นใน Dead Letter Queue)
 - **Seq Log Stream Console:** `http://localhost:5341` (กล่องเก็บข้อมูล Log ที่สามารถคิวรีหาค่าแบบเจาะลึกผ่าน CorrelationId ได้ทั่วทั้ง 12 เซอร์วิส)
 - **FastAPI AI Docs:** `http://localhost:8000/docs` (หน้า Swagger UI ฝั่ง Python เพื่อทดลองประเมินเวลา ETA ด้วยปัญญาประดิษฐ์ด้วยมือ)
 

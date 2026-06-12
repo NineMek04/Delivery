@@ -23,7 +23,8 @@ $requiredVariables = @(
     "JWT_SECRET",
     "AI_SERVICE_API_KEY",
     "RABBITMQ_USER",
-    "RABBITMQ_PASSWORD"
+    "RABBITMQ_PASSWORD",
+    "SEED_ADMIN_PASSWORD"
 )
 
 foreach ($name in $requiredVariables) {
@@ -46,6 +47,7 @@ $env:Jwt__Key = $env:JWT_SECRET
 $env:Jwt__Issuer = "DeliveryBackendApi"
 $env:Jwt__Audience = "DeliveryClients"
 $env:Authentication__RequireSecureCookie = "false"
+$env:SeedAdminPassword = $env:SEED_ADMIN_PASSWORD
 
 Set-Location (Join-Path $workspaceRoot "BackendApi")
 dotnet run

@@ -30,6 +30,7 @@ $JwtSecret = $env:JWT_SECRET
 $RabbitmqUser = $env:RABBITMQ_USER
 $RabbitmqPassword = $env:RABBITMQ_PASSWORD
 $AiServiceApiKey = $env:AI_SERVICE_API_KEY
+$SeedAdminPassword = $env:SEED_ADMIN_PASSWORD
 
 if (Test-Path $envFile) {
     Write-Host "Loading environment configurations from .env..." -ForegroundColor Gray
@@ -44,6 +45,7 @@ if (Test-Path $envFile) {
             if ($key -eq "RABBITMQ_USER") { $RabbitmqUser = $value }
             if ($key -eq "RABBITMQ_PASSWORD") { $RabbitmqPassword = $value }
             if ($key -eq "AI_SERVICE_API_KEY") { $AiServiceApiKey = $value }
+            if ($key -eq "SEED_ADMIN_PASSWORD") { $SeedAdminPassword = $value }
             
             [System.Environment]::SetEnvironmentVariable($key, $value, [System.EnvironmentVariableTarget]::Process)
         }
@@ -57,6 +59,7 @@ $requiredValues = @{
     RABBITMQ_USER = $RabbitmqUser
     RABBITMQ_PASSWORD = $RabbitmqPassword
     AI_SERVICE_API_KEY = $AiServiceApiKey
+    SEED_ADMIN_PASSWORD = $SeedAdminPassword
 }
 foreach ($entry in $requiredValues.GetEnumerator()) {
     if ([string]::IsNullOrWhiteSpace($entry.Value)) {
@@ -79,6 +82,7 @@ $env:Jwt__Key = $JwtSecret
 $env:Jwt__Issuer = "DeliveryBackendApi"
 $env:Jwt__Audience = "DeliveryClients"
 $env:Authentication__RequireSecureCookie = "false"
+$env:SeedAdminPassword = $SeedAdminPassword
 $env:DATABASE_URL = "postgresql://postgres:$PostgresPassword@localhost:5432/delivery_db"
 
 # === 2. Stop Conflicting Docker Containers & Start Backing Services ===

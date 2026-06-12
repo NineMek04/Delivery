@@ -169,6 +169,7 @@ public static class ServiceSetup
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
             options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
             options.MaximumReceiveMessageSize = 32 * 1024;
+            options.MaximumParallelInvocationsPerClient = 1;
         });
 
         // --- AI Service HttpClient ---

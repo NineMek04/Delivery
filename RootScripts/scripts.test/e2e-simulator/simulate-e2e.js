@@ -19,12 +19,20 @@ const HUB = process.env.DELIVERY_HUB_URL || 'http://localhost:5000/hubs/tracking
 const HEALTH_URL = process.env.DELIVERY_HEALTH_URL || 'http://localhost:5000/health';
 const OSRM_URL = process.env.DELIVERY_OSRM_URL || 'http://localhost:5001';
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Required environment variable ${name} is not configured.`);
+  }
+  return value;
+}
+
 const ADMIN_CREDS = {
   email: process.env.DELIVERY_ADMIN_EMAIL || 'admin@delivery.com',
-  password: process.env.DELIVERY_ADMIN_PASSWORD || 'Password123!'
+  password: requireEnv('DELIVERY_ADMIN_PASSWORD')
 };
 
-const PASSWORD = process.env.DELIVERY_SIM_PASSWORD || 'Password123!';
+const PASSWORD = requireEnv('DELIVERY_SIM_PASSWORD');
 const RIDER_COUNT = Number(process.env.DELIVERY_SIM_RIDERS) || randomInt(12, 18);
 const RUN_ID = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const UDON_CENTER = { lat: 17.4138, lng: 102.7872 };

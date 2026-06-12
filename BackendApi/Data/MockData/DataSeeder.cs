@@ -3,6 +3,7 @@ using BackendApi.Core.StateMachines;
 using BackendApi.Security;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
+using System.Security.Cryptography;
 
 namespace BackendApi.Data;
 
@@ -11,23 +12,32 @@ public static class DataSeeder
     /// <summary>
     /// ทำการ Seed ข้อมูลเริ่มต้นและข้อมูล Mock (หากระบุ) เพื่อให้ทุก Platform ใช้ทดสอบได้
     /// </summary>
-    public static async Task SeedAsync(ApplicationDbContext context, bool seedMockData = false)
+    public static async Task SeedAsync(
+        ApplicationDbContext context,
+        string seedPassword,
+        bool seedMockData = false)
     {
+        if (string.IsNullOrWhiteSpace(seedPassword) || seedPassword.Length is < 12 or > 128)
+        {
+            throw new InvalidOperationException(
+                "SeedAdminPassword must be configured with 12 to 128 characters.");
+        }
+
         // ใช้ Transaction เพื่อให้แน่ใจว่าข้อมูลบันทึกได้อย่างปลอดภัยและเป็น Atomicity
         using var transaction = await context.Database.BeginTransactionAsync();
 
         try
         {
-            var hashedPw = PasswordHasher.HashPassword("Password123!");
+            var hashedPw = PasswordHasher.HashPassword(seedPassword);
 
             // 1. Seed ข้อมูลระบบที่จำเป็นเสมอ (Admin & Baseline Shops)
-            await SeedSystemAdminAsync(context, hashedPw);
+            await SeedSystemAdminAsync(context, seedPassword, hashedPw);
             await SeedInitialShopsAsync(context);
 
             // 2. Seed ข้อมูลจำลอง (Mock Data) เฉพาะเมื่อเปิดใช้งาน
             if (seedMockData)
             {
-                await SeedMockDataAsync(context, hashedPw);
+                await SeedMockDataAsync(context, seedPassword, hashedPw);
             }
 
             await context.SaveChangesAsync();
@@ -40,7 +50,10 @@ public static class DataSeeder
         }
     }
 
-    private static async Task SeedSystemAdminAsync(ApplicationDbContext context, string hashedPw)
+    private static async Task SeedSystemAdminAsync(
+        ApplicationDbContext context,
+        string seedPassword,
+        string hashedPw)
     {
         var systemUsers = new List<User>
         {
@@ -68,9 +81,18 @@ public static class DataSeeder
 
         foreach (var user in systemUsers)
         {
-            if (!await context.Users.AnyAsync(u => u.Email == user.Email))
+            var existingUser = await context.Users.FirstOrDefaultAsync(u => u.Email == user.Email);
+            if (existingUser is null)
             {
                 await context.Users.AddAsync(user);
+                continue;
+            }
+
+            if (!PasswordMatchesSeed(seedPassword, existingUser.PasswordHash))
+            {
+                existingUser.PasswordHash = hashedPw;
+                existingUser.RefreshToken = null;
+                existingUser.RefreshTokenExpiresAt = null;
             }
         }
         await context.SaveChangesAsync();
@@ -157,7 +179,10 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    private static async Task SeedMockDataAsync(ApplicationDbContext context, string hashedPw)
+    private static async Task SeedMockDataAsync(
+        ApplicationDbContext context,
+        string seedPassword,
+        string hashedPw)
     {
         // 1. Seed Riders (ข้อมูลผู้จัดส่ง)
         // ต้องบันทึก Rider ก่อนเพื่อเชื่อมต่อ RiderId ใน User
@@ -265,9 +290,18 @@ public static class DataSeeder
 
         foreach (var user in mockUsers)
         {
-            if (!await context.Users.AnyAsync(u => u.Email == user.Email))
+            var existingUser = await context.Users.FirstOrDefaultAsync(u => u.Email == user.Email);
+            if (existingUser is null)
             {
                 await context.Users.AddAsync(user);
+                continue;
+            }
+
+            if (!PasswordMatchesSeed(seedPassword, existingUser.PasswordHash))
+            {
+                existingUser.PasswordHash = hashedPw;
+                existingUser.RefreshToken = null;
+                existingUser.RefreshTokenExpiresAt = null;
             }
         }
         await context.SaveChangesAsync();
@@ -433,5 +467,21 @@ public static class DataSeeder
             }
         }
         await context.SaveChangesAsync();
+    }
+
+    private static bool PasswordMatchesSeed(string seedPassword, string passwordHash)
+    {
+        try
+        {
+            return PasswordHasher.VerifyPassword(seedPassword, passwordHash);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 }

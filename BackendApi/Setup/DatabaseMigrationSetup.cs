@@ -46,8 +46,11 @@ public static class DatabaseMigrationSetup
 
             // Seed default data (and mock data if enabled)
             var seedMockData = app.Configuration.GetValue<bool>("SeedMockData", false);
+            var seedAdminPassword = app.Configuration["SeedAdminPassword"]
+                ?? app.Configuration["SEED_ADMIN_PASSWORD"]
+                ?? string.Empty;
             Log.Information("🌱 Seeding database (SeedMockData = {SeedMockData})...", seedMockData);
-            await DataSeeder.SeedAsync(context, seedMockData);
+            await DataSeeder.SeedAsync(context, seedAdminPassword, seedMockData);
             Log.Information("✅ Database seeding process complete.");
         }
         catch (Exception ex)

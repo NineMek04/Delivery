@@ -16,6 +16,7 @@ class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
   StreamSubscription<CustomerOrderStatusChangedEvent>? _statusSubscription;
   StreamSubscription<CustomerRiderLocationUpdatedEvent>? _locationSubscription;
   StreamSubscription<void>? _reconnectedSubscription;
+  String? _watchedOrderId;
 
   @override
   ActiveOrderState build() {
@@ -28,18 +29,22 @@ class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
   }
 
   Future<void> watchOrder(String orderId) async {
-    state = state.copyWith(isLoading: true, error: null);
+    _watchedOrderId = orderId;
+    state = const ActiveOrderState(isLoading: true);
+
+    await _statusSubscription?.cancel();
+    await _locationSubscription?.cancel();
+    await _reconnectedSubscription?.cancel();
 
     try {
       final order = await ref.read(orderApiServiceProvider).getById(orderId);
-      state = state.copyWith(isLoading: false, order: order);
+      if (_watchedOrderId != orderId) return;
+
+      state = ActiveOrderState(order: order);
 
       final signalR = ref.read(customerSignalRServiceProvider.notifier);
       await signalR.connect();
-
-      await _statusSubscription?.cancel();
-      await _locationSubscription?.cancel();
-      await _reconnectedSubscription?.cancel();
+      if (_watchedOrderId != orderId) return;
 
       _statusSubscription = signalR.onOrderStatusChanged.listen((event) {
         if (event.orderId == orderId) {
@@ -59,7 +64,9 @@ class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
         unawaited(_refreshAfterReconnect());
       });
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      if (_watchedOrderId == orderId) {
+        state = ActiveOrderState(error: e.toString());
+      }
     }
   }
 
@@ -70,11 +77,18 @@ class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
   }
 
   Future<void> _refreshOrder() async {
-    if (state.order == null) return;
+    final orderId = state.order?.id;
+    if (orderId == null || _watchedOrderId != orderId) return;
+
     try {
-      final order =
-          await ref.read(orderApiServiceProvider).getById(state.order!.id);
-      state = state.copyWith(order: order);
+      final order = await ref.read(orderApiServiceProvider).getById(orderId);
+      if (_watchedOrderId == orderId) {
+        final riderChanged =
+            state.order?.assignedRiderId != order.assignedRiderId;
+        state = riderChanged
+            ? ActiveOrderState(order: order)
+            : state.copyWith(order: order);
+      }
     } catch (_) {}
   }
 }

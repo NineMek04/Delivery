@@ -3,6 +3,7 @@ using BackendApi.Data;
 using BackendApi.Models;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
+using BackendApi.Services.Telemetry;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
@@ -100,26 +101,33 @@ public class StateMachineService
                 return false;
             }
 
-            // Update active order cache for the rider in Redis
+            // Rebuild the complete recipient cache so multi-drop orders stay in sync.
             try
             {
                 var db = _redis.GetDatabase();
                 if (!string.IsNullOrEmpty(order.AssignedRiderId))
                 {
-                    var activeOrderKey = $"riders:active_order:{order.AssignedRiderId}";
-                    if (newState == OrderState.ASSIGNED || newState == OrderState.PICKING_UP || newState == OrderState.DELIVERING)
-                    {
-                        await db.HashSetAsync(activeOrderKey, new[]
+                    var activeOrders = await _dbContext.Orders
+                        .AsNoTracking()
+                        .Where(candidate =>
+                            candidate.AssignedRiderId == order.AssignedRiderId &&
+                            (candidate.State == OrderState.ASSIGNED ||
+                             candidate.State == OrderState.PICKING_UP ||
+                             candidate.State == OrderState.DELIVERING))
+                        .Select(candidate => new
                         {
-                            new HashEntry("order_id", order.Id),
-                            new HashEntry("customer_id", order.CustomerId ?? string.Empty)
-                        });
-                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromHours(24));
-                    }
-                    else
-                    {
-                        await db.KeyDeleteAsync(activeOrderKey);
-                    }
+                            candidate.Id,
+                            candidate.CustomerId
+                        })
+                        .ToListAsync();
+
+                    await ActiveOrderRecipientCache.ReplaceAsync(
+                        db,
+                        order.AssignedRiderId,
+                        activeOrders.Select(candidate =>
+                            new KeyValuePair<string, string?>(
+                                candidate.Id,
+                                candidate.CustomerId)));
                 }
             }
             catch (Exception ex)

@@ -133,7 +133,27 @@ await _redis.StringSetAsync(key, offerId, TimeSpan.FromSeconds(30), When.NotExis
 
 ---
 
-## 4. Route Cache Keys
+## 4. Active Order Recipient Cache
+
+### `riders:active_order:{riderId}`
+
+| Field | Value |
+|---|---|
+| **Key Pattern** | `riders:active_order:{riderId}` |
+| **Data Type** | Hash |
+| **Schema Marker** | `__schema` = `2` |
+| **Order Fields** | `order:{orderId}` = `customerId` |
+| **TTL** | **30 seconds** |
+| **SET By** | `StateMachineService`, `TelemetryService` DB fallback |
+| **READ By** | `TelemetryService` |
+
+The hash contains every active `ASSIGNED`, `PICKING_UP`, or `DELIVERING`
+order for the rider. PostgreSQL remains the source of truth. A missing key or
+an unknown schema must trigger a PostgreSQL refresh before customer broadcast.
+
+---
+
+## 5. Route Cache Keys
 
 ### `route:{lat1}:{lng1}:{lat2}:{lng2}`
 
@@ -152,7 +172,7 @@ await _redis.StringSetAsync(key, offerId, TimeSpan.FromSeconds(30), When.NotExis
 
 ---
 
-## 5. GPS Sync Buffer
+## 6. GPS Sync Buffer
 
 **Not a Redis key** — `GpsSyncBuffer` เป็น in-memory `ConcurrentDictionary<string, List<GpsPoint>>`
 
@@ -167,7 +187,7 @@ GpsSyncWorker (runs every 30s)
 
 ---
 
-## 6. Session / Auth Keys (ถ้ามี)
+## 7. Session / Auth Keys (ถ้ามี)
 
 | Key | ใช้เมื่อ |
 |---|---|
@@ -175,7 +195,7 @@ GpsSyncWorker (runs every 30s)
 
 ---
 
-## 7. Redis Data Type Summary
+## 8. Redis Data Type Summary
 
 | Key Pattern | Redis Type | TTL |
 |---|---|---|
@@ -185,11 +205,12 @@ GpsSyncWorker (runs every 30s)
 | `riders:speed_buffer:{id}` | List | 5 min |
 | `offer:{orderId}` | String (JSON) | **30s** |
 | `dispatch:lock:{orderId}` | String | ~5s |
+| `riders:active_order:{riderId}` | Hash | 30s |
 | `route:{coords}` | String (JSON) | 24h |
 
 ---
 
-## 8. Critical Rules
+## 9. Critical Rules
 
 ```
 ✅ Redis ใช้สำหรับ:

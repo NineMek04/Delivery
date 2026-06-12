@@ -26,8 +26,28 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
   }
 
   @override
+  void didUpdateWidget(covariant CustomerTrackingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.orderId != widget.orderId) {
+      Future.microtask(
+        () => ref
+            .read(activeOrderProvider.notifier)
+            .watchOrder(widget.orderId),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(activeOrderProvider);
+    final pickupPoint = _toPoint(
+      state.order?.pickupLat,
+      state.order?.pickupLng,
+    );
+    final dropoffPoint = _toPoint(
+      state.order?.dropoffLat,
+      state.order?.dropoffLng,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -56,10 +76,9 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                           child: FlutterMap(
                             mapController: _mapController,
                             options: MapOptions(
-                              initialCenter: LatLng(
-                                state.order!.pickupLat ?? 17.4138,
-                                state.order!.pickupLng ?? 102.7872,
-                              ),
+                              initialCenter: pickupPoint ??
+                                  dropoffPoint ??
+                                  const LatLng(17.4138, 102.7872),
                               initialZoom: 14,
                             ),
                             children: [
@@ -70,19 +89,29 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                               MarkerLayer(
                                 markers: [
                                   // Store Marker
-                                  Marker(
-                                    point: LatLng(state.order!.pickupLat!, state.order!.pickupLng!),
-                                    width: 40,
-                                    height: 40,
-                                    child: const Icon(Icons.store, color: Colors.red, size: 30),
-                                  ),
+                                  if (pickupPoint != null)
+                                    Marker(
+                                      point: pickupPoint,
+                                      width: 40,
+                                      height: 40,
+                                      child: const Icon(
+                                        Icons.store,
+                                        color: Colors.red,
+                                        size: 30,
+                                      ),
+                                    ),
                                   // Customer Marker
-                                  Marker(
-                                    point: LatLng(state.order!.dropoffLat!, state.order!.dropoffLng!),
-                                    width: 40,
-                                    height: 40,
-                                    child: const Icon(Icons.home, color: Colors.blue, size: 30),
-                                  ),
+                                  if (dropoffPoint != null)
+                                    Marker(
+                                      point: dropoffPoint,
+                                      width: 40,
+                                      height: 40,
+                                      child: const Icon(
+                                        Icons.home,
+                                        color: Colors.blue,
+                                        size: 30,
+                                      ),
+                                    ),
                                   // Rider Marker (if available)
                                   if (state.riderLat != null && state.riderLng != null)
                                     Marker(
@@ -158,6 +187,20 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                       ],
                     ),
     );
+  }
+
+  static LatLng? _toPoint(double? latitude, double? longitude) {
+    if (latitude == null ||
+        longitude == null ||
+        !latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180) {
+      return null;
+    }
+    return LatLng(latitude, longitude);
   }
 }
 

@@ -239,48 +239,8 @@ namespace BackendApi.Services.Telemetry
                 });
 
                 // B. ค้นหาออเดอร์ที่ค้างอยู่ของไรเดอร์คนนี้เพื่อส่งพิกัดหาแอปลูกค้า (ผ่าน Redis Cache เลี่ยง DB)
-                string? customerId = null;
-                var activeOrderKey = $"riders:active_order:{riderId}";
-                var cachedOrder = await db.HashGetAllAsync(activeOrderKey);
-
-                if (cachedOrder.Length > 0)
-                {
-                    var cachedVal = cachedOrder.FirstOrDefault(e => e.Name == "customer_id").Value;
-                    if (cachedVal != "NONE")
-                    {
-                        customerId = cachedVal;
-                    }
-                }
-                else
-                {
-                    var activeOrder = await _dbContext.Orders
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(o => o.AssignedRiderId == riderId && 
-                            (o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING));
-
-                    if (activeOrder is not null)
-                    {
-                        customerId = activeOrder.CustomerId;
-                        await db.HashSetAsync(activeOrderKey, new[]
-                        {
-                            new HashEntry("order_id", activeOrder.Id),
-                            new HashEntry("customer_id", customerId ?? string.Empty)
-                        });
-                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromSeconds(30));
-                    }
-                    else
-                    {
-                        // Cache the 'No Order' state to prevent DB query spam!
-                        await db.HashSetAsync(activeOrderKey, new[]
-                        {
-                            new HashEntry("order_id", "NONE"),
-                            new HashEntry("customer_id", "NONE")
-                        });
-                        await db.KeyExpireAsync(activeOrderKey, TimeSpan.FromSeconds(30));
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(customerId))
+                var customerIds = await GetActiveCustomerIdsAsync(db, riderId);
+                foreach (var customerId in customerIds)
                 {
                     await _hubContext.Clients.Group($"customer:{customerId}").SendAsync("RiderLocationUpdated", new
                     {
@@ -348,6 +308,71 @@ namespace BackendApi.Services.Telemetry
                 latestPoint.Accuracy, 
                 latestPoint.Timestamp, 
                 bypassRateLimit: true);
+        }
+
+        private async Task<IReadOnlyCollection<string>> GetActiveCustomerIdsAsync(
+            IDatabase database,
+            string riderId)
+        {
+            try
+            {
+                var cachedEntries = await database.HashGetAllAsync(
+                    ActiveOrderRecipientCache.GetKey(riderId));
+                if (ActiveOrderRecipientCache.TryGetCustomerIds(
+                    cachedEntries,
+                    out var cachedCustomerIds))
+                {
+                    return cachedCustomerIds;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to read active order recipient cache for Rider {RiderId}; falling back to PostgreSQL",
+                    riderId);
+            }
+
+            var activeOrders = await _dbContext.Orders
+                .AsNoTracking()
+                .Where(order =>
+                    order.AssignedRiderId == riderId &&
+                    (order.State == OrderState.ASSIGNED ||
+                     order.State == OrderState.PICKING_UP ||
+                     order.State == OrderState.DELIVERING))
+                .Select(order => new
+                {
+                    order.Id,
+                    order.CustomerId
+                })
+                .ToListAsync();
+
+            var customerIds = activeOrders
+                .Select(order => order.CustomerId)
+                .Where(customerId => !string.IsNullOrWhiteSpace(customerId))
+                .Select(customerId => customerId!)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            try
+            {
+                await ActiveOrderRecipientCache.ReplaceAsync(
+                    database,
+                    riderId,
+                    activeOrders.Select(order =>
+                        new KeyValuePair<string, string?>(
+                            order.Id,
+                            order.CustomerId)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to refresh active order recipient cache for Rider {RiderId}",
+                    riderId);
+            }
+
+            return customerIds;
         }
 
         private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2) =>

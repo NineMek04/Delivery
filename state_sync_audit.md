@@ -28,10 +28,10 @@
 | ✅ **BUG-13** | หากล้าง active-order cache ตอนจบงานไม่สำเร็จ cache เก่าจะส่ง GPS ผิดคนค้าง 24 ชม. | **Resolved (แก้ไขแล้ว)** | HIGH |
 | ✅ **BUG-14** | เมื่อสลับไปติดตาม Order ใหม่ พิกัดไรเดอร์จาก Order ก่อนหน้าไม่ถูกล้าง | **Resolved (แก้ไขแล้ว)** | MEDIUM |
 | ✅ **BUG-15** | หน้าติดตาม force unwrap พิกัด nullable อาจ crash เมื่อไม่มีพิกัด | **Resolved (แก้ไขแล้ว)** | LOW |
-| ❌ **BUG-16** | Telemetry Double-Counting for STALE Riders in `TelemetryBroadcastWorker` | **Pending (ยังไม่แก้ไข)** | MEDIUM |
-| ❌ **BUG-17** | Missing SignalR Notification on Offer Reject/Timeout in `DispatchOfferHandler` | **Pending (ยังไม่แก้ไข)** | HIGH |
-| ❌ **BUG-18** | Missing SignalR Broadcast for Rider STALE/OFFLINE in `HeartbeatMonitor` | **Pending (ยังไม่แก้ไข)** | MEDIUM |
-| ❌ **BUG-19** | Indeterminate Order Cancellation for Multi-Drop Riders on Admin Map | **Pending (ยังไม่แก้ไข)** | LOW |
+| ✅ **BUG-16** | Telemetry Double-Counting for STALE Riders in `TelemetryBroadcastWorker` | **Resolved (แก้ไขแล้ว)** | MEDIUM |
+| ✅ **BUG-17** | Missing SignalR Notification on Offer Reject/Timeout in `DispatchOfferHandler` | **Resolved (แก้ไขแล้ว)** | HIGH |
+| ✅ **BUG-18** | Missing SignalR Broadcast for Rider STALE/OFFLINE in `HeartbeatMonitor` | **Resolved (แก้ไขแล้ว)** | MEDIUM |
+| ✅ **BUG-19** | Indeterminate Order Cancellation for Multi-Drop Riders on Admin Map | **Resolved (แก้ไขแล้ว)** | LOW |
 
 ---
 
@@ -387,37 +387,53 @@ foreach (var order in sortedOrders)
 
 ---
 
-## ❌ BUG-16 — Pending: Telemetry Double-Counting for STALE Riders in `TelemetryBroadcastWorker`
+## ✅ BUG-16 — Resolved: Telemetry Double-Counting for STALE Riders in `TelemetryBroadcastWorker`
 
-### ปัญหา
+#### ปัญหา
 - ในไฟล์ [TelemetryBroadcastWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) บรรทัดที่ 108-111 มีความขัดแย้งของการจัดกลุ่มเอนทิตีสถานะไรเดอร์:
   - `activeRiders` ถูกคำนวณจาก `stateCounts.Where(s => s.State != RiderState.OFFLINE).Sum(s => s.Count)` (ซึ่งทำให้ไรเดอร์ที่เป็น `STALE` ถูกนับรวมเข้าไปด้วยเพราะ `STALE != OFFLINE`)
   - `offline` ถูกคำนวณจาก `stateCounts.Where(s => s.State == RiderState.OFFLINE || s.State == RiderState.STALE).Sum(s => s.Count)` (ซึ่งก็นับรวม `STALE` ด้วยเช่นกัน)
 - ส่งผลให้ในหน้า Admin Dashboard ข้อมูลภาพรวม Telemetry ของทั้งระบบมีความคลาดเคลื่อนเนื่องจากไรเดอร์สถานะ `STALE` ถูกนับซ้ำทั้งในกลุ่ม active และ offline
 
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: ปรับปรุงการคำนวณจำนวนไรเดอร์ที่ทำงานอยู่ (`activeRiders`) เพื่อไม่ให้นับรวมไรเดอร์ที่มีสถานะ `STALE` ซ้ำซ้อน
+- **Backend**: ใน [TelemetryBroadcastWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) ได้ปรับเงื่อนไขการกรองกลุ่มไรเดอร์ที่แอคทีฟให้คัดออกทั้งสถานะ `OFFLINE` และ `STALE` เพื่อป้องกันการนับเบิ้ล
+
 ---
 
-## ❌ BUG-17 — Pending: Missing SignalR Notification on Offer Reject/Timeout in `DispatchOfferHandler`
+## ✅ BUG-17 — Resolved: Missing SignalR Notification on Offer Reject/Timeout in `DispatchOfferHandler`
 
-### ปัญหา
+#### ปัญหา
 - ในคลาส [DispatchOfferHandler.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Features/DispatchManagement/DispatchOfferHandler.cs) เมธอด `RejectOrTimeoutAsync` (บรรทัดที่ 162-258) เมื่อไรเดอร์กดปฏิเสธหรือหมดเวลาส่งข้อเสนอ ออเดอร์จะถูกเปลี่ยนสถานะกลับไปเป็น `OrderState.MATCHING` ในฐานข้อมูล และระบบจะยิง integration event ผ่าน RabbitMQ
 - อย่างไรก็ตาม เมธอดนี้ไม่ได้เรียกใช้งาน `orderNotifier.NotifyOrderStatusChangedAsync` เพื่ออัปเดตสถานะออเดอร์ไปยัง SignalR clients ส่งผลให้หน้าจอผู้ดูแลระบบ (Admin Dashboard) ร้านค้า (Store Partner) และลูกค้า (Customer App) ไม่รับรู้อีเวนต์นี้ในแบบเรียลไทม์ และจะแสดงสถานะค้างเป็น `OFFERING` หรือระบุไรเดอร์คนเดิมไปจนกว่าจะมีการทำ offer งานรอบใหม่สำเร็จ
 
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: เพิ่มการบรอดแคสต์ SignalR บังคับแจ้งเตือนสถานะออเดอร์กลับเป็น `MATCHING` หลังจากยกเลิกหรือหมดเวลาเสนอออเดอร์
+- **Backend**: ใน [DispatchOfferHandler.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Features/DispatchManagement/DispatchOfferHandler.cs) เมธอด `RejectOrTimeoutAsync` ได้ดึง `OrderNotificationService` และวนลูปส่งแจ้งสถานะใหม่ไปยังผู้เกี่ยวข้องทุกฝ่ายด้วยคำสั่ง `NotifyOrderStatusChangedAsync`
+
 ---
 
-## ❌ BUG-18 — Pending: Missing SignalR Broadcast for Rider STALE/OFFLINE in `HeartbeatMonitor`
+## ✅ BUG-18 — Resolved: Missing SignalR Broadcast for Rider STALE/OFFLINE in `HeartbeatMonitor`
 
-### ปัญหา
+#### ปัญหา
 - ในคลาส [HeartbeatMonitor.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/HeartbeatMonitor.cs) บรรทัดที่ 107-132 และ 158-171 เมื่อตรวจพบว่าไรเดอร์ขาดการส่งสัญญาณชีพ (Heartbeat Timeout) ระบบจะเปลี่ยนสถานะไรเดอร์เป็น `RiderState.STALE` และหลังจากนั้นเป็น `RiderState.OFFLINE` โดยเรียกใช้ `stateMachine.TransitionRiderAsync`
 - ทว่า `HeartbeatMonitor` หรือ `StateMachineService` ไม่ได้ทำการบรอดแคสต์สถานะใหม่นี้หา Admin Dashboard ผ่าน SignalR event `'RiderStatusUpdated'`
 - ส่งผลให้ผู้ใช้บน Admin Dashboard ยังคงมองเห็นพิกัดและหมุดของไรเดอร์นั้นออนไลน์ค้างอยู่เป็นสถานะ `IDLE` หรือ `RESERVED` บนแผนที่และรายการ จนกว่าจะมีการโหลดหน้าเว็บใหม่หรือไรเดอร์หลุดในแบบ WebSocket Disconnect โดยตรง
 
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: เพิ่มบรอดแคสต์ SignalR อีเวนต์ `RiderStatusUpdated` เมื่อไรเดอร์หมดเวลารายงานตัวและเปลี่ยนสถานะเป็น `STALE`/`OFFLINE`
+- **Backend**: ใน [HeartbeatMonitor.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/HeartbeatMonitor.cs) ได้ทำการฉีดบริการ `IHubContext<TrackingHub>` และบรอดแคสต์ข้อมูลสถานะใหม่ไปยังกลุ่มแอดมิน (`admins`) ในช่วงที่ตรวจพบและอัปเดตสถานะของไรเดอร์
+
 ---
 
-## ❌ BUG-19 — Pending: Indeterminate Order Cancellation for Multi-Drop Riders on Admin Map
+## ✅ BUG-19 — Resolved: Indeterminate Order Cancellation for Multi-Drop Riders on Admin Map
 
-### ปัญหา
+#### ปัญหา
 - บนหน้าจอ Admin Dashboard ในไฟล์ [map.component.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/map/map.component.ts) บรรทัดที่ 723 เมื่อผู้ดูแลระบบคลิกยกเลิกออร์เดอร์ของไรเดอร์บนหมุดแผนที่ เมธอด `cancelRiderOrder(riderId)` จะเรียกใช้ลอจิก:
   `const activeOrder = this.activeOrders.find(o => o.assignedRiderId === riderId);`
   ซึ่งจะสุ่มหยิบออเดอร์ตัวแรกที่เจอเท่านั้นมายกเลิก
 - สำหรับระบบ Multi-drop / Batch delivery ที่ไรเดอร์สามารถถือออเดอร์พ่วงได้พร้อมกันสูงสุด 3 ออเดอร์ การยกเลิกแบบนี้จะทำให้ออเดอร์ที่เหลือในกลุ่มเดียวกันยังคงค้างส่งอยู่กับไรเดอร์ และผู้ดูแลระบบไม่มีตัวเลือกในการยกเลิกทั้งกลุ่มออเดอร์พ่วงหรือเจาะจงเลือกยกเลิกออเดอร์ที่ต้องการ
+
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: พัฒนาอินเทอร์เฟซผู้ใช้และกระบวนการทำงานใหม่สำหรับการยกเลิกแบบเจาะจงออเดอร์ หรือยกเลิกออเดอร์พ่วงทั้งหมด (Batch Cancellation)
+- **Angular Dashboard**: ใน [map.component.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/map/map.component.ts) ปรับปรุงเมธอด `cancelRiderOrder` โดยดึงออเดอร์ที่ทำงานอยู่ทั้งหมดของไรเดอร์ หากมีออเดอร์เดียวจะเข้าสู่การยืนยันยกเลิกปกติ หากมีหลายออเดอร์จะแสดงกล่องแจ้งเตือน SweetAlert2 เป็นตัวเลือกประเภท Dropdown ให้แอดมินเลือกดำเนินการ และจะส่งคำขอยกเลิกแบบขนานด้วย `forkJoin` นอกจากนี้ยังแก้ไขฟังก์ชันติดตามบนแผนที่ให้ยกเลิกการติดตามพิกัดเฉพาะเมื่อออเดอร์ทั้งหมดถูกปิดเรียบร้อยแล้วเท่านั้น

@@ -203,6 +203,7 @@ export class TrackingSignalRService {
         snappedLng: data.snappedLng != null ? data.snappedLng : (data.SnappedLng != null ? data.SnappedLng : undefined),
         isSnapped: data.isSnapped != null ? data.isSnapped : (data.IsSnapped != null ? data.IsSnapped : false),
         status: data.status || data.Status || 'OFFLINE',
+        speedKmh: data.speedKmh ?? data.SpeedKmh ?? 0, // Added to resolve BUG-22
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
       };
 

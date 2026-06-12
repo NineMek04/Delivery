@@ -6,6 +6,9 @@ using BackendApi.Infrastructure.EventBus.Events;
 using BackendApi.Services.Dispatch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.SignalR;
+using BackendApi.Infrastructure.Redis;
+using BackendApi.Models;
 
 namespace BackendApi.Infrastructure.EventBus.Handlers
 {
@@ -22,15 +25,21 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly StateMachineService _stateMachine;
+        private readonly RiderPresenceService _presenceService;
+        private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
         private readonly ILogger<RiderStateChangedIntegrationEventHandler> _logger;
 
         public RiderStateChangedIntegrationEventHandler(
             ApplicationDbContext dbContext,
             StateMachineService stateMachine,
+            RiderPresenceService presenceService,
+            IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
             ILogger<RiderStateChangedIntegrationEventHandler> logger)
         {
             _dbContext = dbContext;
             _stateMachine = stateMachine;
+            _presenceService = presenceService;
+            _hubContext = hubContext;
             _logger = logger;
         }
 
@@ -61,7 +70,11 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                             var newState = await HasActiveJobAsync(@event.RiderId)
                                 ? RiderState.BUSY
                                 : RiderState.IDLE;
-                            await _stateMachine.TransitionRiderAsync(rider, newState);
+                            var oldState = rider.State;
+                            if (await _stateMachine.TransitionRiderAsync(rider, newState))
+                            {
+                                await BroadcastRiderStateChangeAsync(rider, oldState, "connect");
+                            }
                         }
                         else
                         {
@@ -78,7 +91,11 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                             var newState = await HasActiveJobAsync(@event.RiderId)
                                 ? RiderState.BUSY
                                 : RiderState.IDLE;
-                            await _stateMachine.TransitionRiderAsync(rider, newState);
+                            var oldState = rider.State;
+                            if (await _stateMachine.TransitionRiderAsync(rider, newState))
+                            {
+                                await BroadcastRiderStateChangeAsync(rider, oldState, "recover");
+                            }
                         }
                         else
                         {
@@ -92,7 +109,11 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                         // SignalR connection dropped — move to STALE unless already OFFLINE
                         if (rider.State != RiderState.OFFLINE)
                         {
-                            await _stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
+                            var oldState = rider.State;
+                            if (await _stateMachine.TransitionRiderAsync(rider, RiderState.STALE))
+                            {
+                                await BroadcastRiderStateChangeAsync(rider, oldState, "disconnect");
+                            }
                         }
                         else
                         {
@@ -135,6 +156,41 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
             }
         }
 
+        private async Task BroadcastRiderStateChangeAsync(Rider rider, RiderState oldState, string reason)
+        {
+            try
+            {
+                // 1. Broadcast new status to admin dashboard
+                await _hubContext.Clients.Group("admins").SendAsync("RiderStatusUpdated", new
+                {
+                    RiderId = rider.Id,
+                    NewStatus = rider.State.ToString(),
+                    PreviousStatus = oldState.ToString(),
+                    Reason = reason,
+                    Timestamp = DateTime.UtcNow
+                });
+
+                // 2. Query and broadcast last known coordinates if present
+                var loc = await _presenceService.GetLastKnownLocationAsync(rider.Id);
+                if (loc != null)
+                {
+                    await _hubContext.Clients.Group("admins").SendAsync("RiderLocationUpdated", new
+                    {
+                        RiderId = rider.Id,
+                        Lat = loc.Value.Lat,
+                        Lng = loc.Value.Lng,
+                        Status = rider.State.ToString(),
+                        Timestamp = loc.Value.UpdatedAt,
+                        isSnapped = false
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to broadcast RiderStatusUpdated/LocationUpdated SignalR event for Rider {RiderId}", rider.Id);
+            }
+        }
+
         private async Task<bool> HasActiveJobAsync(string riderId) =>
             await _dbContext.Orders.AnyAsync(o =>
                 o.AssignedRiderId == riderId &&
@@ -143,3 +199,4 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                  o.State == OrderState.DELIVERING));
     }
 }
+

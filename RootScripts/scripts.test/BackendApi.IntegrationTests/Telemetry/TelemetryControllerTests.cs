@@ -76,7 +76,7 @@ namespace BackendApi.IntegrationTests
             };
 
             // Act - No Bearer token set
-            var response = await _client.PostAsJsonAsync("/api/telemetry/gps", payload);
+            var response = await _client.PostAsJsonAsync("/api/v1/telemetry/gps", payload);
 
             // Assert
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -93,7 +93,7 @@ namespace BackendApi.IntegrationTests
                 Accuracy = 5.0
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps")
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/telemetry/gps")
             {
                 Content = JsonContent.Create(payload)
             };
@@ -129,7 +129,7 @@ namespace BackendApi.IntegrationTests
             // Helper to make an authenticated request
             Func<Task<HttpResponseMessage>> sendRequest = async () =>
             {
-                var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps")
+                var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/telemetry/gps")
                 {
                     Content = JsonContent.Create(payload)
                 };
@@ -158,7 +158,7 @@ namespace BackendApi.IntegrationTests
         public async Task GetMobileConfig_Anonymous_Returns200OK_WithMobileConfigResponse()
         {
             // Act
-            var response = await _client.GetAsync("/api/telemetry/config/mobile");
+            var response = await _client.GetAsync("/api/v1/telemetry/config/mobile");
 
             // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -181,7 +181,7 @@ namespace BackendApi.IntegrationTests
             };
 
             // Act
-            var response = await _client.PostAsJsonAsync("/api/telemetry/gps/batch", payload);
+            var response = await _client.PostAsJsonAsync("/api/v1/telemetry/gps/batch", payload);
 
             // Assert
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -197,7 +197,7 @@ namespace BackendApi.IntegrationTests
                 new GpsBatchPointRequest { Latitude = 13.7564, Longitude = 100.5019, Accuracy = 5.0, Timestamp = DateTime.UtcNow }
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps/batch")
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/telemetry/gps/batch")
             {
                 Content = JsonContent.Create(payload)
             };
@@ -230,7 +230,7 @@ namespace BackendApi.IntegrationTests
             // Helper to make an authenticated batch request
             Func<Task<HttpResponseMessage>> sendRequest = async () =>
             {
-                var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps/batch")
+                var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/telemetry/gps/batch")
                 {
                     Content = JsonContent.Create(payload)
                 };
@@ -291,7 +291,7 @@ namespace BackendApi.IntegrationTests
                 Accuracy = 5.0
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps")
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/telemetry/gps")
             {
                 Content = JsonContent.Create(payload)
             };
@@ -320,7 +320,7 @@ namespace BackendApi.IntegrationTests
                 });
             }
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/telemetry/gps/batch")
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/telemetry/gps/batch")
             {
                 Content = JsonContent.Create(payload)
             };

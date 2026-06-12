@@ -210,7 +210,8 @@ public class RiderPresenceService
                 batch.KeyDeleteAsync(GpsPrefix + riderId),
                 batch.KeyDeleteAsync(HeartbeatPrefix + riderId),
                 batch.KeyDeleteAsync("riders:status:" + riderId),
-                batch.KeyDeleteAsync("riders:active_order:" + riderId)
+                batch.KeyDeleteAsync("riders:active_order:" + riderId),
+                batch.KeyDeleteAsync(SpeedBufferPrefix + riderId) // Added to prevent leak
             };
 
             batch.Execute();

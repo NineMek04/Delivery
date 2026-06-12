@@ -10,15 +10,23 @@
 const axios = require('axios');
 const signalR = require('@microsoft/signalr');
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Required environment variable ${name} is not configured.`);
+  }
+  return value;
+}
+
 const API = process.env.DELIVERY_API_URL || 'http://localhost:5000/api/v1';
 const HUB = process.env.DELIVERY_HUB_URL || 'http://localhost:5000/hubs/tracking';
 const ADMIN_CREDS = {
   email: process.env.DELIVERY_ADMIN_EMAIL || 'admin@delivery.com',
-  password: process.env.DELIVERY_ADMIN_PASSWORD || 'Password123!'
+  password: requireEnv('DELIVERY_ADMIN_PASSWORD')
 };
 const RIDER_CREDS = {
   email: 'flutter-rider-test@delivery.test',
-  password: 'Password123!',
+  password: requireEnv('DELIVERY_SIM_PASSWORD'),
   fullName: 'Flutter Compat Tester',
   role: 'Rider'
 };

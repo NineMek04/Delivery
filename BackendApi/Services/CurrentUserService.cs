@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
@@ -31,18 +30,7 @@ namespace BackendApi.Services
             get
             {
                 var context = _httpContextAccessor.HttpContext;
-                if (context == null) return null;
-
-                // Safe IP Parsing for Proxies
-                string? ip = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-                
-                if (!string.IsNullOrEmpty(ip))
-                {
-                    // Split and take the first one (original client)
-                    return ip.Split(',')[0].Trim();
-                }
-
-                return context.Connection.RemoteIpAddress?.ToString();
+                return context?.Connection.RemoteIpAddress?.ToString();
             }
         }
     }

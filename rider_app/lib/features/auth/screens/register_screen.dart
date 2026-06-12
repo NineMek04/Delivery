@@ -27,8 +27,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     {'value': 'Rider', 'label': 'Rider (ผู้จัดส่ง)'},
     {'value': 'Customer', 'label': 'Customer (ผู้สั่งซื้อ)'},
     {'value': 'StorePartner', 'label': 'Store Partner (ร้านค้าพันธมิตร)'},
-    {'value': 'Dispatcher', 'label': 'Dispatcher (ผู้จัดงาน)'},
-    {'value': 'Admin', 'label': 'Admin (ผู้ดูแลระบบ)'},
   ];
 
   @override
@@ -178,8 +176,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       if (v == null || v.isEmpty) {
                         return 'กรุณากรอกรหัสผ่าน';
                       }
-                      if (v.length < 6) {
-                        return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+                      if (v.length < 12) {
+                        return 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร';
+                      }
+                      if (v.length > 128) {
+                        return 'รหัสผ่านต้องยาวไม่เกิน 128 ตัวอักษร';
                       }
                       return null;
                     },

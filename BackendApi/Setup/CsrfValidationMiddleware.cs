@@ -121,8 +121,10 @@ public class CsrfValidationMiddleware
                 return;
             }
 
-            // Verify if originToValidate is in allowed origins
-            if (!_allowedCorsOrigins.Any(o => originToValidate.StartsWith(o, StringComparison.OrdinalIgnoreCase)))
+            if (!TryGetOrigin(originToValidate, out var requestOrigin) ||
+                !_allowedCorsOrigins.Any(allowedOrigin =>
+                    TryGetOrigin(allowedOrigin, out var parsedAllowedOrigin) &&
+                    string.Equals(requestOrigin, parsedAllowedOrigin, StringComparison.OrdinalIgnoreCase)))
             {
                 _logger.LogWarning("CSRF: Origin/Referer validation failed. Value: {Origin}, Path: {Path}",
                     originToValidate, context.Request.Path);
@@ -151,5 +153,18 @@ public class CsrfValidationMiddleware
         }
 
         await _next(context);
+    }
+
+    private static bool TryGetOrigin(string value, out string origin)
+    {
+        origin = string.Empty;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return false;
+        }
+
+        origin = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+        return true;
     }
 }

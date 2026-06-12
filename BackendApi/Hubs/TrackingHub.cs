@@ -117,9 +117,12 @@ public partial class TrackingHub : Hub
             }
             else
             {
-                // Fallback to generic stores group if shopId not in token (legacy compatibility)
-                await Groups.AddToGroupAsync(Context.ConnectionId, "stores");
-                _logger.LogWarning("StorePartner {UserId} connected without ShopId claim — added to generic 'stores' group", userId);
+                _logger.LogWarning(
+                    "StorePartner connection rejected because ShopId claim is missing. UserId={UserId}, ConnectionId={ConnectionId}",
+                    userId,
+                    Context.ConnectionId);
+                Context.Abort();
+                return;
             }
         }
 

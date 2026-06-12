@@ -19,8 +19,8 @@ export class RegisterComponent {
   registerForm = this.formBuilder.group({
     fullName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]],
-    role: ['Admin', Validators.required]
+    password: ['', [Validators.required, Validators.minLength(12), Validators.maxLength(128)]],
+    role: ['Customer', Validators.required]
   });
 
   loading = false;

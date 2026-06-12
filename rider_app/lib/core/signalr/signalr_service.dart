@@ -235,11 +235,22 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     }
   }
 
-  /// Hub: UpdateLocation(lat, lng, heading/speed).
-  Future<void> updateLocation(double lat, double lng, double speed) async {
+  /// Hub: UpdateLocation(lat, lng, accuracy).
+  Future<void> updateLocation(double lat, double lng, double accuracy) async {
+    await sendLocationUpdate(lat: lat, lng: lng, accuracy: accuracy);
+  }
+
+  Future<void> sendLocationUpdate({
+    required double lat,
+    required double lng,
+    required double accuracy,
+  }) async {
     if (state != SignalRConnectionState.connected) return;
     try {
-      await _hubConnection!.invoke('UpdateLocation', args: [lat, lng, speed]);
+      await _hubConnection!.invoke(
+        'UpdateLocation',
+        args: [lat, lng, accuracy],
+      );
     } catch (e) {
       _logger.e('Failed to update location', error: e);
     }

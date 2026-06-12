@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace BackendApi.Controllers.Business
 {
@@ -117,6 +118,21 @@ namespace BackendApi.Controllers.Business
                 return BadRequest(ApiResponse.Fail("กรุณาระบุบทบาทใหม่", code: "INVALID_REQUEST"));
             }
 
+            var allowedRoles = new[]
+            {
+                AuthConstants.AdminRole,
+                AuthConstants.DispatcherRole,
+                AuthConstants.RiderRole,
+                AuthConstants.CustomerRole,
+                AuthConstants.StorePartnerRole
+            };
+            var normalizedRole = allowedRoles.FirstOrDefault(role =>
+                role.Equals(request.NewRole.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (normalizedRole is null)
+            {
+                return BadRequest(ApiResponse.Fail("บทบาทไม่ถูกต้อง", code: "INVALID_ROLE"));
+            }
+
             var user = await DB.GetObjectByKeyAsync<User>(userId, cancellationToken);
             if (user is null)
             {
@@ -124,7 +140,9 @@ namespace BackendApi.Controllers.Business
             }
 
             var beforeRole = user.Role;
-            user.Role = request.NewRole;
+            user.Role = normalizedRole;
+            user.RefreshToken = null;
+            user.RefreshTokenExpiresAt = null;
             DB.UpdateObject(user);
             await DB.CommitChangesAsync(cancellationToken);
 
@@ -133,7 +151,7 @@ namespace BackendApi.Controllers.Business
                 targetType: "User",
                 targetId: userId,
                 beforeState: beforeRole,
-                afterState: request.NewRole);
+                afterState: normalizedRole);
 
             return Ok(ApiResponse.Ok("เปลี่ยนบทบาทผู้ใช้สำเร็จ"));
         }
@@ -273,6 +291,8 @@ namespace BackendApi.Controllers.Business
 
     public class ResetPasswordRequest
     {
+        [Required]
+        [StringLength(128, MinimumLength = 12)]
         public string NewPassword { get; set; } = string.Empty;
     }
 }

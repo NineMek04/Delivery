@@ -290,5 +290,43 @@ namespace BackendApi.UnitTests.Hubs
             // If it queried the database, it would fail since no user is created in DB.
             await hub.JoinOrderChat(orderId);
         }
+
+        [Fact]
+        public async Task CheckRateLimit_WhenExceeding5CallsIn5Seconds_ShouldThrowHubException()
+        {
+            // Arrange
+            var orderId = "order_active_limit";
+            var context = MakeContext(AuthConstants.AdminRole, "admin_user");
+            var (hub, dbContext) = BuildSut(context);
+
+            var order = new Order
+            {
+                Id = orderId,
+                State = OrderState.CREATED,
+                CreatedAt = DateTime.UtcNow,
+                RowVersion = new byte[8]
+            };
+            await dbContext.Orders.AddAsync(order);
+            await dbContext.SaveChangesAsync();
+
+            var clientsMock = new Mock<IHubCallerClients>();
+            var callerMock = new Mock<ISingleClientProxy>();
+            clientsMock.Setup(c => c.Caller).Returns(callerMock.Object);
+            hub.Clients = clientsMock.Object;
+
+            var groupsMock = new Mock<IGroupManager>();
+            hub.Groups = groupsMock.Object;
+
+            // Act & Assert
+            // Call JoinOrderChat 5 times successfully
+            for (int i = 0; i < 5; i++)
+            {
+                await hub.JoinOrderChat(orderId);
+            }
+
+            // The 6th call should throw HubException due to Rate Limiting
+            var ex = await Assert.ThrowsAsync<HubException>(() => hub.JoinOrderChat(orderId));
+            Assert.Contains("Rate limit exceeded.", ex.Message);
+        }
     }
 }

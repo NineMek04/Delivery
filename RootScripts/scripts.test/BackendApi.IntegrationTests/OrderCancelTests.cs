@@ -42,13 +42,8 @@ public class OrderCancelTests : IAsyncLifetime
 
     private async Task<string> RegisterAndGetTokenAsync()
     {
-        var email = $"cancel_test_{Guid.NewGuid():N}@test.com";
-        var payload = new RegisterPayload(email, "TestPass123!", "Cancel Test User", "Admin");
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/register", payload);
-        response.EnsureSuccessStatusCode();
-
-        var body = await response.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>(_jsonOpts);
-        return body!.Value!.AccessToken;
+        var (token, _) = await _factory.CreatePrivilegedUserAndGetTokenAsync(_client, "Admin");
+        return token;
     }
 
     private HttpRequestMessage CreateAuthRequest(HttpMethod method, string uri, string token, object? body = null)

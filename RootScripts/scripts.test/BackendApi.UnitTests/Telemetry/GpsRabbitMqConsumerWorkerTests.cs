@@ -76,6 +76,8 @@ namespace BackendApi.UnitTests.Telemetry
             // Setup IConfiguration values
             _configMock.Setup(c => c["MessageBroker:Host"]).Returns("localhost");
             _configMock.Setup(c => c["MessageBroker:Port"]).Returns("5672");
+            _configMock.Setup(c => c["MessageBroker:Username"]).Returns("test-user");
+            _configMock.Setup(c => c["MessageBroker:Password"]).Returns("test-password");
 
             // Setup DI Scoping
             _serviceProviderMock

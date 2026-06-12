@@ -68,8 +68,8 @@ graph TD
 
 | ตัวแปร | ตัวอย่างค่าที่กำหนด | ความหมาย / จุดประสงค์การใช้งาน |
 | :--- | :--- | :--- |
-| `POSTGRES_PASSWORD` | `Admin@Ts2x04_` | รหัสผ่านผู้ใช้ `postgres` ของฐานข้อมูล PostgreSQL/PostGIS (มีความสำคัญมากในการเชื่อมต่อของ .NET API และ Python AI) |
-| `JWT_SECRET` | `DeliverySmartRoutingSystem_SuperSecretKey_2024` | คีย์สำหรับลงชื่อรหัส (Signature) ของ JWT Token (ต้องมีความยาวอย่างน้อย 32 ตัวอักษร เพื่อความปลอดภัยระดับมาตรฐาน HS256) |
+| `POSTGRES_PASSWORD` | `<random-password>` | รหัสผ่านผู้ใช้ `postgres` ของฐานข้อมูล PostgreSQL/PostGIS ห้าม commit ค่าจริง |
+| `JWT_SECRET` | `<random-secret-32+-chars>` | คีย์ลงชื่อ JWT ต้องสุ่มและมีความยาวอย่างน้อย 32 ตัวอักษร ห้ามใช้ค่าตัวอย่างใน production |
 | `REDIS_PASSWORD` | `your_secure_redis_password` | รหัสผ่านสำหรับเชื่อมต่อและรักษาความปลอดภัยของ Redis (ถ้าปล่อยว่างไว้ ระบบ Docker จะเชื่อมต่อแบบ No Auth ภายใน Docker Network) |
 | `SEQ_API_KEY` | `your_seq_api_key_here` | คีย์ API สำหรับการพิสูจน์สิทธิ์ของระบบเก็บล็อกอย่างเป็นศูนย์กลาง (Seq) ในการส่ง Structured Logs จาก Serilog |
 

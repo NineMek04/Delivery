@@ -201,7 +201,7 @@ export class OrderDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.order.id) return;
     Swal.fire({
       title: 'ยกเลิกออเดอร์?',
-      html: `<p style="color:#94a3b8">ออเดอร์ <strong style="color:#f8fafc">${this.getOrderLabel()}</strong> จะถูกยกเลิก</p>`,
+      text: `ออเดอร์ ${this.getOrderLabel()} จะถูกยกเลิก`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',

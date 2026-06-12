@@ -10,8 +10,7 @@ COPY *.csproj ./
 RUN dotnet restore
 
 COPY . ./
-ENV Jwt__Key=ThisIsADummyKeyForTestingPurposesMustBeAtLeast32Bytes!
-RUN dotnet publish -c Release -o /app/publish
+RUN Jwt__Key=default_dummy_key_for_building_swagger_32_chars dotnet publish -c Release -o /app/publish
 
 # Stage 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

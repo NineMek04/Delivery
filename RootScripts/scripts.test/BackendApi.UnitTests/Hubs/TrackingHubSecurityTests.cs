@@ -225,6 +225,28 @@ namespace BackendApi.UnitTests.Hubs
                 Times.Never);
         }
 
+        [Fact]
+        public async Task OnConnectedAsync_WithStorePartnerButNoShopClaim_ShouldAbort()
+        {
+            var ctx = MakeContext(
+                AuthConstants.StorePartnerRole,
+                Guid.NewGuid().ToString());
+            var groups = new Mock<IGroupManager>();
+            var hub = MakeHub(
+                ctx,
+                groups,
+                new Mock<IRiderPresenceManager>(),
+                new Mock<ILogger<TrackingHub>>());
+
+            await hub.OnConnectedAsync();
+
+            Assert.True(ctx.AbortCalled);
+            groups.Verify(group => group.AddToGroupAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+        }
+
         // ── Logging ───────────────────────────────────────────────────────
 
         [Fact]

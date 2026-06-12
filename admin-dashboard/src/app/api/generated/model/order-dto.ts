@@ -9,6 +9,8 @@
  */
 
 
+import { OrderItemDto } from './order-item-dto';
+
 /**
  * DTO สำหรับส่งข้อมูล Order ไปยัง Frontend
  */
@@ -24,6 +26,9 @@ export interface OrderDto {
     deliveryFee?: number;
     expectedDeliveryTime?: string;
     assignedRiderId?: string | null;
+    customerId?: string | null;
+    shopId?: string | null;
+    items?: Array<OrderItemDto> | null;
     /**
      * เวลาที่สร้างออเดอร์
      */
@@ -36,6 +41,9 @@ export interface OrderDto {
      * เวลาที่ส่งเสร็จสิ้น
      */
     completedAt?: string | null;
+    encodedPolyline?: string | null;
+    routeDistanceMeters?: number;
+    routeDurationSeconds?: number;
     batchGroupId?: string | null;
     batchSequence?: number;
     batchSize?: number;

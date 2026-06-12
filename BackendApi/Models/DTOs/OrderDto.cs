@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace BackendApi.Models.DTOs
 {
@@ -10,7 +11,7 @@ namespace BackendApi.Models.DTOs
     {
         public string Id { get; set; } = string.Empty;
         public string TrackingCode { get; set; } = string.Empty;
-        public string Status { get; set; } = "PENDING";
+        public string Status { get; set; } = "CREATED";
         public double? PickupLat { get; set; }
         public double? PickupLng { get; set; }
         public double? DropoffLat { get; set; }
@@ -59,12 +60,18 @@ namespace BackendApi.Models.DTOs
     /// </summary>
     public class CreateOrderDto
     {
+        [Range(-90.0, 90.0)]
         public double PickupLat { get; set; }
+        [Range(-180.0, 180.0)]
         public double PickupLng { get; set; }
+        [Range(-90.0, 90.0)]
         public double DropoffLat { get; set; }
+        [Range(-180.0, 180.0)]
         public double DropoffLng { get; set; }
         public DateTime ExpectedDeliveryTime { get; set; }
+        [MaxLength(64)]
         public string CustomerId { get; set; } = string.Empty;
+        [MaxLength(64)]
         public string ShopId { get; set; } = string.Empty;
         public List<CreateOrderItemDto> Items { get; set; } = new List<CreateOrderItemDto>();
     }
@@ -97,9 +104,14 @@ namespace BackendApi.Models.DTOs
     /// </summary>
     public class CreateOrderItemDto
     {
+        [Required]
+        [MaxLength(64)]
         public string MenuItemId { get; set; } = string.Empty;
+        [Range(1, 100)]
         public int Quantity { get; set; }
+        [MaxLength(500)]
         public string? Notes { get; set; }
+        [MaxLength(1000)]
         public string? OptionsDescription { get; set; }
     }
 

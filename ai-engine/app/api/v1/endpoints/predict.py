@@ -14,11 +14,11 @@ class PredictEtaRequest(BaseModel):
     pickup_lng: float = Field(ge=-180.0, le=180.0)
     dropoff_lat: float = Field(ge=-90.0, le=90.0)
     dropoff_lng: float = Field(ge=-180.0, le=180.0)
-    route_distance_meters: float = Field(ge=0.0)
-    route_duration_seconds: float = Field(ge=0.0)
-    current_time: Optional[str] = None
-    weather_condition: Optional[str] = "clear"
-    traffic_level: Optional[str] = "normal"
+    route_distance_meters: float = Field(ge=0.0, le=2_000_000.0)
+    route_duration_seconds: float = Field(ge=0.0, le=172_800.0)
+    current_time: Optional[str] = Field(default=None, max_length=64)
+    weather_condition: Optional[str] = Field(default="clear", max_length=32)
+    traffic_level: Optional[str] = Field(default="normal", max_length=32)
     rider_speed_kmh: Optional[float] = Field(default=None, ge=0.0, le=150.0)
     osrm_pickup_duration_seconds: Optional[float] = Field(default=None, ge=0.0)
 
@@ -32,7 +32,7 @@ class PredictEtaResponse(BaseModel):
 
 
 @router.post("/predict-eta", response_model=PredictEtaResponse)
-async def predict_eta(req: PredictEtaRequest):
+def predict_eta(req: PredictEtaRequest):
     """
     Predicts the Estimated Time of Arrival (ETA) based on route details, 
     time of day, weather, traffic conditions, rider velocity, and OSRM pickup duration.

@@ -5,6 +5,7 @@ using BackendApi.Core.Models;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Security;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -124,10 +125,25 @@ namespace BackendApi.Controllers.MasterData
         /// สร้างเมนูสินค้าใหม่
         /// </summary>
         [HttpPost]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
         public async Task<ActionResult<MenuItemDto>> Create(
             [FromBody] CreateMenuItemDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (!CanManageShop(dto.ShopId))
+                return Forbid();
+
+            if (!string.IsNullOrWhiteSpace(dto.MenuCategoryId))
+            {
+                var categoryBelongsToShop = await DB.GetQuery<MenuCategory>(asNoTracking: true)
+                    .AnyAsync(
+                        category => category.Id == dto.MenuCategoryId &&
+                                    category.ShopId == dto.ShopId,
+                        cancellationToken);
+                if (!categoryBelongsToShop)
+                    return BadRequest(ApiResponse.Fail("หมวดหมู่เมนูไม่ได้อยู่ในร้านค้าที่ระบุ", code: "INVALID_CATEGORY"));
+            }
+
             var entity = dto.Adapt<MenuItem>();
 
             DB.InsertObject(entity);
@@ -141,6 +157,7 @@ namespace BackendApi.Controllers.MasterData
         /// อัปเดตข้อมูลเมนูสินค้า
         /// </summary>
         [HttpPut("{id}")]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
         public async Task<ActionResult<MenuItemDto>> Update(
             string id,
             [FromBody] UpdateMenuItemDto dto,
@@ -154,6 +171,9 @@ namespace BackendApi.Controllers.MasterData
             if (entity is null)
                 return NotFound(ApiResponse.Fail("ไม่พบข้อมูลเมนูสินค้า", code: "NOT_FOUND"));
 
+            if (!CanManageShop(entity.ShopId))
+                return Forbid();
+
             dto.Adapt(entity);
 
             await DB.CommitChangesAsync(cancellationToken);
@@ -165,8 +185,16 @@ namespace BackendApi.Controllers.MasterData
         /// ลบเมนูสินค้า (Soft Delete)
         /// </summary>
         [HttpDelete("{id}")]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
         public override async Task<ActionResult> Delete(string id, CancellationToken cancellationToken = default)
         {
+            var entity = await DB.GetObjectByKeyAsync<MenuItem>(id, cancellationToken);
+            if (entity is null)
+                return NotFound(ApiResponse.Fail("ไม่พบข้อมูลเมนูสินค้า", code: "NOT_FOUND"));
+
+            if (!CanManageShop(entity.ShopId))
+                return Forbid();
+
             var deleted = await DB.DeleteObjectAsync<MenuItem>(id, softDelete: true, cancellationToken: cancellationToken);
             if (deleted is null)
                 return NotFound(ApiResponse.Fail("ไม่พบข้อมูลเมนูสินค้า", code: "NOT_FOUND"));
@@ -175,5 +203,12 @@ namespace BackendApi.Controllers.MasterData
 
             return NoContent();
         }
+
+        private bool CanManageShop(string shopId) =>
+            User.IsInRole(AuthConstants.AdminRole) ||
+            string.Equals(
+                User.FindFirst("shop_id")?.Value,
+                shopId,
+                StringComparison.Ordinal);
     }
 }

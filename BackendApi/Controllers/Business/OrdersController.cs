@@ -26,12 +26,17 @@ public class OrdersController : DeliveryControllerBase
     /// สร้างออเดอร์ใหม่ และสั่งให้ AI เริ่มหา Rider อัตโนมัติ (Dispatch)
     /// </summary>
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = $"{AuthConstants.CustomerRole},{AuthConstants.AdminRole},{AuthConstants.DispatcherRole}")]
     public async Task<ActionResult<ApiResponse<OrderDto>>> CreateOrder(
         [FromBody] CreateOrderDto dto,
         CancellationToken cancellationToken)
     {
-        var (statusCode, response) = await _orderService.CreateOrderAsync(dto, cancellationToken);
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var (statusCode, response) = await _orderService.CreateOrderAsync(
+            dto,
+            CurrentUserId,
+            role,
+            cancellationToken);
         return StatusCode(statusCode, response);
     }
 
@@ -54,7 +59,7 @@ public class OrdersController : DeliveryControllerBase
     /// ดูรายการออเดอร์ของลูกค้าที่ล็อกอินอยู่
     /// </summary>
     [HttpGet("customer")]
-    [Authorize]
+    [Authorize(Roles = AuthConstants.CustomerRole)]
     public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetCustomerOrders(CancellationToken cancellationToken)
     {
         var (statusCode, response) = await _orderService.GetCustomerOrdersAsync(CurrentUserId, cancellationToken);
@@ -70,7 +75,12 @@ public class OrdersController : DeliveryControllerBase
         string id,
         CancellationToken cancellationToken)
     {
-        var (statusCode, response) = await _orderService.GetOrderByIdAsync(id, cancellationToken);
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var (statusCode, response) = await _orderService.GetOrderByIdAsync(
+            id,
+            CurrentUserId,
+            role,
+            cancellationToken);
         return StatusCode(statusCode, response);
     }
 
@@ -104,7 +114,7 @@ public class OrdersController : DeliveryControllerBase
     /// อัปเดตสถานะของออเดอร์ (Rider, Admin, หรือ StorePartner)
     /// </summary>
     [HttpPatch("{id}/status")]
-    [Authorize(Roles = $"{AuthConstants.RiderRole},{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
+    [Authorize(Roles = $"{AuthConstants.RiderRole},{AuthConstants.AdminRole},{AuthConstants.DispatcherRole}")]
     public async Task<ActionResult<ApiResponse<OrderDto>>> UpdateOrderStatus(
         string id,
         [FromBody] UpdateOrderStatusDto dto,

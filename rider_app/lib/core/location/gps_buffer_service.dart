@@ -292,7 +292,7 @@ final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
   }
 
   /// Clears all buffered GPS points.
-  void clearBuffer() {
+  Future<void> clearBuffer() async {
     _gpsPoints.clear();
     _lastBufferedLat = null;
     _lastBufferedLng = null;

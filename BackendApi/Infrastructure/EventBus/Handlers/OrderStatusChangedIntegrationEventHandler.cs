@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using BackendApi.Core.Constants;
 using BackendApi.Core.DataHandlers;
+using BackendApi.Core.Helpers;
 using BackendApi.Core.StateMachines;
 using BackendApi.Hubs;
 using BackendApi.Models;
@@ -53,19 +55,36 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                 @event.NewState
             );
 
+            var payload = new
+            {
+                orderId = @event.OrderId,
+                orderRefNumber = TrackingCodeFormatter.Format(
+                    TrackingPrefixes.Order,
+                    @event.RefNumber),
+                previousStatus = @event.OldState.ToString(),
+                newStatus = @event.NewState.ToString(),
+                riderId = @event.AssignedRiderId,
+                timestamp = @event.CreationDate
+            };
+
             // 1. บรอดแคสต์ SignalR ไปยังกลุ่ม Admin
             await _hubContext.Clients.Group("admins").SendAsync(
                 "OrderStatusChanged",
-                @event.OrderId,
-                @event.NewState.ToString());
+                payload);
 
             // 2. บรอดแคสต์ SignalR ไปยังกลุ่ม Rider ที่รับผิดชอบ
             if (!string.IsNullOrWhiteSpace(@event.AssignedRiderId))
             {
                 await _hubContext.Clients.Group($"rider:{@event.AssignedRiderId}").SendAsync(
                     "OrderStatusChanged",
-                    @event.OrderId,
-                    @event.NewState.ToString());
+                    payload);
+            }
+
+            if (!string.IsNullOrWhiteSpace(@event.ShopId))
+            {
+                await _hubContext.Clients.Group($"store:{@event.ShopId}").SendAsync(
+                    "OrderStatusChanged",
+                    payload);
             }
 
             // 3. บรอดแคสต์ SignalR ไปยังกลุ่ม Customer ของออเดอร์
@@ -73,8 +92,7 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
             {
                 await _hubContext.Clients.Group($"customer:{@event.CustomerId}").SendAsync(
                     "OrderStatusChanged",
-                    @event.OrderId,
-                    @event.NewState.ToString());
+                    payload);
 
                 // 4. พุชแจ้งเตือน FCM แจ้งความคืบหน้าถึง Customer ใน Background
                 var correlationId = @event.CorrelationId ?? Guid.NewGuid().ToString();

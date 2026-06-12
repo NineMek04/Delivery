@@ -11,6 +11,7 @@ using BackendApi.Services.Tracking;
 using BackendApi.Services.BackgroundWorkers;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
+using BackendApi.Infrastructure.Redis;
 using MapsterMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,8 @@ public class OrderService : IOrderService
     private readonly IDispatchTaskQueue _dispatchQueue;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<OrderService> _logger;
+    private readonly RedisLockService? _lockService;
+    private readonly IConfiguration? _configuration;
 
     public OrderService(
         DBHandlerCore db,
@@ -46,7 +49,9 @@ public class OrderService : IOrderService
         IEventBus eventBus,
         IDispatchTaskQueue dispatchQueue,
         IHttpContextAccessor httpContextAccessor,
-        ILogger<OrderService> logger)
+        ILogger<OrderService> logger,
+        RedisLockService? lockService = null,
+        IConfiguration? configuration = null)
     {
         _db = db;
         _mapper = mapper;
@@ -60,12 +65,45 @@ public class OrderService : IOrderService
         _dispatchQueue = dispatchQueue;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
+        _lockService = lockService;
+        _configuration = configuration;
     }
 
     public async Task<(int StatusCode, ApiResponse<OrderDto> Response)> CreateOrderAsync(
         CreateOrderDto dto,
+        string? currentUserId,
+        string? role,
         CancellationToken cancellationToken)
     {
+        if (role == AuthConstants.CustomerRole)
+        {
+            if (string.IsNullOrWhiteSpace(currentUserId))
+                return (StatusCodes.Status401Unauthorized, ApiResponse<OrderDto>.Fail("User ID not found in token."));
+
+            dto.CustomerId = currentUserId;
+            if (string.IsNullOrWhiteSpace(dto.ShopId))
+                return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ShopId is required."));
+        }
+        else if (role != AuthConstants.AdminRole && role != AuthConstants.DispatcherRole)
+        {
+            return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("This role cannot create orders."));
+        }
+
+        if (dto.Items is { Count: > 100 })
+            return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("An order cannot contain more than 100 item rows."));
+
+        var requestedDeliveryTime = dto.ExpectedDeliveryTime.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(dto.ExpectedDeliveryTime, DateTimeKind.Utc)
+            : dto.ExpectedDeliveryTime.ToUniversalTime();
+        if (requestedDeliveryTime < DateTime.UtcNow.AddMinutes(-5) ||
+            requestedDeliveryTime > DateTime.UtcNow.AddDays(7))
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ExpectedDeliveryTime is outside the allowed range."));
+        }
+
+        var pickupLat = dto.PickupLat;
+        var pickupLng = dto.PickupLng;
+
         // ตรวจสอบสถานะการเปิดร้านของร้านค้าก่อนการสั่งซื้อ
         if (!string.IsNullOrWhiteSpace(dto.ShopId))
         {
@@ -79,11 +117,19 @@ public class OrderService : IOrderService
             {
                 return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ร้านค้านี้ปิดทำการชั่วคราว ไม่สามารถสั่งซื้ออาหารได้"));
             }
+
+            if (shop.Location is null)
+            {
+                return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ร้านค้ายังไม่มีพิกัดรับสินค้า"));
+            }
+
+            pickupLat = shop.Location.Y;
+            pickupLng = shop.Location.X;
         }
 
         // ใช้ GeometryFactory force 2D เพื่อป้องกัน "Geometry has Z dimension but column does not"
         var factory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
-        var pickup = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.PickupLng, dto.PickupLat));
+        var pickup = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(pickupLng, pickupLat));
         var dropoff = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(dto.DropoffLng, dto.DropoffLat));
 
         // ค้นหาเส้นทางจริงบนโครงข่ายถนนด้วย Dijkstra (OSRM)
@@ -95,7 +141,7 @@ public class OrderService : IOrderService
 
         try
         {
-            var route = await _routingService.GetRouteDetailsAsync(dto.PickupLat, dto.PickupLng, dto.DropoffLat, dto.DropoffLng);
+            var route = await _routingService.GetRouteDetailsAsync(pickupLat, pickupLng, dto.DropoffLat, dto.DropoffLng);
             encodedPolyline = route.Polyline;
             routeDistanceMeters = route.DistanceMeters;
             routeDurationSeconds = route.DurationSeconds;
@@ -105,27 +151,26 @@ public class OrderService : IOrderService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to calculate actual Dijkstra/OSRM road route for new order. Pickup: ({PickupLat}, {PickupLng}), Dropoff: ({DropoffLat}, {DropoffLng})", dto.PickupLat, dto.PickupLng, dto.DropoffLat, dto.DropoffLng);
+            _logger.LogError(ex, "Failed to calculate actual Dijkstra/OSRM road route for new order. Pickup: ({PickupLat}, {PickupLng}), Dropoff: ({DropoffLat}, {DropoffLng})", pickupLat, pickupLng, dto.DropoffLat, dto.DropoffLng);
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ไม่สามารถคำนวณเส้นทางจัดส่งบนถนนจริงได้ เนื่องจากระบบ Dijkstra/OSRM และโครงข่ายอินเทอร์เน็ตล้มเหลว"));
         }
 
         // ขอ ETA Prediction จาก AI Engine
-        var expectedDeliveryTime = dto.ExpectedDeliveryTime.Kind == DateTimeKind.Unspecified
-            ? DateTime.SpecifyKind(dto.ExpectedDeliveryTime, DateTimeKind.Utc)
-            : dto.ExpectedDeliveryTime.ToUniversalTime();
+        var expectedDeliveryTime = requestedDeliveryTime;
         try
         {
+            var etaCurrentTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
             var etaRequest = new PredictEtaRequestDto
             {
-                PickupLat = dto.PickupLat,
-                PickupLng = dto.PickupLng,
+                PickupLat = pickupLat,
+                PickupLng = pickupLng,
                 DropoffLat = dto.DropoffLat,
                 DropoffLng = dto.DropoffLng,
                 RouteDistanceMeters = routeDistanceMeters,
                 RouteDurationSeconds = routeDurationSeconds,
-                CurrentTime = DateTime.UtcNow.ToString("O"),
-                WeatherCondition = "clear", // Could be dynamic in future
-                TrafficLevel = "normal"     // Could be dynamic in future
+                CurrentTime = etaCurrentTime.ToString("O"),
+                WeatherCondition = ResolveWeatherCondition(),
+                TrafficLevel = ResolveTrafficLevel(etaCurrentTime)
             };
             var etaPrediction = await _aiService.PredictEtaAsync(etaRequest, cancellationToken);
             if (etaPrediction != null && !string.IsNullOrEmpty(etaPrediction.EtaDatetime))
@@ -162,9 +207,14 @@ public class OrderService : IOrderService
         // Snapshot MenuItems details (names & prices) into OrderItems to prevent price tampering
         if (dto.Items != null && dto.Items.Any())
         {
+            if (string.IsNullOrWhiteSpace(dto.ShopId))
+            {
+                return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ShopId is required when order items are provided."));
+            }
+
             var menuItemIds = dto.Items.Select(i => i.MenuItemId).ToList();
             var menuItems = await _db.GetQuery<MenuItem>()
-                .Where(m => menuItemIds.Contains(m.Id))
+                .Where(m => menuItemIds.Contains(m.Id) && m.ShopId == dto.ShopId)
                 .ToDictionaryAsync(m => m.Id, cancellationToken);
 
             foreach (var itemDto in dto.Items)
@@ -274,6 +324,8 @@ public class OrderService : IOrderService
 
     public async Task<(int StatusCode, ApiResponse<OrderDto> Response)> GetOrderByIdAsync(
         string id,
+        string? currentUserId,
+        string? role,
         CancellationToken cancellationToken)
     {
         Order? order = null;
@@ -298,6 +350,31 @@ public class OrderService : IOrderService
 
         if (order is null)
             return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("Order not found."));
+
+        if (string.IsNullOrWhiteSpace(currentUserId) || string.IsNullOrWhiteSpace(role))
+            return (StatusCodes.Status401Unauthorized, ApiResponse<OrderDto>.Fail("User identity is missing."));
+
+        if (role != AuthConstants.AdminRole && role != AuthConstants.DispatcherRole)
+        {
+            var isAuthorized = role switch
+            {
+                AuthConstants.CustomerRole => order.CustomerId == currentUserId,
+                AuthConstants.StorePartnerRole =>
+                    order.ShopId == await _db.GetQuery<BackendApi.Models.User>(asNoTracking: true)
+                        .Where(user => user.Id == currentUserId)
+                        .Select(user => user.ShopId)
+                        .FirstOrDefaultAsync(cancellationToken),
+                AuthConstants.RiderRole =>
+                    order.AssignedRiderId == await _db.GetQuery<BackendApi.Models.User>(asNoTracking: true)
+                        .Where(user => user.Id == currentUserId)
+                        .Select(user => user.RiderId)
+                        .FirstOrDefaultAsync(cancellationToken),
+                _ => false
+            };
+
+            if (!isAuthorized)
+                return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("You do not have access to this order."));
+        }
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(_mapper.Map<OrderDto>(order)));
     }
@@ -372,22 +449,15 @@ public class OrderService : IOrderService
 
         if (role != AuthConstants.AdminRole && role != AuthConstants.DispatcherRole)
         {
+            if (role != AuthConstants.RiderRole)
+                return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("This role cannot update order status."));
+
             var user = await _db.GetObjectByKeyAsync<BackendApi.Models.User>(currentUserId ?? string.Empty, cancellationToken);
             if (user == null)
                 return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("ไม่พบข้อมูลผู้ใช้"));
 
-            if (role == AuthConstants.StorePartnerRole)
-            {
-                // StorePartner สามารถ update status ได้เฉพาะ order ของร้านตัวเอง
-                if (user.ShopId == null || order.ShopId != user.ShopId)
-                    return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้เป็นเจ้าของร้านที่รับออเดอร์นี้"));
-            }
-            else
-            {
-                // Rider: ต้องเป็น rider ที่ถูก assign
-                if (order.AssignedRiderId != user.RiderId)
-                    return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้รับมอบหมายให้ทำออเดอร์นี้"));
-            }
+            if (order.AssignedRiderId != user.RiderId)
+                return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่ได้รับมอบหมายให้ทำออเดอร์นี้"));
         }
 
         if (!Enum.TryParse<Core.StateMachines.OrderState>(dto.Status, true, out var newState))
@@ -415,10 +485,16 @@ public class OrderService : IOrderService
             }
         }
 
+        var previousState = order.State;
         var success = await _stateMachine.TransitionOrderAsync(order, newState);
         if (!success)
         {
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail($"ไม่สามารถเปลี่ยนสถานะจาก {order.State} เป็น {newState} ได้"));
+        }
+
+        if (newState == Core.StateMachines.OrderState.CANCELLED)
+        {
+            await CleanupOfferReservationAfterCancellationAsync(order, cancellationToken);
         }
 
         if (newState == Core.StateMachines.OrderState.COMPLETED || newState == Core.StateMachines.OrderState.CANCELLED)
@@ -428,7 +504,8 @@ public class OrderService : IOrderService
                 var hasActiveOrders = await _db.GetQuery<Order>()
                     .AnyAsync(o => o.AssignedRiderId == order.AssignedRiderId 
                                 && o.Id != order.Id 
-                                && (o.State == Core.StateMachines.OrderState.ASSIGNED 
+                                && (o.State == Core.StateMachines.OrderState.OFFERING
+                                 || o.State == Core.StateMachines.OrderState.ASSIGNED
                                  || o.State == Core.StateMachines.OrderState.PICKING_UP 
                                  || o.State == Core.StateMachines.OrderState.DELIVERING), 
                                cancellationToken);
@@ -446,7 +523,7 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, cancellationToken);
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "สถานะออเดอร์อัปเดตเรียบร้อยแล้ว"));
     }
@@ -472,6 +549,7 @@ public class OrderService : IOrderService
                 $"ไม่สามารถยอมรับออเดอร์ในสถานะ {order.State} ได้ (ต้องอยู่ในสถานะ CREATED)"));
         }
 
+        var previousState = order.State;
         var success = await _stateMachine.TransitionOrderAsync(order, Core.StateMachines.OrderState.MATCHING);
         if (!success)
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ไม่สามารถเปลี่ยนสถานะออเดอร์ได้"));
@@ -488,7 +566,7 @@ public class OrderService : IOrderService
             _logger.LogError(ex, "Failed to enqueue dispatch task after store accepted order {OrderId}", order.Id);
         }
 
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, cancellationToken);
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
 
         if (!string.IsNullOrEmpty(order.CustomerId))
         {
@@ -507,23 +585,28 @@ public class OrderService : IOrderService
         if (order is null)
             return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("Order not found."));
 
+        var previousState = order.State;
+        var riderId = order.AssignedRiderId;
         var success = await _stateMachine.TransitionOrderAsync(order, Core.StateMachines.OrderState.CANCELLED);
         if (!success)
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail($"ไม่สามารถยกเลิกออเดอร์ในสถานะ {order.State} ได้"));
 
-        if (order.AssignedRiderId != null)
+        await CleanupOfferReservationAfterCancellationAsync(order, cancellationToken);
+
+        if (riderId != null)
         {
             var hasActiveOrders = await _db.GetQuery<Order>()
-                .AnyAsync(o => o.AssignedRiderId == order.AssignedRiderId 
+                .AnyAsync(o => o.AssignedRiderId == riderId
                             && o.Id != order.Id 
-                            && (o.State == Core.StateMachines.OrderState.ASSIGNED 
+                            && (o.State == Core.StateMachines.OrderState.OFFERING
+                             || o.State == Core.StateMachines.OrderState.ASSIGNED
                              || o.State == Core.StateMachines.OrderState.PICKING_UP 
                              || o.State == Core.StateMachines.OrderState.DELIVERING), 
                            cancellationToken);
 
             if (!hasActiveOrders)
             {
-                var rider = await _db.GetObjectByKeyAsync<Rider>(order.AssignedRiderId, cancellationToken);
+                var rider = await _db.GetObjectByKeyAsync<Rider>(riderId, cancellationToken);
                 if (rider != null)
                 {
                     await _stateMachine.TransitionRiderAsync(rider, Core.StateMachines.RiderState.IDLE);
@@ -533,7 +616,7 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, cancellationToken);
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
 
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ยกเลิกออเดอร์สำเร็จ"));
     }
@@ -628,14 +711,58 @@ public class OrderService : IOrderService
         return (StatusCodes.Status200OK, ApiResponse.Ok("สร้างกลุ่มออเดอร์พ่วงเรียบร้อย ระบบกำลังค้นหาไรเดอร์เพื่อจัดส่ง..."));
     }
 
-    public async Task<(int StatusCode, ApiResponse Response)> DeleteAllOrdersAsync(CancellationToken cancellationToken)
+    private async Task CleanupOfferReservationAfterCancellationAsync(
+        Order order,
+        CancellationToken cancellationToken)
     {
-        // DISABLED FOR SECURITY: DeleteAllOrdersAsync is highly dangerous in production.
-        // Uncomment the code below only if you are in a dev/test environment and know what you are doing.
-        /*
-        await _db.GetQuery<Order>().ExecuteDeleteAsync(cancellationToken);
-        return (StatusCodes.Status200OK, ApiResponse.Ok("ลบข้อมูลออเดอร์ทั้งหมดสำเร็จ"));
-        */
-        return await Task.FromResult((StatusCodes.Status403Forbidden, ApiResponse.Fail("การเข้าถึงฟังก์ชันนี้ถูกปฏิเสธเนื่องจากความปลอดภัย (Disabled in production)")));
+        var riderId = order.AssignedRiderId;
+        var offerId = order.CurrentOfferId;
+        var hasSiblingOfferOrders =
+            !string.IsNullOrWhiteSpace(riderId) &&
+            !string.IsNullOrWhiteSpace(offerId) &&
+            await _db.GetQuery<Order>()
+                .AnyAsync(o => o.Id != order.Id
+                            && o.AssignedRiderId == riderId
+                            && o.CurrentOfferId == offerId
+                            && o.State == Core.StateMachines.OrderState.OFFERING,
+                    cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(riderId) &&
+            !string.IsNullOrWhiteSpace(offerId) &&
+            !hasSiblingOfferOrders &&
+            _lockService is not null)
+        {
+            await _lockService.ReleaseLockAsync(riderId, offerId);
+        }
+
+        order.CurrentOfferId = null;
+        order.OfferExpiresAt = null;
+        await _db.CommitChangesAsync(cancellationToken);
+    }
+
+    private string ResolveWeatherCondition()
+    {
+        return _configuration?["EtaPrediction:WeatherCondition"]?
+            .Trim()
+            .ToLowerInvariant() ?? "clear";
+    }
+
+    private string ResolveTrafficLevel(DateTimeOffset localTime)
+    {
+        var configured = _configuration?["EtaPrediction:TrafficLevel"]?
+            .Trim()
+            .ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        return localTime.Hour switch
+        {
+            >= 7 and <= 9 => "heavy",
+            >= 17 and <= 19 => "heavy",
+            >= 22 or <= 5 => "light",
+            _ => "normal"
+        };
     }
 }

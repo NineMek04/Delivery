@@ -1,4 +1,5 @@
 using BackendApi.Hubs;
+using BackendApi.Core.StateMachines;
 using BackendApi.Models;
 using Microsoft.AspNetCore.SignalR;
 
@@ -24,20 +25,38 @@ public class OrderNotificationService
     /// <summary>
     /// แจ้ง admins + rider + customer เมื่อสถานะ Order เปลี่ยน
     /// </summary>
-    public async Task NotifyOrderStatusChangedAsync(Order order, CancellationToken cancellationToken = default)
+    public Task NotifyOrderStatusChangedAsync(
+        Order order,
+        CancellationToken cancellationToken = default)
     {
+        return NotifyOrderStatusChangedAsync(order, previousState: null, cancellationToken);
+    }
+
+    public async Task NotifyOrderStatusChangedAsync(
+        Order order,
+        OrderState? previousState,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            orderId = order.Id,
+            orderRefNumber = order.TrackingCode,
+            previousStatus = previousState?.ToString(),
+            newStatus = order.State.ToString(),
+            riderId = order.AssignedRiderId,
+            timestamp = DateTime.UtcNow
+        };
+
         await _hubContext.Clients.Group("admins").SendAsync(
             "OrderStatusChanged",
-            order.Id,
-            order.State.ToString(),
+            payload,
             cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(order.AssignedRiderId))
         {
             await _hubContext.Clients.Group($"rider:{order.AssignedRiderId}").SendAsync(
                 "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
+                payload,
                 cancellationToken);
         }
 
@@ -45,8 +64,7 @@ public class OrderNotificationService
         {
             await _hubContext.Clients.Group($"store:{order.ShopId}").SendAsync(
                 "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
+                payload,
                 cancellationToken);
         }
 
@@ -54,8 +72,7 @@ public class OrderNotificationService
         {
             await _hubContext.Clients.Group($"customer:{order.CustomerId}").SendAsync(
                 "OrderStatusChanged",
-                order.Id,
-                order.State.ToString(),
+                payload,
                 cancellationToken);
         }
     }

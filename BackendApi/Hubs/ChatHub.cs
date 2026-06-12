@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using BackendApi.Core.Models;
 using BackendApi.Core.StateMachines;
@@ -52,6 +54,7 @@ namespace BackendApi.Hubs
         /// </summary>
         public async Task JoinOrderChat(string orderId)
         {
+            CheckRateLimit();
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
 
@@ -112,6 +115,7 @@ namespace BackendApi.Hubs
         /// </summary>
         public async Task SendMessage(string orderId, string messageText)
         {
+            CheckRateLimit();
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
 
@@ -230,6 +234,31 @@ namespace BackendApi.Hubs
             }
 
             return false;
+        }
+
+        private void CheckRateLimit()
+        {
+            var now = DateTime.UtcNow;
+            const string timestampsKey = "InvocationTimestamps";
+            const int MaxRequests = 5;
+            const int WindowSeconds = 5;
+
+            if (!Context.Items.TryGetValue(timestampsKey, out var obj) || obj is not List<DateTime> timestamps)
+            {
+                timestamps = new List<DateTime>();
+                Context.Items[timestampsKey] = timestamps;
+            }
+
+            // Remove expired timestamps
+            var cutoff = now.AddSeconds(-WindowSeconds);
+            timestamps.RemoveAll(t => t < cutoff);
+
+            if (timestamps.Count >= MaxRequests)
+            {
+                throw new HubException("Rate limit exceeded. Please wait a moment before sending more messages.");
+            }
+
+            timestamps.Add(now);
         }
     }
 }

@@ -51,7 +51,8 @@
         </div>
         <div *ngIf="submitted && f['password'].errors" class="error-msg">
           <span *ngIf="f['password'].errors['required']">Password is required</span>
-          <span *ngIf="f['password'].errors['minlength']">Must be at least 6 characters</span>
+          <span *ngIf="f['password'].errors['minlength']">Must be at least 12 characters</span>
+          <span *ngIf="f['password'].errors['maxlength']">Must be no more than 128 characters</span>
         </div>
       </div>
 
@@ -62,8 +63,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
           </span>
           <select id="role" formControlName="role">
-            <option value="Admin">Admin</option>
-            <option value="Dispatcher">Dispatcher</option>
             <option value="Rider">Rider</option>
             <option value="Customer">Customer</option>
             <option value="StorePartner">Store Partner</option>

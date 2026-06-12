@@ -5,6 +5,7 @@ using BackendApi.Core.Models;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Security;
 using BackendApi.Services.Tracking;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
@@ -108,6 +109,7 @@ namespace BackendApi.Controllers.MasterData
         /// ป้องกัน "Geometry has Z dimension but column does not" ใน PostGIS
         /// </summary>
         [HttpPost]
+        [Authorize(Roles = AuthConstants.AdminRole)]
         public async Task<ActionResult<ShopDto>> CreateShop(
             [FromBody] CreateShopDto dto,
             CancellationToken cancellationToken = default)
@@ -150,11 +152,15 @@ namespace BackendApi.Controllers.MasterData
         /// ป้องกันปัญหา Z dimension และการเขียนทับ Read-Only/Init-Only properties เช่น RefNumber
         /// </summary>
         [HttpPut("{id}")]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
         public override async Task<ActionResult<ShopDto>> Update(
             string id,
             [FromBody] ShopDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (!CanManageShop(id))
+                return Forbid();
+
             var existing = await DB.GetQuery<Shop>()
                 .Include(s => s.MenuItems)
                 .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
@@ -191,6 +197,33 @@ namespace BackendApi.Controllers.MasterData
 
             return Ok(existing.Adapt<ShopDto>());
         }
+
+        [HttpDelete("{id}")]
+        [Authorize(Roles = $"{AuthConstants.AdminRole},{AuthConstants.StorePartnerRole}")]
+        public override async Task<ActionResult> Delete(
+            string id,
+            CancellationToken cancellationToken = default)
+        {
+            if (!CanManageShop(id))
+                return Forbid();
+
+            var deleted = await DB.DeleteObjectAsync<Shop>(
+                id,
+                softDelete: true,
+                cancellationToken: cancellationToken);
+            if (deleted is null)
+                return NotFound(ApiResponse.Fail("ไม่พบข้อมูลร้านค้า", code: "NOT_FOUND"));
+
+            await DB.CommitChangesAsync(cancellationToken);
+            return Ok(ApiResponse.Ok("ลบข้อมูลร้านค้าสำเร็จ"));
+        }
+
+        private bool CanManageShop(string shopId) =>
+            User.IsInRole(AuthConstants.AdminRole) ||
+            string.Equals(
+                User.FindFirst("shop_id")?.Value,
+                shopId,
+                StringComparison.Ordinal);
 
     }
 }

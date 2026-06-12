@@ -1,20 +1,56 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/api/services/order_api_service.dart';
+import '../../../core/signalr/customer_signalr_service.dart';
 import '../../../models/order.dart';
 
 final customerOrdersProvider = FutureProvider.autoDispose<List<OrderDto>>((ref) async {
   return ref.read(orderApiServiceProvider).getCustomerOrders();
 });
 
-class CustomerOrdersScreen extends ConsumerWidget {
+class CustomerOrdersScreen extends ConsumerStatefulWidget {
   const CustomerOrdersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomerOrdersScreen> createState() =>
+      _CustomerOrdersScreenState();
+}
+
+class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
+  StreamSubscription<CustomerOrderStatusChangedEvent>? _statusSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_connectRealtime);
+  }
+
+  Future<void> _connectRealtime() async {
+    try {
+      final signalR = ref.read(customerSignalRServiceProvider.notifier);
+      await signalR.connect();
+      _statusSubscription?.cancel();
+      _statusSubscription = signalR.onOrderStatusChanged.listen((_) {
+        ref.invalidate(customerOrdersProvider);
+      });
+    } catch (_) {
+      // Pull-to-refresh remains available when realtime connection is down.
+    }
+  }
+
+  @override
+  void dispose() {
+    _statusSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ordersAsync = ref.watch(customerOrdersProvider);
 
     return Scaffold(

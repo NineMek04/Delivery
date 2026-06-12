@@ -64,8 +64,12 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         {
             var host = _configuration["MessageBroker:Host"] ?? _configuration["MessageBroker__Host"] ?? "localhost";
             var portStr = _configuration["MessageBroker:Port"] ?? _configuration["MessageBroker__Port"] ?? "5672";
-            var username = _configuration["MessageBroker:Username"] ?? _configuration["MessageBroker__Username"] ?? "guest";
-            var password = _configuration["MessageBroker:Password"] ?? _configuration["MessageBroker__Password"] ?? "guest";
+            var username = _configuration["MessageBroker:Username"] ??
+                _configuration["MessageBroker__Username"] ??
+                throw new InvalidOperationException("MessageBroker:Username is required.");
+            var password = _configuration["MessageBroker:Password"] ??
+                _configuration["MessageBroker__Password"] ??
+                throw new InvalidOperationException("MessageBroker:Password is required.");
 
             int.TryParse(portStr, out var port);
 

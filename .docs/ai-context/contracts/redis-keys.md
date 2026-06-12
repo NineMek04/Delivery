@@ -26,15 +26,15 @@ known_pitfalls:
 
 ## 1. Rider Presence Keys
 
-### `presence:rider:{riderId}`
+### `riders:heartbeat:{riderId}`
 
 | Field | Value |
 |---|---|
-| **Key Pattern** | `presence:rider:{riderId}` (UUID) |
-| **Data Type** | String |
-| **Value** | `"IDLE"` \| `"OFFERED"` \| `"ASSIGNED"` \| `"PICKING_UP"` \| `"DELIVERING"` |
-| **TTL** | ~60 seconds (renewed ทุกครั้งที่ Rider ส่ง GPS) |
-| **SET By** | `TrackingHub.UpdateLocation()` |
+| **Key Pattern** | `riders:heartbeat:{riderId}` (UUID) |
+| **Data Type** | Hash |
+| **Value** | heartbeat timestamp; durable RiderState remains in PostgreSQL |
+| **TTL** | short sliding TTL, renewed by heartbeat |
+| **SET By** | `TrackingHub.UpdateHeartbeat()` / presence manager |
 | **READ By** | `RiderPresenceService`, `DispatchService` |
 
 ```
@@ -43,11 +43,11 @@ known_pitfalls:
 
 ---
 
-### `geo:riders` (Geospatial Sorted Set)
+### `riders:locations` (Geospatial Sorted Set)
 
 | Field | Value |
 |---|---|
-| **Key** | `geo:riders` |
+| **Key** | `riders:locations` |
 | **Data Type** | Sorted Set (ZSET) — Redis GEO |
 | **Members** | `riderId` (UUID string) |
 | **Score** | Geospatial coordinates (managed by Redis GEO commands) |
@@ -56,10 +56,10 @@ known_pitfalls:
 
 ```csharp
 // เพิ่ม Rider location
-await _redis.GeoAddAsync("geo:riders", longitude, latitude, riderId);
+await _redis.GeoAddAsync("riders:locations", longitude, latitude, riderId);
 
 // หา Riders ใกล้ Shop ใน radius 5km
-var nearbyRiders = await _redis.GeoRadiusAsync("geo:riders",
+var nearbyRiders = await _redis.GeoRadiusAsync("riders:locations",
   shopLng, shopLat, 5, GeoUnit.Kilometers);
 ```
 
@@ -67,14 +67,14 @@ var nearbyRiders = await _redis.GeoRadiusAsync("geo:riders",
 
 ## 2. GPS Buffer Keys
 
-### `gps:last:{riderId}`
+### `riders:gps:{riderId}`
 
 | Field | Value |
 |---|---|
-| **Key Pattern** | `gps:last:{riderId}` (UUID) |
+| **Key Pattern** | `riders:gps:{riderId}` (UUID) |
 | **Data Type** | Hash |
 | **Fields** | `lat`, `lng`, `updated_at`, `speed_kmh` |
-| **TTL** | 5 minutes |
+| **TTL** | 24 hours |
 | **SET By** | `GpsSyncBuffer` on each GPS update |
 | **READ By** | `DispatchService` (for most-recent rider location) |
 
@@ -101,22 +101,21 @@ var nearbyRiders = await _redis.GeoRadiusAsync("geo:riders",
 
 ## 3. Dispatch Offer Keys
 
-### `offer:{orderId}`
+### `dispatch:lock:rider:{riderId}`
 
 | Field | Value |
 |---|---|
-| **Key Pattern** | `offer:{orderId}` (UUID) |
-| **Data Type** | String (JSON) |
-| **Value** | `{ "riderId": "uuid", "version": 1, "offeredAt": "ISO8601" }` |
+| **Key Pattern** | `dispatch:lock:rider:{riderId}` |
+| **Data Type** | String |
+| **Value** | current `offerId` |
 | **TTL** | **30 seconds** (ต้องตรงกับ DispatchTimeoutWorker) |
 | **SET By** | `DispatchService` เมื่อส่ง Offer |
 | **DELETE By** | Rider accept / reject / timeout |
 
 ```csharp
 // Set offer lock (SETNX pattern)
-var key = $"offer:{orderId}";
-var value = JsonSerializer.Serialize(new { riderId, version = 1, offeredAt = DateTime.UtcNow });
-await _redis.StringSetAsync(key, value, TimeSpan.FromSeconds(30), When.NotExists);
+var key = $"dispatch:lock:rider:{riderId}";
+await _redis.StringSetAsync(key, offerId, TimeSpan.FromSeconds(30), When.NotExists);
 ```
 
 ---

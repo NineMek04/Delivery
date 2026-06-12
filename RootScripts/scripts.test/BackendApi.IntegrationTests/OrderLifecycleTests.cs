@@ -70,8 +70,11 @@ public class OrderLifecycleTests : IAsyncLifetime
 
     // ─── Utility ────────────────────────────────────────────────────
 
-    private async Task<(string AccessToken, string UserId)> RegisterAndGetTokenAsync(string role = "Admin")
+    private async Task<(string AccessToken, string UserId)> RegisterAndGetTokenAsync(string role = "Customer")
     {
+        if (role is "Admin" or "Dispatcher")
+            return await _factory.CreatePrivilegedUserAndGetTokenAsync(_client, role);
+
         var email = $"order_test_{Guid.NewGuid():N}@test.com";
         var payload = new RegisterPayload(email, "TestPass123!", "Order Test User", role);
         var response = await _client.PostAsJsonAsync("/api/v1/auth/register", payload);

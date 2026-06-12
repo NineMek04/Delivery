@@ -37,6 +37,15 @@ export interface DispatchScanStarted {
   startedAt: string;
 }
 
+export interface OrderStatusChangedPayload {
+  orderId: string;
+  orderRefNumber?: string;
+  previousStatus?: string | null;
+  newStatus: string;
+  riderId?: string | null;
+  timestamp?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -286,7 +295,15 @@ export class TrackingSignalRService {
     });
 
     // OrderStatusChanged — broadcast สถานะ Order เปลี่ยน
-    this.hubConnection.on('OrderStatusChanged', (orderId: string, newStatus: string) => {
+    this.hubConnection.on('OrderStatusChanged', (...args: any[]) => {
+      const payload = args[0] as OrderStatusChangedPayload | string | undefined;
+      const orderId = typeof payload === 'object' && payload !== null
+        ? payload.orderId ?? (payload as any).OrderId
+        : payload ?? '';
+      const newStatus = typeof payload === 'object' && payload !== null
+        ? payload.newStatus ?? (payload as any).NewStatus ?? (payload as any).status ?? (payload as any).Status
+        : args[1] ?? '';
+      if (!orderId || !newStatus) return;
       this.addAlert('Order Update', `Order ${orderId?.slice(0, 8)} → ${newStatus}`, 'info');
       this._orderStatusChanged.next({ orderId, status: newStatus });
     });

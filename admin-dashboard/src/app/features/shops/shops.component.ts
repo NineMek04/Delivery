@@ -81,30 +81,6 @@ export class ShopsComponent implements OnInit {
     this.loadShops();
   }
 
-  deleteAllData() {
-    Swal.fire({
-      title: 'Are you sure?',
-      text: "You are about to delete ALL shops! This cannot be undone.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#475569',
-      confirmButtonText: 'Yes, delete all!'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        this.shopService.deleteAll().subscribe({
-          next: () => {
-            Swal.fire('Deleted!', 'All shops have been deleted.', 'success');
-            this.loadShops();
-          },
-          error: (err) => {
-            Swal.fire('Error', 'Failed to delete shops: ' + (err.error?.message || err.message), 'error');
-          }
-        });
-      }
-    });
-  }
-
   onSearch(query: string) {
     this.query = query;
     this.currentPage = 1; // reset to first page on search

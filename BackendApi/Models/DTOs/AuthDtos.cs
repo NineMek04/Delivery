@@ -14,6 +14,7 @@ public class LoginRequest
 
     /// <summary>รหัสผ่าน</summary>
     [Required(ErrorMessage = "กรุณากรอกรหัสผ่าน")]
+    [MaxLength(128, ErrorMessage = "รหัสผ่านต้องยาวไม่เกิน 128 ตัวอักษร")]
     public string Password { get; set; } = string.Empty;
 }
 
@@ -27,9 +28,9 @@ public class RegisterRequest
     [EmailAddress(ErrorMessage = "รูปแบบอีเมลไม่ถูกต้อง")]
     public string Email { get; set; } = string.Empty;
 
-    /// <summary>รหัสผ่าน (ขั้นต่ำ 6 ตัวอักษร)</summary>
+    /// <summary>รหัสผ่าน (ขั้นต่ำ 12 ตัวอักษร)</summary>
     [Required(ErrorMessage = "กรุณากรอกรหัสผ่าน")]
-    [MinLength(6, ErrorMessage = "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร")]
+    [StringLength(128, MinimumLength = 12, ErrorMessage = "รหัสผ่านต้องมีความยาว 12 ถึง 128 ตัวอักษร")]
     public string Password { get; set; } = string.Empty;
 
     /// <summary>ชื่อ-นามสกุล</summary>
@@ -37,9 +38,9 @@ public class RegisterRequest
     [MaxLength(100)]
     public string FullName { get; set; } = string.Empty;
 
-    /// <summary>บทบาท: Admin, Dispatcher, Rider (default: Rider)</summary>
+    /// <summary>บทบาทสำหรับการสมัครสาธารณะ: Customer, Rider, StorePartner</summary>
     [MaxLength(20)]
-    public string Role { get; set; } = "Rider";
+    public string Role { get; set; } = "Customer";
 }
 
 /// <summary>
@@ -93,8 +94,8 @@ public class ChangePasswordRequest
     [Required(ErrorMessage = "กรุณากรอกรหัสผ่านปัจจุบัน")]
     public string CurrentPassword { get; set; } = string.Empty;
 
-    /// <summary>รหัสผ่านใหม่ (ขั้นต่ำ 6 ตัวอักษร)</summary>
+    /// <summary>รหัสผ่านใหม่ (ขั้นต่ำ 12 ตัวอักษร)</summary>
     [Required(ErrorMessage = "กรุณากรอกรหัสผ่านใหม่")]
-    [MinLength(6, ErrorMessage = "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร")]
+    [StringLength(128, MinimumLength = 12, ErrorMessage = "รหัสผ่านใหม่ต้องมีความยาว 12 ถึง 128 ตัวอักษร")]
     public string NewPassword { get; set; } = string.Empty;
 }

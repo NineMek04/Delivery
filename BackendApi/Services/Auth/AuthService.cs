@@ -20,6 +20,13 @@ public sealed class AuthService : IAuthService
         AuthConstants.StorePartnerRole
     ];
 
+    private static readonly string[] PublicRegistrationRoles =
+    [
+        AuthConstants.RiderRole,
+        AuthConstants.CustomerRole,
+        AuthConstants.StorePartnerRole
+    ];
+
     private readonly string _dummyHash;
 
     private readonly ApplicationDbContext _dbContext;
@@ -178,13 +185,13 @@ public sealed class AuthService : IAuthService
                 "EMAIL_EXISTS");
         }
 
-        if (!AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+        if (!PublicRegistrationRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
         {
             LogAuthEvent("AUTH_REGISTER", "AUTH_REGISTER_FAILED_INVALID_ROLE", null, email);
 
             return ServiceResult<AuthResponse>.Failure(
                 StatusCodes.Status400BadRequest,
-                $"บทบาทไม่ถูกต้อง (ใช้ได้: {string.Join(", ", AllowedRoles)})",
+                $"บทบาทไม่ถูกต้องสำหรับการสมัครสาธารณะ (ใช้ได้: {string.Join(", ", PublicRegistrationRoles)})",
                 "INVALID_ROLE");
         }
 

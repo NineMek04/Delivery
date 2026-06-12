@@ -1,5 +1,9 @@
 using BackendApi.Data;
+using BackendApi.Models;
+using BackendApi.Security;
 using BackendApi.Services;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +72,45 @@ public class DeliveryWebApplicationFactory : WebApplicationFactory<Program>, IAs
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "CREATE EXTENSION IF NOT EXISTS postgis;";
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<(string AccessToken, string UserId)> CreatePrivilegedUserAndGetTokenAsync(
+        HttpClient client,
+        string role)
+    {
+        if (role != AuthConstants.AdminRole && role != AuthConstants.DispatcherRole)
+            throw new ArgumentOutOfRangeException(nameof(role), "Only privileged test users may use this helper.");
+
+        var email = $"privileged_{Guid.NewGuid():N}@test.com";
+        const string password = "TestPass123!";
+        var user = new User
+        {
+            Email = email,
+            PasswordHash = PasswordHasher.HashPassword(password),
+            FullName = "Privileged Test User",
+            Role = role,
+            IsActive = true
+        };
+
+        using (var scope = Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/login",
+            new { Email = email, Password = password });
+        response.EnsureSuccessStatusCode();
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var accessToken = document.RootElement
+            .GetProperty("value")
+            .GetProperty("accessToken")
+            .GetString();
+
+        return (accessToken!, user.Id);
     }
 
     async Task IAsyncLifetime.DisposeAsync()

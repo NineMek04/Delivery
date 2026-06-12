@@ -24,10 +24,12 @@ Write-Host "Workspace Root: $WorkspaceRoot" -ForegroundColor Gray
 
 # === 1. Load .env Environment Variables ===
 $envFile = Join-Path $WorkspaceRoot ".env"
-$PostgresPassword = "Admin@Ts2x04_" # Fallback
-$JwtSecret = "DeliverySmartRoutingSystem_SuperSecretKey_2024" # Fallback
-$RabbitmqUser = "guest"
-$RabbitmqPassword = "guest"
+$PostgresPassword = $env:POSTGRES_PASSWORD
+$RedisPassword = $env:REDIS_PASSWORD
+$JwtSecret = $env:JWT_SECRET
+$RabbitmqUser = $env:RABBITMQ_USER
+$RabbitmqPassword = $env:RABBITMQ_PASSWORD
+$AiServiceApiKey = $env:AI_SERVICE_API_KEY
 
 if (Test-Path $envFile) {
     Write-Host "Loading environment configurations from .env..." -ForegroundColor Gray
@@ -35,15 +37,49 @@ if (Test-Path $envFile) {
         $line = $_.Trim()
         if ($line -and !$line.StartsWith('#')) {
             $key, $value = $line -split '=', 2
+            $value = $value.Trim().Trim('"').Trim("'")
             if ($key -eq "POSTGRES_PASSWORD") { $PostgresPassword = $value }
+            if ($key -eq "REDIS_PASSWORD") { $RedisPassword = $value }
             if ($key -eq "JWT_SECRET") { $JwtSecret = $value }
             if ($key -eq "RABBITMQ_USER") { $RabbitmqUser = $value }
             if ($key -eq "RABBITMQ_PASSWORD") { $RabbitmqPassword = $value }
+            if ($key -eq "AI_SERVICE_API_KEY") { $AiServiceApiKey = $value }
             
             [System.Environment]::SetEnvironmentVariable($key, $value, [System.EnvironmentVariableTarget]::Process)
         }
     }
 }
+
+$requiredValues = @{
+    POSTGRES_PASSWORD = $PostgresPassword
+    REDIS_PASSWORD = $RedisPassword
+    JWT_SECRET = $JwtSecret
+    RABBITMQ_USER = $RabbitmqUser
+    RABBITMQ_PASSWORD = $RabbitmqPassword
+    AI_SERVICE_API_KEY = $AiServiceApiKey
+}
+foreach ($entry in $requiredValues.GetEnumerator()) {
+    if ([string]::IsNullOrWhiteSpace($entry.Value)) {
+        throw "Required environment variable '$($entry.Key)' is missing. Configure it in .env."
+    }
+}
+
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:ASPNETCORE_URLS = "http://0.0.0.0:5000"
+$env:ConnectionStrings__DefaultConnection = "Host=localhost;Database=delivery_db;Username=postgres;Password=$PostgresPassword;Maximum Pool Size=1024;"
+$env:ConnectionStrings__Redis = "localhost:6379,password=$RedisPassword"
+$env:AI_SERVICE_URL = "http://localhost:8000"
+$env:AI_SERVICE_API_KEY = $AiServiceApiKey
+$env:Routing__LocalOsrmUrl = "http://localhost:5001"
+$env:MessageBroker__Host = "localhost"
+$env:MessageBroker__Port = "5672"
+$env:MessageBroker__Username = $RabbitmqUser
+$env:MessageBroker__Password = $RabbitmqPassword
+$env:Jwt__Key = $JwtSecret
+$env:Jwt__Issuer = "DeliveryBackendApi"
+$env:Jwt__Audience = "DeliveryClients"
+$env:Authentication__RequireSecureCookie = "false"
+$env:DATABASE_URL = "postgresql://postgres:$PostgresPassword@localhost:5432/delivery_db"
 
 # === 2. Stop Conflicting Docker Containers & Start Backing Services ===
 Write-Host "`n[Docker] Stopping any conflicting application containers..." -ForegroundColor Yellow
@@ -60,13 +96,13 @@ Write-Host "Docker backing services are running." -ForegroundColor Green
 # === 3. Start C# .NET Backend API (Local Host Mode) ===
 $backendPath = Join-Path $WorkspaceRoot "BackendApi"
 Write-Host "`n[Backend] Launching C# .NET Backend API in a separate terminal..." -ForegroundColor Yellow
-$backendCmd = "`$env:ASPNETCORE_ENVIRONMENT='Development'; `$env:ASPNETCORE_URLS='http://0.0.0.0:5000'; `$env:ConnectionStrings__DefaultConnection='Host=localhost;Database=delivery_db;Username=postgres;Password=$PostgresPassword;Maximum Pool Size=1024;'; `$env:ConnectionStrings__Redis='localhost:6379'; `$env:AI_SERVICE_URL='http://localhost:8000'; `$env:AI_SERVICE_API_KEY='test-api-key'; `$env:Routing__LocalOsrmUrl='http://localhost:5001'; `$env:MessageBroker__Host='localhost'; `$env:Jwt__Key='$JwtSecret'; `$env:Jwt__Issuer='DeliveryBackendApi'; `$env:Jwt__Audience='DeliveryClients'; `$env:Authentication__RequireSecureCookie='false'; `$env:MessageBroker__Port='5672'; `$env:MessageBroker__Username='$RabbitmqUser'; `$env:MessageBroker__Password='$RabbitmqPassword'; Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [Backend] Running on localhost:5000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; dotnet run;"
+$backendCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [Backend] Running on localhost:5000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; dotnet run;"
 Start-Process powershell -WindowStyle Normal -WorkingDirectory $backendPath -ArgumentList "-NoExit", "-Command", $backendCmd
 
 # === 4. Start Python FastAPI AI Routing Engine (Local Host Mode) ===
 $aiPath = Join-Path $WorkspaceRoot "ai-engine"
 Write-Host "`n[AI Engine] Launching FastAPI AI Engine in a separate terminal..." -ForegroundColor Yellow
-$aiCmd = "`$env:DATABASE_URL='postgresql://postgres:$PostgresPassword@localhost:5432/delivery_db'; `$env:AI_SERVICE_API_KEY='test-api-key'; Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [AI Engine] Running on localhost:8000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; if (Test-Path 'venv') { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000;"
+$aiCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [AI Engine] Running on localhost:8000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; if (Test-Path 'venv') { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000;"
 Start-Process powershell -WindowStyle Normal -WorkingDirectory $aiPath -ArgumentList "-NoExit", "-Command", $aiCmd
 
 # === 5. Start Angular Admin Dashboard (client, store, dashboard) ===

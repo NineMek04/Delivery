@@ -145,6 +145,10 @@ namespace BackendApi.Controllers.MasterData
             }
 
             var entity = dto.Adapt<MenuItem>();
+            if (string.IsNullOrWhiteSpace(entity.MenuCategoryId))
+            {
+                entity.MenuCategoryId = null;
+            }
 
             DB.InsertObject(entity);
             await DB.CommitChangesAsync(cancellationToken);
@@ -174,7 +178,24 @@ namespace BackendApi.Controllers.MasterData
             if (!CanManageShop(entity.ShopId))
                 return Forbid();
 
+            if (!string.IsNullOrWhiteSpace(dto.MenuCategoryId))
+            {
+                var categoryBelongsToShop = await DB.GetQuery<MenuCategory>(asNoTracking: true)
+                    .AnyAsync(
+                        category => category.Id == dto.MenuCategoryId &&
+                                    category.ShopId == entity.ShopId,
+                        cancellationToken);
+                if (!categoryBelongsToShop)
+                    return BadRequest(ApiResponse.Fail("หมวดหมู่เมนูไม่ได้อยู่ในร้านค้าที่ระบุ", code: "INVALID_CATEGORY"));
+            }
+
             dto.Adapt(entity);
+            
+            // Map the category ID explicitly if it is provided, in case Mapster IgnoreNulls behaves differently.
+            if (dto.MenuCategoryId != null)
+            {
+                entity.MenuCategoryId = string.IsNullOrWhiteSpace(dto.MenuCategoryId) ? null : dto.MenuCategoryId;
+            }
 
             await DB.CommitChangesAsync(cancellationToken);
 

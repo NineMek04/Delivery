@@ -525,7 +525,7 @@ class _ActionChip extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // Menu Form Bottom Sheet
 // ═══════════════════════════════════════════════════════════════════
-class _MenuFormSheet extends StatefulWidget {
+class _MenuFormSheet extends ConsumerStatefulWidget {
   final String shopId;
   final MenuItemDto? existingItem;
   final double? shopLat;
@@ -541,10 +541,10 @@ class _MenuFormSheet extends StatefulWidget {
   });
 
   @override
-  State<_MenuFormSheet> createState() => _MenuFormSheetState();
+  ConsumerState<_MenuFormSheet> createState() => _MenuFormSheetState();
 }
 
-class _MenuFormSheetState extends State<_MenuFormSheet> {
+class _MenuFormSheetState extends ConsumerState<_MenuFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
@@ -555,6 +555,8 @@ class _MenuFormSheetState extends State<_MenuFormSheet> {
   bool _isSaving = false;
   final ImagePicker _picker = ImagePicker();
   bool _isPickingImage = false;
+  
+  String? _selectedCategoryId;
 
   @override
   void initState() {
@@ -565,6 +567,7 @@ class _MenuFormSheetState extends State<_MenuFormSheet> {
     _descriptionController = TextEditingController(text: item?.description ?? '');
     _imageUrlController = TextEditingController(text: item?.imageUrl ?? '');
     _optionNameController = TextEditingController();
+    _selectedCategoryId = item?.menuCategoryId;
   }
 
   Future<void> _pickImage() async {
@@ -592,6 +595,119 @@ class _MenuFormSheetState extends State<_MenuFormSheet> {
       }
     } finally {
       if (mounted) setState(() => _isPickingImage = false);
+    }
+  }
+
+  Future<void> _showAddCategoryDialog() async {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    final dialogFormKey = GlobalKey<FormState>();
+    bool isDialogSaving = false;
+
+    final result = await showDialog<MenuCategoryDto?>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: AppTheme.surfaceCard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'สร้างหมวดหมู่ใหม่',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Form(
+                key: dialogFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'ชื่อหมวดหมู่ *',
+                        hintText: 'เช่น อาหารจานเดียว, เครื่องดื่ม',
+                        prefixIcon: Icon(Icons.edit_outlined),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'กรุณากรอกชื่อหมวดหมู่';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: descController,
+                      decoration: const InputDecoration(
+                        labelText: 'คำอธิบาย (ไม่บังคับ)',
+                        hintText: 'รายละเอียดสั้นๆ ของหมวดหมู่',
+                        prefixIcon: Icon(Icons.description_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDialogSaving ? null : () => Navigator.pop(ctx),
+                  child: const Text('ยกเลิก'),
+                ),
+                ElevatedButton(
+                  onPressed: isDialogSaving
+                      ? null
+                      : () async {
+                          if (!dialogFormKey.currentState!.validate()) return;
+                          setStateDialog(() => isDialogSaving = true);
+                          try {
+                            final newCat = await ref
+                                .read(menuCategoriesProvider.notifier)
+                                .addCategory(
+                                  nameController.text.trim(),
+                                  description: descController.text.trim().isNotEmpty
+                                      ? descController.text.trim()
+                                      : null,
+                                );
+                            if (context.mounted) {
+                              Navigator.pop(ctx, newCat);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('สร้างหมวดหมู่ล้มเหลว: $e'),
+                                  backgroundColor: AppTheme.errorColor,
+                                ),
+                              );
+                            }
+                          } finally {
+                            setStateDialog(() => isDialogSaving = false);
+                          }
+                        },
+                  child: isDialogSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('สร้าง'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedCategoryId = result.id;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('สร้างหมวดหมู่ "${result.name}" สำเร็จ')),
+      );
     }
   }
 
@@ -720,6 +836,70 @@ class _MenuFormSheetState extends State<_MenuFormSheet> {
                   ),
                   const SizedBox(height: 16),
 
+                  // 1.5. Category Selection
+                  ref.watch(menuCategoriesProvider).maybeWhen(
+                    data: (categories) {
+                      final dropdownValue = (_selectedCategoryId != null &&
+                              categories.any((cat) => cat.id == _selectedCategoryId))
+                          ? _selectedCategoryId
+                          : null;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String?>(
+                                  value: dropdownValue,
+                                  dropdownColor: AppTheme.surfaceCard,
+                                  decoration: const InputDecoration(
+                                    labelText: 'หมวดหมู่สินค้า (ไม่บังคับ)',
+                                    prefixIcon: Icon(Icons.category_outlined),
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('ไม่มีหมวดหมู่'),
+                                    ),
+                                    ...categories.map((cat) => DropdownMenuItem<String?>(
+                                          value: cat.id,
+                                          child: Text(cat.name),
+                                        )),
+                                  ],
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _selectedCategoryId = val;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                height: 52,
+                                width: 52,
+                                child: IconButton(
+                                  onPressed: _showAddCategoryDialog,
+                                  icon: const Icon(Icons.add),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                                    foregroundColor: AppTheme.primaryColor,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  tooltip: 'เพิ่มหมวดหมู่ใหม่',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+
                   // 2. Name
                   TextFormField(
                     controller: _nameController,
@@ -808,6 +988,7 @@ class _MenuFormSheetState extends State<_MenuFormSheet> {
         'Name': _nameController.text.trim(),
         'Price': double.parse(_priceController.text.trim()),
         'ShopId': widget.shopId,
+        'MenuCategoryId': _selectedCategoryId ?? '',
       };
 
       if (_descriptionController.text.trim().isNotEmpty) {

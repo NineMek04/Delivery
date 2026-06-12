@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/api/api_helpers.dart';
 import '../../../core/api/services/shop_api_service.dart';
 import '../../../core/api/services/menu_item_api_service.dart';
+import '../../../core/api/services/menu_category_api_service.dart';
 import '../../../core/api/services/auth_api_service.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../models/shop.dart';
@@ -57,6 +58,51 @@ final currentShopProvider = FutureProvider<ShopDto?>((ref) async {
     return null;
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// Menu Categories Provider — loads menu categories for the current shop
+// ═══════════════════════════════════════════════════════════════════
+
+final menuCategoriesProvider =
+    AsyncNotifierProvider<MenuCategoriesNotifier, List<MenuCategoryDto>>(
+  MenuCategoriesNotifier.new,
+);
+
+class MenuCategoriesNotifier extends AsyncNotifier<List<MenuCategoryDto>> {
+  @override
+  Future<List<MenuCategoryDto>> build() async {
+    final shop = await ref.watch(currentShopProvider.future);
+    if (shop == null) return [];
+
+    try {
+      final categoryApi = ref.read(menuCategoryApiServiceProvider);
+      return await categoryApi.getByShop(shop.id);
+    } catch (e) {
+      debugPrint('[MenuCategoriesNotifier] Failed to load categories: $e');
+      return [];
+    }
+  }
+
+  Future<MenuCategoryDto> addCategory(String name, {String? description}) async {
+    final shop = await ref.read(currentShopProvider.future);
+    if (shop == null) throw Exception('ไม่พบข้อมูลร้านค้า');
+
+    final categoryApi = ref.read(menuCategoryApiServiceProvider);
+    final newCat = await categoryApi.create({
+      'Name': name,
+      if (description != null) 'Description': description,
+      'ShopId': shop.id,
+      'DisplayOrder': 0,
+    });
+    
+    ref.invalidateSelf();
+    return newCat;
+  }
+
+  void refresh() {
+    ref.invalidateSelf();
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // Menu Items Provider — loads menu items for the current shop

@@ -62,6 +62,8 @@ namespace BackendApi.Models.DTOs
 
         public string? ImageUrl { get; set; }
 
+        public string? MenuCategoryId { get; set; }
+
         public ICollection<UpdateMenuItemOptionDto>? Options { get; set; }
     }
 

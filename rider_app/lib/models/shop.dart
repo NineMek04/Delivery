@@ -243,3 +243,61 @@ class MenuItemOptionItemDto {
     );
   }
 }
+
+/// Menu category data model matching backend MenuCategoryDto.
+class MenuCategoryDto {
+  final String id;
+  final String trackingCode;
+  final String name;
+  final String? description;
+  final int displayOrder;
+  final String shopId;
+  final DateTime? createdAt;
+
+  const MenuCategoryDto({
+    required this.id,
+    this.trackingCode = '',
+    required this.name,
+    this.description,
+    this.displayOrder = 0,
+    required this.shopId,
+    this.createdAt,
+  });
+
+  factory MenuCategoryDto.fromJson(Map<String, dynamic> json) {
+    return MenuCategoryDto(
+      id: readField<String>(json, 'Id') ?? readField<String>(json, 'id') ?? '',
+      trackingCode: readField<String>(json, 'TrackingCode') ??
+          readField<String>(json, 'trackingCode') ??
+          '',
+      name: readField<String>(json, 'Name') ??
+          readField<String>(json, 'name') ??
+          '',
+      description: readField<String>(json, 'Description') ??
+          readField<String>(json, 'description'),
+      displayOrder: readField<int>(json, 'DisplayOrder') ??
+          readField<int>(json, 'displayOrder') ??
+          0,
+      shopId: readField<String>(json, 'ShopId') ??
+          readField<String>(json, 'shopId') ??
+          '',
+      createdAt: _parseDate(
+        readField<String>(json, 'CreatedAt') ??
+            readField<String>(json, 'createdAt'),
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'Id': id,
+        'Name': name,
+        if (description != null) 'Description': description,
+        'DisplayOrder': displayOrder,
+        'ShopId': shopId,
+      };
+
+  static DateTime? _parseDate(String? raw) {
+    if (raw == null) return null;
+    return DateTime.tryParse(raw);
+  }
+}

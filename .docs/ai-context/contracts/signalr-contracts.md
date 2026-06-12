@@ -64,7 +64,7 @@ accuracy: number   // meters, e.g. 12.5
 1. ตรวจ GPS Sanity (max drift 5km ต่อ update)
 2. บันทึกไปยัง `GpsSyncBuffer` (in-memory)
 3. อัปเดต `Rider.CurrentLocation` ลง PostgreSQL ทันที
-4. Broadcast `RiderLocationUpdated` ไปยัง group `"admins"`
+4. Broadcast `RiderLocationUpdated` ไปยัง group `"admins"` และ customer เจ้าของ active order
 
 ---
 
@@ -135,7 +135,10 @@ connection.on('RiderLocationUpdated', (data: RiderLocationPayload) => {
 }
 ```
 
-**Recipients:** group `"admins"`
+**Recipients:** group `"admins"` และ customer เจ้าของ active order
+
+Customer client ต้องรับเฉพาะ event ที่ `riderId` ตรงกับ `assignedRiderId`
+ของ order ที่กำลังติดตาม
 
 ---
 

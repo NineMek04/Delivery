@@ -20,6 +20,22 @@ class CustomerOrderStatusChangedEvent {
   });
 }
 
+class CustomerRiderLocationUpdatedEvent {
+  final String riderId;
+  final double latitude;
+  final double longitude;
+  final String? status;
+  final DateTime? timestamp;
+
+  const CustomerRiderLocationUpdatedEvent({
+    required this.riderId,
+    required this.latitude,
+    required this.longitude,
+    this.status,
+    this.timestamp,
+  });
+}
+
 enum CustomerSignalRState {
   disconnected,
   connecting,
@@ -32,18 +48,26 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
   HubConnection? _hubConnection;
   final _orderStatusController =
       StreamController<CustomerOrderStatusChangedEvent>.broadcast();
+  final _riderLocationController =
+      StreamController<CustomerRiderLocationUpdatedEvent>.broadcast();
+  final _reconnectedController = StreamController<void>.broadcast();
 
   @override
   CustomerSignalRState build() {
     ref.onDispose(() {
       _hubConnection?.stop();
       _orderStatusController.close();
+      _riderLocationController.close();
+      _reconnectedController.close();
     });
     return CustomerSignalRState.disconnected;
   }
 
   Stream<CustomerOrderStatusChangedEvent> get onOrderStatusChanged =>
       _orderStatusController.stream;
+  Stream<CustomerRiderLocationUpdatedEvent> get onRiderLocationUpdated =>
+      _riderLocationController.stream;
+  Stream<void> get onReconnected => _reconnectedController.stream;
 
   Future<void> connect() async {
     if (state == CustomerSignalRState.connected ||
@@ -76,6 +100,7 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
     _hubConnection!.onreconnected(({connectionId}) {
       _logger.i('[CustomerSignalR] Reconnected: $connectionId');
       state = CustomerSignalRState.connected;
+      _reconnectedController.add(null);
     });
 
     try {
@@ -127,6 +152,61 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
         CustomerOrderStatusChangedEvent(orderId: orderId, status: status),
       );
     });
+
+    _hubConnection!.on('RiderLocationUpdated', (args) {
+      if (args == null || args.isEmpty) return;
+
+      final raw = args.first;
+      final map = raw is Map<String, dynamic>
+          ? raw
+          : raw is Map
+              ? Map<String, dynamic>.from(raw)
+              : null;
+      if (map == null) return;
+
+      final riderId = _asString(map['riderId'] ?? map['RiderId']);
+      final latitude = _asDouble(
+        map['lat'] ?? map['Lat'] ?? map['latitude'] ?? map['Latitude'],
+      );
+      final longitude = _asDouble(
+        map['lng'] ?? map['Lng'] ?? map['longitude'] ?? map['Longitude'],
+      );
+
+      if (riderId == null ||
+          latitude == null ||
+          longitude == null ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180) {
+        return;
+      }
+
+      _riderLocationController.add(
+        CustomerRiderLocationUpdatedEvent(
+          riderId: riderId,
+          latitude: latitude,
+          longitude: longitude,
+          status: _asString(map['status'] ?? map['Status']),
+          timestamp: _asDateTime(map['timestamp'] ?? map['Timestamp']),
+        ),
+      );
+    });
+  }
+
+  static String? _asString(Object? value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  static double? _asDouble(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  static DateTime? _asDateTime(Object? value) {
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value?.toString() ?? '');
   }
 }
 

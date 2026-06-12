@@ -211,7 +211,7 @@ public class DispatchService
     /// <summary>
     /// ค้นหา Rider ที่ใกล้ที่สุดและยิง Offer ไปให้
     /// </summary>
-    public async Task FindAndOfferAsync(List<Order> orders)
+    public virtual async Task FindAndOfferAsync(List<Order> orders)
     {
         if (orders == null || orders.Count == 0) return;
         var firstOrder = orders.First();

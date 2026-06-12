@@ -105,7 +105,7 @@ public class TelemetryBroadcastWorker : BackgroundService
             .Select(g => new { State = g.Key, Count = g.Count() })
             .ToListAsync(ct);
 
-        var activeRiders = stateCounts.Where(s => s.State != RiderState.OFFLINE).Sum(s => s.Count);
+        var activeRiders = stateCounts.Where(s => s.State != RiderState.OFFLINE && s.State != RiderState.STALE).Sum(s => s.Count);
         var busy = stateCounts.Where(s => s.State == RiderState.BUSY).Sum(s => s.Count);
         var idle = stateCounts.Where(s => s.State == RiderState.IDLE || s.State == RiderState.RESERVED).Sum(s => s.Count);
         var offline = stateCounts.Where(s => s.State == RiderState.OFFLINE || s.State == RiderState.STALE).Sum(s => s.Count);

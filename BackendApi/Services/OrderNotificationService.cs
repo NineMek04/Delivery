@@ -25,14 +25,14 @@ public class OrderNotificationService
     /// <summary>
     /// แจ้ง admins + rider + customer เมื่อสถานะ Order เปลี่ยน
     /// </summary>
-    public Task NotifyOrderStatusChangedAsync(
+    public virtual Task NotifyOrderStatusChangedAsync(
         Order order,
         CancellationToken cancellationToken = default)
     {
         return NotifyOrderStatusChangedAsync(order, previousState: null, cancellationToken);
     }
 
-    public async Task NotifyOrderStatusChangedAsync(
+    public virtual async Task NotifyOrderStatusChangedAsync(
         Order order,
         OrderState? previousState,
         CancellationToken cancellationToken = default)

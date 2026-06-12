@@ -181,7 +181,7 @@ public class RiderPresenceService
     /// <summary>
     /// ดึงเวลา Heartbeat ล่าสุดของ Rider
     /// </summary>
-    public async Task<DateTime?> GetLastHeartbeatAsync(string riderId)
+    public virtual async Task<DateTime?> GetLastHeartbeatAsync(string riderId)
     {
         try
         {
@@ -199,7 +199,7 @@ public class RiderPresenceService
         }
     }
 
-    public async Task RemoveRiderAsync(string riderId)
+    public virtual async Task RemoveRiderAsync(string riderId)
     {
         try
         {

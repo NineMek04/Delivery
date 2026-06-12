@@ -237,6 +237,19 @@ public class DispatchOfferHandler
 
                 await transaction.CommitAsync();
 
+                try
+                {
+                    var orderNotifier = _serviceProvider.GetRequiredService<OrderNotificationService>();
+                    foreach (var order in orders)
+                    {
+                        await orderNotifier.NotifyOrderStatusChangedAsync(order, OrderState.OFFERING);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to broadcast OrderStatusChanged SignalR notification after offer reject/timeout for Offer {OfferId}", offerId);
+                }
+
                 _logger.LogInformation(
                     "Orders ({Count}) re-dispatching after rejection/timeout from Rider {RiderId}",
                     orders.Count, riderId);

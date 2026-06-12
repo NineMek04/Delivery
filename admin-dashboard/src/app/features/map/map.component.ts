@@ -7,7 +7,7 @@ import { DispatchScanStarted, TrackingSignalRService, RiderLocationUpdate } from
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { RiderService } from '../../core/services/rider.service';
 import { OrderService } from '../../core/services/order.service';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin } from 'rxjs';
 import Swal from 'sweetalert2';
 import { OrderDetailComponent } from '../orders/order-detail/order-detail.component';
 import { OrderDto } from '../../api/generated/model/order-dto';
@@ -489,8 +489,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         this.deliveryRouteLine.remove();
         this.deliveryRouteLine = null;
       }
-      this.assignedRiderId = null;
-      this.activeOrder = null;
+      const orderId = data.orderId || data.OrderId;
+      if (this.activeOrder && (this.activeOrder.id === orderId)) {
+        this.assignedRiderId = null;
+        this.activeOrder = null;
+      }
     }
     this.loadActiveOrders();
   }
@@ -720,8 +723,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   cancelRiderOrder(riderId: string): void {
-    const activeOrder = this.activeOrders.find(o => o.assignedRiderId === riderId);
-    if (!activeOrder) {
+    const riderOrders = this.activeOrders.filter(o => o.assignedRiderId === riderId);
+    if (riderOrders.length === 0) {
       Swal.fire({
         title: 'ไม่สามารถยกเลิกออร์เดอร์ได้',
         text: 'ไรเดอร์คนนี้ไม่มีออร์เดอร์ที่กำลังจัดส่งอยู่ในขณะนี้',
@@ -731,51 +734,115 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       return;
     }
 
-    Swal.fire({
-      title: 'ยืนยันการยกเลิกออร์เดอร์?',
-      text: `คุณต้องการยกเลิกออร์เดอร์ ${activeOrder.trackingCode} ที่ไรเดอร์กำลังจัดส่งใช่หรือไม่?`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: '🛑 ยืนยันการยกเลิก',
-      cancelButtonText: 'ยกเลิก'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        Swal.fire({
-          title: 'กำลังยกเลิกออร์เดอร์...',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
+    if (riderOrders.length === 1) {
+      const activeOrder = riderOrders[0];
+      Swal.fire({
+        title: 'ยืนยันการยกเลิกออร์เดอร์?',
+        text: `คุณต้องการยกเลิกออร์เดอร์ ${activeOrder.trackingCode} ที่ไรเดอร์กำลังจัดส่งใช่หรือไม่?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: '🛑 ยืนยันการยกเลิก',
+        cancelButtonText: 'ยกเลิก'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          this.executeOrderCancellation([activeOrder]);
+        }
+      });
+    } else {
+      // Multiple orders: build choices dictionary for Swal inputOptions
+      const inputOptions: { [key: string]: string } = {
+        'all': 'ยกเลิกทั้งหมด (ทุกออเดอร์ที่พ่วงอยู่)'
+      };
+      riderOrders.forEach(o => {
+        inputOptions[o.id!] = `ยกเลิกเฉพาะออเดอร์ ${o.trackingCode}`;
+      });
+
+      Swal.fire({
+        title: 'เลือกออเดอร์ที่ต้องการยกเลิก',
+        input: 'select',
+        inputOptions: inputOptions,
+        inputPlaceholder: 'เลือกตัวเลือกสำหรับการยกเลิก',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: '🛑 ยืนยันการยกเลิก',
+        cancelButtonText: 'ยกเลิก',
+        inputValidator: (value) => {
+          return new Promise((resolve) => {
+            if (value) {
+              resolve();
+            } else {
+              resolve('กรุณาเลือกตัวเลือกที่ต้องการยกเลิก');
+            }
+          });
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const selectedValue = result.value;
+          let ordersToCancel: OrderDto[] = [];
+          if (selectedValue === 'all') {
+            ordersToCancel = riderOrders;
+          } else {
+            const singleOrder = riderOrders.find(o => o.id === selectedValue);
+            if (singleOrder) {
+              ordersToCancel = [singleOrder];
+            }
           }
+
+          if (ordersToCancel.length > 0) {
+            this.executeOrderCancellation(ordersToCancel);
+          }
+        }
+      });
+    }
+  }
+
+  private executeOrderCancellation(orders: OrderDto[]): void {
+    Swal.fire({
+      title: 'กำลังยกเลิกออร์เดอร์...',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    const cancelRequests = orders.map(o => this.orderService.cancelOrder(o.id!));
+    forkJoin(cancelRequests).subscribe({
+      next: () => {
+        const codes = orders.map(o => o.trackingCode).join(', ');
+        Swal.fire({
+          title: 'สำเร็จ!',
+          text: `ยกเลิกออร์เดอร์ ${codes} เรียบร้อยแล้ว`,
+          icon: 'success',
+          timer: 3000,
+          showConfirmButton: false
         });
 
-        this.orderService.cancelOrder(activeOrder.id!).subscribe({
-          next: () => {
-            Swal.fire({
-              title: 'สำเร็จ!',
-              text: `ยกเลิกออร์เดอร์ ${activeOrder.trackingCode} เรียบร้อยแล้ว`,
-              icon: 'success',
-              timer: 3000,
-              showConfirmButton: false
-            });
+        // Only clear active selection if all of them are cancelled
+        const riderId = orders[0].assignedRiderId;
+        if (riderId) {
+          const remainingRiderOrders = this.activeOrders.filter(o => o.assignedRiderId === riderId && !orders.some(canceled => canceled.id === o.id));
+          if (remainingRiderOrders.length === 0) {
             this.assignedRiderId = null;
             this.activeOrder = null;
             if (this.pickupRouteLine) this.pickupRouteLine.remove();
             if (this.deliveryRouteLine) this.deliveryRouteLine.remove();
             this.pickupRouteLine = null;
             this.deliveryRouteLine = null;
-            this.loadActiveOrders();
-          },
-          error: (err) => {
-            console.error('Failed to cancel order:', err);
-            Swal.fire({
-              title: 'เกิดข้อผิดพลาด',
-              text: err?.error?.message || 'ไม่สามารถยกเลิกออร์เดอร์ได้',
-              icon: 'error',
-              confirmButtonColor: '#ef4444'
-            });
           }
+        }
+
+        this.loadActiveOrders();
+      },
+      error: (err) => {
+        console.error('Failed to cancel order(s):', err);
+        Swal.fire({
+          title: 'เกิดข้อผิดพลาด',
+          text: err?.error?.message || 'ไม่สามารถยกเลิกออร์เดอร์ได้',
+          icon: 'error',
+          confirmButtonColor: '#ef4444'
         });
       }
     });

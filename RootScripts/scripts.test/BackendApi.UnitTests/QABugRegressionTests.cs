@@ -11,6 +11,17 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using BackendApi.Data;
+using BackendApi.Services.BackgroundWorkers;
+using BackendApi.Services.Telemetry;
+using BackendApi.Services.Dispatch;
+using BackendApi.Services.Tracking;
+using StackExchange.Redis;
+using BackendApi.Infrastructure.Redis;
+using Microsoft.Extensions.Logging;
+using Order = BackendApi.Models.Order;
 
 namespace BackendApi.UnitTests;
 
@@ -164,6 +175,269 @@ public class QABugRegressionTests
 
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
         Assert.False(nextCalled);
+    }
+
+    [Fact]
+    public async Task TelemetryBroadcastWorker_RefreshDatabaseSnapshots_NoDoubleCountingStaleRiders()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        var currentUserServiceMock = new Mock<ICurrentUserService>();
+        currentUserServiceMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
+        currentUserServiceMock.Setup(u => u.UserName).Returns("System");
+
+        using var dbContext = new ApplicationDbContext(options, currentUserServiceMock.Object);
+        // Add offline rider
+        dbContext.Riders.Add(new Rider { Id = "r-offline", State = RiderState.OFFLINE, RowVersion = new byte[8] });
+        // Add stale rider
+        dbContext.Riders.Add(new Rider { Id = "r-stale", State = RiderState.STALE, RowVersion = new byte[8] });
+        // Add busy rider
+        dbContext.Riders.Add(new Rider { Id = "r-busy", State = RiderState.BUSY, RowVersion = new byte[8] });
+        // Add idle rider
+        dbContext.Riders.Add(new Rider { Id = "r-idle", State = RiderState.IDLE, RowVersion = new byte[8] });
+        await dbContext.SaveChangesAsync();
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        var serviceScopeMock = new Mock<IServiceScope>();
+        var serviceScopeFactoryMock = new Mock<IServiceScopeFactory>();
+
+        serviceScopeMock.Setup(s => s.ServiceProvider).Returns(serviceProviderMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(ApplicationDbContext))).Returns(dbContext);
+        serviceScopeFactoryMock.Setup(f => f.CreateScope()).Returns(serviceScopeMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(IServiceScopeFactory))).Returns(serviceScopeFactoryMock.Object);
+
+        // Mock Redis (since hotspots refresh queries IConnectionMultiplexer)
+        var redisMock = new Mock<IConnectionMultiplexer>();
+        var redisDbMock = new Mock<IDatabase>();
+        redisMock.Setup(r => r.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(redisDbMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(IConnectionMultiplexer))).Returns(redisMock.Object);
+
+        var aggregator = new TelemetryAggregator();
+        
+        var worker = new TelemetryBroadcastWorker(
+            serviceProviderMock.Object,
+            aggregator,
+            new Mock<IHubContext<TrackingHub>>().Object,
+            new Mock<ILogger<TelemetryBroadcastWorker>>().Object
+        );
+
+        // Act - Invoke private method RefreshDatabaseSnapshotsAsync via reflection
+        var method = typeof(TelemetryBroadcastWorker).GetMethod("RefreshDatabaseSnapshotsAsync", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        
+        Assert.NotNull(method);
+        await (Task)method!.Invoke(worker, new object[] { CancellationToken.None, false })!;
+
+        // Assert
+        var telemetry = aggregator.GetTelemetry(2.0);
+        var utilization = aggregator.GetUtilization();
+
+        // Active riders must be busy + idle (which is 2: r-busy and r-idle). STALE and OFFLINE must be excluded.
+        Assert.Equal(2, telemetry.ActiveRidersCount);
+        // Offline riders must be offline + stale (which is 2: r-offline and r-stale).
+        Assert.Equal(2, utilization.RidersOfflineCount);
+    }
+
+    [Fact]
+    public async Task HeartbeatMonitor_CheckRiderHeartbeats_SendsSignalRStatusUpdated()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        var currentUserServiceMock = new Mock<ICurrentUserService>();
+        currentUserServiceMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
+        currentUserServiceMock.Setup(u => u.UserName).Returns("System");
+
+        using var dbContext = new ApplicationDbContext(options, currentUserServiceMock.Object);
+        // Add a rider who will go stale (idle state, no heartbeat)
+        dbContext.Riders.Add(new Rider { Id = "r-test-heartbeat", State = RiderState.IDLE, RowVersion = new byte[8] });
+        await dbContext.SaveChangesAsync();
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        var serviceScopeMock = new Mock<IServiceScope>();
+        var serviceScopeFactoryMock = new Mock<IServiceScopeFactory>();
+
+        serviceScopeMock.Setup(s => s.ServiceProvider).Returns(serviceProviderMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(ApplicationDbContext))).Returns(dbContext);
+        serviceScopeFactoryMock.Setup(f => f.CreateScope()).Returns(serviceScopeMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(IServiceScopeFactory))).Returns(serviceScopeFactoryMock.Object);
+
+        // Mock Presence Service: last heartbeat was 60 seconds ago (so it's > 20s timeout)
+        var presenceServiceMock = new Mock<RiderPresenceService>(new Mock<IConnectionMultiplexer>().Object, new Mock<ILogger<RiderPresenceService>>().Object);
+        presenceServiceMock.Setup(p => p.GetLastHeartbeatAsync("r-test-heartbeat")).ReturnsAsync(DateTime.UtcNow.AddSeconds(-60));
+        serviceProviderMock.Setup(s => s.GetService(typeof(RiderPresenceService))).Returns(presenceServiceMock.Object);
+
+        // State machine service: transition the rider
+        var stateMachineMock = new Mock<StateMachineService>(dbContext, new Mock<Infrastructure.EventBus.IEventBus>().Object, new Mock<IConnectionMultiplexer>().Object, new Mock<IHttpContextAccessor>().Object, new Mock<ILogger<StateMachineService>>().Object);
+        stateMachineMock.Setup(s => s.TransitionRiderAsync(It.IsAny<Rider>(), It.IsAny<RiderState>())).ReturnsAsync(true);
+        serviceProviderMock.Setup(s => s.GetService(typeof(StateMachineService))).Returns(stateMachineMock.Object);
+
+        // DispatchOfferHandler mock
+        var offerHandlerMock = new Mock<DispatchOfferHandler>(dbContext, stateMachineMock.Object, null!, null!, new Mock<IConnectionMultiplexer>().Object, serviceProviderMock.Object, new Mock<ILogger<DispatchOfferHandler>>().Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(DispatchOfferHandler))).Returns(offerHandlerMock.Object);
+
+        // Mock SignalR
+        var proxyMock = new Mock<IClientProxy>();
+        string? sentMethod = null;
+        object? sentPayload = null;
+        proxyMock.Setup(p => p.SendCoreAsync("RiderStatusUpdated", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
+            .Callback<string, object?[], CancellationToken>((method, args, _) => {
+                sentMethod = method;
+                sentPayload = args[0];
+            })
+            .Returns(Task.CompletedTask);
+
+        var clientsMock = new Mock<IHubClients>();
+        clientsMock.Setup(c => c.Group("admins")).Returns(proxyMock.Object);
+
+        var hubContextMock = new Mock<IHubContext<TrackingHub>>();
+        hubContextMock.SetupGet(h => h.Clients).Returns(clientsMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(IHubContext<TrackingHub>))).Returns(hubContextMock.Object);
+
+        var myConfiguration = new Dictionary<string, string>
+        {
+            {"Dispatch:HeartbeatTimeoutSeconds", "20"},
+            {"Dispatch:StaleToOfflineSeconds", "120"}
+        };
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(myConfiguration)
+            .Build();
+
+        var monitor = new HeartbeatMonitor(
+            serviceProviderMock.Object,
+            config,
+            new Mock<ILogger<HeartbeatMonitor>>().Object
+        );
+
+        // Act - Invoke private method CheckRiderHeartbeatsAsync
+        var method = typeof(HeartbeatMonitor).GetMethod("CheckRiderHeartbeatsAsync", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        
+        Assert.NotNull(method);
+        await (Task)method!.Invoke(monitor, new object[] { CancellationToken.None })!;
+
+        // Assert
+        Assert.Equal("RiderStatusUpdated", sentMethod);
+        Assert.NotNull(sentPayload);
+        var payloadProperties = sentPayload.GetType().GetProperties().ToDictionary(p => p.Name, p => p.GetValue(sentPayload));
+        Assert.Equal("r-test-heartbeat", payloadProperties["RiderId"]);
+        Assert.Equal("STALE", payloadProperties["NewStatus"]);
+        Assert.Equal("IDLE", payloadProperties["PreviousStatus"]);
+        Assert.Equal("heartbeat_timeout", payloadProperties["Reason"]);
+    }
+
+    [Fact]
+    public async Task DispatchOfferHandler_RejectOrTimeout_SendsSignalROrderStatusNotification()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+
+        var currentUserServiceMock = new Mock<ICurrentUserService>();
+        currentUserServiceMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
+        currentUserServiceMock.Setup(u => u.UserName).Returns("System");
+
+        using var dbContext = new ApplicationDbContext(options, currentUserServiceMock.Object);
+        // Add an order currently in OFFERING state
+        dbContext.Orders.Add(new Order 
+        { 
+            Id = "o-test-reject", 
+            CurrentOfferId = "offer-test", 
+            AssignedRiderId = "rider-test",
+            State = OrderState.OFFERING,
+            RowVersion = new byte[8]
+        });
+        // Add rider
+        dbContext.Riders.Add(new Rider { Id = "rider-test", State = RiderState.RESERVED, RowVersion = new byte[8] });
+        await dbContext.SaveChangesAsync();
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        var serviceScopeMock = new Mock<IServiceScope>();
+        var serviceScopeFactoryMock = new Mock<IServiceScopeFactory>();
+
+        serviceScopeMock.Setup(s => s.ServiceProvider).Returns(serviceProviderMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(ApplicationDbContext))).Returns(dbContext);
+        serviceScopeFactoryMock.Setup(f => f.CreateScope()).Returns(serviceScopeMock.Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(IServiceScopeFactory))).Returns(serviceScopeFactoryMock.Object);
+
+        var redisMock = new Mock<IConnectionMultiplexer>();
+        var redisDbMock = new Mock<IDatabase>();
+        redisMock.Setup(r => r.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(redisDbMock.Object);
+        redisDbMock.Setup(r => r.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), It.IsAny<When>(), It.IsAny<CommandFlags>())).ReturnsAsync(true);
+        redisDbMock.Setup(r => r.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), It.IsAny<When>())).ReturnsAsync(true);
+
+        // Mock StateMachineService
+        var stateMachine = new StateMachineService(dbContext, new Mock<Infrastructure.EventBus.IEventBus>().Object, redisMock.Object, new Mock<IHttpContextAccessor>().Object, new Mock<ILogger<StateMachineService>>().Object);
+        serviceProviderMock.Setup(s => s.GetService(typeof(StateMachineService))).Returns(stateMachine);
+
+        // Mock RedisLockService
+        var redisLockMock = new Mock<RedisLockService>(redisMock.Object, new Mock<ILogger<RedisLockService>>().Object);
+        redisLockMock.Setup(r => r.ReleaseLockAsync(It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(true);
+
+        // Mock OrderNotificationService
+        var mockNotifier = new Mock<OrderNotificationService>(new Mock<IHubContext<TrackingHub>>().Object, new NullLogger<OrderNotificationService>());
+        Order? notifiedOrder = null;
+        OrderState? notifiedPrevState = null;
+        mockNotifier.Setup(n => n.NotifyOrderStatusChangedAsync(It.IsAny<Order>(), It.IsAny<OrderState?>(), It.IsAny<CancellationToken>()))
+            .Callback<Order, OrderState?, CancellationToken>((ord, prev, _) => {
+                notifiedOrder = ord;
+                notifiedPrevState = prev;
+            })
+            .Returns(Task.CompletedTask);
+        serviceProviderMock.Setup(s => s.GetService(typeof(OrderNotificationService))).Returns(mockNotifier.Object);
+
+        // Mock DispatchService (re-dispatch recipient)
+        var mockDispatch = new Mock<DispatchService>(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+        mockDispatch.Setup(d => d.FindAndOfferAsync(It.IsAny<List<Order>>())).Returns(Task.CompletedTask);
+        serviceProviderMock.Setup(s => s.GetService(typeof(DispatchService))).Returns(mockDispatch.Object);
+
+        var loggedMessages = new List<string>();
+        Exception? loggedException = null;
+        var loggerMock = new Mock<ILogger<DispatchOfferHandler>>();
+        loggerMock.Setup(l => l.Log(
+            It.IsAny<LogLevel>(),
+            It.IsAny<EventId>(),
+            It.IsAny<It.IsAnyType>(),
+            It.IsAny<Exception>(),
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+            .Callback(new InvocationAction(i => {
+                var level = (LogLevel)i.Arguments[0];
+                var state = i.Arguments[2];
+                var ex = i.Arguments[3] as Exception;
+                loggedMessages.Add($"[{level}] {state}");
+                if (ex != null) loggedException = ex;
+            }));
+
+        var handler = new DispatchOfferHandler(
+            dbContext,
+            stateMachine,
+            redisLockMock.Object,
+            new Mock<DispatchAdminNotifier>(new Mock<IHubContext<TrackingHub>>().Object, new Mock<ILogger<DispatchAdminNotifier>>().Object).Object,
+            redisMock.Object,
+            serviceProviderMock.Object,
+            loggerMock.Object
+        );
+
+        // Act
+        await handler.RejectOrTimeoutAsync("offer-test", "rider-test");
+
+        // Assert
+        if (notifiedOrder == null)
+        {
+            var logs = string.Join("\n", loggedMessages);
+            Assert.Fail($"RejectOrTimeoutAsync did not notify. Logs:\n{logs}\nException: {loggedException}");
+        }
+        Assert.NotNull(notifiedOrder);
+        Assert.Equal("o-test-reject", notifiedOrder.Id);
+        Assert.Equal(OrderState.MATCHING, notifiedOrder.State); // Should be transitioned back to MATCHING
+        Assert.Equal(OrderState.OFFERING, notifiedPrevState); // Prev state was OFFERING
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

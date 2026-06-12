@@ -3,6 +3,8 @@ using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Dispatch;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using BackendApi.Hubs;
 
 namespace BackendApi.Services.BackgroundWorkers;
 
@@ -112,11 +114,29 @@ public class HeartbeatMonitor : BackgroundService
                             "Rider {RiderId} went STALE — last heartbeat: {LastHB}",
                             rider.Id, lastHeartbeat?.ToString("HH:mm:ss") ?? "never");
 
+                        var oldState = rider.State;
                         var transitioned = await stateMachine.TransitionRiderAsync(rider, RiderState.STALE);
 
                         // ถ้ามี Offer ค้างอยู่ → Re-dispatch
                         if (transitioned)
                         {
+                            try
+                            {
+                                var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<TrackingHub>>();
+                                await hubContext.Clients.Group("admins").SendAsync("RiderStatusUpdated", new
+                                {
+                                    RiderId = rider.Id,
+                                    NewStatus = RiderState.STALE.ToString(),
+                                    PreviousStatus = oldState.ToString(),
+                                    Reason = "heartbeat_timeout",
+                                    Timestamp = DateTime.UtcNow
+                                }, cancellationToken: ct);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to broadcast RiderStatusUpdated SignalR notification for Rider {RiderId} going STALE", rider.Id);
+                            }
+
                             var offeringOrder = await dbContext.Orders
                                 .FirstOrDefaultAsync(o =>
                                     o.AssignedRiderId == rider.Id &&
@@ -165,8 +185,29 @@ public class HeartbeatMonitor : BackgroundService
                         "Rider {RiderId} offline — stale for {Duration}s",
                         rider.Id, staleDuration);
 
-                    await stateMachine.TransitionRiderAsync(rider, RiderState.OFFLINE);
-                    await presenceService.RemoveRiderAsync(rider.Id);
+                    var oldState = rider.State;
+                    var transitioned = await stateMachine.TransitionRiderAsync(rider, RiderState.OFFLINE);
+                    if (transitioned)
+                    {
+                        await presenceService.RemoveRiderAsync(rider.Id);
+
+                        try
+                        {
+                            var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<TrackingHub>>();
+                            await hubContext.Clients.Group("admins").SendAsync("RiderStatusUpdated", new
+                            {
+                                RiderId = rider.Id,
+                                NewStatus = RiderState.OFFLINE.ToString(),
+                                PreviousStatus = oldState.ToString(),
+                                Reason = "heartbeat_timeout_offline",
+                                Timestamp = DateTime.UtcNow
+                            }, cancellationToken: ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to broadcast RiderStatusUpdated SignalR notification for Rider {RiderId} going OFFLINE", rider.Id);
+                        }
+                    }
                 }
             }
         }

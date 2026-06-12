@@ -24,13 +24,14 @@ public class GlobalExceptionFilter : IExceptionFilter
         _logger.LogError(context.Exception, "Unhandled exception: {Message}", context.Exception.Message);
 
         // Fail Fast Circuit Breaker: Return 503 if DB times out or task is canceled
-        if (context.Exception is Npgsql.NpgsqlException || 
-            context.Exception is TimeoutException || 
-            context.Exception is TaskCanceledException || 
+        if (context.Exception is Npgsql.NpgsqlException ||
+            context.Exception is TimeoutException ||
+            context.Exception is TaskCanceledException ||
             context.Exception.InnerException is TimeoutException ||
             context.Exception.InnerException is TaskCanceledException)
         {
             var serviceUnavailableResponse = ApiResponse.Fail(
+                StatusCodes.Status503ServiceUnavailable,
                 "ระบบกำลังรับภาระหนัก (Service Unavailable / Timeout)",
                 errorDetail: _env.IsDevelopment() ? context.Exception.ToString() : null,
                 code: "SERVICE_UNAVAILABLE"
@@ -45,6 +46,7 @@ public class GlobalExceptionFilter : IExceptionFilter
         }
 
         var response = ApiResponse.Fail(
+            StatusCodes.Status500InternalServerError,
             "เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์",
             errorDetail: _env.IsDevelopment() ? context.Exception.ToString() : null,
             code: "INTERNAL_ERROR"

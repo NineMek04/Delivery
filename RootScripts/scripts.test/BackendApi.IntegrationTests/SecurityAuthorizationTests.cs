@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BackendApi.Core.Models;
 using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Models;
@@ -35,6 +36,7 @@ public class SecurityAuthorizationTests : IAsyncLifetime
         var response = await _client.GetAsync("/api/v1/riders");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertErrorResponseAsync(response, 401, "UNAUTHORIZED");
     }
 
     [Fact]
@@ -43,6 +45,16 @@ public class SecurityAuthorizationTests : IAsyncLifetime
         var response = await _client.GetAsync("/health/detail");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertErrorResponseAsync(response, 401, "UNAUTHORIZED");
+    }
+
+    [Fact]
+    public async Task UnknownApiRoute_ReturnsStatusBearing404()
+    {
+        var response = await _client.GetAsync("/api/v1/does-not-exist");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await AssertErrorResponseAsync(response, 404, "NOT_FOUND");
     }
 
     [Fact]
@@ -77,6 +89,7 @@ public class SecurityAuthorizationTests : IAsyncLifetime
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await AssertErrorResponseAsync(response, 403, "FORBIDDEN");
     }
 
     [Fact]
@@ -98,6 +111,7 @@ public class SecurityAuthorizationTests : IAsyncLifetime
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await AssertErrorResponseAsync(response, 403, "FORBIDDEN");
     }
 
     [Fact]
@@ -120,6 +134,7 @@ public class SecurityAuthorizationTests : IAsyncLifetime
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await AssertErrorResponseAsync(response, 403, "FORBIDDEN");
     }
 
     [Fact]
@@ -141,6 +156,21 @@ public class SecurityAuthorizationTests : IAsyncLifetime
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertErrorResponseAsync(response, 401, "UNAUTHORIZED");
+    }
+
+    private static async Task AssertErrorResponseAsync(
+        HttpResponseMessage response,
+        int expectedStatus,
+        string expectedCode)
+    {
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>();
+
+        Assert.NotNull(body);
+        Assert.Equal(expectedStatus, body.Status);
+        Assert.False(body.Success);
+        Assert.Equal(expectedCode, body.Code);
+        Assert.False(string.IsNullOrWhiteSpace(body.Message));
     }
 
     private async Task<(string Token, string UserId, string? ShopId)> RegisterAsync(string role)

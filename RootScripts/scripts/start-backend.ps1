@@ -1,4 +1,4 @@
-$workspaceRoot = $PSScriptRoot
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $envFile = Join-Path $workspaceRoot ".env"
 
 if (Test-Path $envFile) {

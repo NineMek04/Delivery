@@ -64,21 +64,20 @@ class ChatState {
   }
 }
 
-class ChatService extends FamilyNotifier<ChatState, String> {
+class ChatService extends StateNotifier<ChatState> {
+  final Ref ref;
+  final String orderId;
   HubConnection? _hubConnection;
 
-  @override
-  ChatState build(String orderId) {
+  ChatService(this.ref, this.orderId) : super(ChatState(
+    messages: [],
+    isConnected: false,
+    isConnecting: false,
+    activeOrderId: orderId,
+  )) {
     ref.onDispose(() {
       _hubConnection?.stop();
     });
-
-    return ChatState(
-      messages: [],
-      isConnected: false,
-      isConnecting: false,
-      activeOrderId: orderId,
-    );
   }
 
   Future<void> connectAndJoin() async {
@@ -198,6 +197,6 @@ class ChatService extends FamilyNotifier<ChatState, String> {
 }
 
 final chatServiceProvider =
-    NotifierProvider.family<ChatService, ChatState, String>(
-  ChatService.new,
-);
+    StateNotifierProvider.family<ChatService, ChatState, String>((ref, orderId) {
+  return ChatService(ref, orderId);
+});

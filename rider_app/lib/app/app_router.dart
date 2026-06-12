@@ -29,6 +29,10 @@ import '../features/profile/screens/customer_profile_screen.dart';
 import '../features/profile/screens/customer_addresses_screen.dart';
 import '../features/profile/screens/customer_address_map_screen.dart';
 import '../features/tracking/customer_tracking_screen.dart';
+import '../shared/widgets/error_dialog.dart';
+
+/// Provider to notify the UI about unauthorized route access attempts.
+final authAlertProvider = StateProvider<String?>((ref) => null);
 
 /// Re-run GoRouter redirect when [authServiceProvider] changes.
 final _routerRefreshProvider = Provider<Listenable>((ref) {
@@ -80,17 +84,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState == AuthStatus.authenticated) {
         final role = authNotifier.userRole;
 
+        // Check if role is allowed to access the target path
+        bool isAllowed = true;
+        String redirectTarget = '/';
+
         // 1. Customer Enforcement
         if (role == AuthConstants.roleCustomer) {
-          if (!isCustomerRoute) return '/customer';
+          if (!isCustomerRoute) {
+            isAllowed = false;
+            redirectTarget = '/customer';
+          }
         }
         // 2. StorePartner Enforcement
         else if (role == AuthConstants.roleStorePartner) {
-          if (!isStoreRoute) return '/store';
+          if (!isStoreRoute) {
+            isAllowed = false;
+            redirectTarget = '/store';
+          }
         }
         // 3. Rider Enforcement (Default)
         else {
-          if (!isRiderRoute) return '/';
+          if (!isRiderRoute) {
+            isAllowed = false;
+            redirectTarget = '/';
+          }
+        }
+
+        if (!isAllowed) {
+          // Schedule the alert to be set on the next frame to avoid build-phase modification errors
+          Future.microtask(() {
+            ref.read(authAlertProvider.notifier).state = 'สิทธิ์นี้ไม่ได้รับอนุญาตให้เข้า';
+          });
+          return redirectTarget;
         }
       }
       return null;
@@ -236,6 +261,18 @@ class MainShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Listen for auth alerts (unauthorized access attempts)
+    ref.listen<String?>(authAlertProvider, (previous, next) {
+      if (next != null) {
+        ref.read(authAlertProvider.notifier).state = null;
+        ErrorDialog.show(
+          context,
+          title: 'การเข้าถึงถูกปฏิเสธ',
+          message: next,
+        );
+      }
+    });
+
     final homeState = ref.watch(homeNotifierProvider);
     final hasOffer = homeState.incomingOffer != null;
 
@@ -340,6 +377,18 @@ class StoreShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Listen for auth alerts (unauthorized access attempts)
+    ref.listen<String?>(authAlertProvider, (previous, next) {
+      if (next != null) {
+        ref.read(authAlertProvider.notifier).state = null;
+        ErrorDialog.show(
+          context,
+          title: 'การเข้าถึงถูกปฏิเสธ',
+          message: next,
+        );
+      }
+    });
+
     // Listen for new orders to trigger a floating SnackBar notification
     ref.listen<StoreOrdersState>(storeOrdersProvider, (previous, next) {
       final prevCount = previous?.newOrderBadgeCount ?? 0;
@@ -441,13 +490,25 @@ class StoreShell extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════════════
 // Customer Shell — Customer Bottom Navigation
 // ═══════════════════════════════════════════════════════════════════
-class CustomerShell extends StatelessWidget {
+class CustomerShell extends ConsumerWidget {
   final Widget child;
 
   const CustomerShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Listen for auth alerts (unauthorized access attempts)
+    ref.listen<String?>(authAlertProvider, (previous, next) {
+      if (next != null) {
+        ref.read(authAlertProvider.notifier).state = null;
+        ErrorDialog.show(
+          context,
+          title: 'การเข้าถึงถูกปฏิเสธ',
+          message: next,
+        );
+      }
+    });
+
     return Theme(
       data: AppTheme.lightTheme, // Customers prefer Light Mode (customized green)
       child: Scaffold(

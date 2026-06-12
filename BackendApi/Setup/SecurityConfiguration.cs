@@ -118,8 +118,9 @@ public static class SecurityConfiguration
                         context.Token = accessToken;
                     }
 
-                    // 2. HttpOnly Cookie fallback
+                    // 2. HttpOnly Cookie fallback (only if Authorization header is not present)
                     if (string.IsNullOrWhiteSpace(context.Token) &&
+                        !context.Request.Headers.ContainsKey("Authorization") &&
                         context.Request.Cookies.TryGetValue(AuthConstants.AccessTokenCookieName, out var cookieToken))
                     {
                         context.Token = cookieToken;

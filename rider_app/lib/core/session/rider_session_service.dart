@@ -121,7 +121,7 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       final signalR = ref.read(signalRServiceProvider.notifier);
       await signalR.connect();
 
-      _logger.d("goOnline Step 2: Updating Status to AVAILABLE");
+      _logger.d("goOnline Step 2: Updating Status to IDLE");
       await signalR.updateStatus(AppConstants.statusAvailable);
 
       _logger.d("goOnline Step 3: Sending Heartbeat");

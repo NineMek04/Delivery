@@ -7,7 +7,7 @@
       <strong>Fleet_Status</strong>
       <button class="filter-btn" [class.active]="filterStatus === 'ALL'" (click)="setFilterStatus('ALL')">All</button>
       <button class="filter-btn" [class.active]="filterStatus === 'IDLE'" (click)="setFilterStatus('IDLE')"><i class="green-dot"></i>Available ({{ availableCount }})</button>
-      <button class="filter-btn" [class.active]="filterStatus === 'DELIVERING'" (click)="setFilterStatus('DELIVERING')"><i class="blue-dot"></i>Delivering ({{ deliveringCount }})</button>
+      <button class="filter-btn" [class.active]="filterStatus === 'BUSY'" (click)="setFilterStatus('BUSY')"><i class="blue-dot"></i>Busy ({{ busyCount }})</button>
       <button class="filter-btn" [class.active]="filterStatus === 'OFFLINE'" (click)="setFilterStatus('OFFLINE')"><i class="gray-dot"></i>Offline ({{ offlineCount }})</button>
     </div>
 

@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../app/app_theme.dart';
 import '../../../core/api/services/order_api_service.dart';
 import '../../../core/signalr/customer_signalr_service.dart';
 import '../../../models/order.dart';
+import '../../../shared/utils/order_status_helper.dart';
 
 final customerOrdersProvider = FutureProvider.autoDispose<List<OrderDto>>((ref) async {
   return ref.read(orderApiServiceProvider).getCustomerOrders();
@@ -93,7 +93,7 @@ class _OrderListTile extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('สถานะ: ${order.status}'),
+            Text('สถานะ: ${OrderStatusHelper.label(order.status)}'),
             Text('วันที่: ${order.createdAt != null ? DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt!) : '—'}'),
           ],
         ),

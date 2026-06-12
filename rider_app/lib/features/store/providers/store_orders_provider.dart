@@ -174,24 +174,39 @@ class StoreOrdersNotifier extends Notifier<StoreOrdersState> {
 
   // ── Accept / Reject ─────────────────────────────────────────────────────────
 
-  Future<void> acceptOrder(String orderId) async {
+  Future<bool> acceptOrder(String orderId) async {
     try {
       final orderApi = ref.read(orderApiServiceProvider);
-      await orderApi.acceptOrderByStore(orderId);
-      await loadOrders();
+      final updated = await orderApi.acceptOrderByStore(orderId);
+      _replaceOrder(updated);
+      return true;
     } catch (e) {
       debugPrint('[StoreOrdersNotifier] acceptOrder error: $e');
+      state = state.copyWith(error: e.toString());
+      return false;
     }
   }
 
-  Future<void> rejectOrder(String orderId) async {
+  Future<bool> rejectOrder(String orderId) async {
     try {
       final orderApi = ref.read(orderApiServiceProvider);
-      await orderApi.updateOrderStatus(orderId, 'CANCELLED');
-      await loadOrders();
+      final updated = await orderApi.rejectOrderByStore(orderId);
+      _replaceOrder(updated);
+      return true;
     } catch (e) {
       debugPrint('[StoreOrdersNotifier] rejectOrder error: $e');
+      state = state.copyWith(error: e.toString());
+      return false;
     }
+  }
+
+  void _replaceOrder(OrderDto updated) {
+    state = state.copyWith(
+      error: null,
+      orders: state.orders
+          .map((order) => order.id == updated.id ? updated : order)
+          .toList(),
+    );
   }
 
   void _dispose() {

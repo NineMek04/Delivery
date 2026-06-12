@@ -103,7 +103,7 @@
     </ng-template>
 
     <ng-template #actionTemplate let-item>
-      <button type="button" class="ghost-action" (click)="toggleStatus(item)" [title]="item.status === 'IDLE' ? 'Set Unavailable' : 'Set Idle'">
+      <button type="button" class="ghost-action" (click)="toggleStatus(item)" [title]="item.status === 'IDLE' ? 'Set Offline' : 'Set Idle'">
         <lucide-icon [img]="icons.RefreshCcw" size="14"></lucide-icon>
         Toggle
       </button>

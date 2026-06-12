@@ -15,7 +15,7 @@ export interface RiderLocationUpdate {
   snappedLng?: number;
   isSnapped?: boolean;
   speedKmh?: number;
-  status: string; // "IDLE", "DELIVERING", "PICKING_UP", etc.
+  status: string; // OFFLINE, IDLE, RESERVED, BUSY, STALE
   timestamp: string;
 }
 

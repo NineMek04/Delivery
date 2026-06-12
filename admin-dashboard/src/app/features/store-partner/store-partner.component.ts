@@ -29,7 +29,7 @@ import { environment } from '../../../environments/environment';
 
 export interface IncomingOrder {
   id: string;
-  state: string; // "CREATED", "ACCEPTED_BY_STORE", "MATCHING", etc.
+  state: string; // CREATED, MATCHING, OFFERING, ASSIGNED, PICKING_UP, DELIVERING, COMPLETED, CANCELLED
   pickupLat?: number;
   pickupLng?: number;
   dropoffLat?: number;
@@ -399,13 +399,13 @@ export class StorePartnerComponent implements OnInit, OnDestroy {
   acceptIncomingOrder(order: IncomingOrder) {
     this.loading = true;
     this.storeService.acceptOrderByStore(order.id, order.customerId).subscribe({
-      next: () => {
+      next: (response) => {
         this.loading = false;
 
         // Update local state to accepted/preparing
         const index = this.incomingOrders.findIndex(o => o.id === order.id);
         if (index !== -1) {
-          this.incomingOrders[index].state = 'ACCEPTED_BY_STORE';
+          this.incomingOrders[index].state = response?.data?.status ?? 'MATCHING';
         }
 
         Swal.fire({

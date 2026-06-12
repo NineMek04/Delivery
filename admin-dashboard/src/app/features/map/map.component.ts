@@ -90,15 +90,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private shopMarkers: Map<string, L.Marker> = new Map();
 
   get availableCount(): number {
-    return this.riders.filter(rider => ['IDLE', 'AVAILABLE'].includes(rider.status)).length;
+    return [...this.trackingService.getRiderLocations().values()]
+      .filter(rider => rider.status === 'IDLE').length;
   }
 
-  get deliveringCount(): number {
-    return this.riders.filter(rider => ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(rider.status)).length;
+  get busyCount(): number {
+    return [...this.trackingService.getRiderLocations().values()]
+      .filter(rider => rider.status === 'BUSY').length;
   }
 
   get offlineCount(): number {
-    return this.riders.filter(rider => ['OFFLINE', 'LOW'].includes(rider.status)).length;
+    return [...this.trackingService.getRiderLocations().values()]
+      .filter(rider => ['OFFLINE', 'STALE'].includes(rider.status)).length;
   }
 
   ngOnInit(): void {
@@ -560,8 +563,16 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       const isWinner = riderId === this.assignedRiderId;
       const next = L.latLng(loc.latitude, loc.longitude);
 
-      const isActive = isWinner || ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(loc.status);
-      const statusColor = isWinner ? '#3b82f6' : (['AVAILABLE', 'IDLE'].includes(loc.status) ? '#22c55e' : (['DELIVERING', 'PICKING_UP', 'BUSY'].includes(loc.status) ? '#f97316' : '#64748b'));
+      const isActive = isWinner || ['RESERVED', 'BUSY'].includes(loc.status);
+      const statusColor = isWinner
+        ? '#3b82f6'
+        : loc.status === 'IDLE'
+          ? '#22c55e'
+          : loc.status === 'RESERVED'
+            ? '#eab308'
+            : loc.status === 'BUSY'
+              ? '#f97316'
+              : '#64748b';
 
       const customIcon = L.divIcon({
         html: `<div style="width:${isActive ? '24px' : '16px'};height:${isActive ? '24px' : '16px'};border-radius:50%;border:2px solid #fff;background-color:${statusColor};box-shadow: 0 0 ${isActive ? '24px' : '8px'} ${statusColor};transition:all 0.2s ease-in-out;"><div style="position:absolute;top:50%;left:50%;width:${isActive ? '10px' : '6px'};height:${isActive ? '10px' : '6px'};background:#fff;border-radius:50%;transform:translate(-50%,-50%);"></div></div>`,
@@ -627,7 +638,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private updateRiderList(locationMap: Map<string, RiderLocationUpdate>): void {
     const list: any[] = [];
     locationMap.forEach((loc, riderId) => {
-      if (this.filterStatus !== 'ALL' && loc.status !== this.filterStatus) return;
+      const matchesFilter =
+        this.filterStatus === 'ALL' ||
+        loc.status === this.filterStatus ||
+        (this.filterStatus === 'OFFLINE' && loc.status === 'STALE');
+      if (!matchesFilter) return;
 
       const isWinner = riderId === this.assignedRiderId;
       list.push({
@@ -637,7 +652,9 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         signal: 'Strong',
         status: isWinner ? 'DISPATCHED' : loc.status,
         avatar: isWinner ? '🏆' : loc.status.charAt(0),
-        tone: loc.status === 'IDLE' ? 'online' : (isWinner || loc.status === 'DELIVERING' || loc.status === 'PICKING_UP' ? 'busy' : 'low')
+        tone: loc.status === 'IDLE'
+          ? 'online'
+          : (isWinner || loc.status === 'RESERVED' || loc.status === 'BUSY' ? 'busy' : 'low')
       });
     });
     this.riders = list;

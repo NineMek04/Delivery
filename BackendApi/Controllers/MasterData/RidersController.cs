@@ -101,7 +101,10 @@ public class RidersController : CrudControllerBase<Rider, RiderDto>
             return NotFound(ApiResponse.Fail("ไม่พบข้อมูลไรเดอร์ที่ต้องการแก้ไข", code: "NOT_FOUND"));
 
         // อัปเดตเฉพาะฟิลด์ที่อนุญาต
-        existing.Name = dto.Name;
+        if (!string.IsNullOrWhiteSpace(dto.Name))
+        {
+            existing.Name = dto.Name;
+        }
 
         if (!string.IsNullOrEmpty(dto.Status) && Enum.TryParse<BackendApi.Core.StateMachines.RiderState>(dto.Status, true, out var parsedState))
         {

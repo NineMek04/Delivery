@@ -28,6 +28,8 @@ public interface IOrderService
     Task<(int StatusCode, ApiResponse<OrderDto> Response)> UpdateOrderStatusAsync(string id, UpdateOrderStatusDto dto, string? currentUserId, string? role, CancellationToken cancellationToken);
     
     Task<(int StatusCode, ApiResponse<OrderDto> Response)> AcceptOrderByStoreAsync(string id, string? currentUserId, CancellationToken cancellationToken);
+
+    Task<(int StatusCode, ApiResponse<OrderDto> Response)> RejectOrderByStoreAsync(string id, string? currentUserId, CancellationToken cancellationToken);
     
     Task<(int StatusCode, ApiResponse<OrderDto> Response)> CancelOrderAsync(string id, CancellationToken cancellationToken);
     

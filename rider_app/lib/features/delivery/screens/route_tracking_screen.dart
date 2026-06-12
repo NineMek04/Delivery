@@ -9,7 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/location/tile_cache_service.dart';
-import '../../../core/signalr/signalr_service.dart';
+import '../../../models/order.dart';
+import '../providers/delivery_provider.dart';
 import '../../tracking/providers/tracking_provider.dart';
 import '../../tracking/services/simulated_journey_service.dart';
 
@@ -28,6 +29,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   final MapController _mapController = MapController();
   bool _isPickedUp = false;
   bool _isTrackingStarted = false;
+  bool _isUpdatingStatus = false;
   double _currentDistance = double.infinity;
   String? _dbDir;
 
@@ -52,12 +54,31 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     }
   }
 
-  void _startGpsTracking(ActiveOrderState state) {
+  Future<void> _startGpsTracking(ActiveOrderState state) async {
     if (state.order == null) return;
     final order = state.order!;
-    
+    final status = order.status.toUpperCase();
+
+    if (status == 'ASSIGNED') {
+      final updated = await _updateOrderStatus(order.id, 'PICKING_UP');
+      if (!updated || !mounted) return;
+    } else if (status == 'DELIVERING') {
+      if (order.dropoffLat == null || order.dropoffLng == null) return;
+      setState(() {
+        _isTrackingStarted = true;
+        _isPickedUp = true;
+      });
+      _startDeliveryJourney(order);
+      return;
+    } else if (status != 'PICKING_UP') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Order cannot be tracked in state $status')),
+      );
+      return;
+    }
+
+    if (order.pickupLat == null || order.pickupLng == null) return;
     setState(() => _isTrackingStarted = true);
-    ref.read(signalRServiceProvider.notifier).updateStatus('PICKING_UP');
 
     final simService = ref.read(simulatedJourneyProvider);
     
@@ -82,39 +103,26 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     );
   }
 
-  void _markStatus(ActiveOrderState state) {
+  Future<void> _markStatus(ActiveOrderState state) async {
     if (state.order == null) return;
     final order = state.order!;
     final simService = ref.read(simulatedJourneyProvider);
-    final signalR = ref.read(signalRServiceProvider.notifier);
 
     if (!_isPickedUp) {
+      if (order.dropoffLat == null || order.dropoffLng == null) return;
+      final updated = await _updateOrderStatus(order.id, 'DELIVERING');
+      if (!updated || !mounted) return;
       setState(() {
         _isPickedUp = true;
         _currentDistance = double.infinity;
       });
-      signalR.updateStatus('DELIVERING');
 
-      // Start next leg (to customer)
-      List<LatLng> deliveryRoute = [];
-      if (order.encodedPolyline != null) {
-        deliveryRoute = simService.decodePolyline(order.encodedPolyline!);
-      } else if (order.dropoffLat != null && order.dropoffLng != null) {
-        deliveryRoute = [
-          ref.read(locationStateProvider),
-          LatLng(order.dropoffLat!, order.dropoffLng!),
-        ];
-      }
-
-      simService.startJourney(
-        routeCoords: deliveryRoute, 
-        destination: LatLng(order.dropoffLat!, order.dropoffLng!), 
-        locationStateController: ref.read(locationStateProvider.notifier),
-      );
+      _startDeliveryJourney(order);
 
     } else {
+      final updated = await _updateOrderStatus(order.id, 'COMPLETED');
+      if (!updated || !mounted) return;
       simService.stopJourney();
-      signalR.updateStatus('COMPLETED');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Delivery Completed!')),
       );
@@ -122,6 +130,43 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
         context.pop();
       }
     }
+  }
+
+  void _startDeliveryJourney(OrderDto order) {
+    final simService = ref.read(simulatedJourneyProvider);
+    List<LatLng> deliveryRoute = [];
+    if (order.encodedPolyline != null) {
+      deliveryRoute = simService.decodePolyline(order.encodedPolyline!);
+    } else {
+      deliveryRoute = [
+        ref.read(locationStateProvider),
+        LatLng(order.dropoffLat!, order.dropoffLng!),
+      ];
+    }
+
+    simService.startJourney(
+      routeCoords: deliveryRoute,
+      destination: LatLng(order.dropoffLat!, order.dropoffLng!),
+      locationStateController: ref.read(locationStateProvider.notifier),
+    );
+  }
+
+  Future<bool> _updateOrderStatus(String orderId, String status) async {
+    if (_isUpdatingStatus) return false;
+    setState(() => _isUpdatingStatus = true);
+    await ref
+        .read(deliveryNotifierProvider.notifier)
+        .updateOrderStatus(orderId, status);
+    if (!mounted) return false;
+
+    final error = ref.read(deliveryNotifierProvider).error;
+    setState(() => _isUpdatingStatus = false);
+    if (error == null || error.startsWith('Offline:')) return true;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error)),
+    );
+    return false;
   }
 
   @override
@@ -255,7 +300,9 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () => _startGpsTracking(state),
+                        onPressed: _isUpdatingStatus
+                            ? null
+                            : () => _startGpsTracking(state),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -270,7 +317,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                   else
                     SlideToConfirm(
                       text: _isPickedUp ? 'Slide to Complete' : 'Slide to Pick Up',
-                      isEnabled: canSlide,
+                      isEnabled: canSlide && !_isUpdatingStatus,
                       color: _isPickedUp ? Colors.green : Colors.orange,
                       onConfirmed: () {
                         _markStatus(state);

@@ -41,6 +41,7 @@ public static class MappingConfig
         // Rider Entity ↔ RiderDto
         // ================================================
         config.NewConfig<Rider, RiderDto>()
+            .Map(dest => dest.Status, src => src.State.ToString())
             .Map(dest => dest.Lat, src => src.CurrentLocation != null ? src.CurrentLocation.Y : (double?)null)
             .Map(dest => dest.Lng, src => src.CurrentLocation != null ? src.CurrentLocation.X : (double?)null)
             .Map(dest => dest.LastUpdated, src => src.LastGpsUpdate ?? src.UpdatedAt);

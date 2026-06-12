@@ -99,7 +99,7 @@
                   <span class="driver">{{ shp.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }} // {{ shp.distanceKm | number:'1.1-1' }} KM</span>
                 </td>
                 <td class="col-phase">
-                  <span class="status-badge" [class]="statusClass(shp.status)">{{ shp.status || 'PENDING' }}</span>
+                  <span class="status-badge" [class]="statusClass(shp.status)">{{ shp.status || 'CREATED' }}</span>
                 </td>
                 <td class="col-time group-hover-text">{{ shp.expectedDeliveryTime | date:'HH:mm' }}</td>
               </tr>
@@ -126,7 +126,7 @@
             <div class="health-info">
               <div class="health-item-header">
                 <p class="item-name group-hover-text">{{ getOrderTrackingCode(item) }}</p>
-                <span class="status-badge warning">{{ item.status || 'PENDING' }}</span>
+                <span class="status-badge warning">{{ item.status || 'CREATED' }}</span>
               </div>
               <p class="item-desc">{{ item.distanceKm | number:'1.1-1' }} KM // {{ item.deliveryFee | currency:'THB':'symbol-narrow':'1.0-0' }}</p>
               <div class="item-load">

@@ -22,6 +22,7 @@ using StackExchange.Redis;
 using BackendApi.Infrastructure.Redis;
 using Microsoft.Extensions.Logging;
 using Order = BackendApi.Models.Order;
+using Mapster;
 
 namespace BackendApi.UnitTests;
 
@@ -42,6 +43,37 @@ public class QABugRegressionTests
     public void OrderDto_DefaultStatusIsCreated()
     {
         Assert.Equal("CREATED", new OrderDto().Status);
+    }
+
+    [Fact]
+    public void RiderDto_DefaultStatusIsOffline()
+    {
+        Assert.Equal("OFFLINE", new RiderDto().Status);
+    }
+
+    [Fact]
+    public void RiderDto_MappingUsesCanonicalRiderState()
+    {
+        BackendApi.Core.Mappings.MappingConfig.Configure();
+        var dto = new Rider
+        {
+            Id = "rider-1",
+            Name = "Rider One",
+            State = RiderState.RESERVED
+        }.Adapt<RiderDto>();
+
+        Assert.Equal("RESERVED", dto.Status);
+    }
+
+    [Fact]
+    public void StoreRejectionTransition_IsLimitedToCreatedOrder()
+    {
+        Assert.True(OrderStateRules.IsValidTransition(
+            OrderState.CREATED,
+            OrderState.CANCELLED));
+        Assert.False(OrderStateRules.IsValidTransition(
+            OrderState.COMPLETED,
+            OrderState.CANCELLED));
     }
 
     [Fact]

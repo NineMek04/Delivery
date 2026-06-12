@@ -136,7 +136,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   get riderUtilization(): number {
     if (!this.riders.length) return this.liveRiders.length ? 100 : 0;
-    const busy = this.riders.filter(rider => ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(rider.status || '')).length;
+    const busy = this.riders.filter(rider => rider.status === 'BUSY').length;
     return Math.round((busy / this.riders.length) * 100);
   }
 

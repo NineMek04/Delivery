@@ -329,7 +329,19 @@ class _OrderCard extends ConsumerWidget {
   }
 
   Future<void> _accept(BuildContext context, WidgetRef ref) async {
-    await ref.read(storeOrdersProvider.notifier).acceptOrder(order.id);
+    final succeeded =
+        await ref.read(storeOrdersProvider.notifier).acceptOrder(order.id);
+    if (!succeeded) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('รับออเดอร์ไม่สำเร็จ กรุณาลองใหม่'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      return;
+    }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -361,7 +373,19 @@ class _OrderCard extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(storeOrdersProvider.notifier).rejectOrder(order.id);
+      final succeeded =
+          await ref.read(storeOrdersProvider.notifier).rejectOrder(order.id);
+      if (!succeeded) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ปฏิเสธออเดอร์ไม่สำเร็จ กรุณาลองใหม่'),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+        }
+        return;
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

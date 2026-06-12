@@ -93,6 +93,19 @@ class OrderApiService {
     }
   }
 
+  Future<OrderDto> rejectOrderByStore(String orderId) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.ordersEndpoint}/$orderId/reject-by-store',
+      );
+      final parsed = parseApiResponse(response.data, OrderDto.fromJson);
+      ensureSuccess(parsed);
+      return parsed.value!;
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
+
   /// Fetch all orders belonging to the shop of the currently authenticated StorePartner.
   Future<List<OrderDto>> getShopOrders() async {
     try {
@@ -105,9 +118,5 @@ class OrderApiService {
     }
   }
 
-  /// Convenience wrapper used by StoreOrdersNotifier.
-  Future<void> updateOrderStatus(String orderId, String status) async {
-    await updateStatus(orderId: orderId, status: status);
-  }
 }
 

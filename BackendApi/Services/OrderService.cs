@@ -621,6 +621,48 @@ public class OrderService : IOrderService
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ยกเลิกออเดอร์สำเร็จ"));
     }
 
+    public async Task<(int StatusCode, ApiResponse<OrderDto> Response)> RejectOrderByStoreAsync(
+        string id,
+        string? currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var order = await _db.GetObjectByKeyAsync<Order>(id, cancellationToken);
+        if (order is null)
+            return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("Order not found."));
+
+        var user = await _db.GetObjectByKeyAsync<BackendApi.Models.User>(
+            currentUserId ?? string.Empty,
+            cancellationToken);
+        if (user?.ShopId is null || order.ShopId != user.ShopId)
+        {
+            return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail(
+                "Store partner is not allowed to reject this order."));
+        }
+
+        if (order.State != Core.StateMachines.OrderState.CREATED)
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail(
+                $"Store can reject only CREATED orders. Current state: {order.State}."));
+        }
+
+        var previousState = order.State;
+        var success = await _stateMachine.TransitionOrderAsync(
+            order,
+            Core.StateMachines.OrderState.CANCELLED);
+        if (!success)
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail(
+                "Unable to reject this order."));
+        }
+
+        var resultDto = _mapper.Map<OrderDto>(order);
+        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
+
+        return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(
+            resultDto,
+            "Store rejected the order."));
+    }
+
     public async Task<(int StatusCode, ApiResponse Response)> RetryDispatchAsync(
         string id,
         CancellationToken cancellationToken)

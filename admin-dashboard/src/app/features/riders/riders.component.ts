@@ -55,10 +55,10 @@ export class RidersComponent implements OnInit {
     return this.riders.filter(r => r.status === 'IDLE').length;
   }
   get busyCount(): number {
-    return this.riders.filter(r => ['BUSY', 'DELIVERING', 'PICKING_UP'].includes(r.status || '')).length;
+    return this.riders.filter(r => r.status === 'BUSY').length;
   }
   get offlineCount(): number {
-    return this.riders.filter(r => r.status === 'OFFLINE').length;
+    return this.riders.filter(r => ['OFFLINE', 'STALE'].includes(r.status || '')).length;
   }
 
   ngOnInit(): void {
@@ -124,7 +124,7 @@ export class RidersComponent implements OnInit {
   // ── Quick Toggle ──────────────────────────────────────────────────
   toggleStatus(rider: RiderDto) {
     if (!rider.id) return;
-    const newStatus = rider.status === 'IDLE' ? 'UNAVAILABLE' : 'IDLE';
+    const newStatus = rider.status === 'IDLE' ? 'OFFLINE' : 'IDLE';
     const payload: Partial<RiderDto> = { status: newStatus };
     this.riderService.update(rider.id, payload).subscribe({
       next: () => { rider.status = newStatus; },

@@ -3,7 +3,7 @@ import * as L from 'leaflet';
 import 'leaflet.markercluster';
 import { MapMathService } from './map-math.service';
 
-export type RiderStatus = 'IDLE' | 'DELIVERING' | 'PICKING_UP' | 'BUSY' | 'OFFLINE' | string;
+export type RiderStatus = 'OFFLINE' | 'IDLE' | 'RESERVED' | 'BUSY' | 'STALE' | string;
 
 export interface RiderPopupData {
   riderId: string;
@@ -17,10 +17,9 @@ export interface RiderPopupData {
 /** Color palette for rider status */
 const STATUS_COLORS: Record<string, string> = {
   IDLE:        '#22c55e',  // green
-  AVAILABLE:   '#22c55e',
-  DELIVERING:  '#f97316',  // orange
-  PICKING_UP:  '#f97316',
+  RESERVED:    '#eab308',  // yellow
   BUSY:        '#f97316',
+  STALE:       '#94a3b8',
   OFFLINE:     '#64748b',  // gray
 };
 
@@ -224,7 +223,7 @@ export class MapDrawingService implements OnDestroy {
       color = '#9ca3af'; // Gray out unsnapped raw GPS markers
     }
     const emoji  = status === 'OFFLINE' ? '⚫' : '🛵';
-    const pulse  = ['DELIVERING', 'PICKING_UP', 'BUSY'].includes(status.toUpperCase())
+    const pulse  = ['RESERVED', 'BUSY'].includes(status.toUpperCase())
       ? `box-shadow: 0 0 0 6px ${color}33, 0 4px 14px rgba(0,0,0,0.4);` : '';
 
     return L.divIcon({

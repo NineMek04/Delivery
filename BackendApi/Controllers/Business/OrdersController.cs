@@ -139,6 +139,22 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
+    /// Store partner rejects an order that is still in CREATED state.
+    /// </summary>
+    [HttpPost("{id}/reject-by-store")]
+    [Authorize(Roles = AuthConstants.StorePartnerRole)]
+    public async Task<ActionResult<ApiResponse<OrderDto>>> RejectOrderByStore(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        var (statusCode, response) = await _orderService.RejectOrderByStoreAsync(
+            id,
+            CurrentUserId,
+            cancellationToken);
+        return StatusCode(statusCode, response);
+    }
+
+    /// <summary>
     /// ยกเลิกออเดอร์ (Admin/Dispatcher)
     /// </summary>
     [HttpPost("{id}/cancel")]

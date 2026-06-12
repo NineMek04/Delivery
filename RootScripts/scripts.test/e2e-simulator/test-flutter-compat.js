@@ -25,7 +25,7 @@ const ADMIN_CREDS = {
   password: requireEnv('DELIVERY_ADMIN_PASSWORD')
 };
 const RIDER_CREDS = {
-  email: 'flutter-rider-test@delivery.test',
+  email: `flutter-rider-test-${Date.now()}@delivery.test`,
   password: requireEnv('DELIVERY_SIM_PASSWORD'),
   fullName: 'Flutter Compat Tester',
   role: 'Rider'

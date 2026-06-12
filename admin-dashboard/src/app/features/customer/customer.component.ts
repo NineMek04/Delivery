@@ -38,7 +38,7 @@ import { environment } from '../../../environments/environment';
 
 export interface OrderTrackingState {
   orderId: string;
-  status: string; // "CREATED", "ACCEPTED_BY_STORE", "MATCHING", "ASSIGNED", "PICKING_UP", "DELIVERING", "COMPLETED", "CANCELLED"
+  status: string; // CREATED, MATCHING, OFFERING, ASSIGNED, PICKING_UP, DELIVERING, COMPLETED, CANCELLED
   riderId?: string;
   riderLat?: number;
   riderLng?: number;
@@ -412,7 +412,7 @@ export class CustomerComponent implements OnInit, OnDestroy {
           this.activeOrderTracking &&
           this.activeOrderTracking.orderId === data.orderId
         ) {
-          this.activeOrderTracking.status = 'ACCEPTED_BY_STORE';
+          this.activeOrderTracking.status = data.status;
           this.activeOrderTracking.timelineIndex = 1;
           this.triggerAlert(
             'ร้านค้ารับออเดอร์แล้ว',

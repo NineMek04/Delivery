@@ -14,8 +14,8 @@ public class RiderDto
     /// <summary>ชื่อไรเดอร์</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>สถานะไรเดอร์: AVAILABLE, DELIVERING, OFFLINE</summary>
-    public string Status { get; set; } = "AVAILABLE";
+    /// <summary>สถานะไรเดอร์: OFFLINE, IDLE, RESERVED, BUSY, STALE</summary>
+    public string Status { get; set; } = "OFFLINE";
 
     /// <summary>ละติจูดปัจจุบัน</summary>
     public double? Lat { get; set; }

@@ -39,7 +39,14 @@ public class AuthFlowTests : IAsyncLifetime
     private record RefreshPayload(string RefreshToken);
     private record ChangePasswordPayload(string CurrentPassword, string NewPassword);
 
-    private record ApiResponseWrapper<T>(bool Success, T? Value, string? Message, string? ErrorDetail);
+    private record ApiResponseWrapper<T>(
+        int Status,
+        bool Success,
+        T? Value,
+        string? Message,
+        string? ErrorDetail,
+        string? Code,
+        Dictionary<string, string[]>? Errors);
     private record AuthData(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserData? User);
     private record UserData(string Id, string Email, string Role, string? FullName);
 
@@ -56,6 +63,11 @@ public class AuthFlowTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponseWrapper<object>>(_jsonOpts);
+        Assert.NotNull(body);
+        Assert.Equal(401, body.Status);
+        Assert.False(body.Success);
+        Assert.Equal("INVALID_CREDENTIALS", body.Code);
     }
 
     [Fact]
@@ -73,6 +85,7 @@ public class AuthFlowTests : IAsyncLifetime
 
         var registerBody = await registerResponse.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>(_jsonOpts);
         Assert.NotNull(registerBody);
+        Assert.Equal(201, registerBody.Status);
         Assert.True(registerBody.Success);
         Assert.NotNull(registerBody.Value);
         Assert.False(string.IsNullOrWhiteSpace(registerBody.Value.AccessToken));
@@ -90,6 +103,7 @@ public class AuthFlowTests : IAsyncLifetime
 
         var loginBody = await loginResponse.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>(_jsonOpts);
         Assert.NotNull(loginBody?.Value);
+        Assert.Equal(200, loginBody.Status);
         Assert.Equal(uniqueEmail, loginBody.Value.User?.Email);
 
         accessToken = loginBody.Value.AccessToken;
@@ -102,6 +116,8 @@ public class AuthFlowTests : IAsyncLifetime
         var sessionResponse = await _client.SendAsync(sessionRequest);
         Assert.True(sessionResponse.IsSuccessStatusCode,
             $"Session failed: {sessionResponse.StatusCode}");
+        var sessionBody = await sessionResponse.Content.ReadFromJsonAsync<ApiResponseWrapper<UserData>>(_jsonOpts);
+        Assert.Equal(200, sessionBody?.Status);
 
         // ── Step 4: Refresh Token ─────────────────────────────────
         var refreshPayload = new RefreshPayload(refreshToken);
@@ -112,6 +128,7 @@ public class AuthFlowTests : IAsyncLifetime
 
         var refreshBody = await refreshResponse.Content.ReadFromJsonAsync<ApiResponseWrapper<AuthData>>(_jsonOpts);
         Assert.NotNull(refreshBody?.Value);
+        Assert.Equal(200, refreshBody.Status);
         Assert.NotEqual(accessToken, refreshBody.Value.AccessToken); // New token issued
 
         var newAccessToken = refreshBody.Value.AccessToken;
@@ -134,6 +151,30 @@ public class AuthFlowTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponseWrapper<object>>(_jsonOpts);
+        Assert.NotNull(body);
+        Assert.Equal(401, body.Status);
+        Assert.False(body.Success);
+        Assert.Equal("UNAUTHORIZED", body.Code);
+        Assert.False(string.IsNullOrWhiteSpace(body.Message));
+    }
+
+    [Fact]
+    public async Task Register_WithInvalidModel_ReturnsStatusAndFieldErrors()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/auth/register",
+            new RegisterPayload("invalid-email", "short", "", "Customer"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<ApiResponseWrapper<object>>(_jsonOpts);
+        Assert.NotNull(body);
+        Assert.Equal(400, body.Status);
+        Assert.False(body.Success);
+        Assert.Equal("VALIDATION_ERROR", body.Code);
+        Assert.NotNull(body.Errors);
+        Assert.NotEmpty(body.Errors);
     }
 
     [Theory]

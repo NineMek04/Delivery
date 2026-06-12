@@ -2,7 +2,9 @@ import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { getApiErrorMessage, getApiErrorTitle } from '../../../core/http/api-error';
 import { CommonModule } from '@angular/common';
+import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-register',
@@ -40,8 +42,14 @@ export class RegisterComponent {
       next: () => {
         this.router.navigate(['/']);
       },
-      error: () => {
+      error: (err) => {
         this.loading = false;
+        Swal.fire({
+          icon: 'error',
+          title: getApiErrorTitle(err),
+          text: getApiErrorMessage(err, 'ไม่สามารถสร้างบัญชีได้'),
+          confirmButtonColor: '#3b82f6'
+        });
       }
     });
   }

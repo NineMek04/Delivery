@@ -2,20 +2,47 @@ import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, throwError, switchMap } from 'rxjs';
 import { AuthService } from '../services/auth.service';
+import {
+  getApiErrorMessage,
+  getApiErrorTitle,
+  isPublicAuthRequest
+} from '../http/api-error';
 import Swal from 'sweetalert2';
+
+let sessionExpiredAlert: Promise<unknown> | null = null;
+
+function handleSessionExpired(authService: AuthService): void {
+  authService.forceLogout();
+
+  if (sessionExpiredAlert) {
+    return;
+  }
+
+  sessionExpiredAlert = Swal.fire({
+    icon: 'warning',
+    title: 'เซสชันหมดอายุ',
+    text: 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
+    confirmButtonText: 'ไปหน้าเข้าสู่ระบบ',
+    confirmButtonColor: '#3085d6',
+    allowOutsideClick: false
+  }).finally(() => {
+    sessionExpiredAlert = null;
+  });
+}
+
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
-      let errorMsg = 'เกิดข้อผิดพลาดบางอย่าง โปรดลองอีกครั้ง';
+      let errorMsg = getApiErrorMessage(error);
 
       if (error.error instanceof ErrorEvent) {
         // Client-side error
         errorMsg = `Error: ${error.error.message}`;
       } else {
         // Prevent refresh loop
-        if (req.url.includes('/auth/refresh') || req.url.includes('/auth/login')) {
+        if (isPublicAuthRequest(req.url)) {
           return throwError(() => error);
         }
 
@@ -25,20 +52,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
             return authService.refreshAccessToken().pipe(
               switchMap((success: boolean) => {
                 if (success) {
-                  const token = authService.getToken();
-                  const clonedReq = req.clone({
-                    headers: req.headers.set('Authorization', `Bearer ${token}`)
-                  });
-                  return next(clonedReq);
+                  return next(req);
                 }
 
-                errorMsg = 'เซสชันของคุณหมดอายุ โปรดเข้าสู่ระบบใหม่';
-                Swal.fire({
-                  icon: 'warning',
-                  title: 'หมดเวลา',
-                  text: errorMsg,
-                  confirmButtonColor: '#3085d6'
-                });
+                handleSessionExpired(authService);
                 return throwError(() => error);
               }),
               catchError(() => throwError(() => error))
@@ -62,12 +79,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
             });
             break;
           default:
-            if (error.error && error.error.Message) {
-              errorMsg = error.error.Message;
-            }
             Swal.fire({
               icon: 'error',
-              title: `Error Code: ${error.status}`,
+              title: getApiErrorTitle(error),
               text: errorMsg,
             });
             break;

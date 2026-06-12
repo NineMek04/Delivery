@@ -67,6 +67,9 @@ class AuthService extends Notifier<AuthStatus> {
   /// Future สำหรับป้องกัน concurrent refresh และแชร์ผลลัพธ์ร่วมกัน
   Future<bool>? _refreshFuture;
 
+  /// Prevents a stale async startup check from overwriting a newer login/logout.
+  int _authMutationVersion = 0;
+
   @override
   AuthStatus build() {
     // Cleanup timer เมื่อ provider ถูก dispose
@@ -116,23 +119,23 @@ class AuthService extends Notifier<AuthStatus> {
   }
 
   /// ดึง User ID จาก token claims.
-  String? get userId => 
-      decodedToken?[AuthConstants.claimUserId] ?? 
+  String? get userId =>
+      decodedToken?[AuthConstants.claimUserId] ??
       decodedToken?['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
 
   /// ดึง User Name จาก token claims.
-  String? get userName => 
-      decodedToken?[AuthConstants.claimName] ?? 
+  String? get userName =>
+      decodedToken?[AuthConstants.claimName] ??
       decodedToken?['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
 
   /// ดึง User Role จาก token claims.
-  String? get userRole => 
-      decodedToken?[AuthConstants.claimRole] ?? 
+  String? get userRole =>
+      decodedToken?[AuthConstants.claimRole] ??
       decodedToken?['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
 
   /// ดึง Email จาก token claims.
-  String? get userEmail => 
-      decodedToken?[AuthConstants.claimEmail] ?? 
+  String? get userEmail =>
+      decodedToken?[AuthConstants.claimEmail] ??
       decodedToken?['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
 
   /// ดึงข้อมูลผู้ใช้ปัจจุบัน (UserInfo)
@@ -163,10 +166,9 @@ class AuthService extends Notifier<AuthStatus> {
     required String refreshToken,
     Map<String, dynamic>? userData,
   }) async {
-    await _storage.write(
-      key: AppConstants.accessTokenKey,
-      value: accessToken,
-    );
+    _authMutationVersion++;
+
+    await _storage.write(key: AppConstants.accessTokenKey, value: accessToken);
     await _storage.write(
       key: AppConstants.refreshTokenKey,
       value: refreshToken,
@@ -192,6 +194,7 @@ class AuthService extends Notifier<AuthStatus> {
   ///
   /// เทียบ Angular: `setToken(token: string)`
   Future<void> setToken(String token) async {
+    _authMutationVersion++;
     await _storage.write(key: AppConstants.accessTokenKey, value: token);
     _cachedToken = token;
     state = AuthStatus.authenticated;
@@ -211,10 +214,13 @@ class AuthService extends Notifier<AuthStatus> {
   Future<bool> refreshAccessToken() async {
     // ป้องกัน concurrent refresh (race condition)
     if (_refreshFuture != null) {
-      _logger.d('⏳ Token refresh already in progress, awaiting current refresh future...');
+      _logger.d(
+        '⏳ Token refresh already in progress, awaiting current refresh future...',
+      );
       return await _refreshFuture!;
     }
 
+    final refreshVersion = _authMutationVersion;
     final completer = Completer<bool>();
     _refreshFuture = completer.future;
 
@@ -240,6 +246,7 @@ class AuthService extends Notifier<AuthStatus> {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'X-Client-Type': 'RiderApp',
           },
         ),
       );
@@ -251,6 +258,12 @@ class AuthService extends Notifier<AuthStatus> {
 
       final parsed = parseApiResponse(response.data, AuthResponse.fromJson);
       if (parsed.success && parsed.value != null) {
+        if (refreshVersion != _authMutationVersion) {
+          _logger.d('Token refresh superseded by a newer auth action');
+          completer.complete(false);
+          return false;
+        }
+
         final auth = parsed.value!;
         await setTokens(
           accessToken: auth.accessToken,
@@ -263,7 +276,9 @@ class AuthService extends Notifier<AuthStatus> {
         return true;
       } else {
         _logger.w('⚠️ Refresh API returned failure: ${parsed.message}');
-        await _forceLogout();
+        if (refreshVersion == _authMutationVersion) {
+          await _forceLogout();
+        }
         completer.complete(false);
         return false;
       }
@@ -273,12 +288,16 @@ class AuthService extends Notifier<AuthStatus> {
         error: e.message,
       );
       // หาก refresh ล้มเหลว (401, 400, etc.) → logout
-      await _forceLogout();
+      if (refreshVersion == _authMutationVersion) {
+        await _forceLogout();
+      }
       completer.complete(false);
       return false;
     } catch (e) {
       _logger.e('❌ Unexpected error during token refresh', error: e);
-      await _forceLogout();
+      if (refreshVersion == _authMutationVersion) {
+        await _forceLogout();
+      }
       completer.complete(false);
       return false;
     } finally {
@@ -290,6 +309,7 @@ class AuthService extends Notifier<AuthStatus> {
   ///
   /// เทียบ Angular: `logout()`
   Future<void> logout() async {
+    _authMutationVersion++;
     _stopTokenClocking();
     try {
       await ref.read(localDatabaseServiceProvider).clearAllData();
@@ -340,8 +360,14 @@ class AuthService extends Notifier<AuthStatus> {
 
   /// ตรวจสอบ token ตอนเปิดแอป
   Future<void> _initializeAuth() async {
+    final initializationVersion = _authMutationVersion;
+
     try {
       final token = await _storage.read(key: AppConstants.accessTokenKey);
+      if (initializationVersion != _authMutationVersion) {
+        _logger.d('Auth initialization superseded by a newer auth action');
+        return;
+      }
 
       if (token == null) {
         state = AuthStatus.unauthenticated;
@@ -357,6 +383,7 @@ class AuthService extends Notifier<AuthStatus> {
         // Token malformed — ลบทิ้งเพื่อความปลอดภัย
         _logger.e('❌ Malformed token detected — clearing', error: e);
         await _storage.delete(key: AppConstants.accessTokenKey);
+        if (initializationVersion != _authMutationVersion) return;
         state = AuthStatus.unauthenticated;
         return;
       }
@@ -370,10 +397,13 @@ class AuthService extends Notifier<AuthStatus> {
         // Token หมดอายุ → ลองใช้ Refresh Token
         _logger.w('⏰ Access token expired — attempting refresh');
 
+        if (initializationVersion != _authMutationVersion) return;
         final refreshed = await refreshAccessToken();
         if (!refreshed) {
+          if (initializationVersion != _authMutationVersion) return;
           // Refresh ล้มเหลว → ลบ token เก่าออก
           await _storage.delete(key: AppConstants.accessTokenKey);
+          if (initializationVersion != _authMutationVersion) return;
           state = AuthStatus.unauthenticated;
           _logger.w('⏰ Token refresh failed — cleared');
         }
@@ -381,6 +411,7 @@ class AuthService extends Notifier<AuthStatus> {
       }
     } catch (e) {
       _logger.e('❌ Error during auth initialization', error: e);
+      if (initializationVersion != _authMutationVersion) return;
       state = AuthStatus.unauthenticated;
     }
   }
@@ -469,6 +500,7 @@ class AuthService extends Notifier<AuthStatus> {
 
   /// Force logout — ลบ tokens ทั้งหมดโดยไม่ต้องเรียก API logout
   Future<void> _forceLogout() async {
+    _authMutationVersion++;
     _stopTokenClocking();
     try {
       await ref.read(localDatabaseServiceProvider).clearAllData();

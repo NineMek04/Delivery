@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { AuthService } from '../../../core/services/auth.service';
+import { getApiErrorMessage, getApiErrorTitle } from '../../../core/http/api-error';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -88,14 +89,10 @@ export class LoginComponent {
       },
       error: (err) => {
         this.loading = false;
-        let msg = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-        if (err.error?.Message || err.error?.message) {
-          msg = err.error.Message || err.error.message;
-        }
         Swal.fire({
           icon: 'error',
-          title: 'เข้าสู่ระบบไม่สำเร็จ',
-          text: msg,
+          title: getApiErrorTitle(err),
+          text: getApiErrorMessage(err, 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'),
           confirmButtonColor: '#3b82f6'
         });
       }

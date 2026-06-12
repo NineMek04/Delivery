@@ -54,6 +54,7 @@ final deliveryApiClientProvider = Provider<Dio>((ref) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'X-Client-Type': 'RiderApp',
       },
     ),
   );

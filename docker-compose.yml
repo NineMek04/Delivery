@@ -74,6 +74,10 @@ services:
       - Cors__AllowedOrigins__2=http://localhost:4200
       - Cors__AllowedOrigins__3=http://localhost:8080
       - Cors__AllowedOrigins__4=http://localhost:8081
+      - Cors__AllowedOrigins__5=http://localhost:4201
+      - Cors__AllowedOrigins__6=http://127.0.0.1:4201
+      - Cors__AllowedOrigins__7=http://localhost:8083
+      - Cors__AllowedOrigins__8=http://127.0.0.1:8083
       - Routing__LocalOsrmUrl=http://osrm:5000
       - Authentication__RequireSecureCookie=true
       - SeedAdminPassword=${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD must be set}

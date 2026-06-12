@@ -50,13 +50,12 @@ public class ValidationFilter : IAsyncActionFilter
                         g => g.Select(e => e.ErrorMessage).ToArray()
                     );
 
-                var response = new ApiResponse
-                {
-                    Success = false,
-                    Message = "ข้อมูลไม่ผ่านการตรวจสอบ",
-                    Code = "VALIDATION_ERROR",
-                    ErrorDetail = string.Join("; ", result.Errors.Select(e => $"{e.PropertyName}: {e.ErrorMessage}"))
-                };
+                var response = ApiResponse.Fail(
+                    StatusCodes.Status400BadRequest,
+                    "ข้อมูลไม่ผ่านการตรวจสอบ",
+                    errorDetail: string.Join("; ", result.Errors.Select(e => $"{e.PropertyName}: {e.ErrorMessage}")),
+                    code: "VALIDATION_ERROR",
+                    errors: errors);
 
                 context.Result = new BadRequestObjectResult(response);
                 return;

@@ -32,6 +32,11 @@
 | ✅ **BUG-17** | Missing SignalR Notification on Offer Reject/Timeout in `DispatchOfferHandler` | **Resolved (แก้ไขแล้ว)** | HIGH |
 | ✅ **BUG-18** | Missing SignalR Broadcast for Rider STALE/OFFLINE in `HeartbeatMonitor` | **Resolved (แก้ไขแล้ว)** | MEDIUM |
 | ✅ **BUG-19** | Indeterminate Order Cancellation for Multi-Drop Riders on Admin Map | **Resolved (แก้ไขแล้ว)** | LOW |
+| ✅ **BUG-20** | Asynchronous Rider Connect Status Sync Gap (แสดงสถานะ OFFLINE แทน IDLE/BUSY หลัง Connect) | **Resolved (แก้ไขแล้ว)** | HIGH |
+| ✅ **BUG-21** | Outdated Telemetry Route prefix in Integration Tests (ไม่มี `/v1` ทำให้ 9 เทสเคสรันล้มเหลว) | **Resolved (แก้ไขแล้ว)** | MEDIUM |
+| ✅ **BUG-22** | Speed (speedKmh) Property Mapping Gap in Angular (ทำให้ค่าความเร็วบน Dashboard เป็น 0 เสมอ) | **Resolved (แก้ไขแล้ว)** | MEDIUM |
+| ✅ **GAP-03** | Speed Buffer Cache Key Leak in Redis Presence Cleanup (คีย์ตกค้างใน Redis หลัง Rider ออฟไลน์) | **Resolved (แก้ไขแล้ว)** | LOW |
+
 
 ---
 
@@ -437,3 +442,36 @@ foreach (var order in sortedOrders)
 #### สถานะการแก้ไข (Resolution)
 - **แก้ไขเรียบร้อยแล้ว**: พัฒนาอินเทอร์เฟซผู้ใช้และกระบวนการทำงานใหม่สำหรับการยกเลิกแบบเจาะจงออเดอร์ หรือยกเลิกออเดอร์พ่วงทั้งหมด (Batch Cancellation)
 - **Angular Dashboard**: ใน [map.component.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/map/map.component.ts) ปรับปรุงเมธอด `cancelRiderOrder` โดยดึงออเดอร์ที่ทำงานอยู่ทั้งหมดของไรเดอร์ หากมีออเดอร์เดียวจะเข้าสู่การยืนยันยกเลิกปกติ หากมีหลายออเดอร์จะแสดงกล่องแจ้งเตือน SweetAlert2 เป็นตัวเลือกประเภท Dropdown ให้แอดมินเลือกดำเนินการ และจะส่งคำขอยกเลิกแบบขนานด้วย `forkJoin` นอกจากนี้ยังแก้ไขฟังก์ชันติดตามบนแผนที่ให้ยกเลิกการติดตามพิกัดเฉพาะเมื่อออเดอร์ทั้งหมดถูกปิดเรียบร้อยแล้วเท่านั้น
+
+---
+
+## ✅ BUG-20 — Resolved: Asynchronous Rider Connect Status Sync Gap
+
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: ปรับปรุงคลาส `RiderStateChangedIntegrationEventHandler.cs` เพื่อแก้ไขการซิงค์สถานะ
+- **Backend**: ใน [RiderStateChangedIntegrationEventHandler.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/EventBus/Handlers/RiderStateChangedIntegrationEventHandler.cs) ได้รับการปรับปรุงโดยการดึง `IHubContext<TrackingHub>` และ `RiderPresenceService` เข้ามา หลังจากผู้บริโภคประมวลผล RabbitMQ event ย้ายสถานะไรเดอร์สำเร็จ (`TransitionRiderAsync`) ระบบจะทำการสืบค้นข้อมูลพิกัดล่าสุดที่เก็บไว้ด้วย `GetLastKnownLocationAsync` และส่ง broadcast SignalR event `'RiderStatusUpdated'` และ `'RiderLocationUpdated'` ไปยังกลุ่มแอดมิน (`admins` group) ทันที ส่งผลให้หน้าจอควบคุมสามารถแสดงผลสถานะออนไลน์เป็น `IDLE`/`BUSY` ได้แบบเรียลไทม์ และตรงกับสถานะในฐานข้อมูลอย่างสมบูรณ์โดยไม่ต้องรอการส่ง GPS รอบถัดไป
+
+---
+
+## ✅ BUG-21 — Resolved: Outdated Telemetry Route prefix in Integration Tests
+
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: ปรับปรุงเส้นทาง API Endpoint ในสเปกชุดการทดสอบการรวมระบบ
+- **Backend Tests**: ใน [TelemetryControllerTests.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts.test/BackendApi.IntegrationTests/Telemetry/TelemetryControllerTests.cs) เส้นทางการส่ง HTTP Request ทั้ง 9 รายการได้รับการปรับแก้จาก `/api/telemetry/...` ให้เป็นเส้นทางจริงของเวอร์ชัน API คอนโทรลเลอร์ `/api/v1/telemetry/...` เรียบร้อยแล้ว ส่งผลให้การทดสอบ `dotnet test` ทั้งหมด 9 เคสของ Telemetry ทำงานผ่านสำเร็จ 100% 
+
+---
+
+## ✅ BUG-22 — Resolved: Speed (speedKmh) Property Mapping Gap in Angular
+
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: เพิ่มการแมปพารามิเตอร์ความเร็ว `speedKmh` ของการอัปเดตพิกัดไรเดอร์
+- **Angular Dashboard**: ใน [tracking-signalr.service.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/core/services/tracking-signalr.service.ts) ได้เพิ่มการแมปฟิลด์ความเร็ว `speedKmh: data.speedKmh ?? data.SpeedKmh ?? 0` ในส่วนการรับข้อมูล `'RiderLocationUpdated'` ทำให้แผงข้อมูลและแผนที่สามารถแสดงค่าความเร็วในการเดินทางจริงของไรเดอร์ได้ถูกต้อง (ไม่ใช่ 0 km/h เสมออีกต่อไป)
+
+---
+
+## ✅ GAP-03 — Resolved: Speed Buffer Cache Key Leak in Redis Presence Cleanup
+
+#### สถานะการแก้ไข (Resolution)
+- **แก้ไขเรียบร้อยแล้ว**: เพิ่มลอจิกทำความสะอาดคีย์ List ความเร็วบัฟเฟอร์ใน Redis เมื่อไรเดอร์ออฟไลน์
+- **Backend**: ใน [RiderPresenceService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/Redis/RiderPresenceService.cs) ในส่วนเมธอด `RemoveRiderAsync(riderId)` ได้เพิ่มคำสั่งล้างข้อมูลคีย์ความเร็ว `batch.KeyDeleteAsync(SpeedBufferPrefix + riderId)` ลงในกระบวนการ Batch ลบข้อมูลของ Redis ทำให้เมื่อไรเดอร์หลุดการเชื่อมต่อหรือออฟไลน์ ข้อมูลบัฟเฟอร์ความเร็วเคลื่อนที่สะสมทั้งหมดจะถูกถอนและลบออกทันทีเพื่อป้องกันการรั่วไหลและการสะสมข้อมูลขยะ (Cache memory leak) ใน Redis
+

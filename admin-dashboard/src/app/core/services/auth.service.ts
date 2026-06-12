@@ -1,9 +1,7 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject, interval, Subscription, Observable, of } from 'rxjs';
-import { tap, catchError, map } from 'rxjs/operators';
-import { jwtDecode } from 'jwt-decode';
-import { AppComponent } from '../../app.component';
+import { tap, catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import { req } from '../http/delivery-http-request';
 
 /** Role ที่ได้รับอนุญาตให้เข้าถึง Admin Dashboard */
@@ -40,6 +38,7 @@ export class AuthService implements OnDestroy {
   public currentRole$ = new BehaviorSubject<string | null>(this.extractCurrentRole());
 
   private isRefreshing = false;
+  private refreshRequest$?: Observable<boolean>;
 
   constructor(private router: Router) {
     this.startTokenClocking();
@@ -175,17 +174,16 @@ export class AuthService implements OnDestroy {
   }
 
   public refreshAccessToken(): Observable<boolean> {
-    if (this.isRefreshing) {
-      return of(false);
+    if (this.refreshRequest$) {
+      return this.refreshRequest$;
     }
 
     this.isRefreshing = true;
-    return req<any>('/auth/refresh')
+    const request$ = req<any>('/auth/refresh')
       .body({ RefreshToken: '' }) // Refresh Token is stored in cookie, send empty string to match DTO
       .post()
       .pipe(
         map((res: any) => {
-          this.isRefreshing = false;
           const data = res.Value || res.value || res;
           const newAccessToken = data?.AccessToken || data?.accessToken;
           const newRefreshToken = data?.RefreshToken || data?.refreshToken;
@@ -195,17 +193,20 @@ export class AuthService implements OnDestroy {
           if (expiresAt) {
             this.setTokens(newAccessToken, newRefreshToken, user, expiresAt);
             return true;
-          } else {
-            this.forceLogout();
-            return false;
           }
+
+          return false;
         }),
-        catchError((err) => {
+        catchError(() => of(false)),
+        finalize(() => {
           this.isRefreshing = false;
-          this.forceLogout();
-          return of(false);
-        })
+          this.refreshRequest$ = undefined;
+        }),
+        shareReplay({ bufferSize: 1, refCount: false })
       );
+
+    this.refreshRequest$ = request$;
+    return request$;
   }
 
   public logout(): Observable<any> {
@@ -227,8 +228,7 @@ export class AuthService implements OnDestroy {
 
   public forceLogout(): void {
     this.clearAuthState();
-    const router = AppComponent.InjectorInstance.get(Router);
-    router.navigate(['/login']);
+    void this.router.navigateByUrl('/login', { replaceUrl: true });
   }
 
   /**
@@ -268,9 +268,11 @@ export class AuthService implements OnDestroy {
         const timeRemainingSeconds = Math.floor((expiresTime - currentTime) / 1000);
 
         // Proactive refresh if expiring in < 2 mins (120 seconds)
-        if (timeRemainingSeconds < 120) {
-          this.refreshAccessToken().subscribe();
-        } else if (timeRemainingSeconds <= 0) {
+        if (timeRemainingSeconds <= 0) {
+          this.refreshAccessToken().subscribe(success => {
+            if (!success) this.forceLogout();
+          });
+        } else if (timeRemainingSeconds < 120) {
           this.refreshAccessToken().subscribe(success => {
             if (!success) this.forceLogout();
           });

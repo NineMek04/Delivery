@@ -2,6 +2,7 @@ using BackendApi.Data;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Core.Filters;
 using BackendApi.Core.Mappings;
+using BackendApi.Core.Models;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Auth;
 using BackendApi.Services.BackgroundWorkers;
@@ -17,6 +18,7 @@ using FluentValidation;
 using Mapster;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using NetTopologySuite.Geometries;
 using StackExchange.Redis;
@@ -54,7 +56,7 @@ public static class ServiceSetup
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
                 npgsql => npgsql.UseNetTopologySuite(handleOrdinates: Ordinates.XY)));
-                
+
         services.AddHealthChecks()
             .AddNpgSql(
                 configuration.GetConnectionString("DefaultConnection")!,
@@ -88,8 +90,8 @@ public static class ServiceSetup
         var redisConnection = configuration.GetConnectionString("Redis") ?? "localhost:6379";
         // ปิด abortConnect เพื่อไม่ให้แอปล่มถ้า Redis ยังไม่รันตอน Start
         var redisConfig = ConfigurationOptions.Parse(redisConnection);
-        redisConfig.AbortOnConnectFail = false; 
-        
+        redisConfig.AbortOnConnectFail = false;
+
         services.AddSingleton<IConnectionMultiplexer>(
             ConnectionMultiplexer.Connect(redisConfig));
 
@@ -161,11 +163,36 @@ public static class ServiceSetup
             options.Filters.Add<GlobalExceptionFilter>();
             options.Filters.Add<ValidationFilter>();
         });
+        services.Configure<ApiBehaviorOptions>(options =>
+        {
+            options.InvalidModelStateResponseFactory = context =>
+            {
+                var errors = context.ModelState
+                    .Where(entry => entry.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        entry => entry.Key,
+                        entry => entry.Value!.Errors
+                            .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                                ? "ค่าที่ส่งมาไม่ถูกต้อง"
+                                : error.ErrorMessage)
+                            .ToArray());
+
+                return new BadRequestObjectResult(ApiResponse.Fail(
+                    StatusCodes.Status400BadRequest,
+                    "ข้อมูลไม่ผ่านการตรวจสอบ",
+                    errorDetail: string.Join(
+                        "; ",
+                        errors.SelectMany(entry =>
+                            entry.Value.Select(message => $"{entry.Key}: {message}"))),
+                    code: "VALIDATION_ERROR",
+                    errors: errors));
+            };
+        });
 
         services.AddSignalR(options =>
         {
             // ป้องกัน Thundering Herd เวลาไรเดอร์เข้าพร้อมกัน 500 คน
-            options.HandshakeTimeout = TimeSpan.FromSeconds(30); 
+            options.HandshakeTimeout = TimeSpan.FromSeconds(30);
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
             options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
             options.MaximumReceiveMessageSize = 32 * 1024;
@@ -221,6 +248,7 @@ public static class ServiceSetup
                 Version = "v1",
                 Description = "AI-Optimized Smart Delivery Routing System — Backend API"
             });
+            options.OperationFilter<StandardApiResponsesOperationFilter>();
 
             // Include XML Comments for Swagger descriptions
             var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";

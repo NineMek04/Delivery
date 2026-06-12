@@ -26,9 +26,13 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     ref.onDispose(_disposeSubscriptions);
 
     // Listen for auth transitions to trigger restoring online state
-    ref.listen<AuthStatus>(authServiceProvider, (previous, next) {
+    ref.listen<AuthStatus>(authServiceProvider, (previous, next) async {
       if (next == AuthStatus.authenticated) {
         _loadSessionState();
+      } else if (next == AuthStatus.unauthenticated &&
+          previous == AuthStatus.authenticated) {
+        await _tearDown();
+        state = const RiderSessionState();
       }
     });
 
@@ -39,21 +43,28 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     }
 
     // ฟังเหตุการณ์ Reconnect ของ SignalR เพื่อตั้งค่าออนไลน์คนขับคืนมาอัตโนมัติ
-    ref.listen<SignalRConnectionState>(signalRServiceProvider, (previous, next) async {
+    ref.listen<SignalRConnectionState>(signalRServiceProvider, (
+      previous,
+      next,
+    ) async {
       if (previous == SignalRConnectionState.reconnecting &&
           next == SignalRConnectionState.connected &&
           state.isOnline) {
         final role = ref.read(authServiceProvider.notifier).userRole;
         if (role != AuthConstants.roleRider) return;
 
-        _logger.i('🔄 SignalR reconnected — restoring status to IDLE and sending heartbeat');
+        _logger.i(
+          '🔄 SignalR reconnected — restoring status to IDLE and sending heartbeat',
+        );
         try {
           final signalR = ref.read(signalRServiceProvider.notifier);
           await signalR.updateStatus(AppConstants.statusAvailable);
           await signalR.sendHeartbeat();
 
           // Jitter: สุ่มหน่วงเวลา 500ms - 3500ms ก่อนเรียก API เพื่อกระจายโหลด (ป้องกัน Thundering Herd)
-          final randomDelay = Duration(milliseconds: 500 + math.Random().nextInt(3000));
+          final randomDelay = Duration(
+            milliseconds: 500 + math.Random().nextInt(3000),
+          );
           await Future.delayed(randomDelay);
 
           // Fetch latest active orders immediately on reconnection to prevent stale UI state
@@ -70,20 +81,27 @@ class RiderSessionService extends Notifier<RiderSessionState> {
   Future<void> _loadSessionState() async {
     final role = ref.read(authServiceProvider.notifier).userRole;
     if (role != AuthConstants.roleRider) {
-      _logger.d('⏳ Skipping rider session restore: user is not a rider (role: $role)');
+      _logger.d(
+        '⏳ Skipping rider session restore: user is not a rider (role: $role)',
+      );
       return;
     }
     try {
       final db = ref.read(localDatabaseServiceProvider);
       final isOnline = await db.getIsOnline();
-      
+
       if (isOnline && !state.isOnline && !state.isTransitioning) {
-        _logger.i('🔌 Restoring online rider session state from local database');
+        _logger.i(
+          '🔌 Restoring online rider session state from local database',
+        );
         state = state.copyWith(isOnline: true);
         Future.microtask(() => goOnline());
       }
     } catch (e) {
-      _logger.e('Failed to load rider session state from local database', error: e);
+      _logger.e(
+        'Failed to load rider session state from local database',
+        error: e,
+      );
     }
   }
 
@@ -102,16 +120,17 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       _logger.d("goOnline Step 1: Connecting SignalR");
       final signalR = ref.read(signalRServiceProvider.notifier);
       await signalR.connect();
-      
+
       _logger.d("goOnline Step 2: Updating Status to AVAILABLE");
       await signalR.updateStatus(AppConstants.statusAvailable);
-      
+
       _logger.d("goOnline Step 3: Sending Heartbeat");
       await signalR.sendHeartbeat();
 
       _logger.d("goOnline Step 4: Starting Location Tracking");
-      final locationStarted =
-          await ref.read(locationServiceProvider.notifier).startTracking();
+      final locationStarted = await ref
+          .read(locationServiceProvider.notifier)
+          .startTracking();
       if (!locationStarted) {
         final locState = ref.read(locationServiceProvider);
         throw Exception(locState.error ?? 'Failed to start GPS tracking');
@@ -138,7 +157,7 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         isTransitioning: false,
         error: null,
       );
-      
+
       _logger.d("goOnline Step 7: Saving isOnline to Database");
       // Save status to database
       await ref.read(localDatabaseServiceProvider).saveIsOnline(true);
@@ -151,12 +170,16 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         isTransitioning: false,
         error: e.toString(),
       );
-      
+
       // Save status to database safely
       try {
         await ref.read(localDatabaseServiceProvider).saveIsOnline(false);
       } catch (dbErr, dbSt) {
-        _logger.e('Failed to save offline status in catch: $dbErr', error: dbErr, stackTrace: dbSt);
+        _logger.e(
+          'Failed to save offline status in catch: $dbErr',
+          error: dbErr,
+          stackTrace: dbSt,
+        );
       }
       rethrow;
     }
@@ -170,13 +193,14 @@ class RiderSessionService extends Notifier<RiderSessionState> {
 
     try {
       final signalR = ref.read(signalRServiceProvider.notifier);
-      if (ref.read(signalRServiceProvider) == SignalRConnectionState.connected) {
+      if (ref.read(signalRServiceProvider) ==
+          SignalRConnectionState.connected) {
         await signalR.updateStatus(AppConstants.statusOffline);
       }
       await _tearDown();
 
       state = const RiderSessionState(isOnline: false, isTransitioning: false);
-      
+
       // Save status to database
       await ref.read(localDatabaseServiceProvider).saveIsOnline(false);
       _logger.i('Rider session offline');
@@ -186,24 +210,21 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     }
   }
 
-
   void setIncomingOffer(DispatchOffer? offer) {
     state = state.copyWith(incomingOffer: offer);
   }
 
   Future<void> acceptOffer(DispatchOffer offer) async {
-    await ref.read(signalRServiceProvider.notifier).acceptOffer(
-      offerId: offer.offerId,
-      version: offer.version,
-    );
+    await ref
+        .read(signalRServiceProvider.notifier)
+        .acceptOffer(offerId: offer.offerId, version: offer.version);
     setIncomingOffer(null);
   }
 
   Future<void> rejectOffer(DispatchOffer offer) async {
-    await ref.read(signalRServiceProvider.notifier).rejectOffer(
-      offerId: offer.offerId,
-      orderId: offer.order.id,
-    );
+    await ref
+        .read(signalRServiceProvider.notifier)
+        .rejectOffer(offerId: offer.offerId, orderId: offer.order.id);
     setIncomingOffer(null);
   }
 
@@ -279,5 +300,5 @@ class RiderSessionState {
 
 final riderSessionServiceProvider =
     NotifierProvider<RiderSessionService, RiderSessionState>(
-  RiderSessionService.new,
-);
+      RiderSessionService.new,
+    );

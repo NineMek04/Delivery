@@ -1,3 +1,4 @@
+using BackendApi.Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +16,7 @@ public class CsrfValidationMiddleware
     {
         _next = next;
         _logger = logger;
-        
+
         // Load CORS Origins
         var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
         if (configuredOrigins is { Length: > 0 })
@@ -65,7 +66,11 @@ public class CsrfValidationMiddleware
             {
                 _logger.LogWarning("CSRF: Host validation failed. Host: {Host}", host);
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                await context.Response.WriteAsJsonAsync(new { Message = "Invalid Host Header" });
+                await context.Response.WriteAsJsonAsync(
+                    ApiResponse.Fail(
+                        StatusCodes.Status400BadRequest,
+                        "Invalid Host Header",
+                        code: "INVALID_HOST"));
                 return;
             }
         }
@@ -117,7 +122,11 @@ public class CsrfValidationMiddleware
                     context.Connection.RemoteIpAddress, context.Request.Path);
                 BackendApi.Security.SecurityMetrics.CsrfRejectionsTotal.WithLabels("missing_origin").Inc();
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsJsonAsync(new { Message = "Missing Origin or Referer" });
+                await context.Response.WriteAsJsonAsync(
+                    ApiResponse.Fail(
+                        StatusCodes.Status403Forbidden,
+                        "Missing Origin or Referer",
+                        code: "CSRF_MISSING_ORIGIN"));
                 return;
             }
 
@@ -130,7 +139,11 @@ public class CsrfValidationMiddleware
                     originToValidate, context.Request.Path);
                 BackendApi.Security.SecurityMetrics.CsrfRejectionsTotal.WithLabels("invalid_origin").Inc();
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsJsonAsync(new { Message = "Origin Validation Failed" });
+                await context.Response.WriteAsJsonAsync(
+                    ApiResponse.Fail(
+                        StatusCodes.Status403Forbidden,
+                        "Origin Validation Failed",
+                        code: "CSRF_INVALID_ORIGIN"));
                 return;
             }
 
@@ -147,7 +160,11 @@ public class CsrfValidationMiddleware
 
                 BackendApi.Security.SecurityMetrics.CsrfRejectionsTotal.WithLabels("token_mismatch").Inc();
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsJsonAsync(new { Message = "CSRF Token Validation Failed" });
+                await context.Response.WriteAsJsonAsync(
+                    ApiResponse.Fail(
+                        StatusCodes.Status403Forbidden,
+                        "CSRF Token Validation Failed",
+                        code: "CSRF_TOKEN_MISMATCH"));
                 return;
             }
         }

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using System.Security.Claims;
+using BackendApi.Core.Models;
 using BackendApi.Data;
 using BackendApi.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -54,10 +55,12 @@ public static class SecurityConfiguration
             {
                 SecurityMetrics.RateLimitRejectionsTotal.WithLabels("global").Inc();
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                await context.HttpContext.Response.WriteAsJsonAsync(new
-                {
-                    Message = "มีคำขอมากเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง"
-                }, token);
+                await context.HttpContext.Response.WriteAsJsonAsync(
+                    ApiResponse.Fail(
+                        StatusCodes.Status429TooManyRequests,
+                        "มีคำขอมากเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง",
+                        code: "RATE_LIMITED"),
+                    token);
             };
 
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
@@ -148,6 +151,38 @@ public static class SecurityConfiguration
                     {
                         context.Fail("The account is disabled or the token is stale.");
                     }
+                },
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+
+                    if (context.Response.HasStarted)
+                    {
+                        return;
+                    }
+
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsJsonAsync(
+                        ApiResponse.Fail(
+                            StatusCodes.Status401Unauthorized,
+                            "กรุณาเข้าสู่ระบบหรือส่ง access token ที่ถูกต้อง",
+                            code: "UNAUTHORIZED"),
+                        context.HttpContext.RequestAborted);
+                },
+                OnForbidden = async context =>
+                {
+                    if (context.Response.HasStarted)
+                    {
+                        return;
+                    }
+
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(
+                        ApiResponse.Fail(
+                            StatusCodes.Status403Forbidden,
+                            "คุณไม่มีสิทธิ์เข้าถึงทรัพยากรนี้",
+                            code: "FORBIDDEN"),
+                        context.HttpContext.RequestAborted);
                 }
             };
         });

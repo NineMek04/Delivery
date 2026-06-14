@@ -307,7 +307,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                                         routingKey: QueueName,
                                         mandatory: true,
                                         properties: properties,
-                                        body: body
+                                        body: body.AsMemory()
                                     );
                                 }
                                 batch.Publish();
@@ -364,7 +364,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                                         routingKey: SnapQueueName,
                                         mandatory: true,
                                         properties: properties,
-                                        body: body
+                                        body: body.AsMemory()
                                     );
                                 }
                                 batch.Publish();

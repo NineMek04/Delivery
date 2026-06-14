@@ -121,36 +121,7 @@ public class BatchEvaluator
             };
 
             var seq = await _routingService.GetOptimizedTripSequenceAsync(points);
-            
-            if (seq.Count == 4)
-            {
-                var idxDropoff1 = seq.IndexOf(2);
-                var idxDropoff2 = seq.IndexOf(3);
-                
-                // [FIX] Guard against -1 when OSRM snaps two points to the same road node
-                if (idxDropoff1 < 0 || idxDropoff2 < 0)
-                {
-                    // Cannot determine reliable order — use default sequence
-                    o.BatchSequence = 1;
-                    targetOrder.BatchSequence = 2;
-                }
-                else if (idxDropoff1 < idxDropoff2)
-                {
-                    o.BatchSequence = 1;
-                    targetOrder.BatchSequence = 2;
-                }
-                else
-                {
-                    o.BatchSequence = 2;
-                    targetOrder.BatchSequence = 1;
-                }
-            }
-            else
-            {
-                // Fallback
-                o.BatchSequence = 1;
-                targetOrder.BatchSequence = 2;
-            }
+            ApplyDropoffVisitOrder(o, targetOrder, seq);
 
             targetOrder.BatchGroupId = batchId;
             await _dbContext.SaveChangesAsync();
@@ -160,6 +131,28 @@ public class BatchEvaluator
         }
 
         return null;
+    }
+
+    internal static void ApplyDropoffVisitOrder(
+        Order siblingOrder,
+        Order targetOrder,
+        IReadOnlyList<int> waypointVisitOrder)
+    {
+        // OSRM returns one waypoint_index per input coordinate. The value at each
+        // input index is that coordinate's visit position in the optimized trip.
+        if (waypointVisitOrder.Count == 4 &&
+            waypointVisitOrder[2] >= 0 &&
+            waypointVisitOrder[3] >= 0 &&
+            waypointVisitOrder[2] != waypointVisitOrder[3])
+        {
+            var siblingFirst = waypointVisitOrder[2] < waypointVisitOrder[3];
+            siblingOrder.BatchSequence = siblingFirst ? 1 : 2;
+            targetOrder.BatchSequence = siblingFirst ? 2 : 1;
+            return;
+        }
+
+        siblingOrder.BatchSequence = 1;
+        targetOrder.BatchSequence = 2;
     }
 
     private double CalculateBearing(double lat1, double lon1, double lat2, double lon2)

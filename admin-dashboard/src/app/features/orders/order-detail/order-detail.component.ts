@@ -94,7 +94,7 @@ export class OrderDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       : [this.order.dropoffLat!, this.order.dropoffLng!];
 
     this.map = L.map(this.miniMapEl.nativeElement, {
-      center, zoom: 14, zoomControl: false, scrollWheelZoom: true
+      center, zoom: 14, zoomControl: false, scrollWheelZoom: true, preferCanvas: true
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {

@@ -28,7 +28,10 @@ namespace BackendApi.ServiceMigration
                 // 3. Guarantee RowVersion bytea Defaults (\x)
                 await ApplyRowVersionDefaultsAsync(context);
 
-                // 4. Setup Database Views (Future proofing)
+                // 4. Ensure operational B-tree indexes that must not inflate EF migrations
+                await EnsureOperationalIndexesAsync(context);
+
+                // 5. Setup Database Views (Future proofing)
                 await SetupDatabaseViewsAsync(context);
 
                 Log.Information("✅ [ServiceMigration] Advanced PostgreSQL schema configuration completed successfully.");
@@ -194,6 +197,22 @@ namespace BackendApi.ServiceMigration
                 }
             }
             Log.Information("✅ [ServiceMigration] Concurrency defaults guaranteed.");
+        }
+
+        /// <summary>
+        /// Creates operational indexes idempotently outside EF migration history.
+        /// CONCURRENTLY avoids blocking writes while large production tables are indexed.
+        /// </summary>
+        private static async Task EnsureOperationalIndexesAsync(ApplicationDbContext context)
+        {
+            Log.Information("⚙️ [ServiceMigration] Ensuring operational B-tree indexes...");
+
+            await ExecuteSqlRawAsync(context, @"
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS ""IX_ProcessedEvents_ProcessedAt""
+                    ON ""ProcessedEvents"" (""ProcessedAt"");
+            ");
+
+            Log.Information("✅ [ServiceMigration] Operational B-tree indexes guaranteed.");
         }
 
         /// <summary>

@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BackendApi.Models.DTOs;
+using BackendApi.Services.Telemetry;
+using Prometheus;
 
 namespace BackendApi.Services.Ai;
 
@@ -33,6 +35,7 @@ public class AiService : IAiService
 
     public async Task<DispatchRankResponseDto?> RankDispatchCandidatesAsync(DispatchRankRequestDto request, CancellationToken cancellationToken = default)
     {
+        using var timer = OperationalMetrics.AiRequestDuration.WithLabels("dispatch_rank").NewTimer();
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/v1/dispatch/rank", request, _snakeCaseOptions, cancellationToken);
@@ -56,6 +59,7 @@ public class AiService : IAiService
 
     public async Task<RoutingResponseDto?> OptimizeRouteAsync(RoutingRequestDto request, CancellationToken cancellationToken = default)
     {
+        using var timer = OperationalMetrics.AiRequestDuration.WithLabels("optimize_route").NewTimer();
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/optimize-route", request, _snakeCaseOptions, cancellationToken);
@@ -79,6 +83,7 @@ public class AiService : IAiService
 
     public async Task<PredictEtaResponseDto?> PredictEtaAsync(PredictEtaRequestDto request, CancellationToken cancellationToken = default)
     {
+        using var timer = OperationalMetrics.AiRequestDuration.WithLabels("predict_eta").NewTimer();
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/v1/predict-eta", request, _snakeCaseOptions, cancellationToken);

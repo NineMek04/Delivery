@@ -85,6 +85,7 @@ namespace BackendApi.UnitTests.Telemetry
             basicPropertiesMock.VerifySet(p => p.Type = nameof(TrackPoint), Times.AtLeastOnce);
 
             // 3. Ensure batch publishing was used with correct parameters
+#pragma warning disable CS0618 // RabbitMQ 6.x exposes the mockable interface overload as byte[].
             batchMock.Verify(b => b.Add(
                 "", // exchange
                 "gps_telemetry_queue", // routingKey
@@ -92,6 +93,7 @@ namespace BackendApi.UnitTests.Telemetry
                 basicPropertiesMock.Object,
                 It.IsAny<byte[]>()
             ), Times.AtLeastOnce);
+#pragma warning restore CS0618
 
             batchMock.Verify(b => b.Publish(), Times.AtLeastOnce);
         }

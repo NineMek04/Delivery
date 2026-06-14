@@ -3,6 +3,7 @@ using BackendApi.Core.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
 using BackendApi.Services.Auth;
+using BackendApi.Services.Telemetry;
 using BackendApi.Setup;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -123,7 +124,12 @@ public class AuthController : DeliveryControllerBase
         var result = await _authService.RefreshTokenAsync(refreshToken, cancellationToken);
 
         if (!result.Succeeded || result.Value is null)
+        {
+            OperationalMetrics.TokenRefreshFailures
+                .WithLabels(result.Code ?? $"http_{result.StatusCode}")
+                .Inc();
             return StatusCode(result.StatusCode, result.ToApiResponseBase());
+        }
 
         SetAuthCookiesIfDashboard(result.Value.AccessToken, result.Value.RefreshToken, result.Value.ExpiresAt);
 

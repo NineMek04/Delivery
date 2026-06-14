@@ -19,3 +19,8 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["backend:80"]
+
+  - job_name: "rabbitmq"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["rabbitmq:15692"]

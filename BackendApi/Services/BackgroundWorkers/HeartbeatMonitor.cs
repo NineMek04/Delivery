@@ -5,6 +5,7 @@ using BackendApi.Services.Dispatch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using BackendApi.Hubs;
+using BackendApi.Models;
 
 namespace BackendApi.Services.BackgroundWorkers;
 
@@ -99,6 +100,28 @@ public class HeartbeatMonitor : BackgroundService
             }).ToList();
 
             var riderHeartbeats = await Task.WhenAll(heartbeatTasks);
+            var expiredRiderIds = riderHeartbeats
+                .Where(item =>
+                    item.LastHeartbeat is null ||
+                    (now - item.LastHeartbeat.Value).TotalSeconds > heartbeatTimeout)
+                .Select(item => item.Rider.Id)
+                .ToList();
+
+            var offeringOrdersByRider = new Dictionary<string, Order>();
+            if (expiredRiderIds.Count > 0)
+            {
+                var offeringOrders = await dbContext.Orders
+                    .Where(o =>
+                        o.AssignedRiderId != null &&
+                        expiredRiderIds.Contains(o.AssignedRiderId) &&
+                        o.State == OrderState.OFFERING &&
+                        o.CurrentOfferId != null)
+                    .ToListAsync(ct);
+
+                offeringOrdersByRider = offeringOrders
+                    .GroupBy(o => o.AssignedRiderId!)
+                    .ToDictionary(group => group.Key, group => group.First());
+            }
 
             foreach (var item in riderHeartbeats)
             {
@@ -137,12 +160,8 @@ public class HeartbeatMonitor : BackgroundService
                                 _logger.LogError(ex, "Failed to broadcast RiderStatusUpdated SignalR notification for Rider {RiderId} going STALE", rider.Id);
                             }
 
-                            var offeringOrder = await dbContext.Orders
-                                .FirstOrDefaultAsync(o =>
-                                    o.AssignedRiderId == rider.Id &&
-                                    o.State == OrderState.OFFERING, ct);
-
-                            if (offeringOrder?.CurrentOfferId is not null)
+                            if (offeringOrdersByRider.TryGetValue(rider.Id, out var offeringOrder) &&
+                                offeringOrder.CurrentOfferId is not null)
                             {
                                 await offerHandler.RejectOrTimeoutAsync(
                                     offeringOrder.CurrentOfferId, rider.Id);

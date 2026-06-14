@@ -16,3 +16,11 @@ public class RiderLocationDto
     public string Status { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
 }
+
+public class RiderLocationHistoryDto
+{
+    public double Lat { get; set; }
+    public double Lng { get; set; }
+    public DateTime RecordedAt { get; set; }
+    public string? OrderId { get; set; }
+}

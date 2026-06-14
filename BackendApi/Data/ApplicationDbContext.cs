@@ -107,6 +107,10 @@ namespace BackendApi.Data
             modelBuilder.Entity<ProcessedEvent>()
                 .HasKey(pe => new { pe.EventId, pe.HandlerName });
 
+            modelBuilder.Entity<ProcessedEvent>()
+                .HasIndex(pe => pe.ProcessedAt)
+                .HasDatabaseName("IX_ProcessedEvents_ProcessedAt");
+
             // DistributedLocks — B-tree index for ExpiresAt fallback lock indexing
             modelBuilder.Entity<DistributedLock>()
                 .HasIndex(dl => dl.ExpiresAt)
@@ -238,7 +242,10 @@ namespace BackendApi.Data
                 if (InheritsFromGenericBase(entityType.ClrType, typeof(BaseEntity<>)) &&
                     entityType.FindProperty(nameof(BaseEntity<string>.RowVersion)) is not null)
                 {
-                    modelBuilder.Entity(entityType.ClrType).UseXminAsConcurrencyToken();
+                    modelBuilder.Entity(entityType.ClrType)
+                        .Property<uint>("xmin")
+                        .HasColumnName("xmin")
+                        .IsRowVersion();
 
                     modelBuilder.Entity(entityType.ClrType)
                         .Property<byte[]>(nameof(BaseEntity<string>.RowVersion))

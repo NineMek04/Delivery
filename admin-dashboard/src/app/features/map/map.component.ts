@@ -188,7 +188,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       maxZoom: 18,
       maxBounds: this.THAILAND_BOUNDS,
       maxBoundsViscosity: 1.0,
-      zoomControl: false
+      zoomControl: false,
+      preferCanvas: true
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -694,14 +695,43 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   showRiderRoute(riderId: string): void {
     if (!riderId) return;
-    req<any>(`rider-locations/${riderId}/history`).get().subscribe({
+    const to = new Date();
+    const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+    const query = new URLSearchParams({
+      from: from.toISOString(),
+      to: to.toISOString(),
+      limit: '2000'
+    });
+
+    req<any>(`rider-locations/${encodeURIComponent(riderId)}/history?${query}`).get().subscribe({
       next: (response) => {
-        if (response?.isSuccess && Array.isArray(response.data) && response.data.length > 0) {
+        const points = response?.data ?? response?.value ?? response;
+        if (Array.isArray(points) && points.length > 0) {
           if (this.deliveryRouteLine) {
             this.deliveryRouteLine.remove();
             this.deliveryRouteLine = null;
           }
-          const coords = response.data.map((pt: any) => L.latLng(pt.lat || pt.Lat, pt.lng || pt.Lng));
+          const coords = points
+            .map((pt: any) => ({
+              lat: Number(pt.lat ?? pt.Lat),
+              lng: Number(pt.lng ?? pt.Lng)
+            }))
+            .filter((point: { lat: number; lng: number }) =>
+              Number.isFinite(point.lat) &&
+              Number.isFinite(point.lng) &&
+              !(point.lat === 0 && point.lng === 0))
+            .map((point: { lat: number; lng: number }) =>
+              L.latLng(point.lat, point.lng));
+
+          if (coords.length === 0) {
+            Swal.fire({
+              title: 'No Valid GPS Data',
+              text: 'History was found, but it did not contain valid coordinates.',
+              icon: 'warning'
+            });
+            return;
+          }
+
           this.deliveryRouteLine = L.polyline(coords, {
             color: '#3b82f6',
             weight: 4,
@@ -711,7 +741,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           this.map.fitBounds(this.deliveryRouteLine.getBounds(), { padding: [50, 50] });
           Swal.fire({
             title: 'Rider Route',
-            text: `Showing history for rider ${riderId.substring(0, 6)}`,
+            text: `Showing ${coords.length} GPS points from the last 24 hours for rider ${riderId.substring(0, 6)}`,
             icon: 'info',
             toast: true,
             position: 'top-end',
@@ -732,6 +762,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       },
       error: (err) => {
         console.error('Failed to fetch rider history:', err);
+        Swal.fire({
+          title: 'Unable to Load GPS History',
+          text: err?.error?.message ?? 'Please try again.',
+          icon: 'error'
+        });
       }
     });
   }

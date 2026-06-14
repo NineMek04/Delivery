@@ -21,8 +21,10 @@ namespace BackendApi.Models.DTOs
         /// <summary>พิกัดลองจิจูด</summary>
         public double? Lng { get; set; }
 
-        public bool IsOpen { get; set; } = true;
-        public int PrepTimeMinutes { get; set; } = 15;
+        public bool? IsOpen { get; set; }
+
+        [Range(1, 1440)]
+        public int? PrepTimeMinutes { get; set; }
         public string? OpeningHours { get; set; }
         
         public DateTime? CreatedAt { get; set; }

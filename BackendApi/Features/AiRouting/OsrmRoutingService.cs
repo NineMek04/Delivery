@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Polly;
 using Polly.CircuitBreaker;
+using BackendApi.Services.Telemetry;
+using Prometheus;
 
 namespace BackendApi.Services.Ai
 {
@@ -44,6 +46,7 @@ namespace BackendApi.Services.Ai
         public async Task<(string Polyline, double DistanceMeters, double DurationSeconds)> GetRouteDetailsAsync(
             double startLat, double startLng, double endLat, double endLng)
         {
+            using var timer = OperationalMetrics.OsrmRequestDuration.WithLabels("route").NewTimer();
             var db = _redis.GetDatabase();
             // [CULTURE FIX] Use InvariantCulture to prevent locale-specific decimal separators
             // (e.g. German/French OS uses comma instead of dot) from corrupting Redis cache keys.
@@ -179,6 +182,7 @@ namespace BackendApi.Services.Ai
         /// </summary>
         public async Task<(double Lat, double Lng)> SnapToRoadAsync(double lat, double lng)
         {
+            using var timer = OperationalMetrics.OsrmRequestDuration.WithLabels("nearest").NewTimer();
             var latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var lngStr = lng.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
@@ -227,6 +231,7 @@ namespace BackendApi.Services.Ai
         /// </summary>
         public async Task<List<int>> GetOptimizedTripSequenceAsync(List<(double Lat, double Lng)> points)
         {
+            using var timer = OperationalMetrics.OsrmRequestDuration.WithLabels("trip").NewTimer();
             if (points.Count <= 2)
             {
                 var seq = new List<int>();

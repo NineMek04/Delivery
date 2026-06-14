@@ -20,7 +20,11 @@ public static class DatabaseMigrationSetup
         try
         {
             var context = services.GetRequiredService<ApplicationDbContext>();
-            
+
+            // Bridge databases that completed the pre-squash migration chain.
+            // Fresh databases have no history table and apply the baseline normally.
+            await MigrationBaselineCompatibility.EnsureBaselineHistoryAsync(context);
+
             // Check if there are any pending migrations
             var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
             var migrations = pendingMigrations.ToList();
@@ -56,8 +60,7 @@ public static class DatabaseMigrationSetup
         catch (Exception ex)
         {
             Log.Error(ex, "❌ An error occurred while migrating the database.");
-            // In a production environment, you might want to stop the application
-            // if migrations fail, depending on your deployment strategy.
+            throw;
         }
     }
 }

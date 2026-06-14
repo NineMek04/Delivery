@@ -155,6 +155,7 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       zoom: 12,
       minZoom: 6,
       maxZoom: 18,
+      preferCanvas: true,
     });
 
     // Dark sleek high-tech map style for presentation readiness

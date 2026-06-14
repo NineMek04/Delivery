@@ -13,6 +13,7 @@ using StackExchange.Redis;
 using BackendApi.Security;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Services.Telemetry;
 
 namespace BackendApi.Controllers.Business
 {
@@ -24,10 +25,14 @@ namespace BackendApi.Controllers.Business
     public class RiderLocationController : DeliveryControllerBase
     {
         private readonly IConnectionMultiplexer _redis;
+        private readonly GpsHistoryService _gpsHistoryService;
 
-        public RiderLocationController(IConnectionMultiplexer redis)
+        public RiderLocationController(
+            IConnectionMultiplexer redis,
+            GpsHistoryService gpsHistoryService)
         {
             _redis = redis;
+            _gpsHistoryService = gpsHistoryService;
         }
 
         /// <summary>
@@ -170,5 +175,48 @@ namespace BackendApi.Controllers.Business
 
             return Ok(ApiResponse<List<RiderLocationDto>>.Ok(locations));
         }
+
+        [HttpGet("{riderId}/history")]
+        public async Task<ActionResult<ApiResponse<List<RiderLocationHistoryDto>>>> GetRiderHistory(
+            string riderId,
+            [FromQuery(Name = "from")] DateTime? fromUtc = null,
+            [FromQuery(Name = "to")] DateTime? toUtc = null,
+            [FromQuery] int limit = 2000,
+            CancellationToken cancellationToken = default)
+        {
+            var to = NormalizeUtc(toUtc ?? DateTime.UtcNow);
+            var from = NormalizeUtc(fromUtc ?? to.AddHours(-24));
+
+            if (from >= to)
+            {
+                return BadRequest(ApiResponse<List<RiderLocationHistoryDto>>.Fail(
+                    "'from' must be earlier than 'to'.",
+                    code: "INVALID_TIME_RANGE"));
+            }
+
+            if (to - from > TimeSpan.FromDays(7))
+            {
+                return BadRequest(ApiResponse<List<RiderLocationHistoryDto>>.Fail(
+                    "GPS history range cannot exceed 7 days.",
+                    code: "TIME_RANGE_TOO_LARGE"));
+            }
+
+            var history = await _gpsHistoryService.GetHistoryAsync(
+                riderId,
+                from,
+                to,
+                Math.Clamp(limit, 1, 2000),
+                cancellationToken);
+
+            return Ok(ApiResponse<List<RiderLocationHistoryDto>>.Ok(history));
+        }
+
+        private static DateTime NormalizeUtc(DateTime value) =>
+            value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
     }
 }

@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using BackendApi.Data;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Models;
+using BackendApi.Models.DTOs;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace BackendApi.Services.Telemetry
@@ -56,6 +58,34 @@ namespace BackendApi.Services.Telemetry
                 _logger.LogError(ex, "Failed to bulk insert {Count} GPS points into database.", points.Count);
                 throw;
             }
+        }
+
+        public virtual async Task<List<RiderLocationHistoryDto>> GetHistoryAsync(
+            string riderId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            int limit,
+            CancellationToken ct = default)
+        {
+            var points = await _dbContext.RiderLocationHistories
+                .AsNoTracking()
+                .Where(history =>
+                    history.RiderId == riderId &&
+                    history.RecordedAt >= fromUtc &&
+                    history.RecordedAt <= toUtc)
+                .OrderByDescending(history => history.RecordedAt)
+                .Take(limit)
+                .Select(history => new RiderLocationHistoryDto
+                {
+                    Lat = history.Location.Y,
+                    Lng = history.Location.X,
+                    RecordedAt = history.RecordedAt,
+                    OrderId = history.OrderId
+                })
+                .ToListAsync(ct);
+
+            points.Reverse();
+            return points;
         }
     }
 }

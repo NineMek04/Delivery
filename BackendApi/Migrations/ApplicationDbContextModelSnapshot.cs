@@ -911,6 +911,9 @@ namespace BackendApi.Migrations
 
                     b.HasKey("EventId", "HandlerName");
 
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_ProcessedEvents_ProcessedAt");
+
                     b.ToTable("ProcessedEvents");
                 });
 

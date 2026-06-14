@@ -124,6 +124,9 @@ namespace BackendApi.Controllers.MasterData
                 Name = dto.Name,
                 MenuName = dto.MenuName,
                 MenuPrice = dto.MenuPrice,
+                IsOpen = dto.IsOpen,
+                PrepTimeMinutes = dto.PrepTimeMinutes,
+                OpeningHours = dto.OpeningHours,
                 Location = factory.CreatePoint(
                     new NetTopologySuite.Geometries.Coordinate(dto.Lng, dto.Lat)),
                 MenuItems = new List<MenuItem>()
@@ -140,6 +143,9 @@ namespace BackendApi.Controllers.MasterData
                 MenuPrice = entity.MenuPrice,
                 Lat = entity.Location?.Y,
                 Lng = entity.Location?.X,
+                IsOpen = entity.IsOpen,
+                PrepTimeMinutes = entity.PrepTimeMinutes,
+                OpeningHours = entity.OpeningHours,
                 CreatedAt = entity.CreatedAt,
                 MenuItems = new List<MenuItemDto>()
             };
@@ -176,7 +182,7 @@ namespace BackendApi.Controllers.MasterData
                     new NetTopologySuite.Geometries.Coordinate(dto.Lng.Value, dto.Lat.Value));
             }
 
-            if (dto.IsOpen)
+            if (dto.IsOpen == true)
             {
                 if (existing.Location == null || (existing.Location.X == 0 && existing.Location.Y == 0))
                 {
@@ -188,8 +194,10 @@ namespace BackendApi.Controllers.MasterData
             existing.Name = string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name;
             existing.MenuName = string.IsNullOrWhiteSpace(dto.MenuName) ? existing.MenuName : dto.MenuName;
             existing.MenuPrice = dto.MenuPrice > 0 ? dto.MenuPrice : existing.MenuPrice;
-            existing.IsOpen = dto.IsOpen;
-            existing.PrepTimeMinutes = dto.PrepTimeMinutes > 0 ? dto.PrepTimeMinutes : existing.PrepTimeMinutes;
+            if (dto.IsOpen.HasValue)
+                existing.IsOpen = dto.IsOpen.Value;
+            if (dto.PrepTimeMinutes.HasValue)
+                existing.PrepTimeMinutes = dto.PrepTimeMinutes.Value;
             existing.OpeningHours = dto.OpeningHours ?? existing.OpeningHours;
 
             DB.UpdateObject(existing);

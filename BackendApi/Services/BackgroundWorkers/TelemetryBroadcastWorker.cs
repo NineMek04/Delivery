@@ -110,13 +110,20 @@ public class TelemetryBroadcastWorker : BackgroundService
         var idle = stateCounts.Where(s => s.State == RiderState.IDLE || s.State == RiderState.RESERVED).Sum(s => s.Count);
         var offline = stateCounts.Where(s => s.State == RiderState.OFFLINE || s.State == RiderState.STALE).Sum(s => s.Count);
 
-        var queueSize = await dbContext.Orders.AsNoTracking()
-            .Where(o => o.State == OrderState.MATCHING || o.State == OrderState.OFFERING)
-            .CountAsync(ct);
+        var orderStateCounts = await dbContext.Orders.AsNoTracking()
+            .GroupBy(o => o.State)
+            .Select(g => new { State = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
 
-        var completedOrdersCount = await dbContext.Orders.AsNoTracking()
-            .Where(o => o.State == OrderState.COMPLETED)
-            .CountAsync(ct);
+        var queueSize = orderStateCounts
+            .Where(s => s.State == OrderState.MATCHING || s.State == OrderState.OFFERING)
+            .Sum(s => s.Count);
+        var completedOrdersCount = orderStateCounts
+            .Where(s => s.State == OrderState.COMPLETED)
+            .Sum(s => s.Count);
+        var activeOrders = orderStateCounts
+            .Where(s => s.State != OrderState.COMPLETED && s.State != OrderState.CANCELLED)
+            .Sum(s => s.Count);
 
         var totalRidersCount = stateCounts.Sum(s => s.Count);
         double avgDeliveries = totalRidersCount > 0 ? completedOrdersCount / (double)totalRidersCount : 0.0;
@@ -129,6 +136,9 @@ public class TelemetryBroadcastWorker : BackgroundService
             ridersOfflineCount: offline,
             averageDeliveriesPerRider: Math.Round(avgDeliveries, 1)
         );
+        OperationalMetrics.ActiveRiders.Set(activeRiders);
+        OperationalMetrics.ActiveOrders.Set(activeOrders);
+        OperationalMetrics.DispatchMatchingOrders.Set(queueSize);
 
         if (refreshHotspots)
         {
@@ -172,6 +182,7 @@ public class TelemetryBroadcastWorker : BackgroundService
         // Compute GPS/sec in a 2-second window
         var telemetry = _aggregator.GetTelemetry(windowSeconds: 2.0);
         var utilization = _aggregator.GetUtilization();
+        OperationalMetrics.GpsUpdatesPerSecond.Set(telemetry.GpsUpdatesPerSecond);
 
         // Check if anything has actually changed compared to the last broadcast
         bool activeRidersChanged = telemetry.ActiveRidersCount != _lastActiveRidersCount;

@@ -1,250 +1,106 @@
----
-scope: Backend API Layer (.NET 8)
-source_of_truth:
-  - PROJECT-SPEC.md (Sections 4-6, Backend Packages, Project Structure, Security)
-  - AI-BLUEPRINT.md (Section 2, Technology Stack)
-  - AI-CHANGELOG.md (2026-05-13 TrackingHub, 2026-05-14 Auth, 2026-05-18 Spatial Scaling)
-  - BackendApi/ (codebase)
-related_contexts:
-  - .docs/ai-context/contracts/signalr-contracts.md
-  - .docs/ai-context/contracts/api-contracts.md
-  - .docs/ai-context/contracts/redis-keys.md
-  - .docs/ai-context/contracts/state-machine.md
-forbidden_patterns:
-  - business logic inside controllers
-  - direct DbContext inject in Controllers or Hubs
-  - services ใน Controllers/Services/ (ต้องอยู่ใน BackendApi/Services/)
-  - เรียก Database โดยไม่ผ่าน DBHandlerCore
-  - ไม่ wrap response ด้วย ApiResponse<T>
-known_pitfalls:
-  - SignalR reconnect race condition → ต้องมี GpsSyncBuffer
-  - Redis TTL 30s ต้องตรงกับ DispatchTimeoutWorker check interval
-  - GiST index ห้ามใส่บน non-geometry column (ทำให้ migration ล้มเหลว)
-  - RowVersion (bytea) ต้องมี DEFAULT '\\x'::bytea ใน PostgreSQL
-  - RiderLocationHistories เป็น Partitioned Table → PartitionMaintenanceWorker ต้องสร้าง partition ล่วงหน้า
-  - JWT via QueryString สำหรับ SignalR WebSocket connection
----
+# Backend API (.NET 8)
 
-# spec-backend.md — Backend API Layer (.NET 8)
+**Version:** 1.0.0 | **Updated:** 2026-06-14
 
-> **Source**: `PROJECT-SPEC.md` (Sec 4-6) + `AI-BLUEPRINT.md` + `AI-CHANGELOG.md`  
-> **For SignalR payloads** → `contracts/signalr-contracts.md`  
-> **For REST endpoints** → `contracts/api-contracts.md`
+## 1. Stack
 
----
+ASP.NET Core 8, EF Core/Npgsql/NetTopologySuite, System.Text.Json, Mapster,
+SignalR, StackExchange.Redis, RabbitMQ, Serilog/Seq และ FluentValidation
 
-## 1. Tech Stack
+## 2. Ownership
 
-| Layer | Technology | Version |
-|---|---|---|
-| Framework | ASP.NET Core | .NET 8 |
-| ORM | EF Core + NetTopologySuite | 8.0.11 |
-| Spatial | Npgsql + PostGIS | 8.0.11 |
-| Mapper | Mapster | — |
-| Real-time | SignalR | Built-in |
-| Cache | StackExchange.Redis | — |
-| Auth | JWT Bearer + Refresh Token | 8.0.11 |
-| Logging | Serilog (File + Seq Sinks) | 10.0.0 |
-| Validation | FluentValidation | — |
-| JSON | Newtonsoft.Json (for spatial) | — |
-
----
-
-## 2. Project Structure (สำคัญ)
-
-```
+```text
 BackendApi/
-├── Core/
-│   ├── Models/
-│   │   ├── ApiResponse.cs           ← Standard JSON Wrapper (ทุก response ต้องใช้)
-│   │   └── PaginatedResult.cs       ← Pagination model
-│   ├── Filters/
-│   │   ├── GlobalResponseFilter.cs  ← Auto-wrap ทุก response ด้วย ApiResponse<T>
-│   │   ├── GlobalExceptionFilter.cs
-│   │   └── ValidationFilter.cs      ← Auto-validate ด้วย FluentValidation
-│   ├── Mappings/
-│   │   └── MappingConfig.cs         ← Mapster: Point ↔ Lat/Lng, Entity ↔ DTO
-│   ├── CrudControllerBase.cs        ← Generic CRUD Base (ใช้สำหรับ Master Data)
-│   └── DeliveryControllerBase.cs    ← Base สำหรับ custom business logic
-├── Controllers/
-│   ├── MasterData/
-│   │   ├── RidersController.cs      ← extends CrudControllerBase
-│   │   └── ShopsController.cs       ← extends CrudControllerBase
-│   └── Business/
-│       ├── AuthController.cs        ← Login, Logout, Refresh
-│       └── OrdersController.cs      ← Order lifecycle + dispatch trigger
-├── Hubs/
-│   └── TrackingHub.cs               ← SignalR Hub (GPS + Dispatch events)
-├── Services/                        ← Business logic HARUS ada di sini
-│   ├── Auth/AuthService.cs
-│   ├── Dispatch/
-│   │   ├── DispatchService.cs       ← Dispatch orchestration
-│   │   └── StateMachineService.cs   ← Order/Rider state transitions
-│   └── Ai/
-│       ├── AiService.cs             ← Typed HttpClient → AI Engine
-│       └── OsrmRoutingService.cs    ← OSRM + Polly fallback
-├── Infrastructure/
-│   ├── Redis/
-│   │   ├── RedisLockService.cs      ← SETNX Distributed Lock
-│   │   └── RiderPresenceService.cs  ← GeoAdd/GeoRadius for nearby riders
-│   └── Background/
-│       ├── GpsSyncBuffer.cs         ← In-memory GPS buffer
-│       ├── GpsSyncWorker.cs         ← Batch flush → PostGIS every 30s
-│       ├── DispatchTimeoutWorker.cs ← Janitor: re-dispatch expired offers
-│       ├── HeartbeatMonitor.cs      ← Detect ghost/offline riders
-│       └── PartitionMaintenanceWorker.cs ← Auto-create monthly partitions
-├── Security/
-│   ├── JwtTokenService.cs
-│   ├── PasswordHasher.cs           ← PBKDF2
-│   └── LoginAttemptService.cs
-├── Data/
-│   ├── ApplicationDbContext.cs
-│   └── MockData/DataSeeder.cs      ← Seed users, riders, orders (อุดรธานี)
-└── Setup/
-    ├── ServiceSetup.cs              ← DI registration
-    └── ApplicationSetup.cs         ← Middleware pipeline (CORS ต้องอยู่บนสุด!)
+  Controllers/              HTTP transport only
+  Hubs/                     SignalR transport only
+  Core/                     shared contracts, filters, state machines, helpers
+  Services/                 cross-feature application services/workers
+  Features/
+    AiRouting/              AI + OSRM clients and fallback
+    DispatchManagement/     dispatch and state orchestration
+    FleetTracking/          telemetry ingestion/tracking
+  Infrastructure/
+    EventBus/               RabbitMQ + integration events
+    Redis/                  presence, locks, operational cache
+  Data/                     EF DbContext
+  Setup/                    DI and middleware
 ```
 
----
+Controllers/Hubs ห้ามทำ business mutation โดยตรงและห้าม inject DbContext
+service/worker ใช้ DbContext ได้เมื่อจำเป็นต่อ transaction, batching หรือ spatial query
 
-## 3. DBHandlerCore — Required Usage Pattern
+## 3. API Responses
 
-**ห้ามใช้** `_context.SomeEntity.Where(...)` โดยตรง — ต้องใช้ผ่าน `DBHandlerCore`:
+Application REST responses ใช้ `ApiResponse`:
 
-```csharp
-// ✅ ถูกต้อง
-var riders = await DB.GetObjectListAsync<Rider>();
-var rider = await DB.GetObjectByKeyAsync<Rider>(id);
-await DB.InsertObject(entity);
-await DB.UpdateObject(entity);
-await DB.CommitChangesAsync();
-var paginated = await DB.GetPaginatedListAsync<Rider>(page, pageSize);
-
-// Custom query
-var query = DB.GetQuery<Rider>().Where(r => r.State == RiderState.IDLE);
+```json
+{
+  "status": 401,
+  "success": false,
+  "message": "Unauthorized",
+  "errorDetail": null,
+  "code": "UNAUTHORIZED",
+  "errors": null,
+  "value": null
+}
 ```
 
----
+HTTP status line ต้องตรงกับ `status` ใน body. Authentication challenge/forbid,
+exception, validation และ CSRF middleware ต้องเขียน JSON body มาตรฐานด้วย
+ข้อยกเว้น wrapper ดู `runtime-rules.md`
 
-## 4. Base Entity Hierarchy
+## 4. Data And Concurrency
 
-```
-BaseEntity<T>           → มี RowVersion (Concurrency Token bytea)
-  └── BaseAuditableEntity<T>  → เพิ่ม CreatedAt, UpdatedAt, CreatedBy, UpdatedBy, IP
-        └── BaseSoftDeleteEntity<T>  → เพิ่ม IsDeleted, DeletedAt, DeletedBy, DeletedFromIp
-```
+- PostgreSQL 15 + PostGIS, `geometry(Point,4326)`, GiST indexes
+- Base entities มี audit/soft-delete fields
+- Concurrency authority คือ PostgreSQL shadow `xmin` ที่ map ด้วย `IsRowVersion()`
+- public `byte[] RowVersion` คงไว้เพื่อ compatibility แต่ไม่ใช่ DB authority
+- `RefNumber` ใช้ identity + unique index; API ใช้ `TrackingCode` เป็น DTO name
+- `ProcessedEvents` ใช้ composite key `(EventId, HandlerName)` และมี B-tree
+  index ที่ `ProcessedAt`
 
-**Global Query Filter:** ซ่อน `IsDeleted = true` อัตโนมัติใน query ปกติ  
-**Filtered Unique Index:** Email check เฉพาะ `IsDeleted = false`  
-**Concurrency:** `RowVersion` ป้องกัน overwrite ใน real-time system
+## 5. Migration Policy
 
----
+- Active EF baseline: `20260614152246_ConsolidatedBaseline20260614`
+- โฟลเดอร์ `Migrations` ต้องคงเป็น baseline + Designer + Snapshot
+- PostgreSQL-specific partition/index/compatibility DDL อยู่ใน service migration
+  ที่ idempotent
+- ห้ามเพิ่ม hand-written EF migration หลายไฟล์เพื่อ routine partition maintenance
+- ก่อน squash ต้องทดสอบ fresh database, existing database history bridge,
+  build และ integration tests
 
-## 5. TrackingHub (SignalR) — Key Behaviors
+## 6. Tracking And SignalR
 
-**Registration:**
-- Rider เข้าร่วม group `"rider:{riderId}"`
-- Admin/Dispatcher เข้าร่วม group `"admins"`
-- Customer เข้าร่วม group `"customer:{userId}"`
-- StorePartner เข้าร่วม group `"stores"`
+`TrackingHub` partial classesทำเฉพาะ authenticate, validate และ route ไป:
 
-**JWT Auth:** SignalR รับ JWT ผ่าน `?access_token=` query string  
-(เพราะ WebSocket ไม่รองรับ Authorization header)
+- `RiderPresenceManager`
+- `TelemetryService`
+- `DispatchOfferHandler`
+- service ที่รับผิดชอบ state
 
-**GPS Flow:**
-1. Rider call `UpdateLocation(lat, lng, accuracy)`
-2. Hub บันทึก → `GpsSyncBuffer` (in-memory)
-3. ตรวจสอบ GPS Sanity: max drift 5km
-4. อัปเดต `Rider.CurrentLocation` ลง PostgreSQL ทันที (สำหรับ AI ranking)
-5. Broadcast `RiderLocationUpdated` ไปยัง "admins"
-6. `GpsSyncWorker` flush bulk → `RiderLocationHistories` ทุก 30s
+GPS current state เก็บใน Redis เพื่อ realtime, history persist ผ่าน telemetry/RabbitMQ
+pipeline และ PostgreSQL ห้ามอ้าง `GpsSyncBuffer` รุ่นเก่า
 
----
+## 7. Routing And AI
 
-## 6. RefNumber System (Tracking Codes)
+- `IAiService`: rank, optimize, predict ETA พร้อม deterministic fallback
+- `OsrmRoutingService`: local OSRM เท่านั้น; ห้าม public OSRM production fallback
+- Haversine/raw geometry fallback ต้องคงไว้ตาม critical registry
+- OSRM trip `waypoint_index` คือ visit-order value ต่อ input waypoint;
+  ผู้เรียกต้องเปรียบเทียบ `seq[inputIndex]` ไม่ใช้ `IndexOf(inputIndex)`
 
-Format: `PREFIX-NNNNNN` (เลขลำดับ 6 หลัก)
+## 8. Spatial Rules
 
-| Entity | Prefix | ตัวอย่าง |
-|---|---|---|
-| Order | `ORD-` | `ORD-000001` |
-| Rider | `RID-` | `RID-000003` |
-| Shop | `SHP-` | `SHP-000002` |
-| User | `USR-` | `USR-000001` |
+- PostGIS Point: `X=lng`, `Y=lat`, SRID 4326
+- Database proximity/filter ใช้ spatial SQL/index
+- Haversine ใช้ได้สำหรับ in-memory AI heuristic หรือ degraded fallback
+- `RiderLocationHistories` partition/index maintenance เป็น infrastructure concern
 
-**Implementation:** `UseIdentityByDefaultColumn()` + Unique Index  
-**Search:** `TrackingSearchService` รองรับ mixed-key search (UUID หรือ RefNumber)  
-**Performance:** O(1) ด้วย Unique Index, O(log N) ด้วย B-tree
+## 9. Security And Observability
 
----
-
-## 7. PostGIS Spatial Configuration
-
-```csharp
-// Entity Configuration
-entity.Property(e => e.CurrentLocation)
-    .HasColumnType("geometry(Point, 4326)");
-
-// GiST Index (ต้องมีทุก geometry column)
-entity.HasIndex(e => e.CurrentLocation)
-    .HasMethod("gist")
-    .HasDatabaseName("IX_Riders_CurrentLocation_Gist");
-
-// EF Core Query (ใช้ ST_Distance)
-var nearbyRiders = await DB.GetQuery<Rider>()
-    .Where(r => r.CurrentLocation.Distance(orderPoint) < radiusInDegrees)
-    .OrderBy(r => r.CurrentLocation.Distance(orderPoint))
-    .ToListAsync();
-```
-
-**ห้ามใช้** Haversine C# ใน Backend — ใช้ PostGIS `.Distance()` แทน
-
-**RiderLocationHistories** เป็น **Monthly Range Partitioned Table**:
-- Parent table: `RiderLocationHistories`
-- Child partitions: `RiderLocationHistories_2026_05`, `RiderLocationHistories_2026_06`, ...
-- `PartitionMaintenanceWorker` สร้าง partition ล่วงหน้าอัตโนมัติที่ startup และ 02:00 UTC ทุกวัน
-
----
-
-## 8. Security Configuration
-
-| Feature | Implementation |
-|---|---|
-| JWT Auth | Bearer token + HttpOnly Cookie `access_token` |
-| Refresh Token | SHA-256 hash, 7-day lifetime, Token Rotation |
-| Role Policies | `AdminOnly`, `Operations`, `Rider` |
-| Rate Limiting | `auth` policy (brute-force prevention) |
-| Security Headers | `Referrer-Policy`, `X-Frame-Options` via Middleware |
-| CORS | **ต้อง** อยู่บนสุดของ Middleware pipeline |
-
----
-
-## 9. AI Integration
-
-**`AiService`** (Typed HttpClient) เชื่อมต่อกับ Python AI Engine:
-
-```csharp
-// VRP Optimization
-await _aiService.OptimizeRouteAsync(orderLocations);
-
-// Rider Ranking
-await _aiService.RankRidersAsync(candidates, orderLocation);
-```
-
-**`OsrmRoutingService`** คำนวณเส้นทางจริง:
-- Local OSRM → Public OSRM → Haversine fallback
-- Polly: 2 retries + 15s Circuit Breaker + 1.5s timeout
-- `PolylineEncoder.cs` compress route coordinates (~99% reduction)
-
----
-
-## 10. Health Checks & Observability
-
-| Endpoint | Purpose |
-|---|---|
-| `/health` | Basic liveness |
-| `/health/ready` | Database + Redis readiness |
-| `/health/detail` | Full metrics (DB latency, Redis, SignalR, Dispatch queue) |
-| `/metrics` | Prometheus metrics scrape |
-
-**Structured Logging:** Serilog → File + Seq (`http://seq:5341`)
+- Dashboard: HttpOnly access/refresh cookies, XSRF double-submit, credentials enabled
+- Flutter/native: Bearer JWT และ refresh token storage ที่ปลอดภัย
+- SignalR รองรับ `access_token` query สำหรับ WebSocket clients
+- Role policies: Admin, Dispatcher/Operations, Rider, Customer, StorePartner
+- `/health`, `/health/ready`, `/health/detail`, `/metrics`
+- Structured log scope ต้องมี correlation/order/rider identifiers เมื่อมีค่า

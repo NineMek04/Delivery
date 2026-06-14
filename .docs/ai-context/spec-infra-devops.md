@@ -1,26 +1,69 @@
----
-module: Infrastructure, Telemetry Streaming & Operational SLO Targets
-dependencies: [ "SignalR Windowed Broadcast", "Angular Change Detection Guard" ]
----
+# Infrastructure, Telemetry And SLO
 
-# ⚙️ Telemetry Streaming Optimization & Operational Limits (SLO)
+**Version:** 1.0.0 | **Updated:** 2026-06-14
 
-## 1. ระบบควบคุม Backpressure และหน่วงเวลา (Windowed Push Architecture)
-เพื่อป้องกันหน้าจอระบบ Admin Dashboard เกิดอาการหน่วง ค้าง หรือ DOM Re-rendering ถี่เกินไป ระบบหลังบ้านจะทำหน้าที่เป็นเขื่อนกั้นแรงกระแทกข้อมูลความถี่สูง (High-frequency GPS จากไรเดอร์ 100+ จุด/วิ):
-- **RAM-Only Atomic Increment:** สัญญาณ GPS ขาเข้าจะวิ่งไปบวกตัวเลข Metric ขึ้นทีละ 1 ติ๊กแบบ Thread-safe บน RAM ผ่าน `TelemetryAggregator` ทันที โดยไม่มีการเรียกเขียนฮาร์ดดิสก์ฐานข้อมูลในจังหวะนี้
-- **Database Throttle Policy:** บังคับดักให้ `TelemetryBroadcastWorker` ยิงคำสั่ง Query สรุปภาพสถานะสดจาก PostgreSQL **ทุกๆ 5 วินาทีเท่านั้น** เพื่อจำกัดอัตราการกดดันฐานข้อมูลให้คงที่
-- **2-Second Windowed Push:** ทุกๆ **2 วินาที** หลังบ้านจะทำการแพ็กรวมข้อมูลสรุป Telemetry ยิงข้ามท่อ SignalR ก้อนเดียว (Event: `'TelemetryUpdated'`) ไปหาหน้าจอแอดมิน
+## 1. Compose Topology
 
-## 2. 🎯 มาตรฐานและข้อจำกัดเชิงปฏิบัติการ (Operational Limits & SLO Targets)
-โปรเจกต์นี้ได้รับการควบคุมขีดจำกัดทรัพยากรและการประมวลผล เพื่อให้สอดคล้องกับแนวคิดความมั่นคงเชิงระบบ (Service Level Objectives):
+Active services:
 
-- ⏱️ **Max telemetry broadcast rate: 0.5 Hz** (หลังบ้านจะสั่งยิงสรุปสถิติจราจรสดออกไปหาหน้าจอแอดมินสูงสุดแค่ 1 ครั้งต่อ 2 วินาทีเท่านั้น ผ่านระบบ 0.5 Hz Filter Noise Guard สกัดอาการกล่องกราฟกะพริบกระตุก)
-- 🔒 **Max Redis lock TTL: 30s** (ระยะเวลาการจองและล็อกงานให้ไรเดอร์ตัดสินใจในระบบ RAM มีเวลาเด็ดขาดสูงสุด 30 วินาที หากเกินเวลาต้องถอน Lock คืนสู่ระบบกลางทันทีป้องกันสภาวะแอปค้าง)
-- 🔄 **Max retry attempts: 5** (จำนวนครั้งสูงสุดในการพยายามประมวลผลข้อความบน RabbitMQ ก่อนที่จะสั่งย้ายข้อมูลเข้าสู่ตู้ DLQ เพื่อไม่ให้คิวหลักเกิดสภาวะคอขวดสะสม)
-- 🏎️ **Max queue processing delay target: < 3s** (เป้าหมายสูงสุดความล่าช้าในการสับเปลี่ยนข้อความผ่านระบบ Message Broker ต้องน้อยกว่า 3 วินาที เพื่อการันตีความเป็นระบบเวลาจริงยืดหยุ่นสูง)
+`db`, `pgbouncer`, `backend`, `redis`, `ai-service`, `frontend`, `rider-app`,
+`osrm`, `nginx-proxy`, `seq`, `prometheus`, `grafana`, `alertmanager`,
+`rabbitmq`, `vault`, `vault-bootstrap`
 
-## 3. Hard Operational Limits
+Base compose ไม่ควร expose internal ports. Development override bind ทุก port
+กับ `127.0.0.1`.
+
+| Service | Dev Host Port | Container Port |
+|---|---:|---:|
+| Backend | 5000 | 80 |
+| PostgreSQL | 5432 | 5432 |
+| PgBouncer | 6432 | 5432 |
+| Redis | 6379 | 6379 |
+| AI | 8009 | 8000 |
+| Admin | 4201 | 80 |
+| Flutter web | 8083 | 80 |
+| OSRM | 5001 | 5000 |
+| Seq UI | 8082 | 80 |
+| Prometheus | 9090 | 9090 |
+| Grafana | 3000 | 3000 |
+| RabbitMQ UI | 15672 | 15672 |
+| Vault | 8200 | 8200 |
+
+## 2. Database And Cache
+
+- `postgis/postgis:15-3.3`
+- PgBouncer transaction pooling
+- Redis AOF, 256 MB, `allkeys-lru`; PostgreSQL fallback is mandatory
+- ProcessedEvents cleanup ต้องใช้ indexed `ProcessedAt`
+- partition/index DDL ต้อง idempotent และอยู่ใน service migration
+
+## 3. Routing And Secrets
+
+- OSRM uses MLD and local `udon-thani.osrm`
+- production ห้าม public OSRM fallback
+- Backend/AI secrets มาจาก Vault AppRole เมื่อ `VAULT_REQUIRED=true`
+- ห้าม commit `.env`, tokens, passwords หรือ AppRole secret IDs
+
+## 4. RabbitMQ
+
+- integration events เท่านั้น; telemetry raw high-frequency ใช้ pipeline ที่กำหนด
+- consumer ต้อง idempotent ผ่าน ProcessedEvents
+- retry จำกัดสูงสุด 5 ก่อน DLQ
+- management image เปิด Prometheus plugin ผ่าน `rabbitmq/enabled_plugins`
+
+## 5. Telemetry
+
+- high-frequency input ห้าม query PostgreSQL ต่อ message เพื่อ dashboard
+- aggregate/batch ก่อน SignalR broadcast
+- admin telemetry target สูงสุด 0.5 Hz สำหรับ summary stream
+- frontend ต้อง throttle/batch UI update และใช้ Canvas map rendering
+
+## 6. Operational Targets
+
 - Max SignalR connections target: 500
 - Max GPS ingestion target: 100/sec
-- Max telemetry payload size: 16 KB
-- Max RabbitMQ consumer lag target: < 3s
+- Max telemetry payload: 16 KB
+- RabbitMQ processing lag target: < 3s
+- Redis dispatch lock TTL: contract-specific และห้ามเกิน business timeout
+- Dashboard ต้องมี Business Health, AI/OSRM latency และ System Health panels
+- GPS history ต้อง query PostgreSQL history endpoint ไม่อ่าน Redis

@@ -1,227 +1,31 @@
----
-scope: Redis Key Schemas, TTLs, and Data Types
-source_of_truth:
-  - AI-CHANGELOG.md (2026-05-14 Redis Integration, Phase 2 Dispatch)
-  - BackendApi/Infrastructure/Redis/ (codebase)
-  - BackendApi/Services/Dispatch/DispatchService.cs (codebase)
-related_contexts:
-  - .docs/ai-context/contracts/state-machine.md
-  - .docs/ai-context/spec-backend.md
-forbidden_patterns:
-  - ให้ Redis เป็น source of truth (ใช้เป็น operational cache เท่านั้น)
-  - เพิ่ม Redis key ใหม่โดยไม่ document ที่นี่ก่อน
-  - ตั้ง TTL ที่ไม่สอดคล้องกับ Business logic (เช่น offer TTL ต้อง = 30s)
-known_pitfalls:
-  - maxmemory 256mb + allkeys-lru: keys อาจถูก evict → ต้องมี fallback ไปยัง PostgreSQL
-  - offer TTL ต้องตรงกับ DispatchTimeoutWorker check interval
-  - presence keys expire → HeartbeatMonitor detect และ mark OFFLINE
----
+# Redis Key Contracts
 
-# redis-keys.md — Redis Key Schemas, TTLs & Data Types
+Redis เป็น operational cache เท่านั้น; PostgreSQL เป็น source of truth.
 
-> **Redis Config:** `redis:7-alpine`, maxmemory 256mb, policy allkeys-lru  
-> **Critical Rule:** Redis = cache layer เท่านั้น — PostgreSQL = source of truth
+| Key | Type | Typical TTL | Purpose |
+|---|---|---:|---|
+| `riders:locations` | GEO ZSET | none | latest rider coordinates |
+| `riders:heartbeat:{riderId}` | Hash | sliding | presence/heartbeat |
+| `riders:gps:{riderId}` | Hash | short-lived | latest GPS data |
+| `riders:speed_buffer:{riderId}` | List | 5 min | moving speed samples |
+| `riders:status:{riderId}` | String | 24 h | operational state cache |
+| `riders:active_order:{riderId}` | Hash | 30 s | order/customer recipients |
+| `riders:snapped_gps:{riderId}` | implementation cache | short-lived | road-snapped point |
+| `riders:hotspots:heatmap` | cache | bounded | admin heatmap |
+| `dispatch:lock:rider:{riderId}` | String | 30 s | rider offer reservation |
+| `dispatch:lock:{orderId}` | String | short | prevent double dispatch |
+| `dispatch:inject_lock:rider:{riderId}` | String | short | batch injection lock |
+| `lock:offer:{offerId}` | String | short | accept/reject concurrency |
+| `route:cache:{lat1:F5}:{lng1:F5}:{lat2:F5}:{lng2:F5}` | String | 24 h | OSRM result cache |
 
----
+## Rules
 
-## 1. Rider Presence Keys
-
-### `riders:heartbeat:{riderId}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `riders:heartbeat:{riderId}` (UUID) |
-| **Data Type** | Hash |
-| **Value** | heartbeat timestamp; durable RiderState remains in PostgreSQL |
-| **TTL** | short sliding TTL, renewed by heartbeat |
-| **SET By** | `TrackingHub.UpdateHeartbeat()` / presence manager |
-| **READ By** | `RiderPresenceService`, `DispatchService` |
-
-```
-เมื่อ TTL expire → HeartbeatMonitor detect → Rider State = OFFLINE
-```
-
----
-
-### `riders:locations` (Geospatial Sorted Set)
-
-| Field | Value |
-|---|---|
-| **Key** | `riders:locations` |
-| **Data Type** | Sorted Set (ZSET) — Redis GEO |
-| **Members** | `riderId` (UUID string) |
-| **Score** | Geospatial coordinates (managed by Redis GEO commands) |
-| **TTL** | No TTL (managed by ZREM on disconnect) |
-| **Commands** | `GEOADD`, `GEORADIUS`, `GEODIST`, `GEOPOS` |
-
-```csharp
-// เพิ่ม Rider location
-await _redis.GeoAddAsync("riders:locations", longitude, latitude, riderId);
-
-// หา Riders ใกล้ Shop ใน radius 5km
-var nearbyRiders = await _redis.GeoRadiusAsync("riders:locations",
-  shopLng, shopLat, 5, GeoUnit.Kilometers);
-```
-
----
-
-## 2. GPS Buffer Keys
-
-### `riders:gps:{riderId}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `riders:gps:{riderId}` (UUID) |
-| **Data Type** | Hash |
-| **Fields** | `lat`, `lng`, `updated_at`, `speed_kmh` |
-| **TTL** | 24 hours |
-| **SET By** | `GpsSyncBuffer` on each GPS update |
-| **READ By** | `DispatchService` (for most-recent rider location) |
-
-```
-ใช้สำหรับ: AI scoring ต้องการตำแหน่ง Rider ล่าสุด (ก่อน flush ลง PostGIS)
-```
-
-### `riders:speed_buffer:{riderId}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `riders:speed_buffer:{riderId}` (UUID) |
-| **Data Type** | List |
-| **Values** | ค่าความเร็ว km/h ล่าสุด 5 จุด (5-point Moving Average) |
-| **TTL** | 5 minutes |
-| **SET By** | `RiderPresenceService.UpdateGpsAsync()` (RPUSH + LTRIM) |
-| **READ By** | `RiderPresenceService.GetRiderSpeedAsync()` → `DispatchCandidateRanker` |
-
-```
-ใช้สำหรับ: คำนวณ Rider velocity เฉลี่ย 5 จุดล่าสุด → ส่งไป AI Engine สำหรับ ETA prediction
-```
-
----
-
-## 3. Dispatch Offer Keys
-
-### `dispatch:lock:rider:{riderId}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `dispatch:lock:rider:{riderId}` |
-| **Data Type** | String |
-| **Value** | current `offerId` |
-| **TTL** | **30 seconds** (ต้องตรงกับ DispatchTimeoutWorker) |
-| **SET By** | `DispatchService` เมื่อส่ง Offer |
-| **DELETE By** | Rider accept / reject / timeout |
-
-```csharp
-// Set offer lock (SETNX pattern)
-var key = $"dispatch:lock:rider:{riderId}";
-await _redis.StringSetAsync(key, offerId, TimeSpan.FromSeconds(30), When.NotExists);
-```
-
----
-
-### `dispatch:lock:{orderId}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `dispatch:lock:{orderId}` |
-| **Data Type** | String |
-| **Value** | `"1"` (presence = locked) |
-| **TTL** | ~5 seconds (prevent concurrent dispatch) |
-| **SET By** | `RedisLockService` (SETNX + Lua Script) |
-| **Purpose** | Prevent double-dispatch race condition |
-
----
-
-## 4. Active Order Recipient Cache
-
-### `riders:active_order:{riderId}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `riders:active_order:{riderId}` |
-| **Data Type** | Hash |
-| **Schema Marker** | `__schema` = `2` |
-| **Order Fields** | `order:{orderId}` = `customerId` |
-| **TTL** | **30 seconds** |
-| **SET By** | `StateMachineService`, `TelemetryService` DB fallback |
-| **READ By** | `TelemetryService` |
-
-The hash contains every active `ASSIGNED`, `PICKING_UP`, or `DELIVERING`
-order for the rider. PostgreSQL remains the source of truth. A missing key or
-an unknown schema must trigger a PostgreSQL refresh before customer broadcast.
-
----
-
-## 5. Route Cache Keys
-
-### `route:{lat1}:{lng1}:{lat2}:{lng2}`
-
-| Field | Value |
-|---|---|
-| **Key Pattern** | `route:{lat1_4dp}:{lng1_4dp}:{lat2_4dp}:{lng2_4dp}` |
-| **Data Type** | String |
-| **Value** | `{ "encodedPolyline": "...", "distanceKm": 5.2, "durationSeconds": 720 }` |
-| **TTL** | **24 hours** |
-| **SET By** | `OsrmRoutingService` after successful OSRM call |
-| **READ By** | `OsrmRoutingService` (cache-first) |
-
-```
-ลด latency: Local OSRM call ~50ms, Redis cache hit ~1ms
-```
-
----
-
-## 6. GPS Sync Buffer
-
-**Not a Redis key** — `GpsSyncBuffer` เป็น in-memory `ConcurrentDictionary<string, List<GpsPoint>>`
-
-```
-GpsSyncBuffer (in-memory)
-  ← TrackingHub.UpdateLocation() เพิ่ม GPS points
-  
-GpsSyncWorker (runs every 30s)
-  → Bulk flush ลง RiderLocationHistories (PostGIS)
-  → Clear buffer entries ที่ flush แล้ว
-```
-
----
-
-## 7. Session / Auth Keys (ถ้ามี)
-
-| Key | ใช้เมื่อ |
-|---|---|
-| `auth:blacklist:{jti}` | Revoked JWT token IDs (optional) |
-
----
-
-## 8. Redis Data Type Summary
-
-| Key Pattern | Redis Type | TTL |
-|---|---|---|
-| `presence:rider:{id}` | String | ~60s (sliding) |
-| `geo:riders` | Sorted Set (GEO) | No TTL |
-| `gps:last:{id}` | Hash | 5 min |
-| `riders:speed_buffer:{id}` | List | 5 min |
-| `offer:{orderId}` | String (JSON) | **30s** |
-| `dispatch:lock:{orderId}` | String | ~5s |
-| `riders:active_order:{riderId}` | Hash | 30s |
-| `route:{coords}` | String (JSON) | 24h |
-
----
-
-## 9. Critical Rules
-
-```
-✅ Redis ใช้สำหรับ:
-   - Operational state (presence, GPS buffer)
-   - Distributed locking (race condition prevention)
-   - Short-lived offer locks (30s business rule)
-   - Route caching (performance)
-
-❌ Redis ห้ามใช้สำหรับ:
-   - Final order status (ต้องอ่านจาก PostgreSQL)
-   - Audit trail (ต้องเก็บใน PostgreSQL)
-   - Pagination / search
-   - Long-term data storage
-```
+- GEO member คือ rider id และ coordinate order ใน command คือ lng, lat
+- key ไม่มี/ถูก evict ต้อง fallback PostgreSQL เมื่อ correctness ต้องการ
+- active order hash schema marker ต้องตรวจ; unknown schema ต้อง rebuild จาก DB
+- lock release ต้องตรวจ ownership/value ก่อน delete
+- ห้ามใช้ alias เก่า `presence:rider:*`, `geo:riders`, `gps:last:*`,
+  `offer:{orderId}` ในโค้ดใหม่
+- GPS durable queue อยู่ใน Flutter SQLite/RabbitMQ/PostgreSQL pipeline
+  ไม่ใช่ in-memory `GpsSyncBuffer` รุ่นเก่า
+- เพิ่ม key ใหม่ต้องเพิ่ม contract พร้อม type, owner, reader, TTL และ DB fallback

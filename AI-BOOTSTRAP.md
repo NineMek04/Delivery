@@ -1,126 +1,75 @@
-# AI-BOOTSTRAP.md — AI Behavior Rules & Anti-Hallucination Constraints
+# AI-BOOTSTRAP.md - Agent Behavior Rules
 
-> **⚠️ อ่านไฟล์นี้ก่อนทุก task** หลังจากอ่าน `AI-INDEX.md` แล้ว
+**Version:** 1.0.0 | **Last Updated:** 2026-06-14
 
-**Version:** 0.9.0 | **Last Updated:** 2026-05-21
+## 1. Pre-Task Protocol
 
----
+1. อ่าน `AI-INDEX.md`
+2. อ่านไฟล์นี้
+3. เปิดเฉพาะ active spec/contract ที่ index route
+4. ตรวจ implementation และ tests จริง
+5. อ่าน changelog เฉพาะวันที่เกี่ยวข้องเมื่อจำเป็น
 
-## 1. Role & Identity
+ห้ามโหลด archive ทั้งชุด และห้ามแก้ `.docs/AI-CHANGELOG/` อัตโนมัติ
 
-คุณคือ **Senior Full-stack Developer และ AI Architect** สำหรับโปรเจกต์นี้  
-ทำงานแบบ **production-aware** และยึดตาม **codebase จริงเป็น source of truth** เสมอ
+## 2. Source Precedence
 
----
+เมื่อข้อมูลขัดกันให้เรียง:
 
-## 2. Mandatory Pre-Task Checklist
+1. `AGENTS.md` และ critical protection
+2. active contracts/specs ที่ `AI-INDEX.md` ชี้
+3. implementation + automated tests ปัจจุบัน
+4. historical archives/changelog
 
-ก่อนเริ่มงานทุกครั้ง ต้องทำตามลำดับนี้:
+ถ้า implementation อ่อนกว่ากฎด้าน security, correctness, data integrity หรือ
+resilience ห้ามลดกฎให้ตามบัค ให้แก้ implementation เมื่อ task อนุญาตหรือรายงาน
+ความขัดแย้ง
 
-```
-[ ] 1. อ่าน AI-INDEX.md → route ไปยัง spec ที่เกี่ยวข้อง
-[ ] 2. อ่าน AI-BOOTSTRAP.md → ไฟล์นี้
-[ ] 3. อ่าน spec ที่ AI-INDEX.md แนะนำ
-[ ] 4. อ่าน contracts ที่เกี่ยวข้อง (ถ้ามี)
-[ ] 5. ตรวจสอบไฟล์ล่าสุดใน .docs/AI-CHANGELOG/ (อ่านเฉพาะไฟล์ตามวันที่เกี่ยวข้อง)
-```
+## 3. Mandatory Boundaries
 
----
+- Controller/Hub เป็น transport layer; business logic อยู่ service/feature
+- ห้าม inject/use DbContext โดยตรงใน Controller/Hub
+- Redis ไม่ใช่ source of truth
+- RabbitMQ consumer ต้อง idempotent ผ่าน ProcessedEvents
+- Integration event ใช้ชื่อ `<Domain><Action>IntegrationEvent`
+- SignalR high-frequency event เป็น telemetry ไม่ใช่ integration event
+- location ใช้ SRID 4326; persisted proximity query ใช้ PostGIS/GiST
+- AI/OSRM ต้องมี deterministic fallback ตาม critical registry
+- ห้ามลบ state transition, fallback, protected endpoint หรือ router เดิม
+- Logs ต้องมี CorrelationId, OrderId, RiderId เมื่อมีค่า
 
-## 3. Strict Base Structure Rules (ห้ามละเมิด)
+รายละเอียด component-specific ให้ยึด `runtime-rules.md`.
 
-### Backend (.NET 8)
-| สถานการณ์ | ใช้ |
-|---|---|
-| Master Data CRUD | `CrudControllerBase<TEntity, TDto>` |
-| Business Logic Controller | `DeliveryControllerBase` |
-| Database Access | `DBHandlerCore` เท่านั้น (ห้าม inject DbContext ตรง) |
-| Object Mapping | `Mapster` เท่านั้น |
-| Response Format | `ApiResponse<T>` ทุก endpoint |
-| Services Location | `BackendApi/Services/` เท่านั้น (ห้ามใส่ใน `Controllers/Services/`) |
+## 4. Anti-Hallucination
 
-### Frontend (Angular 19)
-| สถานการณ์ | ใช้ |
-|---|---|
-| CRUD Services | `BaseApiService<T>` (inherit) |
-| Custom HTTP Calls | `DeliveryHttpRequest` (Fluent API) |
-| Models/Types | OpenAPI generated models จาก `src/app/api/generated/` |
-| Components | Standalone components (ไม่ใช้ NgModules) |
+- ห้ามเดา endpoint, payload, Redis key, SignalR event หรือ state
+- ตรวจ contract แล้วตรวจ producer/consumer จริงก่อนแก้
+- ห้ามสมมติว่า Angular/Flutter field casing ตรง backend โดยไม่ verify
+- ห้ามอ้าง path หรือ class ที่ไม่มีใน repository
+- ถ้าหลักฐานยังไม่พอให้ค้น codebase ก่อนถามผู้ใช้
 
-### Mobile (Flutter)
-| สถานการณ์ | ใช้ |
-|---|---|
-| HTTP Client | Dio (ผ่าน `delivery_api_client.dart`) |
-| State Management | Riverpod |
-| Navigation | GoRouter |
-| API Response | Standard `ApiResponse` models |
+## 5. Scope And Change Safety
 
----
+- เปลี่ยนเฉพาะสิ่งที่ task ขอ
+- ห้าม revert งานผู้ใช้หรือ unrelated changes
+- ห้ามเพิ่ม dependency/stack โดยไม่จำเป็น
+- ห้ามลบ Layer 1 archives
+- migration ที่ใช้งานแล้วห้าม squash โดยไม่มี compatibility bridge และ fresh/
+  existing database verification
 
-## 4. Anti-Hallucination Rules
+## 6. Known Critical Pitfalls
 
-### ❌ ห้ามทำ (Forbidden Patterns)
-- **ห้าม** เขียน business logic ใน Controllers
-- **ห้าม** เรียก DbContext โดยตรงใน Controllers หรือ Hubs
-- **ห้าม** เขียน Services ใน `Controllers/Services/` — ต้องอยู่ใน `BackendApi/Services/`
-- **ห้าม** ให้ Redis เป็น source of truth — Redis = realtime operational state เท่านั้น
-- **ห้าม** เปลี่ยน OR-Tools เป็น solver อื่นโดยไม่มีคำสั่งจากผู้ใช้
-- **ห้าม** ใช้ SRID อื่นที่ไม่ใช่ 4326 / WGS84
-- **ห้าม** เพิ่ม GiST index บนฟิลด์ที่ไม่ใช่ geometry type
-- **ห้าม** เขียนข้อมูลลง `.docs/AI-CHANGELOG/` โดยอัตโนมัติ — ต้องถามผู้ใช้ก่อนเสมอ (ให้สร้างหรืออัปเดตไฟล์ตามวันที่)
-- **ห้าม** เขียน, แก้ไข, หรือลบ entries เก่าใน `.docs/AI-CHANGELOG/`
-- **ห้าม** ลบไฟล์ Layer 1 archives (`Documents/PROJECT-SPEC.md`, `Documents/AI-BLUEPRINT.md`, `.docs/AI-CHANGELOG/`, `Documents/OSRM-SETUP.md`, `docker-compose.yml`)
+- SignalR reconnect: ห้ามส่งก่อน connected; queue GPS/status offline
+- Offer accept/reject: ตรวจ offer version และ lock ownership
+- OSRM trip sequence: ใช้ `sequence[inputIndex]`, ไม่ใช้ `IndexOf(inputIndex)`
+- Partial shop update: nullable fields ป้องกัน `IsOpen`/prep time ถูกเขียนทับ
+- ProcessedEvents cleanup: ต้องมี index ที่ `ProcessedAt`
+- PostGIS Point order: X=lng, Y=lat
+- Public OSRM: ห้ามใช้กับ production coordinates
+- Dashboard auth: HttpOnly cookie + XSRF; ห้ามเก็บ access/refresh tokenใน localStorage
+- API error: HTTP status และ `ApiResponse.status` ต้องตรงกันและมี JSON body
 
-### ✅ ต้องทำเสมอ (Mandatory Patterns)
-- ยึด codebase จริงเป็น source of truth เมื่อขัดแย้งกับ docs
-- เช็ค `.docs/ai-context/contracts/` ก่อนเขียน payload, key, หรือ state ใดๆ
-- ใช้ PostGIS `geometry(Point, 4326)` สำหรับทุก location field
-- ใช้ `NetTopologySuite` ใน .NET สำหรับ spatial calculation
-- เพิ่ม GiST index บน geometry columns เสมอ
-- ทุก location ต้องส่งผ่าน `Mapster` ผ่าน `MappingConfig.cs`
+## 7. Verification
 
----
-
-## 5. Cross-Context Guessing Prevention
-
-**ห้ามเดาเองโดยไม่มีหลักฐาน** — ถ้าข้อมูลไม่อยู่ใน spec ที่อ่านมา ให้:
-1. ตรวจสอบ codebase จริงก่อน
-2. ถ้ายังไม่แน่ใจ ให้บอกผู้ใช้และถาม
-
-**ห้าม cross-context assumptions:**
-- อย่าสมมติว่า Angular service method ตรงกับ .NET endpoint ถ้าไม่ได้ verify
-- อย่าสมมติว่า Redis key schema จาก memory ถ้าไม่ได้อ่าน `contracts/redis-keys.md`
-- อย่าสมมติ SignalR event names — ต้องอ่าน `contracts/signalr-contracts.md` เสมอ
-
----
-
-## 6. Scope Control
-
-- **เปลี่ยนเฉพาะสิ่งที่ถูกขอ** — ห้าม refactor ไฟล์อื่นโดยไม่ได้รับคำสั่ง
-- **ห้าม revert งานของผู้ใช้** หรือไฟล์ที่ไม่ได้แตะใน task ปัจจุบัน
-- **ห้ามเพิ่ม dependency ใหม่** โดยไม่ตรวจ `.npmrc`, registry, และ VPN constraints ก่อน
-
----
-
-## 7. Known System Pitfalls (อ่านก่อนแก้ bug ทุกครั้ง)
-
-| Pitfall | Component | รายละเอียด |
-|---|---|---|
-| SignalR Reconnect Race | TrackingHub | Rider อาจส่ง GPS ก่อน reconnect เสร็จ ต้องมี buffer |
-| Redis TTL Mismatch | Dispatch | Offer TTL 30s ต้องตรงกับ `DispatchTimeoutWorker` interval |
-| GiST Index on non-geometry | Migration | ห้ามใส่ `.HasMethod("gist")` บน `string`/`int` columns |
-| RowVersion Concurrency | EF Core | `DEFAULT '\\x'::bytea` ต้องมีใน PostgreSQL schema |
-| Partition Table Race | `RiderLocationHistories` | `PartitionMaintenanceWorker` ต้องสร้าง partition ล่วงหน้าก่อน insert |
-| JWT via QueryString | SignalR | WebSocket connections ส่ง JWT ผ่าน `?access_token=` |
-| N+1 Query | DispatchService | ใช้ Dictionary bulk fetch ห้าม loop หา rider ทีละคน |
-| GPS Pascal/camelCase | SignalR Frontend | Frontend ต้องแกะ `Lat`/`lat`/`latitude` ด้วย fallback mapper |
-| Polyline Z-dimension | PostGIS | ห้ามส่ง coordinates ที่มี Z-axis เข้า PostGIS SRID 4326 |
-
----
-
-## 8. Environment Notes
-
-- ถ้าทำงาน npm: ตรวจ `.npmrc` และ VPN status ก่อน
-- `Jwt__Key` ต้อง >= 32 chars และตั้งผ่าน environment variable
-- Docker Desktop ต้องการ RAM >= 4GB (แนะนำ 8GB), WSL 2 backend
-- OSRM ต้องสร้าง `osrm_data/udon-thani.osrm` ก่อนรัน (อ่าน `OSRM-SETUP.md`)
+เลือก verification ตาม blast radius: build, focused tests, integration tests,
+contract search, link/path checks และ `git diff --check`. หากไม่ได้รันต้องแจ้งผู้ใช้.

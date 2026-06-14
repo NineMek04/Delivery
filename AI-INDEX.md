@@ -1,124 +1,59 @@
-# AI-INDEX.md — Master Context Router
+# AI-INDEX.md - Master Context Router
 
-> **⚠️ AI AGENT: อ่านไฟล์นี้ก่อนทุกครั้ง** เพื่อ route ไปยัง spec ที่ถูกต้อง ประหยัด token และป้องกัน context corruption
+> อ่านไฟล์นี้ก่อนทุกงาน แล้วเปิดเฉพาะเอกสารที่ตรงกับขอบเขตงาน
 
-**Version:** 0.9.0 | **Last Updated:** 2026-05-21
+**Version:** 1.0.0 | **Last Updated:** 2026-06-14
 
----
+## 1. Required Reading Order
 
-## 1. Required Reading Order (ทุก Task ต้องทำ)
+1. `AI-INDEX.md`
+2. `AI-BOOTSTRAP.md`
+3. Spec/contract ที่เกี่ยวข้องด้านล่าง
+4. `.docs/AI-CHANGELOG/` เฉพาะวันที่เกี่ยวข้อง เมื่อจำเป็นต้องดูประวัติ
 
-```
-1. AI-INDEX.md        ← ไฟล์นี้ (อ่านก่อนเสมอ)
-2. AI-BOOTSTRAP.md    ← Behavior rules & anti-hallucination constraints
-3. .docs/AI-CHANGELOG/ ← สถานะงานล่าสุด (อ่านเฉพาะไฟล์ตามวันที่เกี่ยวข้อง)
-```
+ห้ามโหลด historical archive ทั้งชุดโดยไม่มีเหตุผล และห้ามแก้ changelog อัตโนมัติ
 
----
+## 2. Context Routing
 
-## 2. Context Routing Map
+| งาน | เอกสารหลัก | เนื้อหา |
+|---|---|---|
+| Architecture | [.docs/ai-context/spec-blueprint.md](.docs/ai-context/spec-blueprint.md) | topology, lifecycle, event boundaries |
+| Backend .NET 8 | [.docs/ai-context/spec-backend.md](.docs/ai-context/spec-backend.md) | API, service boundaries, PostGIS, migrations |
+| Angular admin | [.docs/ai-context/spec-frontend.md](.docs/ai-context/spec-frontend.md) | routes, HTTP, SignalR, Leaflet |
+| AI engine | [.docs/ai-context/spec-ai-engine.md](.docs/ai-context/spec-ai-engine.md) | FastAPI, OR-Tools, scoring, fallbacks |
+| Infrastructure | [.docs/ai-context/spec-infra-devops.md](.docs/ai-context/spec-infra-devops.md) | Compose, ports, telemetry, SLO |
+| Flutter app | [.docs/ai-context/spec-mobile-rider.md](.docs/ai-context/spec-mobile-rider.md) | Rider, Customer, Store flows, offline queue |
+| Coding rules | [.docs/ai-context/runtime-rules.md](.docs/ai-context/runtime-rules.md) | mandatory runtime constraints |
+| Critical registry | [CRITICAL-CODE-PROTECTION.md](CRITICAL-CODE-PROTECTION.md) | protected files, endpoints, fallback paths |
 
-ระบุว่ากำลังทำงานเกี่ยวกับส่วนไหน แล้วอ่านเฉพาะไฟล์ที่ตรงกัน:
-
-### 🏛️ System Architecture & Vision
-→ [spec-blueprint.md](.docs/ai-context/spec-blueprint.md)
-- Dispatch lifecycle, Rider lifecycle
-- System overview, data flow, microservices topology
-
-### ⚙️ Backend API (.NET 8)
-→ [spec-backend.md](.docs/ai-context/spec-backend.md)
-- TrackingHub, JWT/Auth, Redis presence
-- DBHandlerCore, CrudControllerBase, RefNumbers
-- PostGIS, GiST indexes, Partitioning
-
-### 🎨 Frontend (Angular 19 Admin Dashboard)
-→ [spec-frontend.md](.docs/ai-context/spec-frontend.md)
-- SimMap, Leaflet, Polyline decoding
-- BaseApiService, DeliveryHttpRequest, SignalR integration
-- requestAnimationFrame, RxJS leak prevention
-
-### 🤖 AI Engine (Python FastAPI + OR-Tools)
-→ [spec-ai-engine.md](.docs/ai-context/spec-ai-engine.md)
-- VRP Solver, PATH_CHEAPEST_ARC
-- Haversine matrix, Scoring engine
-- `/api/optimize-route`, `/api/v1/dispatch/rank`
-
-### 🏗️ Infrastructure & DevOps
-→ [spec-infra-devops.md](.docs/ai-context/spec-infra-devops.md)
-- Docker Compose topology (11 services)
-- OSRM offline setup, Polly retry/circuit breaker
-- Redis config, Nginx proxy, Observability stack
-
-### 📱 Mobile App (Flutter Rider App)
-→ [spec-mobile-rider.md](.docs/ai-context/spec-mobile-rider.md)
-- Riverpod, GoRouter, Dio
-- Background GPS, SignalR connection
-- Token refresh clocking, Rider state machine
-
-### 📋 Runtime Rules & Coding Constraints
-→ [runtime-rules.md](.docs/ai-context/runtime-rules.md)
-- Forbidden patterns, Base class rules
-- Environment constraints, Logging policy
-
-### 🛡️ Critical Code Protection
-→ [CRITICAL-CODE-PROTECTION.md](CRITICAL-CODE-PROTECTION.md)
-- ไฟล์ที่ห้ามลบ/คอมเม้นต์ (3 Tiers: 🔴🟠🟡)
-- Protected endpoints & fallback mechanisms
-- State machine transition rules protection
-- ดูกฎบังคับใน [AGENTS.md §7](AGENTS.md)
-
----
-
-## 3. Contracts (อ่านเมื่อต้องการ payload spec ที่แม่นยำ)
+## 3. Contracts
 
 | Contract | ใช้เมื่อ |
 |---|---|
-| [signalr-contracts.md](.docs/ai-context/contracts/signalr-contracts.md) | ทำงานกับ SignalR Hub, events, payloads |
-| [state-machine.md](.docs/ai-context/contracts/state-machine.md) | ต้องรู้สถานะ Order/Rider, transitions, timeout rules |
-| [api-contracts.md](.docs/ai-context/contracts/api-contracts.md) | REST endpoints, DTOs, auth rules |
-| [redis-keys.md](.docs/ai-context/contracts/redis-keys.md) | Redis key schemas, TTLs, data types |
-| [geojson-contracts.md](.docs/ai-context/contracts/geojson-contracts.md) | Polyline encoding, SRID rules, RouteGeometry |
+| [.docs/ai-context/contracts/signalr-contracts.md](.docs/ai-context/contracts/signalr-contracts.md) | Hub methods, events, groups, payloads |
+| [.docs/ai-context/contracts/state-machine.md](.docs/ai-context/contracts/state-machine.md) | Order/Rider states and transitions |
+| [.docs/ai-context/contracts/api-contracts.md](.docs/ai-context/contracts/api-contracts.md) | REST endpoints, wrappers, DTO rules |
+| [.docs/ai-context/contracts/redis-keys.md](.docs/ai-context/contracts/redis-keys.md) | Redis keys, types, TTL, fallback |
+| [.docs/ai-context/contracts/geojson-contracts.md](.docs/ai-context/contracts/geojson-contracts.md) | SRID, coordinate order, polyline |
 
----
+## 4. Historical Archives
 
-## 4. Historical Archives (Layer 1 — อย่าโหลดทั้งไฟล์ถ้าไม่จำเป็น)
+`PROJECT-SPEC.md`, `AI-BLUEPRINT.md`, `.docs/AI-CHANGELOG/`, `OSRM-SETUP.md`
+และ historical migration notes ใช้เพื่อ trace/recovery เท่านั้น เมื่อข้อมูลขัดกันให้ยึด:
 
-| File | Purpose |
-|---|---|
-| `PROJECT-SPEC.md` | Full project spec, getting started guide |
-| `AI-BLUEPRINT.md` | Full system architecture, Flutter feature lists |
-| `.docs/AI-CHANGELOG/` | Complete history of AI changes, separated by date |
-| `OSRM-SETUP.md` | Complete OSRM setup and compilation guide |
-| `docker-compose.yml` | Live container configuration |
+1. กฎความปลอดภัยและข้อห้ามใน `AGENTS.md`
+2. Contract ที่ active ใน index นี้
+3. Implementation และ automated tests ปัจจุบัน
+4. Historical archive
 
-> ไฟล์เหล่านี้เป็น **source archive** ห้ามลบหรือแก้ไขเนื้อหาหลัก ใช้สำหรับ trace กลับและ recovery
+หาก implementation อ่อนกว่ากฎด้านความปลอดภัย ความถูกต้อง หรือ data integrity
+ห้ามลดกฎตาม implementation ให้รายงานหรือแก้ implementation ใน task ที่ได้รับอนุญาตแทน
 
----
+## 5. Quick Routing
 
-## 5. Quick Decision Tree
-
-```
-ต้องการรู้ว่า Order ปัจจุบันอยู่ state ไหน?
-  → contracts/state-machine.md
-
-ต้องการเขียน SignalR event ใหม่?
-  → contracts/signalr-contracts.md + spec-backend.md
-
-ต้องการเพิ่ม Redis key?
-  → contracts/redis-keys.md (ห้ามให้ Redis เป็น source of truth!)
-
-ต้องการเพิ่ม REST endpoint?
-  → contracts/api-contracts.md + spec-backend.md
-
-ต้องการแก้ Angular component?
-  → spec-frontend.md
-
-ต้องการแก้ Flutter screen?
-  → spec-mobile-rider.md
-
-ต้องการแก้ AI routing logic?
-  → spec-ai-engine.md
-
-ต้องการแก้ Docker/infra?
-  → spec-infra-devops.md
-```
+- เพิ่ม REST endpoint: `api-contracts.md` + `spec-backend.md`
+- เพิ่ม SignalR event: `signalr-contracts.md` + `spec-backend.md`
+- เพิ่ม Redis key: `redis-keys.md`
+- แก้ state transition: `state-machine.md` + critical registry
+- แก้แผนที่/พิกัด: `geojson-contracts.md` + spec ของ client/server
+- แก้ migration: `spec-backend.md` หัวข้อ Database Evolution

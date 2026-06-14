@@ -1,10 +1,68 @@
-# 📜 Active Architecture Blueprint (V0.9.0)
+# Active Architecture Blueprint
 
-### 1. Current Active Stack
-- **Database:** PostgreSQL 16 + PostGIS extension (SRID 4326 / WGS84) พร้อมโครงข่าย GiST Spatial Index scan บนพิกัดหนาแน่นเมืองอุดรธานี
-- **Speed Layer:** Redis 7 (พอร์ต 6379) จัดคิวล็อกออเดอร์นับถอยหลัง 30 วินาที และบัฟเฟอร์สัญญาณพิกัดคนขับสด
-- **Message Broker:** RabbitMQ 3 (AMQP พอร์ต 5672, คอนโซลแอดมิน 15672) แลกเปลี่ยนอีเวนต์ผ่าน Exchange ชื่อ `delivery_event_bus` ชนิด `direct`
-- **Realtime Layer:** SignalR Core (พอร์ต 5000) รองรับการดักจับ JWT ผ่าน URL Query String พารามิเตอร์ `?access_token=...` สำหรับเชื่อมอุปกรณ์ Flutter ภายนอก
+**Version:** 1.0.0 | **Updated:** 2026-06-14
 
-### 2. Core End-to-End Live Routing Sequence
-Admin/Customer API ➡️ เรียกประมวลระยะทาง OSRM Local Engine (`delivery-osrm:5000` algorithm ch) ➡️ โยนพิกัดสดไรเดอร์และออเดอร์ข้ามไปหา Python FastAPI (`/api/v1/predict-eta`) คำนวณช่วงชั่วโมงเร่งด่วน (Rush Hour Multiplier 1.3x - 1.5x) ➡️ สลักเวลาเสร็จสิ้นประเมิน `ExpectedDeliveryTime` ลง PostgreSQL DB ทันทีตั้งแต่เกิดคำสั่งซื้อ ➡️ พ่นงานส่งต่อเข้าท่อ RabbitMQ แบบออฟไลน์
+## 1. Active Stack
+
+- PostgreSQL 15 + PostGIS, SRID 4326; PostgreSQL เป็น source of truth
+- PgBouncer แบบ transaction pooling
+- Redis 7 สำหรับ presence, GEO, cache และ distributed locks เท่านั้น
+- RabbitMQ 3 สำหรับ integration events
+- ASP.NET Core SignalR สำหรับ realtime transport
+- .NET 8 Backend API, Angular 19 admin dashboard, Flutter multi-role app
+- Python 3.11 FastAPI + OR-Tools
+- Local OSRM MLD; ห้ามส่งพิกัด production ไป public OSRM
+- Seq, Prometheus, Grafana และ Alertmanager สำหรับ observability
+- Vault AppRole สำหรับ production secrets
+
+## 2. Event Boundaries
+
+ชื่อและหน้าที่ต้องไม่ปนกัน:
+
+1. **Domain Events**: ภายใน bounded context/process
+2. **Integration Events**: ข้าม component ผ่าน RabbitMQ ชื่อ
+   `<Domain><Action>IntegrationEvent`
+3. **Telemetry Events**: realtime/high-frequency ผ่าน SignalR หรือ telemetry pipeline
+   ชื่อ `<Subject><Action>TelemetryEvent` เมื่อเป็นชนิดข้อมูลในโค้ด
+
+RabbitMQ consumer ทุกตัวต้องตรวจ `ProcessedEvents` ก่อนทำ side effect และ index
+`IX_ProcessedEvents_ProcessedAt` ต้องคงอยู่สำหรับ cleanup งานปริมาณสูง
+
+## 3. Order Flow
+
+```text
+Customer creates order
+  -> Store accepts
+  -> CREATED -> MATCHING -> OFFERING
+  -> Rider accepts -> ASSIGNED
+  -> PICKING_UP -> DELIVERING -> COMPLETED
+```
+
+- Store rejection/cancellation ต้องผ่าน service และ state machine
+- Dispatch ใช้ PostGIS/Redis candidate discovery, AI ranking และ local OSRM
+- AI/OSRM failure ต้องมี deterministic fallback ตาม critical registry
+- ทุก state change สำคัญต้อง persist ใน PostgreSQL ก่อน broadcast
+
+## 4. GPS Flow
+
+```text
+Flutter location
+  -> SignalR UpdateLocation or REST batch queue
+  -> TrackingHub validates/authenticates/routes only
+  -> TelemetryService / RabbitMQ pipeline
+  -> Redis current operational state
+  -> PostgreSQL history
+  -> SignalR broadcast to authorized groups
+```
+
+`TrackingHub` เป็น Pure Transport Layer ห้ามมี business state mutation หรือ query
+orchestration ฝังใน Hub
+
+## 5. Resilience Rules
+
+- PostgreSQL เป็น final authority; Redis eviction ต้องมี DB fallback
+- Mobile mutation ที่เปลี่ยนสถานะงานต้อง queue ใน SQLite เมื่อ offline และ replay
+  แบบ idempotent ตามลำดับ
+- Local OSRM ล่มได้ แต่ระบบต้องไม่ส่งพิกัดไป public routing service
+- Logs ของ flow ต้องมี `CorrelationId`, `OrderId` และ `RiderId` เมื่อมีค่า
+- ห้ามเพิ่ม stack ใน forbidden list ของ `AGENTS.md`

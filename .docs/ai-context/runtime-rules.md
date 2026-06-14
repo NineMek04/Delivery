@@ -1,167 +1,95 @@
----
-scope: Runtime Rules & Coding Constraints (All Components)
-source_of_truth:
-  - .cursorrules
-  - AGENTS.md
-  - AI-BOOTSTRAP.md
-related_contexts:
-  - .docs/ai-context/spec-backend.md
-  - .docs/ai-context/spec-frontend.md
-  - .docs/ai-context/spec-mobile-rider.md
-forbidden_patterns:
-  - อัปเดต AI-CHANGELOG.md โดยอัตโนมัติ (ต้องถามผู้ใช้ก่อน)
-  - ลบ entries เก่าใน AI-CHANGELOG.md
-  - แก้ไขไฟล์ที่ไม่เกี่ยวกับ task ปัจจุบัน
-  - เพิ่ม Kubernetes, payment gateway, cloud deployment ในเฟสปัจจุบัน
-known_pitfalls:
-  - npm-related work: ต้องตรวจ .npmrc และ VPN/private registry ก่อน
-  - GPU-dependent implementation: dev machine เป็น ASUS ROG (heat/driver issues)
----
+# Runtime Rules & Coding Constraints
 
-# runtime-rules.md — Runtime Rules & Coding Constraints
+**Version:** 1.0.0 | **Updated:** 2026-06-14
 
-> **Source**: `.cursorrules` + `AGENTS.md`
+## 1. Mandatory Context
 
----
+อ่าน `AI-INDEX.md` -> `AI-BOOTSTRAP.md` -> spec/contract ที่เกี่ยวข้อง
+และอ่าน changelog เฉพาะวันที่จำเป็น ห้ามแก้ changelog โดยอัตโนมัติ
 
-## 1. Mandatory Pre-Task Protocol
+## 2. Backend Rules
 
-```
-อ่านก่อนทุกงาน:
-  1. AI-INDEX.md       → route ไปยัง spec ที่ถูกต้อง
-  2. AI-BOOTSTRAP.md   → behavior constraints
-  3. เฉพาะ spec ที่เกี่ยวข้อง (ไม่โหลดทั้ง PROJECT-SPEC.md)
-  4. AI-CHANGELOG.md ส่วนล่าสุดเท่านั้น
-```
+- Controller/Hub ต้องบาง: validate, authorize, map transport และส่งต่อ service
+- ห้าม inject/use `ApplicationDbContext` โดยตรงใน Controller หรือ Hub
+- `DBHandlerCore` ใช้กับ CRUD/query ทั่วไป; service, worker และ infrastructure
+  ใช้ scoped `ApplicationDbContext` ได้เมื่อ transaction, spatial query, batching
+  หรือ concurrency ต้องใช้ EF โดยตรง
+- Business logic อยู่ใน `BackendApi/Services/`, `BackendApi/Features/` หรือ
+  infrastructure service ที่มี ownership ชัดเจน ห้ามสร้าง service ใต้ Controllers
+- REST application endpoints ต้องคืน `ApiResponse`/`ApiResponse<T>` ซึ่งมี
+  `status`, `success`, `message`, `code`, `errors` และ `value` เมื่อมีข้อมูล
+- ยกเว้น wrapper ได้เฉพาะ health, metrics, SignalR, file/stream หรือ endpoint
+  infrastructure ที่มี `[DisableWrapper]` และมีเหตุผลชัดเจน
+- ใช้ Mapster สำหรับ mapping ปกติ; manual mapping อนุญาตสำหรับ spatial,
+  security-sensitive, partial update หรือ snapshot ที่ต้องควบคุม field ชัดเจน
+- Persisted spatial filtering ใช้ PostGIS/GiST. Haversine ใช้ได้เฉพาะ
+  in-memory heuristic/fallback ห้ามแทน indexed database query
+- `TrackingHub` เป็น Pure Transport Layer
+- RabbitMQ consumer ต้อง idempotent ผ่าน `ProcessedEvents`
+- Logs ต้องมี `CorrelationId`, `OrderId`, `RiderId` เมื่อมีค่า
 
----
+## 3. Database Evolution
 
-## 2. Backend Runtime Rules
+- EF schema ปัจจุบันมี consolidated baseline หนึ่ง migration พร้อม Designer และ Snapshot
+- PostgreSQL-specific DDL ที่ EF แสดงไม่ได้ดี เช่น partition/index maintenance
+  ให้อยู่ใน service migration ที่ idempotent ไม่สร้าง migration ย่อยจำนวนมาก
+- ห้ามลบ/ยุบ migration ที่ถูกใช้แล้วโดยไม่ทำ compatibility bridge และตรวจ
+  `__EFMigrationsHistory`
+- Index `ProcessedEvents.ProcessedAt`, spatial GiST และ dispatch indexes เป็นข้อบังคับ
+- Concurrency ใช้ PostgreSQL shadow `xmin` แบบ `IsRowVersion()`; public
+  `RowVersion` คงไว้เพื่อ API compatibility เท่านั้น
 
-| Rule | Detail |
-|---|---|
-| Base Controller | Master Data → `CrudControllerBase` / Business → `DeliveryControllerBase` |
-| Database Access | `DBHandlerCore` เท่านั้น — ห้าม inject `DbContext` ตรงใน controller |
-| Service Location | `BackendApi/Services/` เท่านั้น — ห้าม `Controllers/Services/` |
-| Response Format | ทุก endpoint ต้อง return `ApiResponse<T>` |
-| Object Mapping | `Mapster` เท่านั้น ผ่าน `MappingConfig.cs` |
-| Spatial Type | `geometry(Point, 4326)` + `NetTopologySuite` |
-| GPS Calculation | ใช้ PostGIS `.Distance()` — ห้ามใช้ Haversine C# ใน backend |
-| CORS | ต้องอยู่บนสุดของ Middleware pipeline |
-| JWT for WebSocket | ส่งผ่าน `?access_token=` query string |
+## 4. Angular Rules
 
----
+- Standalone components; routes lazy-load ตาม `app.routes.ts`
+- CRUD ใช้ `BaseApiService<T>` และ custom calls ใช้ `DeliveryHttpRequest`
+- API methods คืน RxJS `Observable`; ห้ามเขียนตัวอย่างเป็น Promise โดยไม่มี conversion
+- ใช้ generated OpenAPI model เมื่อ schema มีอยู่; local view model อนุญาตเมื่อ
+  ไม่ซ้ำ contract ที่ generate แล้ว
+- ห้าม nested subscribe; ใช้ operator composition และ deterministic teardown
+  (`takeUntilDestroyed` หรือ aggregate subscription ที่ unsubscribe)
+- Leaflet map ที่มี marker/path จำนวนมากต้องตั้ง `preferCanvas: true`
+- ห้าม raw string interpolation ของข้อมูลภายนอกลง popup/DOM และห้าม inline `onclick`
+- HTTP dashboard ใช้ HttpOnly cookies + `withCredentials` + XSRF header;
+  ห้ามเก็บ access/refresh token ใน localStorage
 
-## 3. Frontend Runtime Rules
+## 5. Flutter Rules
 
-| Rule | Detail |
-|---|---|
-| Component Style | Standalone Components เท่านั้น |
-| CRUD Services | `BaseApiService<T>` (inherit) |
-| Custom HTTP | `DeliveryHttpRequest` (Fluent API) |
-| Models | OpenAPI generated จาก `src/app/api/generated/` เท่านั้น |
-| GPS Payload | ต้องมี fallback mapper (lat/Lat/latitude) |
-| RxJS | ห้าม nested subscribe — ใช้ takeUntilDestroyed |
-| 🔒 ห้าม Raw String Interpolation ลง DOM | ห้ามฝังตัวแปรจากภายนอก (เช่น `riderId`, `name`, `phone`) ลงใน HTML string โดยตรง (XSS Risk) → ต้อง escape ด้วย `escapeHtml()` utility ก่อนเสมอ และห้ามใช้ inline `onclick` handler → ใช้ Leaflet/Framework event binding แทน |
+- HTTP ใช้ Dio, state/server data ใช้ `flutter_riverpod`, navigation ใช้ GoRouter
+- Token native เก็บใน `flutter_secure_storage`; web fallback ใช้ sessionStorage
+- `setState` ใช้ได้เฉพาะ transient widget state เช่น animation/form/countdown;
+  domain/server state ต้องอยู่ใน provider/notifier
+- 401 refresh ต้อง single-flight และห้าม retry auth endpoint วนซ้ำ
+- GPS accuracy มากกว่า 50 เมตรต้องทิ้ง
+- GPS/status mutation ต้อง buffer ใน SQLite เมื่อ offline และ replay ตามลำดับ
+- ส่ง GPS หลัง SignalR connected เท่านั้น; fallback batch ใช้ telemetry REST endpoint
 
----
+## 6. AI Rules
 
-## 4. Mobile Runtime Rules
+- คง OR-Tools และ `PATH_CHEAPEST_ARC`; solver มี time limit
+- Distance matrix/heuristic fallback ใช้ `haversine_distance` ใน `geo_utils.py`
+- CPU-bound FastAPI endpoint ต้องเป็น synchronous `def`
+- ห้าม break `/api/optimize-route`, `/api/v1/dispatch/rank`,
+  `/api/v1/predict-eta`, `/health`
+- ห้ามเพิ่ม GPU dependency หรือ external routing API
 
-| Rule | Detail |
-|---|---|
-| HTTP Client | Dio เท่านั้น (ห้าม http.dart) |
-| State | Riverpod providers เท่านั้น |
-| Navigation | GoRouter เท่านั้น |
-| Token Storage | `flutter_secure_storage` |
-| GPS Noise Filter | accuracy > 50m → ทิ้งทันที |
-| Background GPS Android | Foreground Service + notification required |
-| Concurrent Refresh | `_isRefreshing` flag ป้องกัน race condition |
+## 7. Redis Rules
 
----
+Redis เป็น operational state/cache เท่านั้น ไม่ใช่ source of truth:
+presence, GEO, locks, short-lived recipient cache, route cache ใช้ได้ แต่ final
+order/rider state, audit, pagination และ search ต้องอาศัย PostgreSQL
 
-## 5. AI Engine Runtime Rules
+## 8. Tests And Logs
 
-| Rule | Detail |
-|---|---|
-| Solver | Google OR-Tools `PATH_CHEAPEST_ARC` เท่านั้น |
-| Distance Matrix | Haversine ใน `geo_utils.py` เท่านั้น |
-| GPU | ห้ามเพิ่ม GPU dependency (dev machine: ASUS ROG) |
-| Endpoints | ห้าม break `/api/optimize-route` หรือ `/api/v1/dispatch/rank` |
-| 🔒 ห้าม `async def` กับงาน CPU-bound | ห้ามใช้ `async def` กับ endpoint ที่เรียก synchronous CPU-bound function (เช่น OR-Tools `solve_vrp`, `rank_candidates`) เพราะจะบล็อก event loop ของ FastAPI ทั้งหมด → ใช้ `def` เพื่อให้ FastAPI ส่งไป Thread Pool อัตโนมัติ |
+- Test hub: `RootScripts/scripts.test/test/`
+- Angular `*.spec.ts` วางข้าง component ได้ตาม Angular CLI
+- ห้ามสร้าง `tests/` หรือ `__tests__/` ใน core component directories
+- Load/stress logs เก็บใน `LogsTest/YYYY-MM-DD/` ตามชื่อมาตรฐานใน `AGENTS.md`
+- Integration tests ต้อง hermetic; ใช้ Testcontainers สำหรับ PostgreSQL/Redis/RabbitMQ
 
----
+## 9. Scope
 
-## 6. Redis Rules (Critical)
-
-```
-Redis = Operational Realtime State เท่านั้น
-  ✅ GPS buffer (short-lived)
-  ✅ Rider presence (heartbeat)
-  ✅ Distributed locks (SETNX)
-  ✅ Route cache (TTL 24h)
-  ✅ Dispatch offer locks (TTL 30s)
-
-Redis ≠ Source of Truth
-  ❌ ห้ามอ่าน final order/rider status จาก Redis
-  ❌ ห้ามเขียน audit trail ลง Redis
-  ❌ ห้ามใช้ Redis สำหรับ pagination หรือ search
-```
-
----
-
-## 7. Testing & Sandbox Constraints (Crucial)
-
-```
-Single Test Hub Rule
-  ✅ การทดสอบทุกลำดับ (C#, Python, Node.js Simulator) ต้องรวมศูนย์อยู่ภายใต้ scripts.test/ เท่านั้น
-
-Hermetic Integration Testing Rule
-  ✅ ห้าม Hardcode หรือพึ่งพาสิทธิ์เครือข่าย localhost:6379 ของโฮสต์ภายนอกในการทำ Backend Integration Tests
-  ✅ บังคับใช้งาน Testcontainers.Redis ร่วมกับ PostgreSQL และ RabbitMQ ใน DeliveryWebApplicationFactory.cs เสมอเพื่อให้สามารถรันผ่าน Sandbox คอนเทนเนอร์อย่างอิสระ 100%
-
-Real-time Logs & UI Stability Rule
-  ✅ ในระบบส่ง Log ของแผงควบคุม ต้องทำการจัดกลุ่มส่ง (Batching/Throttling 500ms) ห้ามส่งแบบดิบถี่ๆ ป้องกัน UI Freezes
-```
-
----
-
-## 8. Logging & Changelog Rules
-
-- **ห้ามเขียน AI-CHANGELOG.md โดยอัตโนมัติ** — ถามผู้ใช้ก่อนทุกครั้ง
-- **AI-CHANGELOG.md เป็น append-only** — ห้ามแก้ไข entries เก่า
-- **เพิ่มเสมอที่ท้ายไฟล์** — ห้ามแทรกระหว่างกลาง
-
----
-
-## 8. Scope Control Rules
-
-- เปลี่ยนเฉพาะสิ่งที่ถูกขอ — ห้าม refactor ไฟล์อื่น
-- ห้าม revert งานของผู้ใช้
-- ห้ามเพิ่ม dependency ใหม่โดยไม่ตรวจ `.npmrc` / registry
-
----
-
-## 9. Environment Constraints
-
-| Constraint | Detail |
-|---|---|
-| Dev Machine | ASUS ROG — หลีกเลี่ยง GPU-intensive ops |
-| Docker RAM | >= 4GB (แนะนำ 8GB), WSL 2 Backend |
-| .NET | 8 เท่านั้น — ห้ามใช้ .NET 9 |
-| Ports ใช้งาน | 80, 5000, 5432, 6379, 8000, 5001, 8080, 8081, 8082, 9090, 3000 |
-| Secrets | ห้าม commit ลง git — ใช้ `.env` / user secrets |
-| OSRM Data | ต้องสร้าง `osrm_data/` ก่อนรัน osrm container |
-
----
-
-## 10. Current Scope Restrictions (Phase 6)
-
-> [!CAUTION]
-> ห้ามแตก scope ในเฟสปัจจุบัน:
-> - Kubernetes
-> - Real ML training / GPU ML
-> - Multi-region deployment
-> - Payment gateway
-> - Cloud deployment จริง
-> - Native production mobile polish (ยังเป็น prototype)
+- แก้เฉพาะ task และห้าม revert งานผู้ใช้
+- .NET 8 เท่านั้น
+- Secrets ใช้ `.env`, user secrets หรือ Vault และห้าม commit
+- Forbidden stack ทั้งหมดให้ยึด `AGENTS.md`

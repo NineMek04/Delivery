@@ -72,6 +72,9 @@ public class SpatialQueryTests : IAsyncLifetime
         // รัน EF Core Migrations ทั้งหมด (รวม Phase3EnterpriseSpatialScaling)
         await _dbContext.Database.MigrateAsync();
 
+        // ── ServiceMigration: Run advanced PostgreSQL schema configurator (Partitioning, Clustering & Views) ──
+        await BackendApi.ServiceMigration.PostgresAdvancedConfigurator.ConfigureSchemaAsync(_dbContext);
+
         // Create partitions for current and next months so that location history tests can insert rows
         var now = DateTime.UtcNow;
         for (int i = 0; i <= 2; i++)

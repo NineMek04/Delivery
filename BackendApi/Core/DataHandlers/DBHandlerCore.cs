@@ -38,6 +38,19 @@ public sealed class DBHandlerCore
         return ConditionContext.Apply(query);
     }
 
+    public IReadOnlyList<PropertyInfo> GetMappedStringProperties<TEntity>()
+        where TEntity : class
+    {
+        return DbContext.Model
+            .FindEntityType(typeof(TEntity))?
+            .GetProperties()
+            .Where(property =>
+                property.ClrType == typeof(string) &&
+                property.PropertyInfo is not null)
+            .Select(property => property.PropertyInfo!)
+            .ToArray() ?? [];
+    }
+
     public Task<List<TEntity>> GetObjectListAsync<TEntity>(
         CancellationToken cancellationToken = default)
         where TEntity : class

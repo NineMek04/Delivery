@@ -18,18 +18,9 @@ import { AuthService } from './core/services/auth.service';
  */
 function initializeAuth(authService: AuthService) {
   return (): Promise<boolean> => {
-    const token = authService.getToken();
-
-    // ไม่มี Token → ไม่ต้องเช็คอะไร ผ่านเลย (Route Guard จะจัดการเอง)
-    if (!token) {
-      return Promise.resolve(true);
-    }
-
-    // มี Token → ลอง verify แบบมี timeout ป้องกัน App ค้าง
     return new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => {
-        // Timeout 5 วินาที → ถือว่า Backend ไม่ตอบ → ผ่านไปก่อน
-        console.warn('[AuthInit] Session verification timed out. Proceeding with cached state.');
+        console.warn('[AuthInit] Session verification timed out.');
         resolve(true);
       }, 5000);
 

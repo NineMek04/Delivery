@@ -142,10 +142,10 @@ docker compose restart osrm
 cd d:\Delivery
 
 # รัน Integration Tests ทั้งหมด
-dotnet test scripts.test/BackendApi.IntegrationTests
+dotnet test RootScripts/scripts.test/test/BackendApi.IntegrationTests
 
 # รัน Unit Tests ทั้งหมด
-dotnet test scripts.test/BackendApi.UnitTests
+dotnet test RootScripts/scripts.test/test/BackendApi.UnitTests
 ```
 
 ### 🐍 5.2 Python AI Engine Tests (PyTest)
@@ -154,10 +154,10 @@ cd d:\Delivery
 if (Test-Path "ai-engine\venv") { .\ai-engine\venv\Scripts\activate }
 
 # รัน PyTest ทั้งหมดในโฟลเดอร์ AI Engine Tests
-pytest scripts.test/ai-engine.tests
+pytest RootScripts/scripts.test/test/ai-engine.tests
 
 # รันเฉพาะไฟล์ที่ต้องการ (เช่น test_eta_velocity.py)
-python -m pytest scripts.test/ai-engine.tests/test_eta_velocity.py
+python -m pytest RootScripts/scripts.test/test/ai-engine.tests/test_eta_velocity.py
 ```
 
 ### 🤖 5.3 E2E Simulator (บอทจำลองไรเดอร์วิ่งส่งงาน)
@@ -165,16 +165,16 @@ python -m pytest scripts.test/ai-engine.tests/test_eta_velocity.py
 cd d:\Delivery
 
 # รันบอทจำลอง E2E เสมือนจริง
-node scripts.test/e2e-simulator/simulate-e2e.js
+node RootScripts/scripts.test/test/e2e-simulator/simulate-e2e.js
 
 # รันบอทจำลองความเข้ากันได้ของระบบ Flutter
-node scripts.test/e2e-simulator/test-flutter-compat.js
+node RootScripts/scripts.test/test/e2e-simulator/test-flutter-compat.js
 ```
 
 ### 📈 5.4 System Load & Stress Tests (การทดสอบความเสถียรเมื่อมีโหลดสูง)
 ก่อนรัน ตรวจสอบให้แน่ใจว่าติดตั้ง Node Packages แล้ว:
 ```powershell
-cd d:\Delivery\scripts.test\load-test
+cd d:\Delivery\RootScripts\scripts.test\test\load-test
 npm install
 ```
 
@@ -183,17 +183,17 @@ npm install
 cd d:\Delivery
 
 # ทดสอบโหลดส่วน SignalR Connections
-npm --prefix scripts.test/load-test run test:signalr
+npm --prefix RootScripts/scripts.test/test/load-test run test:signalr
 
 # ทดสอบโหลดการเรียกใช้งาน REST API
-npm --prefix scripts.test/load-test run test:api
+npm --prefix RootScripts/scripts.test/test/load-test run test:api
 
 # ทดสอบการรับส่งออเดอร์และการจัดสรรงานความถี่สูง (Dispatch)
-npm --prefix scripts.test/load-test run test:dispatch
+npm --prefix RootScripts/scripts.test/test/load-test run test:dispatch
 
 # ทดสอบสถานการณ์ตัดการเชื่อมต่อและต่อสายใหม่พร้อมกัน (Reconnect Chaos)
-npm --prefix scripts.test/load-test run test:reconnect
+npm --prefix RootScripts/scripts.test/test/load-test run test:reconnect
 
 # ทดสอบเสถียรภาพการรับส่งข้อมูล (Resilience Stress)
-npm --prefix scripts.test/load-test run test:resilience
+npm --prefix RootScripts/scripts.test/test/load-test run test:resilience
 ```

@@ -23,11 +23,8 @@ final gpsBufferServiceProvider = Provider<GpsBufferService>((ref) {
 
 /// GPS Buffer & Batch Ingestion Service
 ///
-/// ใช้ in-memory buffer ทั้งบน Web และ Mobile เพื่อความเรียบง่ายและ
-/// compatibility กับ flutter web build
-///
 /// Data Flow:
-/// LocationService → GpsBufferService (in-memory) → POST /api/v1/telemetry/gps/batch
+/// LocationService → SQLite queue → POST /api/v1/telemetry/gps/batch
 class GpsBufferService {
   final Ref _ref;
   final Dio _dio;
@@ -38,9 +35,6 @@ class GpsBufferService {
   int _syncIntervalSeconds = 5;
   bool _isSyncing = false;
   bool _isSyncingStatus = false;
-
-  // In-memory GPS point buffer (used on both Web and Mobile)
-  final List<Map<String, dynamic>> _gpsPoints = [];
 
   // Adaptive sampling state
   double? _lastBufferedLat;
@@ -128,24 +122,17 @@ class GpsBufferService {
       _lastBufferedLng = longitude;
       if (heading != null) _lastBufferedHeading = heading;
 
-      _gpsPoints.add({
-        'id': DateTime.now().millisecondsSinceEpoch + Random().nextInt(1000),
-        'latitude': latitude,
-        'longitude': longitude,
-        'accuracy': accuracy,
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-      });
-
-      // Cap buffer at 10,000 points (FIFO)
-      if (_gpsPoints.length >= 10000) {
-        _gpsPoints.removeRange(0, _gpsPoints.length - 10000 + 1);
-        _logger.w('⚠️ GPS buffer limit (10,000) reached — purged oldest points');
-      }
+      await _db.savePendingGpsPoint(
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy,
+        timestamp: DateTime.now().toUtc().toIso8601String(),
+      );
 
       _logger.d('📍 Buffered GPS (${kIsWeb ? "web" : "mobile"}): ($latitude, $longitude)');
 
       // Proactive sync when buffer builds up
-      if (_gpsPoints.length >= 10 && !_isSyncing) {
+      if (await _db.getPendingGpsPointCount() >= 10 && !_isSyncing) {
         syncBufferedPoints();
       }
     } catch (e) {
@@ -155,7 +142,7 @@ class GpsBufferService {
 
   /// Syncs buffered GPS points to the backend in batches of 100.
   Future<void> syncBufferedPoints() async {
-    if (_isSyncing || _gpsPoints.isEmpty) return;
+    if (_isSyncing) return;
 
     final authStatus = _ref.read(authServiceProvider);
     if (authStatus != AuthStatus.authenticated) {
@@ -172,7 +159,8 @@ class GpsBufferService {
     _isSyncing = true;
 
     try {
-      final batch = _gpsPoints.take(100).toList();
+      final batch = await _db.getPendingGpsPoints(limit: 100);
+      if (batch.isEmpty) return;
       final batchIds = batch.map((p) => p['id'] as int).toList();
 
       _logger.d('📡 Syncing ${batch.length} GPS points to backend...');
@@ -195,11 +183,10 @@ class GpsBufferService {
 
       if (response.statusCode == 200) {
         _logger.i('✅ Batch upload of ${batch.length} GPS points succeeded');
-        final toRemove = batchIds.toSet();
-        _gpsPoints.removeWhere((p) => toRemove.contains(p['id']));
+        await _db.deletePendingGpsPoints(batchIds);
 
         // Chain next batch if more remain
-        if (_gpsPoints.isNotEmpty) {
+        if (await _db.getPendingGpsPointCount() > 0) {
           final jitter = 500 + Random().nextInt(1500);
           Future.delayed(Duration(milliseconds: jitter), syncBufferedPoints);
         }
@@ -254,13 +241,19 @@ class GpsBufferService {
           } else if (response.statusCode != null &&
               response.statusCode! >= 400 &&
               response.statusCode! < 500) {
-            _logger.e('❌ 4xx error for orderId=$orderId — dropping update');
+            final reconciled = response.statusCode != 401 &&
+                await _isStatusAppliedOrSuperseded(orderId, status);
+            if (reconciled) {
+              await _db.deletePendingStatusUpdate(id);
+              continue;
+            }
+            _logger.e('❌ 4xx error for orderId=$orderId — preserving update');
             await _db.saveLocalErrorLog(
               'PATCH ${AppConstants.ordersEndpoint}/$orderId/status',
               'Client Error ${response.statusCode}: ${response.statusMessage}',
               '{"Status": "$status"}',
             );
-            await _db.deletePendingStatusUpdate(id);
+            break;
           } else {
             _logger.w('⚠️ Status update failed (${response.statusCode}) — will retry');
             break;
@@ -268,13 +261,19 @@ class GpsBufferService {
         } on DioException catch (dioErr) {
           final code = dioErr.response?.statusCode;
           if (code != null && code >= 400 && code < 500) {
-            _logger.e('❌ DioException 4xx for orderId=$orderId — dropping update');
+            final reconciled = code != 401 &&
+                await _isStatusAppliedOrSuperseded(orderId, status);
+            if (reconciled) {
+              await _db.deletePendingStatusUpdate(id);
+              continue;
+            }
+            _logger.e('❌ DioException 4xx for orderId=$orderId — preserving update');
             await _db.saveLocalErrorLog(
               'PATCH ${AppConstants.ordersEndpoint}/$orderId/status',
               'DioException $code: ${dioErr.response?.data ?? dioErr.message}',
               '{"Status": "$status"}',
             );
-            await _db.deletePendingStatusUpdate(id);
+            break;
           } else {
             _logger.w('🔌 Network error during status sync: ${dioErr.message}');
             break;
@@ -293,10 +292,55 @@ class GpsBufferService {
 
   /// Clears all buffered GPS points.
   Future<void> clearBuffer() async {
-    _gpsPoints.clear();
+    await _db.clearPendingGpsPoints();
     _lastBufferedLat = null;
     _lastBufferedLng = null;
     _lastBufferedHeading = null;
     _logger.i('🧹 GPS buffer cleared');
+  }
+
+  Future<bool> _isStatusAppliedOrSuperseded(
+    String orderId,
+    String pendingStatus,
+  ) async {
+    try {
+      final response = await _dio.get(
+        '${AppConstants.ordersEndpoint}/$orderId',
+      );
+      final body = response.data;
+      final value = body is Map<String, dynamic>
+          ? (body['value'] ?? body['Value'] ?? body)
+          : null;
+      if (value is! Map) return false;
+
+      final serverStatus = (value['status'] ?? value['Status'])
+          ?.toString()
+          .toUpperCase();
+      final target = pendingStatus.toUpperCase();
+      if (serverStatus == null) return false;
+      if (serverStatus == target) return true;
+      if (serverStatus == 'CANCELLED' || target == 'CANCELLED') return false;
+
+      const order = {
+        'CREATED': 0,
+        'MATCHING': 1,
+        'OFFERING': 2,
+        'ASSIGNED': 3,
+        'PICKING_UP': 4,
+        'DELIVERING': 5,
+        'COMPLETED': 6,
+      };
+      final serverRank = order[serverStatus];
+      final targetRank = order[target];
+      return serverRank != null &&
+          targetRank != null &&
+          serverRank > targetRank;
+    } on DioException catch (error) {
+      _logger.w(
+        'Unable to reconcile pending status for orderId=$orderId: '
+        '${error.message}',
+      );
+      return false;
+    }
   }
 }

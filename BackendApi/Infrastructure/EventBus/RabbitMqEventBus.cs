@@ -25,11 +25,13 @@ public class RabbitMqEventBus : IEventBus, IDisposable
     private readonly IHttpContextAccessor _httpContextAccessor;
     private IConnection? _connection;
     private IModel? _channel;
+    private IModel? _publishChannel;
     private bool _disposed;
     private readonly Dictionary<string, List<Type>> _handlers = new();
     private readonly Dictionary<string, Type> _eventTypes = new();
     private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
     private readonly SemaphoreSlim _publishSemaphore = new(1, 1);
+    private volatile string? _returnedRoutingKey;
 
     public RabbitMqEventBus(
         IConfiguration configuration, 
@@ -50,12 +52,16 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
     private async Task EnsureConnectionAsync()
     {
-        if (_connection is { IsOpen: true }) return;
+        if (_connection is { IsOpen: true } &&
+            _channel is { IsOpen: true } &&
+            _publishChannel is { IsOpen: true }) return;
 
         await _connectionSemaphore.WaitAsync();
         try
         {
-            if (_connection is { IsOpen: true }) return;
+            if (_connection is { IsOpen: true } &&
+                _channel is { IsOpen: true } &&
+                _publishChannel is { IsOpen: true }) return;
 
             var host = _configuration["MessageBroker:Host"] ?? _configuration["MessageBroker__Host"] ?? "localhost";
             var portStr = _configuration["MessageBroker:Port"] ?? _configuration["MessageBroker__Port"] ?? "5672";
@@ -118,6 +124,17 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             }
 
             _channel = _connection!.CreateModel();
+            _publishChannel = _connection.CreateModel();
+            _publishChannel.ConfirmSelect();
+            _publishChannel.BasicReturn += (_, args) =>
+            {
+                _returnedRoutingKey = args.RoutingKey;
+                _logger.LogError(
+                    "RabbitMQ returned unroutable event {RoutingKey}: {ReplyCode} {ReplyText}",
+                    args.RoutingKey,
+                    args.ReplyCode,
+                    args.ReplyText);
+            };
 
             // Declare dynamic/direct exchange for the routing system
             _channel.ExchangeDeclare(
@@ -162,7 +179,8 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         await _publishSemaphore.WaitAsync();
         try
         {
-            var properties = _channel!.CreateBasicProperties();
+            _returnedRoutingKey = null;
+            var properties = _publishChannel!.CreateBasicProperties();
             properties.Persistent = true; // Make message durable in disk
             properties.Type = eventName;
 
@@ -174,13 +192,19 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                 properties.CorrelationId = correlationId;
             }
 
-            _channel.BasicPublish(
+            _publishChannel.BasicPublish(
                 exchange: ExchangeName,
                 routingKey: eventName,
                 mandatory: true,
                 basicProperties: properties,
                 body: body
             );
+            _publishChannel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
+            if (string.Equals(_returnedRoutingKey, eventName, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"RabbitMQ returned unroutable event '{eventName}'.");
+            }
         }
         finally
         {
@@ -306,7 +330,7 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                     _logger.LogError(ex, "Error processing integration event {EventName} via consumer. Attempt {Attempt} of 5.", eventNameReceived, retryCount + 1);
                     
                     // Increment retry count via header and requeue
-                    IncrementRetryAndRequeue(channel, eventArgs);
+                    await IncrementRetryAndRequeueAsync(channel, eventArgs);
                 }
             }
         };
@@ -332,7 +356,9 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         return 0;
     }
 
-    private void IncrementRetryAndRequeue(IModel channel, BasicDeliverEventArgs eventArgs)
+    private async Task IncrementRetryAndRequeueAsync(
+        IModel consumerChannel,
+        BasicDeliverEventArgs eventArgs)
     {
         var properties = eventArgs.BasicProperties;
         var headers = properties.Headers ?? new Dictionary<string, object>();
@@ -351,20 +377,39 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         
         try
         {
-            channel.BasicPublish(
-                exchange: ExchangeName,
-                routingKey: eventArgs.RoutingKey,
-                mandatory: true,
-                basicProperties: properties,
-                body: eventArgs.Body
-            );
+            await _publishSemaphore.WaitAsync();
+            try
+            {
+                await EnsureConnectionAsync();
+                _returnedRoutingKey = null;
+                _publishChannel!.BasicPublish(
+                    exchange: ExchangeName,
+                    routingKey: eventArgs.RoutingKey,
+                    mandatory: true,
+                    basicProperties: properties,
+                    body: eventArgs.Body
+                );
+                _publishChannel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
+                if (string.Equals(
+                    _returnedRoutingKey,
+                    eventArgs.RoutingKey,
+                    StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"RabbitMQ returned unroutable retry event '{eventArgs.RoutingKey}'.");
+                }
+            }
+            finally
+            {
+                _publishSemaphore.Release();
+            }
 
-            channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
+            consumerChannel.BasicAck(eventArgs.DeliveryTag, multiple: false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to publish retry attempt {RetryAttempt} for event {EventName}. Requeuing original message on the queue.", currentRetry, properties.Type);
-            channel.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: true);
+            consumerChannel.BasicNack(eventArgs.DeliveryTag, multiple: false, requeue: true);
         }
     }
 
@@ -402,15 +447,18 @@ public class RabbitMqEventBus : IEventBus, IDisposable
 
         foreach (var handlerType in _handlers[eventName])
         {
-            // Idempotency: check if this event has already been processed by this handler
-            var alreadyProcessed = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
-                dbContext.ProcessedEvents,
-                p => p.EventId == eventId && p.HandlerName == handlerType.Name
-            );
+            await using var transaction = await dbContext.Database.BeginTransactionAsync();
+            var lockKey = $"{eventId:N}:{handlerType.FullName}";
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))");
+
+            var alreadyProcessed = await dbContext.ProcessedEvents.AnyAsync(
+                p => p.EventId == eventId && p.HandlerName == handlerType.Name);
 
             if (alreadyProcessed)
             {
                 _logger.LogWarning("Duplicate event detected. Skipping execution of handler {HandlerName} for event {EventId}", handlerType.Name, eventId);
+                await transaction.CommitAsync();
                 continue;
             }
 
@@ -444,6 +492,7 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                 ProcessedAt = DateTime.UtcNow
             });
             await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
         }
     }
 
@@ -452,6 +501,7 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         if (_disposed) return;
 
         _channel?.Dispose();
+        _publishChannel?.Dispose();
         _connection?.Dispose();
         _connectionSemaphore.Dispose();
         _publishSemaphore.Dispose();

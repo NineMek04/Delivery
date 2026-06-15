@@ -136,11 +136,9 @@ public class DispatchOfferHandler
             }
 
             // แจ้ง Admin Dashboard และ ร้านค้า ลูกค้า
-            var orderNotifier = _serviceProvider.GetRequiredService<OrderNotificationService>();
             foreach (var order in orders)
             {
                 await _adminNotifier.NotifyOrderAssignedAsync(order.Id, riderId, order.AssignedAt);
-                await orderNotifier.NotifyOrderStatusChangedAsync(order, OrderState.OFFERING);
             }
 
             _logger.LogInformation(
@@ -236,19 +234,6 @@ public class DispatchOfferHandler
                 }
 
                 await transaction.CommitAsync();
-
-                try
-                {
-                    var orderNotifier = _serviceProvider.GetRequiredService<OrderNotificationService>();
-                    foreach (var order in orders)
-                    {
-                        await orderNotifier.NotifyOrderStatusChangedAsync(order, OrderState.OFFERING);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to broadcast OrderStatusChanged SignalR notification after offer reject/timeout for Offer {OfferId}", offerId);
-                }
 
                 _logger.LogInformation(
                     "Orders ({Count}) re-dispatching after rejection/timeout from Rider {RiderId}",

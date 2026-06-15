@@ -9,6 +9,11 @@ export interface ShopDto {
   menuPrice: number;
   lat?: number;
   lng?: number;
+  isOpen?: boolean;
+  prepTimeMinutes?: number;
+  openingHours?: string;
+  menuItems?: unknown[];
+  menuCategories?: unknown[];
   createdAt?: string;
 }
 

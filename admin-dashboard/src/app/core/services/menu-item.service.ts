@@ -18,11 +18,13 @@ export interface MenuItemOptionDto {
 
 export interface MenuItemDto {
   id?: string;
+  trackingCode?: string;
   name: string;
   description?: string;
   price: number;
   imageUrl?: string;
   shopId: string;
+  menuCategoryId?: string | null;
   options?: MenuItemOptionDto[];
   createdAt?: string;
 }

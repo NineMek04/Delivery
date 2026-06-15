@@ -20,7 +20,7 @@ jobs:
     - name: Build
       run: dotnet build BackendApi/BackendApi.csproj --no-restore
     - name: Test
-      run: dotnet test scripts/BackendApi.IntegrationTests/BackendApi.IntegrationTests.csproj --verbosity normal
+      run: dotnet test RootScripts/scripts.test/test/BackendApi.IntegrationTests/BackendApi.IntegrationTests.csproj --verbosity normal
 
   frontend:
     runs-on: ubuntu-latest

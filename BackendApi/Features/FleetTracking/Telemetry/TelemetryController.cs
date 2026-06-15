@@ -58,7 +58,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 return Unauthorized(ApiResponse<string>.Fail("User could not be identified."));
             }
 
-            var user = await DbContext.Users.AsNoTracking()
+            var user = await DB.GetQuery<BackendApi.Models.User>(asNoTracking: true)
                 .Select(u => new { u.Id, u.RiderId })
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -121,7 +121,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 return Unauthorized(ApiResponse<string>.Fail("User could not be identified."));
             }
 
-            var user = await DbContext.Users.AsNoTracking()
+            var user = await DB.GetQuery<BackendApi.Models.User>(asNoTracking: true)
                 .Select(u => new { u.Id, u.RiderId })
                 .FirstOrDefaultAsync(u => u.Id == userId);
 

@@ -14,6 +14,7 @@ using StackExchange.Redis;
 using BackendApi.Core.StateMachines;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Features.FleetTracking.Models;
+using BackendApi.Security;
 
 namespace BackendApi.Services.Telemetry
 {
@@ -72,6 +73,7 @@ namespace BackendApi.Services.Telemetry
             DateTime? timestamp = null, 
             bool bypassRateLimit = false)
         {
+            using var scope = BeginLogScope(riderId);
             if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
             // 1. กรองความคลาดเคลื่อนเบื้องต้น (Drift Protection)
@@ -275,6 +277,7 @@ namespace BackendApi.Services.Telemetry
         /// </summary>
         public async Task ProcessLocationBatchAsync(string riderId, List<GpsBatchPointRequest> batchPoints)
         {
+            using var scope = BeginLogScope(riderId);
             if (batchPoints == null || batchPoints.Count == 0) return;
 
             var minTimestamp = DateTime.UtcNow.AddMinutes(-15);
@@ -377,5 +380,15 @@ namespace BackendApi.Services.Telemetry
 
         private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2) =>
             BackendApi.Core.Helpers.GeoMath.HaversineDistanceMeters(lat1, lon1, lat2, lon2);
+
+        private IDisposable? BeginLogScope(string riderId)
+        {
+            return _logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["CorrelationId"] = CorrelationIdProvider.GetOrCreate((HttpContext?)null),
+                ["OrderId"] = null,
+                ["RiderId"] = riderId
+            });
+        }
     }
 }

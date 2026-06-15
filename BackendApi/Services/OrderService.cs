@@ -485,7 +485,6 @@ public class OrderService : IOrderService
             }
         }
 
-        var previousState = order.State;
         var success = await _stateMachine.TransitionOrderAsync(order, newState);
         if (!success)
         {
@@ -523,8 +522,6 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
-
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "สถานะออเดอร์อัปเดตเรียบร้อยแล้ว"));
     }
 
@@ -549,7 +546,6 @@ public class OrderService : IOrderService
                 $"ไม่สามารถยอมรับออเดอร์ในสถานะ {order.State} ได้ (ต้องอยู่ในสถานะ CREATED)"));
         }
 
-        var previousState = order.State;
         var success = await _stateMachine.TransitionOrderAsync(order, Core.StateMachines.OrderState.MATCHING);
         if (!success)
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ไม่สามารถเปลี่ยนสถานะออเดอร์ได้"));
@@ -565,8 +561,6 @@ public class OrderService : IOrderService
         {
             _logger.LogError(ex, "Failed to enqueue dispatch task after store accepted order {OrderId}", order.Id);
         }
-
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
 
         if (!string.IsNullOrEmpty(order.CustomerId))
         {
@@ -585,7 +579,6 @@ public class OrderService : IOrderService
         if (order is null)
             return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("Order not found."));
 
-        var previousState = order.State;
         var riderId = order.AssignedRiderId;
         var success = await _stateMachine.TransitionOrderAsync(order, Core.StateMachines.OrderState.CANCELLED);
         if (!success)
@@ -616,8 +609,6 @@ public class OrderService : IOrderService
 
         var resultDto = _mapper.Map<OrderDto>(order);
 
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
-
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(resultDto, "ยกเลิกออเดอร์สำเร็จ"));
     }
 
@@ -645,7 +636,6 @@ public class OrderService : IOrderService
                 $"Store can reject only CREATED orders. Current state: {order.State}."));
         }
 
-        var previousState = order.State;
         var success = await _stateMachine.TransitionOrderAsync(
             order,
             Core.StateMachines.OrderState.CANCELLED);
@@ -656,8 +646,6 @@ public class OrderService : IOrderService
         }
 
         var resultDto = _mapper.Map<OrderDto>(order);
-        await _orderNotifier.NotifyOrderStatusChangedAsync(order, previousState, cancellationToken);
-
         return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(
             resultDto,
             "Store rejected the order."));

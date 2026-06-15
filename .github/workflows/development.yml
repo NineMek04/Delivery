@@ -51,7 +51,7 @@ jobs:
         run: dotnet build BackendApi/BackendApi.csproj -c Release
       
       - name: Run Backend Tests
-        run: dotnet test scripts/BackendApi.IntegrationTests/ -c Release --logger:"console;verbosity=detailed"
+        run: dotnet test RootScripts/scripts.test/test/BackendApi.IntegrationTests/ -c Release --logger:"console;verbosity=detailed"
       
       - name: Generate Swagger
         run: |

@@ -85,7 +85,9 @@ BackendApi/logs/*.txt
 osrm_data/
 *.osm.pbf
 
-RootScripts/scripts.test/Test_Breaking-Point/LogsTest/*
+RootScripts/scripts.test/test/Test_Breaking-Point/LogsTest/*
+!RootScripts/scripts.test/test/Test_Breaking-Point/LogsTest/README.md
+!RootScripts/scripts.test/test/Test_Breaking-Point/LogsTest/2026-06-10/quick_verify_report.md
 
 *.sh text eol=lf
 

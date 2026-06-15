@@ -287,17 +287,16 @@ class AuthService extends Notifier<AuthStatus> {
         '❌ Token refresh failed (${e.response?.statusCode})',
         error: e.message,
       );
-      // หาก refresh ล้มเหลว (401, 400, etc.) → logout
-      if (refreshVersion == _authMutationVersion) {
+      final statusCode = e.response?.statusCode;
+      final credentialsRejected =
+          statusCode == 400 || statusCode == 401 || statusCode == 403;
+      if (credentialsRejected && refreshVersion == _authMutationVersion) {
         await _forceLogout();
       }
       completer.complete(false);
       return false;
     } catch (e) {
       _logger.e('❌ Unexpected error during token refresh', error: e);
-      if (refreshVersion == _authMutationVersion) {
-        await _forceLogout();
-      }
       completer.complete(false);
       return false;
     } finally {

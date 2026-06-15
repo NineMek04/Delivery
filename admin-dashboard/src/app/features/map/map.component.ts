@@ -388,7 +388,9 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
               fillColor: '#60a5fa',
               fillOpacity: 0.8,
               className: 'scan-candidate-marker'
-            }).bindTooltip(`Rider: ${rider.name || rider.riderId || 'Candidate'}`, { direction: 'top' })
+            }).bindTooltip(
+              `Rider: ${this.escapeHtml(String(rider.name || rider.riderId || 'Candidate'))}`,
+              { direction: 'top' })
               .addTo(this.map);
             this.candidateMarkers.push(candidate);
           }
@@ -421,45 +423,36 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       const locMap = this.trackingService.getRiderLocations();
       const riderLoc = locMap.get(offer.riderId);
       if (riderLoc) {
-        const coordsStr = `${riderLoc.longitude},${riderLoc.latitude};${order.pickupLng},${order.pickupLat}`;
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-        this.http.get<any>(osrmUrl).subscribe({
-          next: (res) => {
-            if (res?.routes?.[0]?.geometry?.coordinates) {
-              const roadCoords = res.routes[0].geometry.coordinates.map((c: any) => L.latLng(c[1], c[0]));
-              this.pickupRouteLine = L.polyline(roadCoords, {
-                color: '#ffc107',
-                weight: 4,
-                dashArray: '8, 8',
-                className: 'path-animate'
-              }).addTo(this.map);
-            }
-          }
-        });
+        this.pickupRouteLine = L.polyline([
+          [riderLoc.latitude, riderLoc.longitude],
+          [order.pickupLat, order.pickupLng]
+        ], {
+          color: '#ffc107',
+          weight: 4,
+          dashArray: '8, 8',
+          className: 'path-animate'
+        }).addTo(this.map);
       }
     }
 
     if (order.pickupLat && order.pickupLng && order.dropoffLat && order.dropoffLng) {
-      const coordsStr = `${order.pickupLng},${order.pickupLat};${order.dropoffLng},${order.dropoffLat}`;
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-      this.http.get<any>(osrmUrl).subscribe({
-        next: (res) => {
-          if (res?.routes?.[0]?.geometry?.coordinates) {
-            const roadCoords = res.routes[0].geometry.coordinates.map((c: any) => L.latLng(c[1], c[0]));
-            this.deliveryRouteLine = L.polyline(roadCoords, {
-              color: '#00e5ff',
-              weight: 4,
-              dashArray: '8, 8',
-              className: 'path-animate'
-            }).addTo(this.map);
+      const roadCoords = order.encodedPolyline
+        ? this.decodePolyline(order.encodedPolyline)
+        : [
+            L.latLng(order.pickupLat, order.pickupLng),
+            L.latLng(order.dropoffLat, order.dropoffLng)
+          ];
+      this.deliveryRouteLine = L.polyline(roadCoords, {
+        color: '#00e5ff',
+        weight: 4,
+        dashArray: '8, 8',
+        className: 'path-animate'
+      }).addTo(this.map);
 
-            if (this.simAutoFollow) {
-              const bounds = L.latLngBounds(roadCoords);
-              this.map.fitBounds(bounds, { padding: [50, 50] });
-            }
-          }
-        }
-      });
+      if (this.simAutoFollow) {
+        const bounds = L.latLngBounds(roadCoords);
+        this.map.fitBounds(bounds, { padding: [50, 50] });
+      }
     }
   }
 
@@ -515,45 +508,36 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     const riderLoc = locMap.get(riderId);
 
     if (riderLoc && order.pickupLat && order.pickupLng) {
-      const coordsStr = `${riderLoc.longitude},${riderLoc.latitude};${order.pickupLng},${order.pickupLat}`;
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-      this.http.get<any>(osrmUrl).subscribe({
-        next: (res) => {
-          if (res?.routes?.[0]?.geometry?.coordinates) {
-            const roadCoords = res.routes[0].geometry.coordinates.map((c: any) => L.latLng(c[1], c[0]));
-            this.pickupRouteLine = L.polyline(roadCoords, {
-              color: '#ffc107',
-              weight: 4,
-              dashArray: '8, 8',
-              className: 'path-animate'
-            }).addTo(this.map);
-          }
-        }
-      });
+      this.pickupRouteLine = L.polyline([
+        [riderLoc.latitude, riderLoc.longitude],
+        [order.pickupLat, order.pickupLng]
+      ], {
+        color: '#ffc107',
+        weight: 4,
+        dashArray: '8, 8',
+        className: 'path-animate'
+      }).addTo(this.map);
     }
 
     if (order.pickupLat && order.pickupLng && order.dropoffLat && order.dropoffLng) {
-      const coordsStr = `${order.pickupLng},${order.pickupLat};${order.dropoffLng},${order.dropoffLat}`;
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-      this.http.get<any>(osrmUrl).subscribe({
-        next: (res) => {
-          if (res?.routes?.[0]?.geometry?.coordinates) {
-            const roadCoords = res.routes[0].geometry.coordinates.map((c: any) => L.latLng(c[1], c[0]));
-            this.deliveryRouteLine = L.polyline(roadCoords, {
-              color: '#00e5ff',
-              weight: 4,
-              dashArray: '8, 8',
-              className: 'path-animate'
-            }).addTo(this.map);
+      const roadCoords = order.encodedPolyline
+        ? this.decodePolyline(order.encodedPolyline)
+        : [
+            L.latLng(order.pickupLat, order.pickupLng),
+            L.latLng(order.dropoffLat, order.dropoffLng)
+          ];
+      this.deliveryRouteLine = L.polyline(roadCoords, {
+        color: '#00e5ff',
+        weight: 4,
+        dashArray: '8, 8',
+        className: 'path-animate'
+      }).addTo(this.map);
 
-            if (this.simAutoFollow) {
-              const bounds = L.latLngBounds(roadCoords);
-              if (riderLoc) bounds.extend([riderLoc.latitude, riderLoc.longitude]);
-              this.map.fitBounds(bounds, { padding: [50, 50] });
-            }
-          }
-        }
-      });
+      if (this.simAutoFollow) {
+        const bounds = L.latLngBounds(roadCoords);
+        if (riderLoc) bounds.extend([riderLoc.latitude, riderLoc.longitude]);
+        this.map.fitBounds(bounds, { padding: [50, 50] });
+      }
     }
   }
 
@@ -774,13 +758,18 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   contactRider(riderId: string): void {
     this.riderService.getById(riderId).subscribe({
       next: (rider) => {
+        const displayName = String(rider.name || riderId.substring(0, 6).toUpperCase());
+        const phone = String(rider.phone || '089-999-9999').replace(/[^\d+(). -]/g, '');
+        const escapedPhone = this.escapeHtml(phone);
+        const trackingCode = this.escapeHtml(String(rider.trackingCode || 'N/A'));
+        const rating = this.escapeHtml(String(rider.rating || '5.0'));
         Swal.fire({
-          title: `📞 ติดต่อไรเดอร์ ${rider.name || riderId.substring(0, 6).toUpperCase()}`,
+          title: `📞 ติดต่อไรเดอร์ ${displayName}`,
           html: `
             <div style="font-family: 'Inter', sans-serif; text-align: left; padding: 10px;">
-              <b>เบอร์โทรศัพท์:</b> <a href="tel:${rider.phone || '089-999-9999'}" style="color: #22c55e; font-weight: bold; font-size: 16px;">${rider.phone || '089-999-9999'}</a><br>
-              <b>รหัสอ้างอิง:</b> ${rider.trackingCode || 'N/A'}<br>
-              <b>ระดับคะแนน:</b> ⭐ ${rider.rating || '5.0'}
+              <b>เบอร์โทรศัพท์:</b> <a href="tel:${escapedPhone}" style="color: #22c55e; font-weight: bold; font-size: 16px;">${escapedPhone}</a><br>
+              <b>รหัสอ้างอิง:</b> ${trackingCode}<br>
+              <b>ระดับคะแนน:</b> ⭐ ${rating}
             </div>
           `,
           icon: 'info',

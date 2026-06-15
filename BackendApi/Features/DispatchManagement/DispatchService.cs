@@ -3,6 +3,7 @@ using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
 using BackendApi.Models.DTOs;
+using BackendApi.Security;
 using BackendApi.Services.Ai;
 using Microsoft.EntityFrameworkCore;
 using Order = BackendApi.Models.Order;
@@ -71,6 +72,7 @@ public class DispatchService
     /// </summary>
     public async Task<bool> StartDispatchAsync(string orderId)
     {
+        using var scope = BeginLogScope(orderId);
         var order = await _dbContext.Orders.FindAsync(orderId);
         if (order is null || (order.State != OrderState.CREATED && order.State != OrderState.MATCHING))
         {
@@ -97,6 +99,7 @@ public class DispatchService
     /// </summary>
     public async Task<bool> StartBatchDispatchAsync(string batchGroupId)
     {
+        using var scope = BeginLogScope(batchGroupId);
         var orders = await _dbContext.Orders
             .Where(o => o.BatchGroupId == batchGroupId && (o.State == OrderState.CREATED || o.State == OrderState.MATCHING))
             .OrderBy(o => o.BatchSequence)
@@ -121,6 +124,7 @@ public class DispatchService
     /// </summary>
     public async Task<bool> TryInjectOrderAsync(string orderId)
     {
+        using var scope = BeginLogScope(orderId);
         var order = await _dbContext.Orders.FindAsync(orderId);
         if (order is null || (order.State != OrderState.CREATED && order.State != OrderState.MATCHING)) return false;
 
@@ -215,6 +219,7 @@ public class DispatchService
     {
         if (orders == null || orders.Count == 0) return;
         var firstOrder = orders.First();
+        using var scope = BeginLogScope(firstOrder.Id, firstOrder.AssignedRiderId);
 
         if (firstOrder.PickupLocation is null)
         {
@@ -288,6 +293,7 @@ public class DispatchService
     /// </summary>
     private async Task<bool> TryOfferToRiderAsync(List<Order> orders, string riderId, bool isInjection = false)
     {
+        using var scope = BeginLogScope(orders.FirstOrDefault()?.Id, riderId);
         var offerTimeout = _config.GetValue("Dispatch:OfferTimeoutSeconds", 30);
         var offerId = $"OFF-{Guid.NewGuid():N}"[..16];
         var timeout = TimeSpan.FromSeconds(offerTimeout);
@@ -504,5 +510,15 @@ public class DispatchService
             offerId, riderId, orders.Count, firstOrder.BatchGroupId, offerTimeout);
 
         return true;
+    }
+
+    private IDisposable? BeginLogScope(string? orderId, string? riderId = null)
+    {
+        return _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["CorrelationId"] = CorrelationIdProvider.GetOrCreate((HttpContext?)null),
+            ["OrderId"] = orderId,
+            ["RiderId"] = riderId
+        });
     }
 }

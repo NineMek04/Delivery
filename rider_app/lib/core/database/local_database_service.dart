@@ -16,7 +16,9 @@ class LocalDatabaseService {
   final Map<String, Map<String, dynamic>> _webOrders = {};
   final Map<String, String> _webSession = {};
   final List<Map<String, dynamic>> _webPendingUpdates = [];
+  final List<Map<String, dynamic>> _webPendingGpsPoints = [];
   final List<Map<String, dynamic>> _webErrorLogs = [];
+  int _webGpsSequence = 0;
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -32,7 +34,7 @@ class LocalDatabaseService {
 
     return await openDatabase(
       pathString,
-      version: 3,
+      version: 4,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute('''
@@ -56,6 +58,23 @@ class LocalDatabaseService {
             )
           ''');
           _logger.i('Upgraded database schema: created local_error_logs table');
+        }
+        if (oldVersion < 4) {
+          await db.execute('''
+            CREATE TABLE pending_gps_points (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              latitude REAL NOT NULL,
+              longitude REAL NOT NULL,
+              accuracy REAL NOT NULL,
+              timestamp TEXT NOT NULL,
+              created_at INTEGER NOT NULL
+            )
+          ''');
+          await db.execute(
+            'CREATE INDEX IX_pending_gps_points_created_at '
+            'ON pending_gps_points (created_at, id)',
+          );
+          _logger.i('Upgraded database schema: created pending_gps_points table');
         }
       },
       onCreate: (db, version) async {
@@ -93,7 +112,21 @@ class LocalDatabaseService {
             payload TEXT
           )
         ''');
-        _logger.i('Created database tables (v3)');
+        await db.execute('''
+          CREATE TABLE pending_gps_points (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            accuracy REAL NOT NULL,
+            timestamp TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          )
+        ''');
+        await db.execute(
+          'CREATE INDEX IX_pending_gps_points_created_at '
+          'ON pending_gps_points (created_at, id)',
+        );
+        _logger.i('Created database tables (v4)');
       },
     );
   }
@@ -236,6 +269,7 @@ class LocalDatabaseService {
       _webOrders.clear();
       _webSession.clear();
       _webPendingUpdates.clear();
+      _webPendingGpsPoints.clear();
       _webErrorLogs.clear();
       _logger.i('[Web] Cleared memory database');
       return;
@@ -246,6 +280,7 @@ class LocalDatabaseService {
       await db.delete('orders');
       await db.delete('session');
       await db.delete('pending_status_updates');
+      await db.delete('pending_gps_points');
       await db.delete('local_error_logs');
       _logger.i('Cleared all local database tables');
     } catch (e) {
@@ -329,6 +364,7 @@ class LocalDatabaseService {
       _logger.i('Saved pending status update locally: orderId=$orderId, status=$status');
     } catch (e) {
       _logger.e('Failed to save pending status update', error: e);
+      rethrow;
     }
   }
 
@@ -369,6 +405,112 @@ class LocalDatabaseService {
     } catch (e) {
       _logger.e('Failed to delete pending status update', error: e);
     }
+  }
+
+  Future<void> savePendingGpsPoint({
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+    required String timestamp,
+  }) async {
+    final createdAt = DateTime.now().millisecondsSinceEpoch;
+    if (kIsWeb) {
+      _webPendingGpsPoints.add({
+        'id': ++_webGpsSequence,
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+        'timestamp': timestamp,
+        'created_at': createdAt,
+      });
+      if (_webPendingGpsPoints.length > 10000) {
+        _webPendingGpsPoints.removeRange(
+          0,
+          _webPendingGpsPoints.length - 10000,
+        );
+      }
+      return;
+    }
+
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.insert('pending_gps_points', {
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+        'timestamp': timestamp,
+        'created_at': createdAt,
+      });
+      final count = Sqflite.firstIntValue(
+            await txn.rawQuery('SELECT COUNT(*) FROM pending_gps_points'),
+          ) ??
+          0;
+      final overflow = count - 10000;
+      if (overflow > 0) {
+        await txn.rawDelete('''
+          DELETE FROM pending_gps_points
+          WHERE id IN (
+            SELECT id FROM pending_gps_points
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+          )
+        ''', [overflow]);
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingGpsPoints({
+    int limit = 100,
+  }) async {
+    if (kIsWeb) {
+      return List<Map<String, dynamic>>.from(
+        _webPendingGpsPoints.take(limit),
+      );
+    }
+
+    final db = await database;
+    return db.query(
+      'pending_gps_points',
+      orderBy: 'created_at ASC, id ASC',
+      limit: limit,
+    );
+  }
+
+  Future<int> getPendingGpsPointCount() async {
+    if (kIsWeb) return _webPendingGpsPoints.length;
+    final db = await database;
+    return Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM pending_gps_points'),
+        ) ??
+        0;
+  }
+
+  Future<void> deletePendingGpsPoints(Iterable<int> ids) async {
+    final idList = ids.toList(growable: false);
+    if (idList.isEmpty) return;
+
+    if (kIsWeb) {
+      final idSet = idList.toSet();
+      _webPendingGpsPoints.removeWhere((item) => idSet.contains(item['id']));
+      return;
+    }
+
+    final db = await database;
+    final placeholders = List.filled(idList.length, '?').join(',');
+    await db.delete(
+      'pending_gps_points',
+      where: 'id IN ($placeholders)',
+      whereArgs: idList,
+    );
+  }
+
+  Future<void> clearPendingGpsPoints() async {
+    if (kIsWeb) {
+      _webPendingGpsPoints.clear();
+      return;
+    }
+    final db = await database;
+    await db.delete('pending_gps_points');
   }
 
   // Save local error log

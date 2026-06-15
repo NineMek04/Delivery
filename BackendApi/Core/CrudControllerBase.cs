@@ -55,14 +55,9 @@ public abstract class CrudControllerBase<TEntity, TDto> : DeliveryControllerBase
         IQueryable<TEntity> query,
         string search)
     {
-        var mappedStringProperties = DbContext.Model
-            .FindEntityType(typeof(TEntity))?
-            .GetProperties()
-            .Where(property => property.ClrType == typeof(string) && property.PropertyInfo is not null)
-            .Select(property => property.PropertyInfo!)
-            .ToList();
+        var mappedStringProperties = DB.GetMappedStringProperties<TEntity>();
 
-        if (mappedStringProperties is null || mappedStringProperties.Count == 0)
+        if (mappedStringProperties.Count == 0)
         {
             return query;
         }

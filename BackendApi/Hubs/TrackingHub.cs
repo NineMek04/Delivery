@@ -1,16 +1,11 @@
 using System.Security.Claims;
 using BackendApi.Core.StateMachines;
-using BackendApi.Data;
-using BackendApi.Infrastructure.Redis;
 using BackendApi.Security;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Telemetry;
 using BackendApi.Services.Tracking;
-using BackendApi.Infrastructure.EventBus;
-using BackendApi.Infrastructure.EventBus.Events;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Hubs;
 
@@ -27,11 +22,7 @@ namespace BackendApi.Hubs;
 public partial class TrackingHub : Hub
 {
     private readonly IRiderPresenceManager _presenceManager;
-    private readonly DispatchService _dispatchService;
     private readonly DispatchOfferHandler _offerHandler;
-    private readonly IConfiguration _config;
-    private readonly IEventBus _eventBus;
-    private readonly TelemetryAggregator _aggregator;
     private readonly TelemetryService _telemetryService;
     private readonly ILogger<TrackingHub> _logger;
 
@@ -40,20 +31,12 @@ public partial class TrackingHub : Hub
 
     public TrackingHub(
         IRiderPresenceManager presenceManager,
-        DispatchService dispatchService,
         DispatchOfferHandler offerHandler,
-        IConfiguration config,
-        IEventBus eventBus,
-        TelemetryAggregator aggregator,
         TelemetryService telemetryService,
         ILogger<TrackingHub> logger)
     {
         _presenceManager = presenceManager;
-        _dispatchService = dispatchService;
         _offerHandler = offerHandler;
-        _config = config;
-        _eventBus = eventBus;
-        _aggregator = aggregator;
         _telemetryService = telemetryService;
         _logger = logger;
     }
@@ -190,7 +173,4 @@ public partial class TrackingHub : Hub
         }
         return riderId;
     }
-
-    private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2) =>
-        BackendApi.Core.Helpers.GeoMath.HaversineDistanceMeters(lat1, lon1, lat2, lon2);
 }

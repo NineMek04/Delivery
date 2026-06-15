@@ -191,6 +191,16 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                     );
                 }
 
+                _channel.ConfirmSelect();
+                _channel.BasicReturn += (_, args) =>
+                {
+                    _logger.LogError(
+                        "RabbitMQ returned unroutable GPS message for {RoutingKey}: {ReplyCode} {ReplyText}",
+                        args.RoutingKey,
+                        args.ReplyCode,
+                        args.ReplyText);
+                };
+
                 _logger.LogInformation("GpsRabbitMqPublisher successfully connected to RabbitMQ and declared queues '{QueueName}' (with DLQ) and '{SnapQueueName}' (with DLQ)", QueueName, SnapQueueName);
             }
         }
@@ -274,13 +284,13 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         {
             while (!_cts.Token.IsCancellationRequested)
             {
+                var points = new List<TrackPoint>();
                 try
                 {
                     EnsureConnection();
                     
                     if (await _channelQueue.Reader.WaitToReadAsync(_cts.Token))
                     {
-                        var points = new List<TrackPoint>();
                         // Buffer up to 500 messages that are immediately available
                         while (points.Count < 500 && _channelQueue.Reader.TryRead(out var p))
                         {
@@ -311,6 +321,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                                     );
                                 }
                                 batch.Publish();
+                                _channel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
                             }
                         }
                     }
@@ -322,6 +333,10 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in GpsRabbitMqPublisher background worker.");
+                    foreach (var point in points)
+                    {
+                        _channelQueue.Writer.TryWrite(point);
+                    }
                     await System.Threading.Tasks.Task.Delay(1000, _cts.Token);
                 }
             }
@@ -331,13 +346,13 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         {
             while (!_cts.Token.IsCancellationRequested)
             {
+                var points = new List<TrackPoint>();
                 try
                 {
                     EnsureConnection();
                     
                     if (await _snapChannelQueue.Reader.WaitToReadAsync(_cts.Token))
                     {
-                        var points = new List<TrackPoint>();
                         // Buffer up to 500 messages that are immediately available
                         while (points.Count < 500 && _snapChannelQueue.Reader.TryRead(out var p))
                         {
@@ -368,6 +383,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                                     );
                                 }
                                 batch.Publish();
+                                _channel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
                             }
                         }
                     }
@@ -379,6 +395,10 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in GpsRabbitMqPublisher background snap worker.");
+                    foreach (var point in points)
+                    {
+                        _snapChannelQueue.Writer.TryWrite(point);
+                    }
                     await System.Threading.Tasks.Task.Delay(1000, _cts.Token);
                 }
             }

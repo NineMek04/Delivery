@@ -81,7 +81,7 @@ class Environment {
   /// rider position when browser geolocation is unavailable.
   static const bool enableMockGps = bool.fromEnvironment(
     'ENABLE_MOCK_GPS',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   static const Duration connectTimeout = Duration(seconds: 15);

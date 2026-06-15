@@ -15,7 +15,8 @@ ARG API_BASE_URL=
 RUN flutter build web --release \
     --pwa-strategy=none \
     --dart-define=API_BASE_URL=${API_BASE_URL} \
-    --dart-define=HTTP_LOGGING=false
+    --dart-define=HTTP_LOGGING=false \
+    --dart-define=ENABLE_MOCK_GPS=true
 
 FROM nginx:alpine
 

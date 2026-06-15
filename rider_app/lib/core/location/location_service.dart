@@ -49,7 +49,13 @@ class LocationService extends Notifier<LocationState> {
     }
     ref.read(gpsBufferServiceProvider).startSyncTimer();
     if (kIsWeb) {
-      _logger.i('Web platform detected. Attempting to start browser GPS.');
+      _logger.i('Web platform detected. Checking GPS configuration.');
+      if (Environment.enableMockGps) {
+        _logger.w('ENABLE_MOCK_GPS is active. Using demo coordinates.');
+        _startMockStream();
+        return true;
+      }
+
       String? locationFailure;
       try {
         // ลองดึงสิทธิ์และพิกัดจริงบน Web แบบปลอดภัยที่สุด
@@ -95,11 +101,6 @@ class LocationService extends Notifier<LocationState> {
         locationFailure = 'Unable to access browser location services.';
       }
 
-      if (Environment.enableMockGps) {
-        _logger.w('ENABLE_MOCK_GPS is active. Using demo coordinates.');
-        _startMockStream();
-        return true;
-      }
 
       ref.read(gpsBufferServiceProvider).stopSyncTimer();
       state = LocationState(

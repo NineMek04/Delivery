@@ -79,6 +79,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private deliveryRouteLine: L.Polyline | null = null;
   private activeRadarCircle: L.Circle | null = null;
   private candidateMarkers: L.CircleMarker[] = [];
+  private activeScanOrderId: string | null = null;
 
   // Order Markers and Polylines
   private orderMarkers: L.Marker[] = [];
@@ -388,6 +389,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   // ── Dispatch Scan and Route Handlers ──
 
   private handleDispatchScanStarted(data: any): void {
+    this.activeScanOrderId = data.order?.id ?? data.order?.Id ?? null;
     if (this.activeRadarCircle) {
       this.activeRadarCircle.remove();
       this.activeRadarCircle = null;
@@ -503,6 +505,10 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private handleOrderStatusChanged(data: any): void {
+    const orderId = data.orderId || data.OrderId;
+    if (orderId && orderId === this.activeScanOrderId) {
+      this.clearDispatchScanVisualization();
+    }
     if (data.status === 'DELIVERING') {
       if (this.pickupRouteLine) {
         this.pickupRouteLine.remove();
@@ -518,13 +524,22 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         this.deliveryRouteLine.remove();
         this.deliveryRouteLine = null;
       }
-      const orderId = data.orderId || data.OrderId;
       if (this.activeOrder && (this.activeOrder.id === orderId)) {
         this.assignedRiderId = null;
         this.activeOrder = null;
       }
     }
     this.loadActiveOrders();
+  }
+
+  private clearDispatchScanVisualization(): void {
+    if (this.activeRadarCircle) {
+      this.activeRadarCircle.remove();
+      this.activeRadarCircle = null;
+    }
+    this.candidateMarkers.forEach(marker => marker.remove());
+    this.candidateMarkers = [];
+    this.activeScanOrderId = null;
   }
 
   private drawActiveOrderRoute(order: any, riderId: string): void {

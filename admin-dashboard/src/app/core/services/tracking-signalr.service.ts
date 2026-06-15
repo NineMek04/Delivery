@@ -34,8 +34,16 @@ export interface DispatchScanStarted {
   pickupLat: number;
   pickupLng: number;
   searchRadiusKm: number;
+  dispatchAttempt: number;
   nearbyRiders: any[];
   startedAt: string;
+}
+
+export function getDispatchScanKey(data: DispatchScanStarted): string | null {
+  const orderId = data.order?.id ?? data.order?.Id;
+  const attempt = data.dispatchAttempt ?? (data as any).DispatchAttempt;
+  if (!orderId || !Number.isFinite(Number(attempt))) return null;
+  return `${orderId}:${Number(attempt)}`;
 }
 
 export interface OrderStatusChangedPayload {
@@ -91,6 +99,7 @@ export class TrackingSignalRService {
 
   private _orderAcceptedByStore = new Subject<{ orderId: string; status: string }>();
   public orderAcceptedByStore$ = this._orderAcceptedByStore.asObservable();
+  private readonly seenDispatchScans = new Set<string>();
 
   constructor(
     private authService: AuthService,
@@ -122,7 +131,7 @@ export class TrackingSignalRService {
               isSnapped: rider.isSnapped ?? rider.IsSnapped ?? false,
               speedKmh: rider.speedKmh ?? rider.SpeedKmh ?? 0,
               accuracy: rider.accuracy ?? rider.Accuracy ?? 0,
-              status: rider.status ?? rider.Status ?? 'OFFLINE',
+              status: rider.state ?? rider.State ?? rider.status ?? rider.Status ?? 'OFFLINE',
               timestamp: rider.updatedAt ?? rider.UpdatedAt ?? new Date().toISOString()
             });
           }
@@ -239,7 +248,7 @@ export class TrackingSignalRService {
         snappedLat: data.snappedLat != null ? data.snappedLat : (data.SnappedLat != null ? data.SnappedLat : undefined),
         snappedLng: data.snappedLng != null ? data.snappedLng : (data.SnappedLng != null ? data.SnappedLng : undefined),
         isSnapped: data.isSnapped != null ? data.isSnapped : (data.IsSnapped != null ? data.IsSnapped : false),
-        status: data.status || data.Status || 'OFFLINE',
+        status: data.state || data.State || data.status || data.Status || 'OFFLINE',
         speedKmh: data.speedKmh ?? data.SpeedKmh ?? 0, // Added to resolve BUG-22
         accuracy: data.accuracy ?? data.Accuracy ?? 0,
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
@@ -308,7 +317,7 @@ export class TrackingSignalRService {
         snappedLat: latitude,
         snappedLng: longitude,
         isSnapped: true,
-        status: data.status || data.Status || existing?.status || 'OFFLINE',
+        status: data.state || data.State || data.status || data.Status || existing?.status || 'OFFLINE',
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
       };
 
@@ -323,6 +332,15 @@ export class TrackingSignalRService {
     });
 
     this.hubConnection.on('DispatchScanStarted', (data: DispatchScanStarted) => {
+      const scanKey = getDispatchScanKey(data);
+      if (scanKey) {
+        if (this.seenDispatchScans.has(scanKey)) return;
+        this.seenDispatchScans.add(scanKey);
+        if (this.seenDispatchScans.size > 200) {
+          const oldestKey = this.seenDispatchScans.values().next().value;
+          if (oldestKey) this.seenDispatchScans.delete(oldestKey);
+        }
+      }
       const count = data.nearbyRiders?.length ?? 0;
       this.addAlert('AI Scan', `Scanning ${count} nearby riders for Order ${data.order?.id?.slice(0, 8) || 'Unknown'}`, 'info');
       this._dispatchScanStarted.next(data);

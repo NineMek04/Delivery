@@ -40,6 +40,11 @@
       @if (col.field === 'id') {
         <span class="mono primary">{{ getShopTrackingCode(item) }}</span>
       }
+      @else if (col.field === 'isOpen') {
+        <span class="status" [ngClass]="item.isOpen ? 'green' : 'gray'">
+          {{ item.isOpen ? 'OPEN' : 'CLOSED' }}
+        </span>
+      }
       @else if (col.field === 'name') {
         @if (editingId === item.id) {
           <input class="inline-input" [(ngModel)]="editSnapshot.name" />

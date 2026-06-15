@@ -6,6 +6,17 @@
     </div>
   </div>
 
+  <!-- Live Status Connection Alert Banner -->
+  <div *ngIf="connectionStatus !== 'CONNECTED'" class="connection-banner" [ngClass]="connectionStatus.toLowerCase()">
+    <div class="banner-content">
+      <lucide-icon [img]="icons.RefreshCcw" class="spin-icon" *ngIf="connectionStatus === 'RECONNECTING'" size="14"></lucide-icon>
+      <span class="warning-icon" *ngIf="connectionStatus === 'DISCONNECTED'">⚠️</span>
+      <span>
+        {{ connectionStatus === 'RECONNECTING' ? 'สัญญาณขาดหาย กำลังพยายามเชื่อมต่อใหม่แบบเรียลไทม์...' : 'ขาดการเชื่อมต่อกับระบบเครือข่ายเรียลไทม์ ข้อมูลตำแหน่งและสถิติไรเดอร์บนหน้าจออาจไม่เป็นปัจจุบัน' }}
+      </span>
+    </div>
+  </div>
+
   <div class="stat-grid">
     <article>
       <span>Total Riders</span>

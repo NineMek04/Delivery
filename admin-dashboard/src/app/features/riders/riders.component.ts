@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X } from 'lucide-angular';
@@ -7,6 +7,8 @@ import { AnalyticsService, RiderPerformanceDto } from '../../core/services/analy
 import { RiderDto } from '../../api/generated/model/rider-dto';
 import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
 import { RiderEditModalComponent } from './rider-edit-modal/rider-edit-modal.component';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
 import Swal from 'sweetalert2';
 
 @Component({
@@ -22,6 +24,9 @@ export class RidersComponent implements OnInit {
 
   private readonly riderService = inject(RiderService);
   private readonly analyticsService = inject(AnalyticsService);
+  private readonly trackingService = inject(TrackingSignalRService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   riders: RiderDto[] = [];
   topRiders: RiderPerformanceDto[] = [];
@@ -29,6 +34,12 @@ export class RidersComponent implements OnInit {
   hasError = false;
   query = '';
   
+  // Stats & Connection status
+  idleCount = 0;
+  busyCount = 0;
+  offlineCount = 0;
+  connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' = 'CONNECTED';
+
   // Pagination
   currentPage = 1;
   pageSize = 10;
@@ -49,21 +60,16 @@ export class RidersComponent implements OnInit {
   isEditModalOpen = false;
   selectedRider: RiderDto | null = null;
 
-  // For stats, we store counts based on current page data. 
-  // Ideally, total stats should come from backend, but we'll compute from current page for simplicity
-  get idleCount(): number {
-    return this.riders.filter(r => r.status === 'IDLE').length;
-  }
-  get busyCount(): number {
-    return this.riders.filter(r => r.status === 'BUSY').length;
-  }
-  get offlineCount(): number {
-    return this.riders.filter(r => ['OFFLINE', 'STALE'].includes(r.status || '')).length;
+  recalculateStats(): void {
+    this.idleCount = this.riders.filter(r => r.status === 'IDLE').length;
+    this.busyCount = this.riders.filter(r => r.status === 'BUSY').length;
+    this.offlineCount = this.riders.filter(r => ['OFFLINE', 'STALE'].includes(r.status || '')).length;
   }
 
   ngOnInit(): void {
     this.loadRiders();
     this.loadTopRiders();
+    this.startRiderRealtimeUpdates();
   }
 
   loadTopRiders(): void {
@@ -79,11 +85,47 @@ export class RidersComponent implements OnInit {
       next: (res) => {
         this.riders = res.items;
         this.totalCount = res.totalCount;
+        this.recalculateStats();
         this.isLoading = false;
       },
       error: () => {
         this.isLoading = false;
         this.hasError = true;
+      }
+    });
+  }
+
+  private startRiderRealtimeUpdates(): void {
+    this.trackingService.startConnection();
+    
+    // ตรวจจับสถานะการเชื่อมต่อ SignalR
+    this.trackingService.connectionStatus$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(status => {
+      this.connectionStatus = status;
+      this.cdr.markForCheck();
+    });
+
+    // อัปเดตพิกัดไรเดอร์แบบ In-place Mutation
+    this.trackingService.riderLocations$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(locations => {
+      let hasChanged = false;
+      this.riders.forEach(rider => {
+        if (rider.id && locations.has(rider.id)) {
+          const update = locations.get(rider.id)!;
+          if (rider.status !== update.status || rider.lat !== update.latitude || rider.lng !== update.longitude) {
+            rider.status = update.status;
+            rider.lat = update.latitude;
+            rider.lng = update.longitude;
+            rider.lastUpdated = update.timestamp;
+            hasChanged = true;
+          }
+        }
+      });
+      if (hasChanged) {
+        this.recalculateStats(); // คำนวณสถิติใหม่
+        this.cdr.markForCheck(); // บังคับอัปเดตวิวเฉพาะส่วนโดยไม่ Clone Array ป้องกัน GC Spikes
       }
     });
   }

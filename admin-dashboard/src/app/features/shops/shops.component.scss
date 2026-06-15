@@ -401,3 +401,63 @@ tr:hover td {
     box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
   }
 }
+
+.connection-banner {
+  padding: 12px 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+  border: 1px solid;
+  margin-bottom: 20px;
+
+  &.disconnected {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+  }
+
+  &.reconnecting {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+  }
+
+  .banner-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .spin-icon {
+    animation: spin 1.5s linear infinite;
+  }
+}
+
+.status {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+
+  &.green {
+    color: var(--color-brand-primary);
+    border-color: rgba(0, 255, 102, 0.45);
+    background: rgba(0, 255, 102, 0.06);
+  }
+
+  &.gray {
+    color: var(--color-text-muted);
+    border-color: rgba(136, 136, 136, 0.45);
+    background: rgba(136, 136, 136, 0.06);
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

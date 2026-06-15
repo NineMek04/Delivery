@@ -58,6 +58,14 @@ export class TrackingSignalRService {
   private _alerts = new BehaviorSubject<any[]>([]);
   public alerts$ = this._alerts.asObservable();
 
+  // สตรีมสำหรับสถานะการเปิด/ปิดร้านค้า
+  private _shopStatusChanged = new Subject<{ shopId: string; isOpen: boolean }>();
+  public shopStatusChanged$ = this._shopStatusChanged.asObservable();
+
+  // สตรีมสำหรับตรวจสอบสถานะเน็ตเวิร์กของบอร์ด
+  private _connectionStatus = new BehaviorSubject<'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'>('DISCONNECTED');
+  public connectionStatus$ = this._connectionStatus.asObservable();
+
   // New Observables for Map component to track dispatch phases
   private _offerReceived = new Subject<DispatchOffer>();
   public offerReceived$ = this._offerReceived.asObservable();
@@ -149,20 +157,24 @@ export class TrackingSignalRService {
     this.hubConnection.start()
       .then(() => {
         console.log('SignalR connected to TrackingHub');
+        this._connectionStatus.next('CONNECTED');
         this.addAlert('System', 'Connected to real-time dispatch network.', 'success');
       })
       .catch(err => {
         console.error('Error while starting connection: ' + err);
+        this._connectionStatus.next('DISCONNECTED');
         this.addAlert('Error', 'Failed to connect to real-time server.', 'danger');
       });
       
     this.hubConnection.onreconnecting(error => {
       console.warn('SignalR Reconnecting...', error);
+      this._connectionStatus.next('RECONNECTING');
       this.addAlert('Warning', 'Connection lost. Reconnecting...', 'warning');
     });
 
     this.hubConnection.onreconnected(connectionId => {
       console.log('SignalR Reconnected.', connectionId);
+      this._connectionStatus.next('CONNECTED');
       this.addAlert('System', 'Connection restored.', 'success');
       
       // Jitter: สุ่มดีเลย์ 1-3 วินาทีก่อนดึงพิกัดใหม่ เพื่อกระจายโหลด (ป้องกัน Thundering Herd)
@@ -174,6 +186,7 @@ export class TrackingSignalRService {
 
     this.hubConnection.onclose(error => {
       console.error('SignalR Connection closed.', error);
+      this._connectionStatus.next('DISCONNECTED');
     });
   }
 
@@ -349,6 +362,14 @@ export class TrackingSignalRService {
 
     this.hubConnection.on('OrderAcceptedByStore', (data: { orderId: string; status: string }) => {
       this._orderAcceptedByStore.next(data);
+    });
+
+    this.hubConnection.on('ShopStatusChanged', (data: any) => {
+      const shopId = data.shopId || data.ShopId;
+      const isOpen = data.isOpen ?? data.IsOpen ?? false;
+      if (shopId) {
+        this._shopStatusChanged.next({ shopId, isOpen });
+      }
     });
   }
 

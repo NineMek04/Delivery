@@ -153,6 +153,14 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         });
       })
     );
+
+    this.subscriptions.add(
+      this.trackingService.shopStatusChanged$.subscribe(update => {
+        this.zone.run(() => {
+          this.handleShopStatusChanged(update);
+        });
+      })
+    );
   }
 
   ngAfterViewInit(): void {
@@ -322,9 +330,10 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private addShopToMap(shop: ShopDto): void {
     if (!this.map || !shop.lat || !shop.lng) return;
 
+    const statusColor = shop.isOpen ? '#ea580c' : '#64748b';
     const shopIcon = L.divIcon({
       className: 'custom-shop-marker',
-      html: `<div style="background-color: #ea580c; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 11px; color: white;">🏪</div>`,
+      html: `<div style="background-color: ${statusColor}; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 11px; color: white;">🏪</div>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     });
@@ -354,6 +363,22 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
       .addTo(this.map);
 
     this.shopMarkers.set(shop.id || '', marker);
+  }
+
+  private handleShopStatusChanged(update: { shopId: string; isOpen: boolean }): void {
+    if (!this.map) return; // Guard ป้องกันการสั่งงานหลังจากแผนที่ถูกทำลาย (ngOnDestroy)
+    
+    const marker = this.shopMarkers.get(update.shopId);
+    if (marker) {
+      const statusColor = update.isOpen ? '#ea580c' : '#64748b'; // ส้มเมื่อเปิด / เทาเมื่อปิด
+      const shopIcon = L.divIcon({
+        className: 'custom-shop-marker',
+        html: `<div style="background-color: ${statusColor}; width: 26px; height: 26px; border-radius: 50%; border: 3px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 11px; color: white;">🏪</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+      marker.setIcon(shopIcon);
+    }
   }
 
   // ── Dispatch Scan and Route Handlers ──

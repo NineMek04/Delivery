@@ -60,6 +60,17 @@ Recipient: `rider:{riderId}`.
 `state` เป็น RiderState เท่านั้น. Recipient คือ admins และ authorized customers
 ของ active orders ตาม recipient cache ที่มี PostgreSQL fallback.
 
+### `ShopStatusChanged`
+
+```json
+{
+  "shopId": "uuid",
+  "isOpen": true
+}
+```
+
+Recipient: `admins` group. Broadcasted when a shop changes its open/closed state.
+
 ### Dispatch And Order Events
 
 - `DispatchScanStarted`

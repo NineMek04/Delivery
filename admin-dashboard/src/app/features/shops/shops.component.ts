@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -6,6 +6,7 @@ import { LucideAngularModule, RefreshCcw, Search, Pencil, Trash2, X, Check, Plus
 import { ShopService, ShopDto } from '../../core/services/shop.service';
 import { StoreService, MenuItem } from '../../core/services/store.service';
 import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
+import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
 import Swal from 'sweetalert2';
 
 @Component({
@@ -23,6 +24,8 @@ export class ShopsComponent implements OnInit {
   private readonly shopService = inject(ShopService);
   private readonly storeService = inject(StoreService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly trackingService = inject(TrackingSignalRService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   shops: ShopDto[] = [];
   isLoading = false;
@@ -34,9 +37,12 @@ export class ShopsComponent implements OnInit {
   pageSize = 10;
   totalCount = 0;
 
+  connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' = 'CONNECTED';
+
   columns: TableColumn[] = [
     { field: 'id', header: 'SHOP_ID', isSortable: true },
     { field: 'name', header: 'NAME', isSortable: true },
+    { field: 'isOpen', header: 'STATUS' },
     { field: 'menuName', header: 'MENU' },
     { field: 'menuItems', header: 'VIEW MENU' },
     { field: 'menuPrice', header: 'PRICE (฿)', isSortable: true },
@@ -56,6 +62,7 @@ export class ShopsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadShops();
+    this.startShopRealtimeUpdates();
   }
 
   loadShops(): void {
@@ -72,6 +79,36 @@ export class ShopsComponent implements OnInit {
       error: () => {
         this.isLoading = false;
         this.hasError = true;
+      }
+    });
+  }
+
+  private startShopRealtimeUpdates(): void {
+    this.trackingService.startConnection();
+    
+    // สตรีมตรวจสอบสถานะการเชื่อมต่อ
+    this.trackingService.connectionStatus$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(status => {
+      this.connectionStatus = status;
+      this.cdr.markForCheck();
+    });
+
+    // อัปเดตสถานะร้านค้าแบบ In-place Mutation ป้องกัน GC Spikes
+    this.trackingService.shopStatusChanged$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(update => {
+      let hasChanged = false;
+      this.shops.forEach(shop => {
+        if (shop.id === update.shopId) {
+          if (shop.isOpen !== update.isOpen) {
+            shop.isOpen = update.isOpen;
+            hasChanged = true;
+          }
+        }
+      });
+      if (hasChanged) {
+        this.cdr.markForCheck();
       }
     });
   }

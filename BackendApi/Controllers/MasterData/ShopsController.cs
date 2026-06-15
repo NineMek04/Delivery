@@ -11,6 +11,7 @@ using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 
 namespace BackendApi.Controllers.MasterData
 {
@@ -21,10 +22,14 @@ namespace BackendApi.Controllers.MasterData
     public class ShopsController : CrudControllerBase<Shop, ShopDto>
     {
         private readonly ITrackingSearchService _searchService;
+        private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
 
-        public ShopsController(ITrackingSearchService searchService)
+        public ShopsController(
+            ITrackingSearchService searchService,
+            IHubContext<BackendApi.Hubs.TrackingHub> hubContext)
         {
             _searchService = searchService;
+            _hubContext = hubContext;
         }
 
         /// <summary>
@@ -194,6 +199,8 @@ namespace BackendApi.Controllers.MasterData
             existing.Name = string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name;
             existing.MenuName = string.IsNullOrWhiteSpace(dto.MenuName) ? existing.MenuName : dto.MenuName;
             existing.MenuPrice = dto.MenuPrice > 0 ? dto.MenuPrice : existing.MenuPrice;
+            
+            bool isOpenChanged = dto.IsOpen.HasValue && existing.IsOpen != dto.IsOpen.Value;
             if (dto.IsOpen.HasValue)
                 existing.IsOpen = dto.IsOpen.Value;
             if (dto.PrepTimeMinutes.HasValue)
@@ -202,6 +209,16 @@ namespace BackendApi.Controllers.MasterData
 
             DB.UpdateObject(existing);
             await DB.CommitChangesAsync(cancellationToken);
+
+            // Broadcast เฉพาะเมื่อ DB บันทึกสำเร็จแล้วเท่านั้น ป้องกัน Data Inconsistency
+            if (isOpenChanged)
+            {
+                await _hubContext.Clients.Group("admins").SendAsync("ShopStatusChanged", new
+                {
+                    ShopId = existing.Id,
+                    IsOpen = existing.IsOpen
+                });
+            }
 
             return Ok(existing.Adapt<ShopDto>());
         }

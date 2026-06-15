@@ -10,7 +10,7 @@ type ApiErrorBody = {
 
 export function isPublicAuthRequest(url: string): boolean {
   const normalizedUrl = url.toLowerCase();
-  return ['/auth/login', '/auth/register', '/auth/refresh']
+  return ['/auth/login', '/auth/register', '/auth/refresh', '/auth/session']
     .some(path => normalizedUrl.includes(path));
 }
 

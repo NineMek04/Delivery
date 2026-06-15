@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, interval, Subscription, Observable, of, throwError } from 'rxjs';
 import { tap, catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import { req } from '../http/delivery-http-request';
@@ -41,7 +41,10 @@ export class AuthService implements OnDestroy {
   private isRefreshing = false;
   private refreshRequest$?: Observable<boolean>;
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private http: HttpClient
+  ) {
     this.startTokenClocking();
   }
 
@@ -130,7 +133,7 @@ export class AuthService implements OnDestroy {
    * เพื่อยืนยันว่า Token ยังใช้งานได้จริงจากฝั่ง Server
    */
   public verifySession(): Observable<boolean> {
-    return req<any>('/auth/session').get().pipe(
+    return req<any>('/auth/session', this.http).get().pipe(
       map((res: any) => {
         const user = res?.Value || res?.value || res;
         if (!user) {
@@ -155,7 +158,7 @@ export class AuthService implements OnDestroy {
   // ── Auth Actions ──────────────────────────────────────────────────
 
   public login(credentials: any): Observable<any> {
-    return req<any>('/Auth/login').body(credentials).post().pipe(
+    return req<any>('/Auth/login', this.http).body(credentials).post().pipe(
       tap((res: any) => {
         const data = res.Value || res.value || res;
         const accessToken = data?.AccessToken || data?.accessToken;
@@ -171,7 +174,7 @@ export class AuthService implements OnDestroy {
   }
 
   public register(data: any): Observable<any> {
-    return req<any>('/Auth/register').body(data).post().pipe(
+    return req<any>('/Auth/register', this.http).body(data).post().pipe(
       tap((res: any) => {
         const d = res.Value || res.value || res;
         const accessToken = d?.AccessToken || d?.accessToken;
@@ -192,7 +195,7 @@ export class AuthService implements OnDestroy {
     }
 
     this.isRefreshing = true;
-    const request$ = req<any>('/auth/refresh')
+    const request$ = req<any>('/auth/refresh', this.http)
       .body({ RefreshToken: '' }) // Refresh Token is stored in cookie, send empty string to match DTO
       .post()
       .pipe(
@@ -226,7 +229,7 @@ export class AuthService implements OnDestroy {
   }
 
   public logout(): Observable<any> {
-    return req<any>('/Auth/logout').post().pipe(
+    return req<any>('/Auth/logout', this.http).post().pipe(
       catchError(() => of(null)), // ถ้า API พัง ก็ logout ฝั่ง client อยู่ดี
       tap(() => this.forceLogout())
     );

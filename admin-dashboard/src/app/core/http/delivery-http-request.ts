@@ -243,9 +243,14 @@ interface IRequestBuilder<T> {
     delete(): Observable<T>;
 }
 
-export function req<T>(api?: string): IRequestBuilder<T> {
+export function req<T>(api?: string, http?: HttpClient): IRequestBuilder<T> {
+    const httpClient = http ?? AppComponent.InjectorInstance?.get(HttpClient);
+    if (!httpClient) {
+        throw new Error('HttpClient is unavailable before AppComponent initialization.');
+    }
+
     return new DeliveryHttpRequest(
-        AppComponent.InjectorInstance.get(HttpClient)
+        httpClient
     )
         .api(api!)
         .result<T>();

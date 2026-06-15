@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import '../../../core/location/location_service.dart';
 import '../../../core/location/tile_cache_service.dart';
 import '../../../core/session/rider_session_service.dart';
 import '../../../models/dispatch_offer.dart';
+import '../../../models/order.dart';
 import '../../../shared/utils/polyline_util.dart';
 import '../../../shared/widgets/connection_status_bar.dart';
 import '../../../shared/widgets/error_dialog.dart';
@@ -82,15 +84,21 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   LatLng? _lastAnimatedPoint;
   double? _lastAnimatedHeading;
   String? _dbDir;
+  bool _mapReady = false;
+  String? _lastViewportSignature;
 
   @override
   void initState() {
     super.initState();
     _loadDbDir();
     _bindSimStreams();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(deliveryNotifierProvider.notifier).loadOrders();
+    });
   }
 
   Future<void> _loadDbDir() async {
+    if (kIsWeb) return;
     try {
       final dbPath = await getDatabasesPath();
       if (mounted) {
@@ -304,13 +312,52 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     return fullRoute.sublist(closestIdx);
   }
 
-  Widget _buildNavigationPanel(BuildContext context, LatLng riderPos, dynamic activeOrder, LatLng? pickup, LatLng? dropoff) {
+  List<LatLng> _routeOrFallback(
+    String? encodedPolyline,
+    List<LatLng?> fallbackPoints,
+  ) {
+    final decoded = encodedPolyline?.isNotEmpty == true
+        ? decodePolyline(encodedPolyline!)
+        : const <LatLng>[];
+    if (decoded.length >= 2) return decoded;
+    return fallbackPoints.whereType<LatLng>().toList(growable: false);
+  }
+
+  void _fitMapToRoute(List<LatLng> points, String signature) {
+    if (!_mapReady || points.isEmpty || _lastViewportSignature == signature) {
+      return;
+    }
+    _lastViewportSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mapReady) return;
+      try {
+        if (points.length == 1) {
+          _mapController.move(points.first, 15);
+          return;
+        }
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: LatLngBounds.fromPoints(points),
+            padding: const EdgeInsets.fromLTRB(36, 100, 36, 52),
+          ),
+        );
+      } catch (_) {}
+    });
+  }
+
+  Widget _buildNavigationPanel(
+    BuildContext context,
+    LatLng riderPos,
+    OrderDto? activeOrder,
+    LatLng? pickup,
+    LatLng? dropoff,
+  ) {
     LatLng? target = pickup;
     String targetName = "จุดรับอาหาร (ร้านค้า)";
     bool isPickup = true;
 
     if (activeOrder != null) {
-      if (activeOrder.state.toString().toUpperCase() == "DELIVERING") {
+      if (activeOrder.status.toUpperCase() == "DELIVERING") {
         target = dropoff;
         targetName = "จุดส่งอาหาร (บ้านลูกค้า)";
         isPickup = false;
@@ -422,16 +469,40 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         ? LatLng(order!.dropoffLat!, order.dropoffLng!)
         : (isFinished ? null : _simDropoffPoint);
 
-    // คำนวณเส้นทางข้างหลังเพื่อทำการทำ Tail Route Update กราฟิกหดตามเส้นถนนจริง
-    final rawRoutePoints = order?.encodedPolyline != null && order!.encodedPolyline!.isNotEmpty
-        ? decodePolyline(order.encodedPolyline!)
+    final orderStatus = order?.status.toUpperCase();
+    final isHeadingToPickup =
+        orderStatus == 'ASSIGNED' || orderStatus == 'PICKING_UP';
+    final pickupRoute = delivery.pickupRouteOrderId == order?.id
+        ? delivery.pickupEncodedPolyline
+        : null;
+    final rawRoutePoints = order != null
+        ? (isHeadingToPickup
+            ? _routeOrFallback(pickupRoute, [riderPoint, pickup])
+            : _routeOrFallback(
+                order.encodedPolyline,
+                [riderPoint ?? pickup, dropoff],
+              ))
         : (isFinished
             ? const <LatLng>[]
-            : (_simPhase == SimFlowPhase.pickup ? _simPickupRoute : _simDeliveryRoute));
+            : (_simPhase == SimFlowPhase.pickup
+                ? _simPickupRoute
+                : _simDeliveryRoute));
         
     final routePoints = _getTailRoute(rawRoutePoints, riderPoint ?? _simRiderPoint);
 
     final center = riderPoint ?? _simRiderPoint ?? pickup ?? dropoff ?? _defaultCenter;
+    final viewportPoints = <LatLng>{
+      if (riderPoint != null) riderPoint,
+      if (pickup != null) pickup,
+      if (dropoff != null) dropoff,
+      ...routePoints,
+    }.toList(growable: false);
+    _fitMapToRoute(
+      viewportPoints,
+      '${order?.id}|$orderStatus|${routePoints.length}|'
+      '${riderPoint?.latitude.toStringAsFixed(4)}|'
+      '${riderPoint?.longitude.toStringAsFixed(4)}',
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -476,12 +547,22 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                           options: MapOptions(
                             initialCenter: center,
                             initialZoom: 14,
+                            onMapReady: () {
+                              _mapReady = true;
+                              _lastViewportSignature = null;
+                              _fitMapToRoute(
+                                viewportPoints,
+                                'ready|${order?.id}|${routePoints.length}',
+                              );
+                            },
                           ),
                           children: [
                             TileLayer(
-                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              urlTemplate: kIsWeb
+                                  ? '/map-tiles/{z}/{x}/{y}.png'
+                                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.delivery.rider_app',
-                              tileProvider: _dbDir != null
+                              tileProvider: !kIsWeb && _dbDir != null
                                   ? CachedTileProvider(dbDir: _dbDir!)
                                   : NetworkTileProvider(),
                             ),

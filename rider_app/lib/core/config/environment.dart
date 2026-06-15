@@ -78,14 +78,12 @@ class Environment {
     defaultValue: false,
   );
 
-  /// Demo-only fallback. Production builds must never publish a fabricated
-  /// rider position when browser geolocation is unavailable.
-  static const bool enableMockGps = kReleaseMode
-      ? false
-      : bool.fromEnvironment(
-          'ENABLE_MOCK_GPS',
-          defaultValue: true,
-        );
+  /// Demo-only fallback controlled explicitly at build time.
+  /// Production builds remain safe because the default is disabled.
+  static const bool enableMockGps = bool.fromEnvironment(
+    'ENABLE_MOCK_GPS',
+    defaultValue: false,
+  );
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 15);

@@ -13,9 +13,17 @@
 
 ## 2. Validation
 
+GPS accuracy policy:
+
+- `<= 50m`: eligible for Core ingestion, Redis GEO, history, and dispatch.
+- `> 50m` and `<= 300m`: degraded Admin UI telemetry only.
+- `> 300m`: reject.
+
+Degraded telemetry must not enter Redis GEO, PostgreSQL history, RabbitMQ GPS
+history, customer tracking, or AI/dispatch calculations.
+
 `lat` อยู่ใน `[-90,90]`, `lng` อยู่ใน `[-180,180]`.
 ร้านค้าที่เปิดรับ order ต้องมีพิกัดที่ valid.
-Mobile GPS accuracy > 50m ต้องถูกกรองก่อน ingestion.
 
 ## 3. Polyline
 

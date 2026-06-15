@@ -100,7 +100,9 @@ class HomeNotifier extends Notifier<HomeState> {
     final offer = state.incomingOffer;
     if (offer == null) return;
     await ref.read(riderSessionServiceProvider.notifier).acceptOffer(offer);
-    await ref.read(deliveryNotifierProvider.notifier).loadOrders();
+    final delivery = ref.read(deliveryNotifierProvider.notifier);
+    delivery.rememberAcceptedOffer(offer);
+    await delivery.loadOrders();
     dismissOffer();
   }
 

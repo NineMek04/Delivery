@@ -46,6 +46,10 @@ Recipient: `rider:{riderId}`.
 
 ### `RiderLocationUpdated`
 
+Accuracy `> 50m` and `<= 300m` is a degraded payload for the `admins` group
+only. It exists for the accuracy-circle warning and must not be forwarded to
+customers or used by dispatch.
+
 ```json
 {
   "riderId": "uuid",
@@ -72,6 +76,10 @@ Recipient: `rider:{riderId}`.
 Recipient: `admins` group. Broadcasted when a shop changes its open/closed state.
 
 ### Dispatch And Order Events
+
+`DispatchScanStarted` includes `dispatchAttempt`. Admin clients deduplicate by
+`order.id + dispatchAttempt`; different attempts are real backend retries and
+must remain visible.
 
 - `DispatchScanStarted`
 - `DispatchCandidatesRanked`

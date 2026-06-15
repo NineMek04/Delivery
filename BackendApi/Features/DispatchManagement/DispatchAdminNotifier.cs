@@ -33,6 +33,7 @@ public class DispatchAdminNotifier
             PickupLat = pickupLat,
             PickupLng = pickupLng,
             SearchRadiusKm = searchRadiusKm,
+            DispatchAttempt = order.DispatchAttempts,
             NearbyRiders = nearbyRiders.Select(r => new
             {
                 RiderId = r.Member.ToString(),

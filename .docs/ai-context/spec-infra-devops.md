@@ -13,6 +13,10 @@ Active services:
 Base compose ไม่ควร expose internal ports. Development override bind ทุก port
 กับ `127.0.0.1`.
 
+The development override builds `rider-app` with `ENABLE_MOCK_GPS=true` so the
+browser can exercise dispatch flows without geolocation. The base Docker build
+argument defaults to `false` and production must not enable it.
+
 | Service | Dev Host Port | Container Port |
 |---|---:|---:|
 | Backend | 5000 | 80 |

@@ -27,6 +27,9 @@ services:
       - "127.0.0.1:4201:80"
 
   rider-app:
+    build:
+      args:
+        ENABLE_MOCK_GPS: "true"
     ports:
       - "127.0.0.1:8083:80"
 

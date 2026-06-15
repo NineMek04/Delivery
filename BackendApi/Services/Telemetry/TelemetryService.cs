@@ -37,6 +37,8 @@ namespace BackendApi.Services.Telemetry
         private readonly ILogger<TelemetryService> _logger;
 
         private const string AdminGroup = "admins";
+        private const double CoreAccuracyThresholdMeters = 50.0;
+        private const double UiOnlyAccuracyThresholdMeters = 300.0;
 
         public TelemetryService(
             ApplicationDbContext dbContext,
@@ -76,8 +78,9 @@ namespace BackendApi.Services.Telemetry
             using var scope = BeginLogScope(riderId);
             if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
-            // 1. กรองความคลาดเคลื่อนเบื้องต้น (Drift Protection)
-            if (accuracy > 300) return;
+            // Reject unusable points. Degraded points are broadcast to admins
+            // for visibility, but never enter dispatch, Redis GEO, or history.
+            if (accuracy > UiOnlyAccuracyThresholdMeters) return;
 
             // 1.5. Level 1 Server-Side Rate Limiting (Safety net for SignalR or unthrottled REST inputs)
             var currentQueueSize = _gpsPublisher.PendingQueueCount;
@@ -100,6 +103,18 @@ namespace BackendApi.Services.Telemetry
             if (now < DateTime.UtcNow.AddMinutes(-15))
             {
                 _logger.LogWarning("Discarding stale GPS point for Rider {RiderId}. Age is too old.", riderId);
+                return;
+            }
+
+            if (accuracy > CoreAccuracyThresholdMeters)
+            {
+                await BroadcastAdminLocationAsync(
+                    riderId,
+                    lat,
+                    lng,
+                    accuracy,
+                    now,
+                    isSnapped: false);
                 return;
             }
 
@@ -212,22 +227,7 @@ namespace BackendApi.Services.Telemetry
             if (secondsSinceLast >= throttleSeconds)
             {
                 // ดึงสถานะไรเดอร์ปัจจุบัน (จาก Redis Cache ก่อน เลี่ยง DB)
-                var riderState = "IDLE";
-                var statusCacheKey = $"riders:status:{riderId}";
-                var cachedState = await db.StringGetAsync(statusCacheKey);
-                if (cachedState.HasValue)
-                {
-                    riderState = cachedState.ToString();
-                }
-                else
-                {
-                    var rider = await _dbContext.Riders.AsNoTracking().FirstOrDefaultAsync(r => r.Id == riderId);
-                    if (rider is not null)
-                    {
-                        riderState = rider.State.ToString();
-                        await db.StringSetAsync(statusCacheKey, riderState, TimeSpan.FromMinutes(5));
-                    }
-                }
+                var riderState = await GetRiderStateAsync(db, riderId);
 
                 // A. ส่งพิกัดเรียลไทม์หา Admin Dashboard
                 await _hubContext.Clients.Group(AdminGroup).SendAsync("RiderLocationUpdated", new
@@ -236,7 +236,7 @@ namespace BackendApi.Services.Telemetry
                     Lat = snappedLat,
                     Lng = snappedLng,
                     Accuracy = accuracy,
-                    Status = riderState,
+                    State = riderState,
                     Timestamp = now,
                     isSnapped = false
                 });
@@ -251,7 +251,7 @@ namespace BackendApi.Services.Telemetry
                         Lat = snappedLat,
                         Lng = snappedLng,
                         Accuracy = accuracy,
-                        Status = riderState,
+                        State = riderState,
                         Timestamp = now,
                         isSnapped = false
                     });
@@ -287,7 +287,7 @@ namespace BackendApi.Services.Telemetry
 
             // 1. กรองจุดที่คลาดเคลื่อนเบื้องต้น (Drift Protection) ขอบเขตพิกัด และช่วงเวลาที่ยอมรับได้
             var validPoints = batchPoints
-                .Where(p => p.Latitude >= -90 && p.Latitude <= 90 && p.Longitude >= -180 && p.Longitude <= 180 && p.Accuracy <= 300)
+                .Where(p => p.Latitude >= -90 && p.Latitude <= 90 && p.Longitude >= -180 && p.Longitude <= 180 && p.Accuracy <= UiOnlyAccuracyThresholdMeters)
                 .Where(p => p.Timestamp >= minTimestamp && p.Timestamp <= maxTimestamp)
                 .OrderBy(p => p.Timestamp) // เรียงลำดับตามเวลาแบบเรียงขึ้น (Ascending)
                 .ToList();
@@ -301,7 +301,9 @@ namespace BackendApi.Services.Telemetry
             // 3. จัดการข้อมูลย้อนหลัง (Historical Points): ส่งตรงเข้า RabbitMQ เป็นข้อมูลดิบ (Raw Lat/Lng) เพื่อประหยัดทรัพยากร
             if (historicalPoints.Count > 0)
             {
-                _gpsPublisher.PublishBatch(historicalPoints.Select(point => new TrackPoint(riderId, point.Latitude, point.Longitude, point.Timestamp)));
+                _gpsPublisher.PublishBatch(historicalPoints
+                    .Where(point => point.Accuracy <= CoreAccuracyThresholdMeters)
+                    .Select(point => new TrackPoint(riderId, point.Latitude, point.Longitude, point.Timestamp)));
             }
 
             // 4. จัดการจุดล่าสุด (Latest Point): ประมวลผลลอจิกเต็มรูปแบบใน Hot Path (ผ่าน OSRM, Redis Presence, SignalR, DB Throttle)
@@ -313,6 +315,80 @@ namespace BackendApi.Services.Telemetry
                 latestPoint.Accuracy, 
                 latestPoint.Timestamp, 
                 bypassRateLimit: true);
+        }
+
+        private async Task BroadcastAdminLocationAsync(
+            string riderId,
+            double lat,
+            double lng,
+            double accuracy,
+            DateTime timestamp,
+            bool isSnapped)
+        {
+            var database = _redis.GetDatabase();
+            var riderState = await GetRiderStateAsync(database, riderId);
+
+            await _hubContext.Clients.Group(AdminGroup).SendAsync(
+                "RiderLocationUpdated",
+                new
+                {
+                    RiderId = riderId,
+                    Lat = lat,
+                    Lng = lng,
+                    Accuracy = accuracy,
+                    State = riderState,
+                    Timestamp = timestamp,
+                    isSnapped
+                });
+        }
+
+        private async Task<string> GetRiderStateAsync(
+            IDatabase database,
+            string riderId)
+        {
+            var statusCacheKey = $"riders:status:{riderId}";
+            try
+            {
+                var cachedState = await database.StringGetAsync(statusCacheKey);
+                if (cachedState.HasValue)
+                {
+                    return cachedState.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to read rider state cache for Rider {RiderId}; falling back to PostgreSQL",
+                    riderId);
+            }
+
+            var riderState = await _dbContext.Riders
+                .AsNoTracking()
+                .Where(rider => rider.Id == riderId)
+                .Select(rider => (RiderState?)rider.State)
+                .FirstOrDefaultAsync();
+            if (riderState is null)
+            {
+                return RiderState.OFFLINE.ToString();
+            }
+
+            var state = riderState.Value.ToString();
+            try
+            {
+                await database.StringSetAsync(
+                    statusCacheKey,
+                    state,
+                    TimeSpan.FromMinutes(5));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to cache rider state for Rider {RiderId}",
+                    riderId);
+            }
+            return state;
         }
 
         private async Task<IReadOnlyCollection<string>> GetActiveCustomerIdsAsync(

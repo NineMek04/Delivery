@@ -5,6 +5,7 @@ import '../../../core/api/api_helpers.dart';
 import '../../../core/api/services/order_api_service.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../core/database/local_database_service.dart';
+import '../../../models/dispatch_offer.dart';
 import '../../../models/order.dart';
 
 const _activeStatuses = {
@@ -43,6 +44,7 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
           activeOrders: active,
           completedOrders: completed,
           activeOrder: active.isNotEmpty ? active.first : null,
+          clearActiveOrder: active.isEmpty,
         );
       }
     } catch (_) {}
@@ -69,6 +71,10 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
         activeOrders: active,
         completedOrders: completed,
         activeOrder: active.isNotEmpty ? active.first : null,
+        clearActiveOrder: active.isEmpty,
+        clearPickupRoute: active.isEmpty ||
+            (state.pickupRouteOrderId != null &&
+                state.pickupRouteOrderId != active.first.id),
       );
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
@@ -106,6 +112,8 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
         activeOrders: active,
         completedOrders: completed,
         activeOrder: active.isNotEmpty ? active.first : null,
+        clearActiveOrder: active.isEmpty,
+        clearPickupRoute: active.isEmpty,
       );
     } catch (e) {
       // Check if it is a network connectivity error
@@ -184,6 +192,8 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
             activeOrders: active,
             completedOrders: completed,
             activeOrder: active.isNotEmpty ? active.first : null,
+            clearActiveOrder: active.isEmpty,
+            clearPickupRoute: active.isEmpty,
             error: 'Offline: บันทึกสถานะงานแบบออฟไลน์แล้ว',
           );
           return;
@@ -207,6 +217,33 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
 
   Future<void> markCompleted(String orderId) =>
       updateOrderStatus(orderId, AppConstants.orderCompleted);
+
+  void rememberAcceptedOffer(DispatchOffer offer) {
+    final encodedPolyline = offer.pickupRoute?.encodedPolyline;
+    final provisionalOrder = OrderDto(
+      id: offer.order.id,
+      status: 'ASSIGNED',
+      pickupLat: offer.order.pickupLat,
+      pickupLng: offer.order.pickupLng,
+      dropoffLat: offer.order.dropoffLat,
+      dropoffLng: offer.order.dropoffLng,
+      distanceKm: offer.order.distanceKm ?? 0,
+      deliveryFee: offer.order.deliveryFee ?? 0,
+      encodedPolyline: offer.order.encodedPolyline,
+      assignedAt: DateTime.now(),
+    );
+    final activeOrders = [
+      provisionalOrder,
+      ...state.activeOrders.where((order) => order.id != provisionalOrder.id),
+    ];
+    state = state.copyWith(
+      activeOrders: activeOrders,
+      activeOrder: provisionalOrder,
+      pickupRouteOrderId: offer.order.id,
+      pickupEncodedPolyline: encodedPolyline,
+      clearPickupRoute: encodedPolyline?.isNotEmpty != true,
+    );
+  }
 }
 
 class DeliveryState {
@@ -216,6 +253,8 @@ class DeliveryState {
   final List<OrderDto> activeOrders;
   final List<OrderDto> completedOrders;
   final OrderDto? activeOrder;
+  final String? pickupRouteOrderId;
+  final String? pickupEncodedPolyline;
 
   const DeliveryState({
     this.isLoading = false,
@@ -224,6 +263,8 @@ class DeliveryState {
     this.activeOrders = const [],
     this.completedOrders = const [],
     this.activeOrder,
+    this.pickupRouteOrderId,
+    this.pickupEncodedPolyline,
   });
 
   DeliveryState copyWith({
@@ -234,6 +275,9 @@ class DeliveryState {
     List<OrderDto>? completedOrders,
     OrderDto? activeOrder,
     bool clearActiveOrder = false,
+    String? pickupRouteOrderId,
+    String? pickupEncodedPolyline,
+    bool clearPickupRoute = false,
   }) {
     return DeliveryState(
       isLoading: isLoading ?? this.isLoading,
@@ -242,6 +286,11 @@ class DeliveryState {
       activeOrders: activeOrders ?? this.activeOrders,
       completedOrders: completedOrders ?? this.completedOrders,
       activeOrder: clearActiveOrder ? null : (activeOrder ?? this.activeOrder),
+      pickupRouteOrderId:
+          clearPickupRoute ? null : (pickupRouteOrderId ?? this.pickupRouteOrderId),
+      pickupEncodedPolyline: clearPickupRoute
+          ? null
+          : (pickupEncodedPolyline ?? this.pickupEncodedPolyline),
     );
   }
 }

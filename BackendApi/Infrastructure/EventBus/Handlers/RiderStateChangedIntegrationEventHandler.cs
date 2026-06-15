@@ -193,7 +193,7 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                         Lat = loc.Value.Lat,
                         Lng = loc.Value.Lng,
                         Accuracy = loc.Value.Accuracy,
-                        Status = rider.State.ToString(),
+                        State = rider.State.ToString(),
                         Timestamp = loc.Value.UpdatedAt,
                         isSnapped = false
                     });

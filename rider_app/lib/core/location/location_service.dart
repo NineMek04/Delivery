@@ -30,6 +30,7 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 class LocationService extends Notifier<LocationState> {
   StreamSubscription<Position>? _positionSubscription;
   Timer? _mockTimer;
+  int _mockIntervalSeconds = Environment.gpsUpdateIntervalSeconds;
   final List<Position> _locationHistory = [];
 
   @override
@@ -240,8 +241,20 @@ class LocationService extends Notifier<LocationState> {
     }
   }
 
-  void updateSettings(LocationSettings settings) {
+  void updateSettings(
+    LocationSettings settings, {
+    int? intervalSeconds,
+  }) {
     if (!state.isTracking) return;
+    if (kIsWeb && Environment.enableMockGps) {
+      _startMockStream(
+        intervalSeconds: intervalSeconds ?? _mockIntervalSeconds,
+      );
+      return;
+    }
+
+    _mockTimer?.cancel();
+    _mockTimer = null;
     _positionSubscription?.cancel();
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: settings,
@@ -255,9 +268,12 @@ class LocationService extends Notifier<LocationState> {
     _logger.i('🛰️ GPS tracking settings dynamically updated');
   }
 
-  void _startMockStream() {
+  void _startMockStream({
+    int intervalSeconds = Environment.gpsUpdateIntervalSeconds,
+  }) {
     _positionSubscription?.cancel();
     _mockTimer?.cancel();
+    _mockIntervalSeconds = intervalSeconds;
 
     _logger.i('🤖 Starting Mock GPS Stream for Web (Demo Mode)');
     
@@ -279,8 +295,8 @@ class LocationService extends Notifier<LocationState> {
     final bufferService = ref.read(gpsBufferServiceProvider);
     bufferService.bufferLocation(currentLat, currentLng, 10.0, heading: 0.0);
 
-    // จำลองตำแหน่งขยับเป็นวงกลมเล็กๆ ทุก 5 วินาทีเพื่อให้เห็นบนแผนที่ว่ากำลังออนไลน์และเคลื่อนไหว
-    _mockTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    // Simulate a small loop at the active GPS interval for map visibility.
+    _mockTimer = Timer.periodic(Duration(seconds: _mockIntervalSeconds), (timer) {
       if (!state.isTracking) {
         timer.cancel();
         return;

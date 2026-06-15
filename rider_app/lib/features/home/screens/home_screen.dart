@@ -53,7 +53,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           await ref.read(homeNotifierProvider.notifier).acceptOffer();
           if (mounted) {
             ErrorDialog.showSuccess(context, 'รับงานแล้ว');
-            context.goNamed('activeDelivery');
+            Future<void>.delayed(Duration.zero, () {
+              if (mounted) context.goNamed('tracking');
+            });
           }
         } catch (e) {
           if (mounted) {
@@ -350,8 +352,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              // context.goNamed('route_tracking', pathParameters: {'id': delivery.activeOrder!.id});
-                              context.goNamed('activeDelivery');
+                              context.goNamed('tracking');
                             },
                           ),
                         ),

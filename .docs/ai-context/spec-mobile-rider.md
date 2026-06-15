@@ -27,7 +27,13 @@
 
 ## 4. GPS And Offline Queue
 
-- accuracy > 50m ทิ้ง
+- GPS accuracy `<= 50m` is Core telemetry. Accuracy `> 50m` and `<= 300m`
+  may be sent only as degraded Admin UI telemetry and must not enter
+  dispatch/history. Accuracy `> 300m` is rejected.
+- Flutter web Mock GPS is a compile-time development mode. The base image
+  defaults `ENABLE_MOCK_GPS=false`; `docker-compose.override.yml` enables it
+  for local dispatch testing only. Production builds must keep it disabled.
+
 - `LocationService` ส่งจุดเข้า `GpsBufferService`
 - SQLite เก็บ pending GPS และ `pending_status_updates`
 - sync ตามลำดับเมื่อ network กลับมา; ลบ local mutation หลัง server ยืนยันเท่านั้น
@@ -40,6 +46,12 @@
 - canonical offer event คือ `OfferReceived`
 - accept: `AcceptOffer(offerId, version)`
 - reject: `RejectOffer(offerId, orderId)`
+- After accept, the rider map retains the offer pickup route and displays
+  Rider-to-pickup during `ASSIGNED`/`PICKING_UP`, then the persisted
+  pickup-to-dropoff route during `DELIVERING`. Missing or invalid polylines
+  fall back to a straight line without breaking map rendering.
+- Flutter web map tiles use the Rider Nginx same-origin `/map-tiles/` proxy;
+  native clients may continue using a direct tile provider with local cache.
 - Order phase เปลี่ยนผ่าน `PATCH /api/v1/orders/{id}/status`
 - Rider state ใช้เฉพาะ `OFFLINE`, `IDLE`, `RESERVED`, `BUSY`, `STALE`
 - offline status mutation ต้อง queue และ preserve order

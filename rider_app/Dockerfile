@@ -12,11 +12,12 @@ RUN flutter create . --platforms web
 
 # Same-origin API via nginx in production image (API_BASE_URL empty)
 ARG API_BASE_URL=
+ARG ENABLE_MOCK_GPS=false
 RUN flutter build web --release \
     --pwa-strategy=none \
     --dart-define=API_BASE_URL=${API_BASE_URL} \
     --dart-define=HTTP_LOGGING=false \
-    --dart-define=ENABLE_MOCK_GPS=true
+    --dart-define=ENABLE_MOCK_GPS=${ENABLE_MOCK_GPS}
 
 FROM nginx:alpine
 

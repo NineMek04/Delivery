@@ -56,12 +56,15 @@
 
 ## 5. Flutter Rules
 
+- GPS accuracy `<= 50m` may enter the Core pipeline. Accuracy `> 50m` and
+  `<= 300m` is degraded Admin UI telemetry only and must not enter
+  dispatch/history. Accuracy `> 300m` must be rejected.
+
 - HTTP ใช้ Dio, state/server data ใช้ `flutter_riverpod`, navigation ใช้ GoRouter
 - Token native เก็บใน `flutter_secure_storage`; web fallback ใช้ sessionStorage
 - `setState` ใช้ได้เฉพาะ transient widget state เช่น animation/form/countdown;
   domain/server state ต้องอยู่ใน provider/notifier
 - 401 refresh ต้อง single-flight และห้าม retry auth endpoint วนซ้ำ
-- GPS accuracy มากกว่า 50 เมตรต้องทิ้ง
 - GPS/status mutation ต้อง buffer ใน SQLite เมื่อ offline และ replay ตามลำดับ
 - ส่ง GPS หลัง SignalR connected เท่านั้น; fallback batch ใช้ telemetry REST endpoint
 

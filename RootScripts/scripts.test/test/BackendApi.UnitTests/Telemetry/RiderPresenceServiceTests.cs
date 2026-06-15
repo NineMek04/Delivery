@@ -210,6 +210,99 @@ namespace BackendApi.UnitTests.Telemetry
         }
 
         [Fact]
+        public async Task ProcessLocationUpdateAsync_WithDegradedAccuracy_ShouldBroadcastAdminOnly()
+        {
+            var riderId = "rider_degraded_accuracy";
+            var presenceServiceMock = new Mock<RiderPresenceService>(
+                _redisMock.Object,
+                _presenceLoggerMock.Object);
+            var clientsMock = new Mock<IHubClients>();
+            var adminClientMock = new Mock<IClientProxy>();
+            clientsMock
+                .Setup(clients => clients.Group("admins"))
+                .Returns(adminClientMock.Object);
+            _hubContextMock
+                .SetupGet(context => context.Clients)
+                .Returns(clientsMock.Object);
+            _dbMock
+                .Setup(database => database.StringGetAsync(
+                    $"riders:status:{riderId}",
+                    CommandFlags.None))
+                .ReturnsAsync("IDLE");
+
+            var telemetryService = new TelemetryService(
+                _dbContextMock.Object,
+                presenceServiceMock.Object,
+                _presenceManagerMock.Object,
+                _rateLimiterMock.Object,
+                _gpsPublisherMock.Object,
+                _aggregatorMock.Object,
+                _routingServiceMock.Object,
+                _hubContextMock.Object,
+                _redisMock.Object,
+                _telemetryLoggerMock.Object);
+
+            await telemetryService.ProcessLocationUpdateAsync(
+                riderId,
+                13.7,
+                100.5,
+                120.0,
+                bypassRateLimit: true);
+
+            presenceServiceMock.Verify(service => service.UpdateGpsAsync(
+                It.IsAny<string>(),
+                It.IsAny<double>(),
+                It.IsAny<double>(),
+                It.IsAny<double>(),
+                It.IsAny<double>()), Times.Never);
+            _presenceManagerMock.Verify(manager =>
+                manager.HandleRiderHeartbeatAsync(It.IsAny<string>()), Times.Never);
+            adminClientMock.Verify(client => client.SendCoreAsync(
+                "RiderLocationUpdated",
+                It.Is<object[]>(arguments => MatchesDegradedAdminPayload(arguments)),
+                It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task ProcessLocationUpdateAsync_AboveUiThreshold_ShouldRejectImmediately()
+        {
+            var clientsMock = new Mock<IHubClients>();
+            var adminClientMock = new Mock<IClientProxy>();
+            clientsMock
+                .Setup(clients => clients.Group("admins"))
+                .Returns(adminClientMock.Object);
+            _hubContextMock
+                .SetupGet(context => context.Clients)
+                .Returns(clientsMock.Object);
+
+            var telemetryService = new TelemetryService(
+                _dbContextMock.Object,
+                new RiderPresenceService(_redisMock.Object, _presenceLoggerMock.Object),
+                _presenceManagerMock.Object,
+                _rateLimiterMock.Object,
+                _gpsPublisherMock.Object,
+                _aggregatorMock.Object,
+                _routingServiceMock.Object,
+                _hubContextMock.Object,
+                _redisMock.Object,
+                _telemetryLoggerMock.Object);
+
+            await telemetryService.ProcessLocationUpdateAsync(
+                "rider_rejected_accuracy",
+                13.7,
+                100.5,
+                301.0,
+                bypassRateLimit: true);
+
+            adminClientMock.Verify(client => client.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+            _dbMock.Verify(database => database.CreateBatch(
+                It.IsAny<object>()), Times.Never);
+        }
+
+        [Fact]
         public async Task ProcessLocationUpdateAsync_WhenTeleportAnomalyDetected_ShouldIgnoreUpdate()
         {
             // Arrange
@@ -239,6 +332,20 @@ namespace BackendApi.UnitTests.Telemetry
             // Assert
             // UpdateGpsAsync should never be called for this warp coordinate
             presenceServiceMock.Verify(p => p.UpdateGpsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>()), Times.Never);
+        }
+
+        private static bool MatchesDegradedAdminPayload(object[] arguments)
+        {
+            if (arguments.Length != 1) return false;
+
+            var payload = arguments[0];
+            var payloadType = payload.GetType();
+            var state = payloadType.GetProperty("State")?.GetValue(payload)?.ToString();
+            var accuracy = payloadType.GetProperty("Accuracy")?.GetValue(payload);
+
+            return state == "IDLE" &&
+                accuracy is double accuracyValue &&
+                accuracyValue == 120.0;
         }
     }
 }

@@ -349,7 +349,7 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     try {
       final locationNotifier = ref.read(locationServiceProvider.notifier);
       final settings = locationNotifier.buildLocationSettings(intervalSeconds: seconds);
-      locationNotifier.updateSettings(settings);
+      locationNotifier.updateSettings(settings, intervalSeconds: seconds);
       _logger.i('Dynamic GPS polling rate modified to $seconds seconds');
     } catch (e) {
       _logger.w('Failed to update dynamic GPS settings: $e');

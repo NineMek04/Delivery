@@ -167,6 +167,7 @@ services:
     container_name: delivery-rider-app
     volumes:
       - ./rider_app/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - map_tile_cache:/var/cache/nginx/map_tiles
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -311,3 +312,4 @@ volumes:
   grafana_data:
   vault_approle_data:
   data_protection_keys:
+  map_tile_cache:

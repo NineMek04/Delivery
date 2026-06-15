@@ -116,6 +116,8 @@ public static class ServiceSetup
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddSingleton<TelemetryAggregator>();
         services.AddScoped<TelemetryService>();
+        services.AddScoped<ClientRouteTelemetryService>();
+        services.AddScoped<RiderRouteService>();
         services.AddScoped<GpsHistoryService>();
         services.AddHttpClient();
         services.AddScoped<BackendApi.Services.Notifications.IFcmNotificationService, BackendApi.Services.Notifications.FcmNotificationService>();

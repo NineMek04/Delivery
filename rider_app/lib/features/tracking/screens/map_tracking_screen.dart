@@ -1,5 +1,3 @@
-
-
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -12,6 +10,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/api/services/client_route_telemetry_service.dart';
+import '../../../core/api/services/rider_route_api_service.dart';
 import '../../../core/signalr/signalr_service.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/location/location_service.dart';
@@ -23,7 +23,6 @@ import '../../../shared/utils/polyline_util.dart';
 import '../../../shared/widgets/connection_status_bar.dart';
 import '../../../shared/widgets/error_dialog.dart';
 import '../../delivery/providers/delivery_provider.dart';
-import '../providers/tracking_provider.dart';
 
 class LatLngTween extends Tween<LatLng> {
   LatLngTween({super.begin, super.end});
@@ -60,6 +59,7 @@ class MapTrackingScreen extends ConsumerStatefulWidget {
 class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   final MapController _mapController = MapController();
   static const _defaultCenter = LatLng(17.4138, 102.7872);
+  static const double _navigationZoom = 17.5;
   static const int _maxTimelineItems = 8;
 
   StreamSubscription<DispatchScanStartedEvent>? _scanSub;
@@ -86,6 +86,10 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   String? _dbDir;
   bool _mapReady = false;
   String? _lastViewportSignature;
+  String? _lastFollowSignature;
+  final Set<String> _reportedRouteFallbacks = <String>{};
+  final Set<String> _requestedLocalRoutes = <String>{};
+  final Map<String, String> _localRoutePolylines = <String, String>{};
 
   @override
   void initState() {
@@ -122,7 +126,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
 
   void _centerOn(LatLng? point) {
     if (point == null) return;
-    _mapController.move(point, 15);
+    _mapController.move(point, _navigationZoom);
   }
 
   Future<void> _launchMaps(LatLng target, String label) async {
@@ -308,19 +312,114 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         closestIdx = i;
       }
     }
-    
+
     return fullRoute.sublist(closestIdx);
   }
 
-  List<LatLng> _routeOrFallback(
+  _ResolvedRoute _resolveRoute(
     String? encodedPolyline,
     List<LatLng?> fallbackPoints,
   ) {
     final decoded = encodedPolyline?.isNotEmpty == true
         ? decodePolyline(encodedPolyline!)
         : const <LatLng>[];
-    if (decoded.length >= 2) return decoded;
-    return fallbackPoints.whereType<LatLng>().toList(growable: false);
+    if (decoded.length >= 2) {
+      return _ResolvedRoute(points: decoded);
+    }
+
+    return _ResolvedRoute(
+      points: fallbackPoints.whereType<LatLng>().toList(growable: false),
+      fallbackReason: encodedPolyline?.isNotEmpty == true
+          ? 'INVALID_POLYLINE'
+          : 'MISSING_POLYLINE',
+      encodedLength: encodedPolyline?.length,
+    );
+  }
+
+  void _reportRouteFallback(
+    OrderDto order,
+    String routePhase,
+    _ResolvedRoute route,
+  ) {
+    if (route.fallbackReason == null || route.points.length < 2) return;
+
+    final key = '${order.id}|$routePhase|${route.fallbackReason}';
+    if (!_reportedRouteFallbacks.add(key)) return;
+
+    Future.microtask(() {
+      if (!mounted) return;
+      unawaited(
+        ref.read(clientRouteTelemetryServiceProvider).reportFallback(
+              orderId: order.id,
+              routePhase: routePhase,
+              reason: route.fallbackReason!,
+              encodedLength: route.encodedLength,
+            ),
+      );
+    });
+  }
+
+  String _routeKey(String orderId, String routePhase) {
+    return '$orderId|$routePhase';
+  }
+
+  void _requestLocalOsrmRoute(
+    OrderDto order,
+    String routePhase,
+    LatLng riderPoint,
+    List<LatLng> fallbackPoints,
+  ) {
+    final key = _routeKey(order.id, routePhase);
+    if (_localRoutePolylines.containsKey(key) ||
+        !_requestedLocalRoutes.add(key)) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      try {
+        final route = await ref.read(riderRouteApiServiceProvider).resolve(
+              orderId: order.id,
+              routePhase: routePhase,
+              currentLat: riderPoint.latitude,
+              currentLng: riderPoint.longitude,
+            );
+        final decoded = decodePolyline(route.encodedPolyline);
+
+        if (route.source == 'LOCAL_OSRM' && decoded.length >= 2) {
+          if (!mounted) return;
+          setState(() {
+            _localRoutePolylines[key] = route.encodedPolyline;
+            _lastViewportSignature = null;
+            _lastFollowSignature = null;
+          });
+          return;
+        }
+      } catch (_) {
+        // The straight-line fallback remains visible while diagnostics are sent.
+      }
+
+      _reportRouteFallback(
+        order,
+        routePhase,
+        _ResolvedRoute(
+          points: fallbackPoints,
+          fallbackReason: 'LOCAL_OSRM_UNAVAILABLE',
+        ),
+      );
+    });
+  }
+
+  void _followRider(LatLng point, String signature) {
+    if (!_mapReady || _lastFollowSignature == signature) return;
+    _lastFollowSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mapReady) return;
+      try {
+        _mapController.move(point, _navigationZoom);
+      } catch (_) {}
+    });
   }
 
   void _fitMapToRoute(List<LatLng> points, String signature) {
@@ -457,7 +556,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         : null;
 
     final order = delivery.activeOrder;
-    
+
     // หากสิ้นสุดงานจำลอง (completed หรือ idle) และไม่มีงานจริง ให้เคลียร์จุดหมายและเส้นทางออก
     final isFinished = _simPhase == SimFlowPhase.completed || _simPhase == SimFlowPhase.idle;
 
@@ -472,23 +571,46 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     final orderStatus = order?.status.toUpperCase();
     final isHeadingToPickup =
         orderStatus == 'ASSIGNED' || orderStatus == 'PICKING_UP';
+    final routePhase = isHeadingToPickup ? 'PICKUP' : 'DELIVERY';
     final pickupRoute = delivery.pickupRouteOrderId == order?.id
         ? delivery.pickupEncodedPolyline
         : null;
-    final rawRoutePoints = order != null
+    final localRoutePolyline = order == null
+        ? null
+        : _localRoutePolylines[_routeKey(order.id, routePhase)];
+    final resolvedRoute = order != null
         ? (isHeadingToPickup
-            ? _routeOrFallback(pickupRoute, [riderPoint, pickup])
-            : _routeOrFallback(
-                order.encodedPolyline,
+            ? _resolveRoute(
+                localRoutePolyline ?? pickupRoute,
+                [riderPoint, pickup],
+              )
+            : _resolveRoute(
+                localRoutePolyline ?? order.encodedPolyline,
                 [riderPoint ?? pickup, dropoff],
               ))
-        : (isFinished
-            ? const <LatLng>[]
-            : (_simPhase == SimFlowPhase.pickup
-                ? _simPickupRoute
-                : _simDeliveryRoute));
-        
-    final routePoints = _getTailRoute(rawRoutePoints, riderPoint ?? _simRiderPoint);
+        : _ResolvedRoute(
+            points: isFinished
+                ? const <LatLng>[]
+                : (_simPhase == SimFlowPhase.pickup
+                    ? _simPickupRoute
+                    : _simDeliveryRoute),
+          );
+
+    if (order != null &&
+        riderPoint != null &&
+        resolvedRoute.fallbackReason != null) {
+      _requestLocalOsrmRoute(
+        order,
+        routePhase,
+        riderPoint,
+        resolvedRoute.points,
+      );
+    }
+
+    final routePoints = _getTailRoute(
+      resolvedRoute.points,
+      riderPoint ?? _simRiderPoint,
+    );
 
     final center = riderPoint ?? _simRiderPoint ?? pickup ?? dropoff ?? _defaultCenter;
     final viewportPoints = <LatLng>{
@@ -497,12 +619,20 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
       if (dropoff != null) dropoff,
       ...routePoints,
     }.toList(growable: false);
-    _fitMapToRoute(
-      viewportPoints,
-      '${order?.id}|$orderStatus|${routePoints.length}|'
-      '${riderPoint?.latitude.toStringAsFixed(4)}|'
-      '${riderPoint?.longitude.toStringAsFixed(4)}',
-    );
+    if (order != null && riderPoint != null) {
+      _followRider(
+        riderPoint,
+        '${order.id}|${riderPoint.latitude.toStringAsFixed(5)}|'
+        '${riderPoint.longitude.toStringAsFixed(5)}',
+      );
+    } else {
+      _fitMapToRoute(
+        viewportPoints,
+        '${order?.id}|$orderStatus|${routePoints.length}|'
+        '${riderPoint?.latitude.toStringAsFixed(4)}|'
+        '${riderPoint?.longitude.toStringAsFixed(4)}',
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -550,10 +680,20 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                             onMapReady: () {
                               _mapReady = true;
                               _lastViewportSignature = null;
-                              _fitMapToRoute(
-                                viewportPoints,
-                                'ready|${order?.id}|${routePoints.length}',
-                              );
+                              _lastFollowSignature = null;
+                              if (order != null && riderPoint != null) {
+                                _followRider(
+                                  riderPoint,
+                                  'ready|${order.id}|'
+                                  '${riderPoint.latitude.toStringAsFixed(5)}|'
+                                  '${riderPoint.longitude.toStringAsFixed(5)}',
+                                );
+                              } else {
+                                _fitMapToRoute(
+                                  viewportPoints,
+                                  'ready|${order?.id}|${routePoints.length}',
+                                );
+                              }
                             },
                           ),
                           children: [
@@ -771,6 +911,18 @@ class _SimTimelineItem {
   final String title;
   final String detail;
   final String time;
+}
+
+class _ResolvedRoute {
+  const _ResolvedRoute({
+    required this.points,
+    this.fallbackReason,
+    this.encodedLength,
+  });
+
+  final List<LatLng> points;
+  final String? fallbackReason;
+  final int? encodedLength;
 }
 
 class RiderLocationMarker extends StatelessWidget {

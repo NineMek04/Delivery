@@ -30,6 +30,8 @@ history, customer tracking, or AI/dispatch calculations.
 - Google encoded polyline precision 1e5
 - encoder: `BackendApi/Core/Helpers/PolylineEncoder.cs`
 - route client: `BackendApi/Features/AiRouting/OsrmRoutingService.cs`
+- Rider clients re-resolve missing/invalid active-order routes through
+  `POST /api/v1/rider-routes/resolve`; clients must not call OSRM directly.
 - persisted order fields: `EncodedPolyline`, `RouteDistanceMeters`,
   `RouteDurationSeconds`
 - client decode แล้วส่ง Leaflet เป็น `[lat,lng]`

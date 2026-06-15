@@ -38,6 +38,8 @@ argument defaults to `false` and production must not enable it.
 - `postgis/postgis:15-3.3`
 - PgBouncer transaction pooling
 - Redis AOF, 256 MB, `allkeys-lru`; PostgreSQL fallback is mandatory
+- Rider Nginx caches `/map-tiles/` responses on the persistent
+  `map_tile_cache` volume for 30 days, with stale-on-upstream-error enabled.
 - ProcessedEvents cleanup ต้องใช้ indexed `ProcessedAt`
 - partition/index DDL ต้อง idempotent และอยู่ใน service migration
 
@@ -57,6 +59,9 @@ argument defaults to `false` and production must not enable it.
 
 ## 5. Telemetry
 
+- Rider route fallback diagnostics are authenticated, ownership-checked,
+  de-duplicated by the client, and logged to Seq with CorrelationId, OrderId,
+  RiderId, phase, and reason.
 - high-frequency input ห้าม query PostgreSQL ต่อ message เพื่อ dashboard
 - aggregate/batch ก่อน SignalR broadcast
 - admin telemetry target สูงสุด 0.5 Hz สำหรับ summary stream

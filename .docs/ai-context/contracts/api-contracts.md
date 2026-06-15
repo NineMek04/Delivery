@@ -110,10 +110,42 @@ GET /rider-locations
 GET /rider-locations/{riderId}/history?from=...&to=...
 POST /telemetry/gps
 POST /telemetry/gps/batch
+POST /telemetry/client-route-fallback
 GET /telemetry/mobile-config
+POST /rider-routes/resolve
 ```
 
 GPS history อ่าน PostgreSQL history; Redis ใช้ current operational location เท่านั้น.
+
+Route fallback request:
+
+```json
+{
+  "orderId": "uuid",
+  "routePhase": "PICKUP",
+  "reason": "MISSING_POLYLINE",
+  "encodedLength": 0
+}
+```
+
+`routePhase` is `PICKUP` or `DELIVERY`; `reason` is `MISSING_POLYLINE` or
+`INVALID_POLYLINE` or `LOCAL_OSRM_UNAVAILABLE`. The authenticated rider must
+own the assigned order.
+
+Rider route resolution request:
+
+```json
+{
+  "orderId": "uuid",
+  "routePhase": "PICKUP",
+  "currentLat": 17.41,
+  "currentLng": 102.78
+}
+```
+
+The Backend verifies assigned-rider ownership and calls local OSRM. Response
+fields are `encodedPolyline`, `distanceMeters`, `durationSeconds`, and
+`source` (`LOCAL_OSRM` or `HAVERSINE_FALLBACK`).
 
 ## 6. AI Proxy
 

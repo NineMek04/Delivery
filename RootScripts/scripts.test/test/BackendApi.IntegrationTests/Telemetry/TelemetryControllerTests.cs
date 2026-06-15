@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Xunit;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Features.FleetTracking.Models;
+using BackendApi.Features.AiRouting;
 using BackendApi.Core.Models;
 
 namespace BackendApi.IntegrationTests
@@ -168,6 +169,98 @@ namespace BackendApi.IntegrationTests
             Assert.True(body.Success);
             Assert.True(body.Value.IntervalSeconds >= 3);
             Assert.True(body.Value.ServerTime > DateTime.UtcNow.AddMinutes(-5));
+        }
+
+        [Fact]
+        public async Task PostClientRouteFallback_WithoutAuth_Returns401Unauthorized()
+        {
+            var payload = new ClientRouteFallbackRequest
+            {
+                OrderId = Guid.NewGuid().ToString(),
+                RoutePhase = "PICKUP",
+                Reason = "MISSING_POLYLINE",
+                EncodedLength = 0
+            };
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/v1/telemetry/client-route-fallback",
+                payload);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostClientRouteFallback_ForUnassignedOrder_Returns403Forbidden()
+        {
+            var payload = new ClientRouteFallbackRequest
+            {
+                OrderId = Guid.NewGuid().ToString(),
+                RoutePhase = "DELIVERY",
+                Reason = "INVALID_POLYLINE",
+                EncodedLength = 3
+            };
+
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/v1/telemetry/client-route-fallback")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", _accessToken);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<ApiResponse<string>>();
+            Assert.NotNull(body);
+            Assert.Equal(403, body.Status);
+        }
+
+        [Fact]
+        public async Task ResolveRiderRoute_WithoutAuth_Returns401Unauthorized()
+        {
+            var payload = new RiderRouteRequest
+            {
+                OrderId = Guid.NewGuid().ToString(),
+                RoutePhase = "PICKUP",
+                CurrentLat = 17.4138,
+                CurrentLng = 102.7872
+            };
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/v1/rider-routes/resolve",
+                payload);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ResolveRiderRoute_ForUnassignedOrder_Returns403Forbidden()
+        {
+            var payload = new RiderRouteRequest
+            {
+                OrderId = Guid.NewGuid().ToString(),
+                RoutePhase = "DELIVERY",
+                CurrentLat = 17.4138,
+                CurrentLng = 102.7872
+            };
+
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/v1/rider-routes/resolve")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", _accessToken);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<ApiResponse<RiderRouteResponse>>();
+            Assert.NotNull(body);
+            Assert.Equal(403, body.Status);
         }
 
         [Fact]

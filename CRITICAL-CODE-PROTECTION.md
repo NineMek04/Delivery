@@ -49,18 +49,19 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 | 32 | `rider_app/lib/core/location/location_service.dart` | GPS permission/filter/background behavior |
 | 33 | `rider_app/lib/core/database/local_database_service.dart` | pending GPS/status durable schema |
 | 34 | `admin-dashboard/src/app/features/map/map.component.ts` | live map, polyline, Canvas rendering and safe popups |
+| 35 | `BackendApi/Services/Ai/RiderRouteService.cs` and `BackendApi/Features/AiRouting/RiderRoutesController.cs` | assigned-rider ownership, local OSRM routing and Haversine fallback contract |
 
 ## Tier 3: Configuration Critical
 
 | # | File | Verification required |
 |---:|---|---|
-| 35 | `docker-compose.yml` and `docker-compose.override.yml` | topology, loopback exposure, health dependencies |
-| 36 | `BackendApi/Program.cs` | bootstrap |
-| 37 | `nginx-proxy/nginx.conf` | API, SignalR and frontend proxy routes |
-| 38 | `ai-engine/app/models/` | strict Pydantic request contracts |
-| 39 | `BackendApi/Data/ApplicationDbContext.cs` | PostGIS, indexes, filters, `xmin`, ProcessedEvents |
-| 40 | `BackendApi/Migrations/20260614152246_ConsolidatedBaseline20260614.cs` | consolidated fresh-database baseline |
-| 41 | `BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs` and `MigrationBaselineCompatibility.cs` | idempotent PostgreSQL-specific schema evolution/compatibility bridge |
+| 36 | `docker-compose.yml` and `docker-compose.override.yml` | topology, loopback exposure, health dependencies |
+| 37 | `BackendApi/Program.cs` | bootstrap |
+| 38 | `nginx-proxy/nginx.conf` | API, SignalR and frontend proxy routes |
+| 39 | `ai-engine/app/models/` | strict Pydantic request contracts |
+| 40 | `BackendApi/Data/ApplicationDbContext.cs` | PostGIS, indexes, filters, `xmin`, ProcessedEvents |
+| 41 | `BackendApi/Migrations/20260614152246_ConsolidatedBaseline20260614.cs` | consolidated fresh-database baseline |
+| 42 | `BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs` and `MigrationBaselineCompatibility.cs` | idempotent PostgreSQL-specific schema evolution/compatibility bridge |
 
 ## Protected Endpoints
 

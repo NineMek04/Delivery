@@ -25,15 +25,18 @@ namespace BackendApi.Features.FleetTracking.Telemetry
     public class TelemetryController : DeliveryControllerBase
     {
         private readonly TelemetryService _telemetryService;
+        private readonly ClientRouteTelemetryService _clientRouteTelemetryService;
         private readonly GpsRedisRateLimiter _rateLimiter;
         private readonly GpsRabbitMqPublisher _publisher;
 
         public TelemetryController(
             TelemetryService telemetryService,
+            ClientRouteTelemetryService clientRouteTelemetryService,
             GpsRedisRateLimiter rateLimiter,
             GpsRabbitMqPublisher publisher)
         {
             _telemetryService = telemetryService;
+            _clientRouteTelemetryService = clientRouteTelemetryService;
             _rateLimiter = rateLimiter;
             _publisher = publisher;
         }
@@ -169,6 +172,43 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             };
 
             return Ok(ApiResponse<MobileConfigResponse>.Ok(config));
+        }
+
+        /// <summary>
+        /// Records when the Rider client must render a straight-line route fallback.
+        /// The report is accepted only for an order assigned to the authenticated rider.
+        /// </summary>
+        [HttpPost("client-route-fallback")]
+        [Authorize(Policy = AuthConstants.RiderPolicy)]
+        [RequestSizeLimit(4096)]
+        public async Task<ActionResult<ApiResponse<string>>> PostClientRouteFallback(
+            [FromBody] ClientRouteFallbackRequest request,
+            CancellationToken cancellationToken)
+        {
+            var userId = CurrentUserId;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Unauthorized(ApiResponse<string>.Fail(
+                    StatusCodes.Status401Unauthorized,
+                    "User could not be identified."));
+            }
+
+            var accepted = await _clientRouteTelemetryService.ReportFallbackAsync(
+                userId,
+                request,
+                CorrelationIdProvider.GetOrCreate(HttpContext),
+                cancellationToken);
+
+            if (!accepted)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    ApiResponse<string>.Fail(
+                        StatusCodes.Status403Forbidden,
+                        "Route fallback report is not allowed for this order."));
+            }
+
+            return Ok(ApiResponse<string>.Ok("Route fallback report accepted."));
         }
     }
 }

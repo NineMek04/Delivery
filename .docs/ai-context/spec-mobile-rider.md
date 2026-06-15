@@ -49,9 +49,15 @@
 - After accept, the rider map retains the offer pickup route and displays
   Rider-to-pickup during `ASSIGNED`/`PICKING_UP`, then the persisted
   pickup-to-dropoff route during `DELIVERING`. Missing or invalid polylines
-  fall back to a straight line without breaking map rendering.
+  are re-resolved through the authenticated Backend rider-route endpoint,
+  which uses local OSRM and its Redis route cache. A straight line is the
+  final fallback only while OSRM is unavailable; the client reports that
+  fallback once per order/phase/reason without interrupting navigation.
+- During an active order, the map follows the rider at navigation zoom 17.5;
+  route fitting is reserved for non-navigation/initial overview states.
 - Flutter web map tiles use the Rider Nginx same-origin `/map-tiles/` proxy;
-  native clients may continue using a direct tile provider with local cache.
+  Nginx stores successful tiles in a persistent 30-day disk cache. Native
+  clients may continue using a direct tile provider with local cache.
 - Order phase เปลี่ยนผ่าน `PATCH /api/v1/orders/{id}/status`
 - Rider state ใช้เฉพาะ `OFFLINE`, `IDLE`, `RESERVED`, `BUSY`, `STALE`
 - offline status mutation ต้อง queue และ preserve order

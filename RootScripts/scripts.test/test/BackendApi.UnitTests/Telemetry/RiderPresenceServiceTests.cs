@@ -101,6 +101,87 @@ namespace BackendApi.UnitTests.Telemetry
         }
 
         [Fact]
+        public async Task UpdateGpsAsync_ShouldRefreshHeartbeat()
+        {
+            var riderId = "rider_heartbeat_123";
+            var presenceService = new RiderPresenceService(
+                _redisMock.Object,
+                _presenceLoggerMock.Object);
+
+            await presenceService.UpdateGpsAsync(
+                riderId,
+                13.7,
+                100.5,
+                0);
+
+            var heartbeatWrite = _batchMock.Invocations.SingleOrDefault(
+                invocation =>
+                    invocation.Method.Name == nameof(IBatch.StringSetAsync) &&
+                    invocation.Arguments[0].ToString() ==
+                        $"riders:heartbeat:{riderId}");
+
+            Assert.NotNull(heartbeatWrite);
+            Assert.Equal("EX 300", heartbeatWrite!.Arguments[2].ToString());
+        }
+
+        [Fact]
+        public async Task GetNearbyRidersAsync_ShouldExcludeAndRemoveStaleMembers()
+        {
+            var freshRiderId = "rider_fresh";
+            var staleRiderId = "rider_stale";
+            var freshResult = new GeoRadiusResult(
+                freshRiderId,
+                1.0,
+                null,
+                new GeoPosition(100.51, 13.71));
+            var staleResult = new GeoRadiusResult(
+                staleRiderId,
+                2.0,
+                null,
+                new GeoPosition(100.52, 13.72));
+
+            _dbMock.Setup(database => database.GeoRadiusAsync(
+                    "riders:locations",
+                    100.5,
+                    13.7,
+                    10,
+                    GeoUnit.Kilometers,
+                    -1,
+                    Order.Ascending,
+                    GeoRadiusOptions.WithCoordinates |
+                        GeoRadiusOptions.WithDistance,
+                    CommandFlags.None))
+                .ReturnsAsync([freshResult, staleResult]);
+            _dbMock.Setup(database => database.StringGetAsync(
+                    $"riders:heartbeat:{freshRiderId}",
+                    CommandFlags.None))
+                .ReturnsAsync(DateTime.UtcNow.Ticks);
+            _dbMock.Setup(database => database.StringGetAsync(
+                    $"riders:heartbeat:{staleRiderId}",
+                    CommandFlags.None))
+                .ReturnsAsync(RedisValue.Null);
+
+            var presenceService = new RiderPresenceService(
+                _redisMock.Object,
+                _presenceLoggerMock.Object);
+
+            var results = await presenceService.GetNearbyRidersAsync(
+                13.7,
+                100.5,
+                10);
+
+            Assert.Single(results);
+            Assert.Equal(freshRiderId, results[0].Member.ToString());
+            _batchMock.Verify(batch => batch.GeoRemoveAsync(
+                "riders:locations",
+                staleRiderId,
+                CommandFlags.None), Times.Once);
+            _batchMock.Verify(batch => batch.KeyDeleteAsync(
+                $"riders:gps:{staleRiderId}",
+                CommandFlags.None), Times.Once);
+        }
+
+        [Fact]
         public async Task ProcessLocationUpdateAsync_WithInvalidCoordinates_ShouldRejectImmediately()
         {
             // Arrange

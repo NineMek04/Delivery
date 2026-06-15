@@ -49,7 +49,8 @@ class LocationService extends Notifier<LocationState> {
     }
     ref.read(gpsBufferServiceProvider).startSyncTimer();
     if (kIsWeb) {
-      _logger.i('🌐 Web Platform detected. Attempting to start GPS (with Mock fallback)...');
+      _logger.i('Web platform detected. Attempting to start browser GPS.');
+      String? locationFailure;
       try {
         // ลองดึงสิทธิ์และพิกัดจริงบน Web แบบปลอดภัยที่สุด
         final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -80,17 +81,31 @@ class LocationService extends Notifier<LocationState> {
               _startRealStream();
               return true;
             } catch (streamError) {
-              _logger.w('⚠️ Failed to start real GPS stream on Web, falling back to mock: $streamError');
+              _logger.w('Failed to start browser GPS stream: $streamError');
+              locationFailure = 'Unable to start browser GPS tracking.';
             }
+          } else {
+            locationFailure = 'Location permission is required to go online.';
           }
+        } else {
+          locationFailure = 'Location services are disabled.';
         }
       } catch (e) {
-        _logger.w('⚠️ Geolocator check failed on Web. Falling back to Mock GPS stream: $e');
+        _logger.w('Browser geolocation check failed: $e');
+        locationFailure = 'Unable to access browser location services.';
       }
 
-      // ถ้าไม่มีสิทธิ์ หรือเกิด Exception (รวมถึง Null check crash ภายใน geolocator_web) -> ใช้ Mock GPS
-      _startMockStream();
-      return true;
+      if (Environment.enableMockGps) {
+        _logger.w('ENABLE_MOCK_GPS is active. Using demo coordinates.');
+        _startMockStream();
+        return true;
+      }
+
+      ref.read(gpsBufferServiceProvider).stopSyncTimer();
+      state = LocationState(
+        error: locationFailure ?? 'A valid GPS position is required.',
+      );
+      return false;
     }
 
     // ── สำหรับ Mobile App จริง (Android / iOS) ──────────────────────

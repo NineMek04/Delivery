@@ -20,10 +20,15 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 class RiderSessionService extends Notifier<RiderSessionState> {
   StreamSubscription<DispatchOffer>? _offerSub;
   StreamSubscription<OrderStatusChangedEvent>? _orderStatusSub;
+  Timer? _heartbeatTimer;
+  bool _heartbeatInFlight = false;
 
   @override
   RiderSessionState build() {
-    ref.onDispose(_disposeSubscriptions);
+    ref.onDispose(() {
+      _stopHeartbeatTimer();
+      _disposeSubscriptions();
+    });
 
     // Listen for auth transitions to trigger restoring online state
     ref.listen<AuthStatus>(authServiceProvider, (previous, next) async {
@@ -58,8 +63,8 @@ class RiderSessionService extends Notifier<RiderSessionState> {
         );
         try {
           final signalR = ref.read(signalRServiceProvider.notifier);
-          await signalR.updateStatus(AppConstants.statusAvailable);
           await signalR.sendHeartbeat();
+          _startHeartbeatTimer();
 
           // Jitter: สุ่มหน่วงเวลา 500ms - 3500ms ก่อนเรียก API เพื่อกระจายโหลด (ป้องกัน Thundering Herd)
           final randomDelay = Duration(
@@ -130,10 +135,16 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       await signalR.connect();
 
       _logger.d("goOnline Step 2: Updating Status to IDLE");
-      await signalR.updateStatus(AppConstants.statusAvailable);
+      final statusUpdated = await signalR.updateStatus(
+        AppConstants.statusAvailable,
+      );
+      if (!statusUpdated) {
+        throw StateError('Backend rejected rider online status.');
+      }
 
       _logger.d("goOnline Step 3: Sending Heartbeat");
       await signalR.sendHeartbeat();
+      _startHeartbeatTimer();
 
       _logger.d("goOnline Step 4: Starting Location Tracking");
       final locationStarted = await ref
@@ -200,9 +211,16 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       final signalR = ref.read(signalRServiceProvider.notifier);
       if (ref.read(signalRServiceProvider) ==
           SignalRConnectionState.connected) {
-        await signalR.updateStatus(AppConstants.statusOffline);
+        final statusUpdated = await signalR.updateStatus(
+          AppConstants.statusOffline,
+        );
+        if (!statusUpdated) {
+          throw StateError(
+            'Backend rejected offline status while a delivery is active.',
+          );
+        }
       }
-      await _tearDown();
+      await _tearDown(notifyOffline: false);
 
       state = const RiderSessionState(isOnline: false, isTransitioning: false);
 
@@ -251,7 +269,8 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     });
   }
 
-  Future<void> _tearDown() async {
+  Future<void> _tearDown({bool notifyOffline = true}) async {
+    _stopHeartbeatTimer();
     _disposeSubscriptions();
     await ref.read(locationServiceProvider.notifier).stopTracking();
 
@@ -259,7 +278,9 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     // ป้องกันปัญหา state ค้างอยู่ที่ IDLE ใน DB เมื่อ GPS fail ระหว่าง goOnline()
     // ซึ่งจะทำให้การ goOnline() ครั้งต่อไป fail ด้วย IDLE→IDLE Illegal transition
     final signalR = ref.read(signalRServiceProvider.notifier);
-    if (ref.read(signalRServiceProvider) == SignalRConnectionState.connected) {
+    if (notifyOffline &&
+        ref.read(signalRServiceProvider) ==
+            SignalRConnectionState.connected) {
       try {
         await signalR.updateStatus(AppConstants.statusOffline);
       } catch (e) {
@@ -267,6 +288,36 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       }
     }
     await signalR.disconnect();
+  }
+
+  void _startHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(
+      const Duration(
+        seconds: AppConstants.riderHeartbeatIntervalSeconds,
+      ),
+      (_) async {
+        if (_heartbeatInFlight ||
+            !state.isOnline ||
+            ref.read(signalRServiceProvider) !=
+                SignalRConnectionState.connected) {
+          return;
+        }
+
+        _heartbeatInFlight = true;
+        try {
+          await ref.read(signalRServiceProvider.notifier).sendHeartbeat();
+        } finally {
+          _heartbeatInFlight = false;
+        }
+      },
+    );
+  }
+
+  void _stopHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _heartbeatInFlight = false;
   }
 
   void _disposeSubscriptions() {

@@ -69,12 +69,19 @@ class Environment {
 
   static const bool isDevelopment = bool.fromEnvironment(
     'DEBUG',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   static const bool enableHttpLogging = bool.fromEnvironment(
     'HTTP_LOGGING',
-    defaultValue: true,
+    defaultValue: false,
+  );
+
+  /// Demo-only fallback. Production builds must never publish a fabricated
+  /// rider position when browser geolocation is unavailable.
+  static const bool enableMockGps = bool.fromEnvironment(
+    'ENABLE_MOCK_GPS',
+    defaultValue: false,
   );
 
   static const Duration connectTimeout = Duration(seconds: 15);

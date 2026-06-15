@@ -16,6 +16,7 @@ public class RiderPresenceService
 {
     private readonly IDatabase _db;
     private readonly ILogger<RiderPresenceService> _logger;
+    private readonly TimeSpan _presenceFreshness;
 
     private const string GeoKey = "riders:locations";           // GEOADD key
     private const string HeartbeatPrefix = "riders:heartbeat:";  // Hash per rider
@@ -23,10 +24,24 @@ public class RiderPresenceService
     private const string SpeedBufferPrefix = "riders:speed_buffer:"; // List for 5-point moving average
     private const int SpeedBufferSize = 5;                      // จำนวนจุด GPS สำหรับ Moving Average
 
-    public RiderPresenceService(IConnectionMultiplexer redis, ILogger<RiderPresenceService> logger)
+    public RiderPresenceService(
+        IConnectionMultiplexer redis,
+        ILogger<RiderPresenceService> logger)
+        : this(redis, logger, null)
+    {
+    }
+
+    public RiderPresenceService(
+        IConnectionMultiplexer redis,
+        ILogger<RiderPresenceService> logger,
+        IConfiguration? configuration)
     {
         _db = redis.GetDatabase();
         _logger = logger;
+        var heartbeatTimeoutSeconds =
+            configuration?.GetValue("Dispatch:HeartbeatTimeoutSeconds", 20) ?? 20;
+        _presenceFreshness = TimeSpan.FromSeconds(
+            Math.Max(heartbeatTimeoutSeconds * 2, 30));
     }
 
     // ── GPS Operations ─────────────────────────────────────────────
@@ -54,6 +69,10 @@ public class RiderPresenceService
                 new HashEntry("speed_kmh", speedKmh)
             }));
             tasks.Add(batch.KeyExpireAsync(gpsKey, TimeSpan.FromHours(24)));
+            tasks.Add(batch.StringSetAsync(
+                HeartbeatPrefix + riderId,
+                DateTime.UtcNow.Ticks,
+                TimeSpan.FromMinutes(5)));
 
             // เพิ่มค่าความเร็วลง Speed Buffer (5-point Moving Average)
             if (speedKmh > 0)
@@ -98,13 +117,72 @@ public class RiderPresenceService
     {
         try
         {
-            return await _db.GeoRadiusAsync(
+            var nearbyRiders = await _db.GeoRadiusAsync(
                 GeoKey,
                 lng, lat,
                 radiusKm,
                 GeoUnit.Kilometers,
                 order: Order.Ascending,  // เรียงจากใกล้ไปไกล
                 options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance);
+
+            if (nearbyRiders.Length == 0)
+            {
+                return nearbyRiders;
+            }
+
+            var heartbeatTasks = nearbyRiders
+                .Select(result => _db.StringGetAsync(
+                    HeartbeatPrefix + result.Member.ToString()))
+                .ToArray();
+            var heartbeatValues = await Task.WhenAll(heartbeatTasks);
+            var now = DateTime.UtcNow;
+            var freshRiders = new List<GeoRadiusResult>(nearbyRiders.Length);
+            var staleMembers = new List<RedisValue>();
+
+            for (var index = 0; index < nearbyRiders.Length; index++)
+            {
+                var heartbeat = heartbeatValues[index];
+                if (heartbeat.HasValue &&
+                    heartbeat.TryParse(out long ticks) &&
+                    ticks > 0)
+                {
+                    try
+                    {
+                        var lastSeen = new DateTime(ticks, DateTimeKind.Utc);
+                        if (now - lastSeen <= _presenceFreshness)
+                        {
+                            freshRiders.Add(nearbyRiders[index]);
+                            continue;
+                        }
+                    }
+                    catch (ArgumentOutOfRangeException)
+                    {
+                        // Invalid cache data is stale and removed below.
+                    }
+                }
+
+                staleMembers.Add(nearbyRiders[index].Member);
+            }
+
+            if (staleMembers.Count > 0)
+            {
+                var cleanupBatch = _db.CreateBatch();
+                var cleanupTasks = new List<Task>(staleMembers.Count * 2);
+                foreach (var member in staleMembers)
+                {
+                    cleanupTasks.Add(cleanupBatch.GeoRemoveAsync(GeoKey, member));
+                    cleanupTasks.Add(cleanupBatch.KeyDeleteAsync(
+                        GpsPrefix + member.ToString()));
+                }
+
+                cleanupBatch.Execute();
+                await Task.WhenAll(cleanupTasks);
+                _logger.LogInformation(
+                    "Removed {Count} stale riders from Redis GEO presence index",
+                    staleMembers.Count);
+            }
+
+            return freshRiders.ToArray();
         }
         catch (Exception ex)
         {

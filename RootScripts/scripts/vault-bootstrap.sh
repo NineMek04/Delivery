@@ -1,60 +1,103 @@
 #!/bin/sh
-export VAULT_ADDR='http://vault:8200'
 
-# Wait for vault to be ready
-echo "Waiting for Vault to start..."
-until vault status > /dev/null 2>&1 || [ $? -eq 2 ]; do
-  sleep 1
-done
-
-echo "Vault is up. Configuring..."
-
-export VAULT_ADDR='http://vault:8200'
+export VAULT_ADDR="${VAULT_ADDR:-http://vault:8200}"
 : "${VAULT_TOKEN:?VAULT_TOKEN must be provided}"
 
-# Enable KV v2 at secret/
-vault secrets enable -path=secret -version=2 kv || true
+APPROLE_DIR=/vault/approle
+READY_FILE="${APPROLE_DIR}/ready"
+CHECK_INTERVAL_SECONDS="${VAULT_BOOTSTRAP_CHECK_INTERVAL_SECONDS:-10}"
 
-# Put delivery secrets (reading from env injected by docker-compose)
-vault kv put secret/delivery/backend \
-  PostgresPassword="${POSTGRES_PASSWORD}" \
-  Jwt__CurrentKeyId="current" \
-  Jwt__Keys__current="${JWT_SECRET}" \
-  RabbitMqPassword="${RABBITMQ_PASSWORD}" \
-  AiServiceApiKey="${AI_SERVICE_API_KEY}"
+wait_for_vault() {
+  echo "Waiting for Vault to start..."
+  until vault status >/dev/null 2>&1 || [ "$?" -eq 2 ]; do
+    sleep 1
+  done
+}
 
-vault kv put secret/delivery/ai \
-  PostgresPassword="${POSTGRES_PASSWORD}" \
-  AiServiceApiKey="${AI_SERVICE_API_KEY}"
+credentials_match_current_vault() {
+  [ -s "${READY_FILE}" ] &&
+    [ -s "${APPROLE_DIR}/backend_role_id" ] &&
+    [ -s "${APPROLE_DIR}/ai_role_id" ] &&
+    [ "$(cat "${APPROLE_DIR}/backend_role_id")" = "$(vault read -field=role_id auth/approle/role/backend-role/role-id 2>/dev/null)" ] &&
+    [ "$(cat "${APPROLE_DIR}/ai_role_id")" = "$(vault read -field=role_id auth/approle/role/ai-role/role-id 2>/dev/null)" ]
+}
 
-# Enable AppRole auth
-vault auth enable approle || true
+configure_vault() {
+  echo "Vault is up. Configuring delivery secrets and AppRoles..."
+  rm -f "${READY_FILE}"
 
-# Create policies
-cat <<EOF > /tmp/backend-policy.hcl
+  vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1 || true
+
+  vault kv put secret/delivery/backend \
+    PostgresPassword="${POSTGRES_PASSWORD}" \
+    Jwt__CurrentKeyId="current" \
+    Jwt__Keys__current="${JWT_SECRET}" \
+    RabbitMqPassword="${RABBITMQ_PASSWORD}" \
+    AiServiceApiKey="${AI_SERVICE_API_KEY}" || return 1
+
+  vault kv put secret/delivery/ai \
+    PostgresPassword="${POSTGRES_PASSWORD}" \
+    AiServiceApiKey="${AI_SERVICE_API_KEY}" || return 1
+
+  vault auth enable approle >/dev/null 2>&1 || true
+
+  cat <<EOF > /tmp/backend-policy.hcl
 path "secret/data/delivery/backend" {
   capabilities = ["read"]
 }
 EOF
-vault policy write backend-policy /tmp/backend-policy.hcl
+  vault policy write backend-policy /tmp/backend-policy.hcl || return 1
 
-cat <<EOF > /tmp/ai-policy.hcl
+  cat <<EOF > /tmp/ai-policy.hcl
 path "secret/data/delivery/ai" {
   capabilities = ["read"]
 }
 EOF
-vault policy write ai-policy /tmp/ai-policy.hcl
+  vault policy write ai-policy /tmp/ai-policy.hcl || return 1
 
-# Create AppRoles
-vault write auth/approle/role/backend-role policies="backend-policy" token_ttl=1h token_max_ttl=4h
-vault write auth/approle/role/ai-role policies="ai-policy" token_ttl=1h token_max_ttl=4h
+  vault write auth/approle/role/backend-role \
+    policies="backend-policy" token_ttl=1h token_max_ttl=4h || return 1
+  vault write auth/approle/role/ai-role \
+    policies="ai-policy" token_ttl=1h token_max_ttl=4h || return 1
 
-# Inject RoleID and SecretID into shared volume
-mkdir -p /vault/approle
-vault read -field=role_id auth/approle/role/backend-role/role-id > /vault/approle/backend_role_id
-vault write -f -field=secret_id auth/approle/role/backend-role/secret-id > /vault/approle/backend_secret_id
+  mkdir -p "${APPROLE_DIR}"
+  umask 077
 
-vault read -field=role_id auth/approle/role/ai-role/role-id > /vault/approle/ai_role_id
-vault write -f -field=secret_id auth/approle/role/ai-role/secret-id > /vault/approle/ai_secret_id
+  backend_role_tmp="${APPROLE_DIR}/backend_role_id.tmp.$$"
+  backend_secret_tmp="${APPROLE_DIR}/backend_secret_id.tmp.$$"
+  ai_role_tmp="${APPROLE_DIR}/ai_role_id.tmp.$$"
+  ai_secret_tmp="${APPROLE_DIR}/ai_secret_id.tmp.$$"
 
-echo "Vault Bootstrap Complete! AppRole credentials written to /vault/approle"
+  vault read -field=role_id auth/approle/role/backend-role/role-id >"${backend_role_tmp}" || return 1
+  vault write -f -field=secret_id auth/approle/role/backend-role/secret-id >"${backend_secret_tmp}" || return 1
+  vault read -field=role_id auth/approle/role/ai-role/role-id >"${ai_role_tmp}" || return 1
+  vault write -f -field=secret_id auth/approle/role/ai-role/secret-id >"${ai_secret_tmp}" || return 1
+
+  [ -s "${backend_role_tmp}" ] &&
+    [ -s "${backend_secret_tmp}" ] &&
+    [ -s "${ai_role_tmp}" ] &&
+    [ -s "${ai_secret_tmp}" ] || return 1
+
+  mv "${backend_role_tmp}" "${APPROLE_DIR}/backend_role_id"
+  mv "${backend_secret_tmp}" "${APPROLE_DIR}/backend_secret_id"
+  mv "${ai_role_tmp}" "${APPROLE_DIR}/ai_role_id"
+  mv "${ai_secret_tmp}" "${APPROLE_DIR}/ai_secret_id"
+  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"${READY_FILE}"
+
+  echo "Vault bootstrap complete. AppRole credentials are current."
+}
+
+while true; do
+  wait_for_vault
+
+  if ! credentials_match_current_vault; then
+    until configure_vault; do
+      echo "Vault bootstrap failed; retrying in 2 seconds."
+      rm -f "${READY_FILE}"
+      sleep 2
+      wait_for_vault
+    done
+  fi
+
+  sleep "${CHECK_INTERVAL_SECONDS}"
+done

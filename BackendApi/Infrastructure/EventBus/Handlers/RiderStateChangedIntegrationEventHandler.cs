@@ -67,11 +67,24 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                         // Rider app came online from OFFLINE
                         if (rider.State == RiderState.OFFLINE)
                         {
-                            var newState = await HasActiveJobAsync(@event.RiderId)
-                                ? RiderState.BUSY
-                                : RiderState.IDLE;
                             var oldState = rider.State;
-                            if (await _stateMachine.TransitionRiderAsync(rider, newState))
+                            var hasActiveJob = await HasActiveJobAsync(@event.RiderId);
+                            var restored = await _stateMachine.TransitionRiderAsync(
+                                rider,
+                                RiderState.IDLE);
+
+                            if (restored && hasActiveJob)
+                            {
+                                restored =
+                                    await _stateMachine.TransitionRiderAsync(
+                                        rider,
+                                        RiderState.RESERVED) &&
+                                    await _stateMachine.TransitionRiderAsync(
+                                        rider,
+                                        RiderState.BUSY);
+                            }
+
+                            if (restored)
                             {
                                 await BroadcastRiderStateChangeAsync(rider, oldState, "connect");
                             }
@@ -199,4 +212,3 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                  o.State == OrderState.DELIVERING));
     }
 }
-

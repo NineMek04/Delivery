@@ -92,6 +92,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      vault-bootstrap:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 30s
@@ -100,6 +102,7 @@ services:
       start_period: 60s
     volumes:
       - vault_approle_data:/vault/approle:ro
+      - data_protection_keys:/root/.aspnet/DataProtection-Keys
 
   # 3. Redis — Realtime Speed Layer (GPS Cache, Distributed Lock, Rider Presence)
   redis:
@@ -131,6 +134,8 @@ services:
       - VAULT_REQUIRED=true
     depends_on:
       db:
+        condition: service_healthy
+      vault-bootstrap:
         condition: service_healthy
     # Ports removed to isolate the container from public access (OWASP LLM10 / LLM07 API Isolation)
     restart: unless-stopped
@@ -258,16 +263,24 @@ services:
     environment:
       - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_DEV_ROOT_TOKEN:?VAULT_DEV_ROOT_TOKEN must be set}
       - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://127.0.0.1:8200
     volumes:
       - vault_approle_data:/vault/approle
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "vault status >/dev/null 2>&1 || [ $$? -eq 2 ]"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   vault-bootstrap:
     image: hashicorp/vault:latest
     container_name: delivery-vault-bootstrap
     user: "root"
     depends_on:
-      - vault
+      vault:
+        condition: service_healthy
     volumes:
       - ./RootScripts/scripts/vault-bootstrap.sh:/vault-bootstrap.sh
       - vault_approle_data:/vault/approle
@@ -279,6 +292,17 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
     entrypoint: ["sh", "/vault-bootstrap.sh"]
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test -s /vault/approle/ready && test \"$$(cat /vault/approle/backend_role_id)\" = \"$$(vault read -field=role_id auth/approle/role/backend-role/role-id 2>/dev/null)\" && test \"$$(cat /vault/approle/ai_role_id)\" = \"$$(vault read -field=role_id auth/approle/role/ai-role/role-id 2>/dev/null)\""
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
 volumes:
   postgres_data:
@@ -286,3 +310,4 @@ volumes:
   seq_data:
   grafana_data:
   vault_approle_data:
+  data_protection_keys:

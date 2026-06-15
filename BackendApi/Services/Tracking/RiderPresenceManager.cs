@@ -140,6 +140,17 @@ namespace BackendApi.Services.Tracking
                 return new RiderStatusUpdateResult(false, "Rider not found");
             }
 
+            if (targetState == RiderState.OFFLINE &&
+                await HasActiveJobAsync(riderId))
+            {
+                _logger.LogWarning(
+                    "Rider {RiderId} cannot go OFFLINE while an active delivery exists.",
+                    riderId);
+                return new RiderStatusUpdateResult(
+                    false,
+                    "Complete or transfer the active delivery before going offline.");
+            }
+
             if (rider.State == targetState)
             {
                 _logger.LogDebug("Rider {RiderId} already in state {State} — no-op", riderId, targetState);

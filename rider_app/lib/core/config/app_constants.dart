@@ -26,6 +26,7 @@ class AppConstants {
   static const String statusBusy = 'BUSY';
   static const String statusStale = 'STALE';
   static const String statusOffline = 'OFFLINE';
+  static const int riderHeartbeatIntervalSeconds = 10;
 
   // ── Order Status ───────────────────────────────────────────────────
   /// ตรงกับ Order.Status ใน BackendApi/Models/Order.cs

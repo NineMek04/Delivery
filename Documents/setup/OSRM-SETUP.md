@@ -1,4 +1,4 @@
-# 🗺️ OSRM Offline Map Compiler & Setup Guide
+# 🗺️ OSRM Offline Map Compiler & Setup Guide (Documents/setup/OSRM-SETUP.md)
 
 เอกสารคู่มือสำหรับการดาวน์โหลด ติดตั้ง และกำหนดค่าเครื่องยนต์ประมวลผลเส้นทางแบบออฟไลน์ (**Open Source Routing Machine - OSRM**) เพื่อใช้งานกับระบบจราจรอัจฉริยะ **Smart Delivery Routing System** บนพื้นที่จังหวัดอุดรธานี และประเทศไทย
 
@@ -15,17 +15,17 @@
                   │   API Routing Request         │
                   └──────────────┬────────────────┘
                                  │
-                     ┌───────────▼───────────┐
-                     │ 1. Check Redis Cache  │ (TTL 24 Hours)
-                     └───────────┬───────────┘
+                      ┌───────────▼───────────┐
+                      │ 1. Check Redis Cache  │ (TTL 24 Hours)
+                      └───────────┬───────────┘
                                  │ Cache Miss
-                     ┌───────────▼───────────┐
-      ┌──────────────┤ 2. Query Local OSRM   ├──────────────┐
-      │ Success      └───────────┬───────────┘              │ Fail (Timeout / Offline)
-      │ (Offline Engine Port 5001)│                          │
-┌─────▼──────────┐               │                          ▼
-│ Returns Route  │               │              ┌────────────────────────┐
-└────────────────┘               │              │ 3. Public OSRM API     │ (Dijkstra Online Fallback)
+                      ┌───────────▼───────────┐
+       ┌──────────────┤ 2. Query Local OSRM   ├──────────────┐
+       │ Success      └───────────┬───────────┘              │ Fail (Timeout / Offline)
+       │ (Offline Engine Port 5001)│                          │
+ ┌─────▼──────────┐               │                          ▼
+ │ Returns Route  │               │              ┌────────────────────────┐
+ └────────────────┘               │              │ 3. Public OSRM API     │ (Dijkstra Online Fallback)
                                  │              └──────────┬─────────────┘
                                  │                         │
                                  │       Success           │ Fail (完全 Offline)
@@ -49,20 +49,22 @@
 
 ### 📥 1. เตรียมระบบและรันสคริปต์อัตโนมัติ
 
-เรามีสคริปต์อัตโนมัติที่ Stripped UTF-8 Emojis ออกแล้ว (ป้องกันการค้างบน Windows PowerShell) รวมถึงเพิ่มคำสั่ง `--user root` เพื่อหลีกเลี่ยง Permission Block บน Docker Volumes
+เรามีสคริปต์อัตโนมัติที่สกัดคำสั่งและปิดตัวแปร Emoji ออกแล้ว รวมถึงเพิ่มคำสั่ง `--user root` เพื่อหลีกเลี่ยง Permission Block บน Docker Volumes
 
 * **ระบบปฏิบัติการ Windows (PowerShell):**
   เปิด PowerShell ในโฟลเดอร์โปรเจกต์หลัก แล้วรันสคริปต์:
   ```powershell
-  .\scripts.test\setup-osrm.ps1
+  .\RootScripts\scripts\setup-osrm.ps1
   ```
+  *(หรือคลิกเพื่อดูสคริปต์: [setup-osrm.ps1](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts/setup-osrm.ps1))*
 
 * **ระบบปฏิบัติการ Linux / macOS (Bash):**
   ให้สิทธิ์การรันแล้วเรียกใช้งาน:
   ```bash
-  chmod +x ./scripts.test/setup-osrm.sh
-  ./scripts.test/setup-osrm.sh
+  chmod +x ./RootScripts/scripts/setup-osrm.sh
+  ./RootScripts/scripts/setup-osrm.sh
   ```
+  *(หรือคลิกเพื่อดูสคริปต์: [setup-osrm.sh](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts/setup-osrm.sh))*
 
 ---
 
@@ -177,7 +179,7 @@ catch
 docker-compose up -d
 
 # 2. บิวด์ข้อมูลถนนจังหวัดอุดรธานี (ทำครั้งแรกครั้งเดียว)
-.\scripts.test\setup-osrm.ps1
+.\RootScripts\scripts\setup-osrm.ps1
 
 # 3. รีสตาร์ตตู้แผนที่ออฟไลน์ให้ดึงฐานข้อมูลใหม่ขึ้นมาทำงาน
 docker-compose restart osrm
@@ -191,7 +193,7 @@ docker-compose restart osrm
 ### 🏍️ Step 3: ทริกเกอร์ Sandbox จำลองอัจฉริยะ
 ทริกเกอร์ระบบสร้างออเดอร์และการขนส่งจำลองอัจฉริยะ E2E:
 ```powershell
-node .\scripts.test\e2e-simulator\simulate-e2e.js
+node .\RootScripts\scripts.test\test\e2e-simulator\simulate-e2e.js
 ```
 
 ### 🎬 สิ่งที่ต้องเกิดขึ้นและสังเกตในห้องทดลอง (Verification Checkpoints):

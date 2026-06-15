@@ -1,4 +1,4 @@
-# [Dev Team] VRP Job Queue Architecture Design (Phase 2)
+# [Dev Team] VRP Job Queue Architecture Design (Phase 2 - Documents/development/AI-QUEUE-DESIGN.md)
 
 เอกสารนี้ระบุรายละเอียดการออกแบบเชิงสถาปัตยกรรม (Architecture Design Specifications) สำหรับการขยายขีดความสามารถการคำนวณเส้นทางด้วยปัญญาประดิษฐ์ (AI-Engine VRP Optimization) จากสถาปัตยกรรม Synchronous API ไปเป็น **Asynchronous Job Queue** ในเฟสถัดไป เพื่อตอบสนองต่อสภาวะโหลดงานสูง (High RPS / Peak Hours) โดยไม่ทำให้เกิดปัญหา Gateway Timeout (504) หรือทรัพยากรระบบพังทลาย
 

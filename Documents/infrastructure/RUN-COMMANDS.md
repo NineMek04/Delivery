@@ -1,4 +1,4 @@
-# 🛠️ Command Run Sheet (PowerShell Script Guide)
+# 🛠️ Command Run Sheet (PowerShell Script Guide - Documents/infrastructure/RUN-COMMANDS.md)
 
 ไฟล์นี้รวบรวมคำสั่ง PowerShell สำหรับการรัน Service และการรัน Test ต่างๆ ภายในระบบ Delivery Smart Routing System เพื่อความสะดวกในการคัดลอกไปรันด้วยตนเอง (Manual Execution)
 
@@ -9,10 +9,10 @@
 หากต้องการรันทุกบริการของระบบขึ้นมาพร้อมกันในหน้าต่างแยกโดยอัตโนมัติ (และ Bypass นโยบายความปลอดภัยชั่วคราวเพื่อให้รันสคริปต์ได้):
 
 ```powershell
-cd d:\Delivery
+cd c:\Users\ASUS\Desktop\Project\Delivery
 
 # รันสคริปต์หลักด้วยการบายพาสนโยบายความปลอดภัย
-powershell -ExecutionPolicy Bypass -File .\start-all-apps.ps1
+powershell -ExecutionPolicy Bypass -File .\RootScripts\scripts\start-all-apps.ps1
 ```
 
 ---
@@ -47,13 +47,13 @@ docker compose down
 
 **แบบ Multi-line (คัดลอกทั้งหมดวางใน PowerShell):**
 ```powershell
-cd d:\Delivery
-.\start-backend.ps1
+cd c:\Users\ASUS\Desktop\Project\Delivery
+powershell -ExecutionPolicy Bypass -File .\RootScripts\scripts\start-backend.ps1
 ```
 
 **แบบบรรทัดเดียว (Single Line Copy-Paste):**
 ```powershell
-cd d:\Delivery; .\start-backend.ps1
+cd c:\Users\ASUS\Desktop\Project\Delivery; powershell -ExecutionPolicy Bypass -File .\RootScripts\scripts\start-backend.ps1
 ```
 
 ---
@@ -63,7 +63,7 @@ cd d:\Delivery; .\start-backend.ps1
 
 **แบบ Multi-line (คัดลอกทั้งหมดวางใน PowerShell):**
 ```powershell
-cd d:\Delivery\ai-engine
+cd c:\Users\ASUS\Desktop\Project\Delivery\ai-engine
 $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"
 if (Test-Path "venv") { .\venv\Scripts\activate }
 uvicorn main:app --reload --port 8000
@@ -71,7 +71,7 @@ uvicorn main:app --reload --port 8000
 
 **แบบบรรทัดเดียว (Single Line Copy-Paste):**
 ```powershell
-cd d:\Delivery\ai-engine; $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"; if (Test-Path "venv") { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000
+cd c:\Users\ASUS\Desktop\Project\Delivery\ai-engine; $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"; if (Test-Path "venv") { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000
 ```
 
 ---
@@ -80,7 +80,7 @@ cd d:\Delivery\ai-engine; $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES
 *รันบนพอร์ต: `http://localhost:4200`*
 
 ```powershell
-cd d:\Delivery\admin-dashboard
+cd c:\Users\ASUS\Desktop\Project\Delivery\admin-dashboard
 npm start -- --port 4200
 ```
 
@@ -91,7 +91,7 @@ npm start -- --port 4200
 
 **แบบรัน Local (ผ่าน Chrome Browser):**
 ```powershell
-cd d:\Delivery\rider_app
+cd c:\Users\ASUS\Desktop\Project\Delivery\rider_app
 flutter run -d chrome --web-port 8080 --dart-define=API_BASE_URL=http://localhost:5000
 ```
 
@@ -107,7 +107,7 @@ docker compose up -d --build rider-app
 สำหรับกรณีต้องการอัปเดต Database Schema ด้วย EF Core Migrations:
 
 ```powershell
-cd d:\Delivery\BackendApi
+cd c:\Users\ASUS\Desktop\Project\Delivery\BackendApi
 
 # อัปเดตฐานข้อมูลเป็นเวอร์ชันล่าสุด
 dotnet ef database update
@@ -123,9 +123,9 @@ dotnet ef migrations add [MigrationName]
 หากยังไม่มีไฟล์ข้อมูลแผนที่ OSRM Udon Thani ให้รันคำสั่งเหล่านี้เพื่อดาวน์โหลดและคอมไพล์ระบบโครงข่ายถนน:
 
 ```powershell
-cd d:\Delivery
+cd c:\Users\ASUS\Desktop\Project\Delivery
 # รันผ่านสคริปต์ช่วยทำ
-.\scripts.test\setup-osrm.ps1
+powershell -ExecutionPolicy Bypass -File .\RootScripts\scripts\setup-osrm.ps1
 
 # สั่ง Docker รีสตาร์ทเซอร์วิส OSRM หลังคอมไพล์เสร็จ
 docker compose restart osrm
@@ -135,11 +135,11 @@ docker compose restart osrm
 
 ## 🧪 5. Testing & Simulations (การรันเทสระบบและบอทจำลอง)
 
-รวบรวมคำสั่งสำหรับการทดสอบส่วนต่างๆ ภายใต้โฟลเดอร์ทดสอบกลาง `scripts.test/`
+รวบรวมคำสั่งสำหรับการทดสอบส่วนต่างๆ ภายใต้โฟลเดอร์ทดสอบกลาง `RootScripts/scripts.test/`
 
 ### 🧪 5.1 C# Backend Tests
 ```powershell
-cd d:\Delivery
+cd c:\Users\ASUS\Desktop\Project\Delivery
 
 # รัน Integration Tests ทั้งหมด
 dotnet test RootScripts/scripts.test/test/BackendApi.IntegrationTests
@@ -150,7 +150,7 @@ dotnet test RootScripts/scripts.test/test/BackendApi.UnitTests
 
 ### 🐍 5.2 Python AI Engine Tests (PyTest)
 ```powershell
-cd d:\Delivery
+cd c:\Users\ASUS\Desktop\Project\Delivery
 if (Test-Path "ai-engine\venv") { .\ai-engine\venv\Scripts\activate }
 
 # รัน PyTest ทั้งหมดในโฟลเดอร์ AI Engine Tests
@@ -162,7 +162,7 @@ python -m pytest RootScripts/scripts.test/test/ai-engine.tests/test_eta_velocity
 
 ### 🤖 5.3 E2E Simulator (บอทจำลองไรเดอร์วิ่งส่งงาน)
 ```powershell
-cd d:\Delivery
+cd c:\Users\ASUS\Desktop\Project\Delivery
 
 # รันบอทจำลอง E2E เสมือนจริง
 node RootScripts/scripts.test/test/e2e-simulator/simulate-e2e.js
@@ -174,13 +174,13 @@ node RootScripts/scripts.test/test/e2e-simulator/test-flutter-compat.js
 ### 📈 5.4 System Load & Stress Tests (การทดสอบความเสถียรเมื่อมีโหลดสูง)
 ก่อนรัน ตรวจสอบให้แน่ใจว่าติดตั้ง Node Packages แล้ว:
 ```powershell
-cd d:\Delivery\RootScripts\scripts.test\test\load-test
+cd c:\Users\ASUS\Desktop\Project\Delivery\RootScripts\scripts.test\test\load-test
 npm install
 ```
 
 รันคำสั่งทดสอบผ่าน `npm run` (จาก root directory หรือ load-test directory):
 ```powershell
-cd d:\Delivery
+cd c:\Users\ASUS\Desktop\Project\Delivery
 
 # ทดสอบโหลดส่วน SignalR Connections
 npm --prefix RootScripts/scripts.test/test/load-test run test:signalr

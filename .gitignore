@@ -82,7 +82,8 @@ desktop.ini
 
 BackendApi/logs/*.txt
 
-osrm_data/
+osrm_data/*
+!osrm_data/README.md
 *.osm.pbf
 
 RootScripts/scripts.test/test/Test_Breaking-Point/LogsTest/*

@@ -1,4 +1,4 @@
-# เอกสารข้อกำหนดทางสถาปัตยกรรมวิศวกรรมซอฟต์แวร์ระดับสูง (Master System Architecture & Project Specification)
+﻿# เอกสารข้อกำหนดทางสถาปัตยกรรมวิศวกรรมซอฟต์แวร์ระดับสูง (Master System Architecture & Project Specification)
 ## โครงการ: ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์ (AI-Optimized Smart Delivery Routing System)
 
 > **เวอร์ชัน:** V3.0 — Full Technical & Academic Research Specification  
@@ -162,12 +162,24 @@ Delivery/
 ├── AGENTS.md                                   # กฎเหล็กสูงสุดในการพัฒนา ห้ามลบ ห้ามละเมิดเด็ดขาด
 ├── AI-INDEX.md                                 # สารบัญและ Context Router แผนผังนำทางให้ AI
 ├── OSRM-SETUP.md                               # คู่มือการเตรียมและการบิวด์ระบบนำทางออฟไลน์
-├── PROJECT-SPEC.md                             # เอกสาร Master Architectural Spec นี้
 ├── docker-compose.yml                          # แฟ้มตั้งค่าการรันบริการทั้ง 12 คอนเทนเนอร์
 │
 ├── .docs/                                      # ที่เก็บเอกสาร Context ย่อยของ AI ทั้งหมด
 │   ├── AI-CHANGELOG/                           # เก็บบันทึกความเปลี่ยนแปลงแยกรายวันอย่างละเอียด
 │   └── ai-context/                             # รายละเอียด spec แยกตาม context (spec-order, spec-rider, spec-dispatch)
+│
+├── Documents/                                  # เอกสารประกอบโครงการ (System Documents)
+│   ├── README.md                               # สารบัญและภาพรวมของระบบเอกสารทั้งหมด
+│   ├── infrastructure/                         # เอกสารฝั่งโครงสร้างพื้นฐานและการติดตั้ง (SLO, Scale Guide)
+│   ├── setup/                                  # คู่มือการตั้งค่าเครื่องมือต่างๆ
+│   └── development/                            # เอกสารทางฝั่งพัฒนา
+│       ├── AI-BLUEPRINT.md                     # สรุปโครงสร้างสถาปัตยกรรมระดับภาพรวม
+│       ├── PROJECT-SPEC.md                     # เอกสาร Master Architectural Spec นี้
+│       └── CODEBASE_PATTERNS/                  # โฟลเดอร์รวมแบบแผนการเขียนโค้ดและการแก้ปัญหาเชิงลึก
+│           ├── README.md                       # สารบัญแบบแผนสถาปัตยกรรมโค้ด
+│           ├── sqlite-local-db.md              # SQLite local buffering pattern
+│           ├── gorouter-rbac.md                # GoRouter redirection pattern
+│           └── api-response-wrapper.md         # GlobalResponseFilter wrapper pattern
 │
 ├── BackendApi/                                 # โค้ดหลังบ้านหลัก (ASP.NET Core .NET 8)
 │   ├── Controllers/                            # Endpoints รับข้อมูล
@@ -270,34 +282,28 @@ Delivery/
 
 ## บทที่ 8 — เทคนิคการพัฒนาเชิงลึก (Deep Engineering Techniques)
 
-เบื้องหลังการทำงานระดับ Enterprise ที่ออกแบบขึ้นเพื่อรองรับทราฟฟิกระดับสูง:
+เบื้องหลังการทำงานระดับ Enterprise ที่ออกแบบขึ้นเพื่อรองรับทราฟฟิกระดับสูงได้รับการจัดระเบียบแยกเอกสารเพื่อความกระชับและลดความซ้ำซ้อน โดยมีรายละเอียดดังนี้:
 
-### 8.1 Distributed Locking ด้วย Redis
-เพื่อรับรองว่า Rider คนหนึ่งจะไม่สามารถกดจองรับ 2 ออเดอร์ในเวลาเดียวกัน หรือป้องกันออเดอร์หนึ่งถูกจ่ายให้ Rider พร้อมกัน 2 คน (Race Condition) ระบบได้ใช้การล็อคแบบกระจายตัวผ่าน Redis SETNX (Atomic Operation):
-- **Key Schema:** `lock:rider:{riderId}` ค่าบันทึกเป็น `{orderId}`
-- **TTL (Time To Live):** กำหนดไว้ 30 วินาที หาก Rider ไม่ตอบรับหรือเครื่องโทรศัพท์แฮง กุญแจจะหลุดออกเองโดยอัตโนมัติ (Self-healing lock) เพื่อนำงานกลับเข้าสู่คิวหลัก
-
-### 8.2 Idempotency Protection (ป้องกันประมวลผลข้อความซ้ำ)
-ระบบคิว RabbitMQ อาจส่งข้อความซ้ำได้ภายใต้ภาวะสูญเสียการเชื่อมต่อชั่วคราว (At-least-once Delivery) ระบบจึงคุม Idempotence ผ่านตาราง `processed_events`:
-- ทุกๆ integration message จะต้องบรรจุค่า `eventId` (GUID)
-- ก่อนการทำงานของ Consumer ทุกตัว จะต้องทำการรันคิวรีตรวจสอบ:
-  ```sql
-  SELECT COUNT(*) FROM processed_events WHERE event_id = @eventId;
-  ```
-- หากพบว่าซ้ำ จะทำการโยนสัญญาณตกลง (ACK) กลับไปหาคิวทันทีโดยไม่มีการรันตรรกะซ้ำซ้อน (Zero-frictional safety)
-
-### 8.3 Windowed Telemetry & Anti-DOM-Thrash (การกำราบ Browser แฮง)
-หากมีไรเดอร์ 100 คน และทุกคนส่งพิกัดทุก 1 วินาที หน้าจอ UI แอดมินต้องทำการ Re-render แผนที่ 100 ครั้งต่อวินาที ซึ่งจะส่งผลให้ CPU ของ Browser สูงถึง 100% และค้างทันที ระบบจึงสร้างเกราะป้องกัน **Windowed Telemetry**:
-
-```
-[ Rider 1 ] ──► Tick
-[ Rider 2 ] ──► Tick ──► [ TelemetryAggregator RAM ] ──► Batch every 2s ──► [ Angular UI Map ]
-[ Rider 3 ] ──► Tick
-```
-**ผลลัพธ์:** ปรับลดปริมาณข้อความ SignalR ลงได้ถึง 50 เท่า และทำให้การขยับของหมุด Rider มีความลื่นไหลด้วยเทคนิค Interpolation
+*   **Distributed Locking & Concurrency Control:**  
+    👉 [concurrency-locking.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/concurrency-locking.md)  
+    อธิบายสเปกระบบ Distributed Lock ด้วย Redis SETNX (Lua Script), ระบบ PostgreSQL Failover Lock สำรอง, และระบบควบคุม Optimistic Concurrency Control ผ่าน PostgreSQL Shadow `xmin` Token กับการทำ PgBouncer Connection String.
+*   **Idempotency Protection (ป้องกันข้อความซ้ำ):**  
+    👉 [rabbitmq-idempotency.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/rabbitmq-idempotency.md)  
+    อธิบายกลไกการสแกนและบันทึกข้อความผ่านตาราง `processed_events` และตัวเก็บกวาดข้อมูลเก่า `DbMaintenanceWorker` เพื่อความปลอดภัยในการทำงานของ RabbitMQ.
+*   **Windowed Telemetry & Anti-DOM-Thrash:**  
+    👉 [frontend-reactive-teardowns.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/frontend-reactive-teardowns.md)  
+    รายละเอียดกลไกของ Telemetry Aggregator RAM ในการทำ Batching ข้อมูลพิกัดและล้างหน่วยความจำบน Angular/Leaflet เพื่อลดภาระการ Re-render ของ Browser.
+*   **Offline Local Storage & GPS Buffering:**  
+    👉 [sqlite-local-db.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/sqlite-local-db.md)  
+    รายละเอียด SQLite (sqflite) บน Flutter ในตาราง `pending_gps_points` ระบบลบข้อมูลแบบ FIFO (10,000 จุด) และ Web Fallback เพื่อการรันงานในพื้นที่อับสัญญาณ.
+*   **App Routing Redirection (RBAC):**  
+    👉 [gorouter-rbac.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/gorouter-rbac.md)  
+    โครงสร้างการเข้าถึงหน้าจอและระบบ Authentication Guards ผสมผสานสิทธิ์ของบทบาทผู้ใช้ด้วย GoRouter.
+*   **Unified API Response Wrapper:**  
+    👉 [api-response-wrapper.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/api-response-wrapper.md)  
+    รายละเอียดการดักจับ HTTP Response ด้วย `GlobalResponseFilter` และสัญลักษณ์ข้ามผ่านด้วย `[DisableWrapper]`.
 
 ---
-
 ## บทที่ 9 — การทำงานของ AI — Rules & Context Engineering
 
 ระบบประยุกต์ใช้เทคนิค **Lean AI Context Ledger** เพื่อให้มั่นใจว่าการแก้ไขระบบถัดไปผ่าน AI Agent (เช่น Cursor หรือ Claude) จะไม่สร้างความล้มเหลวให้แก่สถาปัตยกรรมโดยรวม (Zero Architecture Drift):
@@ -315,49 +321,18 @@ AI Agent ได้รับคำสั่งให้เชื่อถือ�
 
 ## บทที่ 10 — การ Setting ส่วนต่างๆ ของระบบ (Auto-Migrations & Swagger Specs)
 
-ระบบถูกออกแบบมาให้รันงานได้ทันทีแบบอัตโนมัติโดยปราศจากมนุษย์เข้าไปสั่งคำสั่งด้วยมือ (Zero-Manual Operation DX):
+ระบบทั้งหมดถูกกำหนดค่าให้บิวด์และทำงานได้เองแบบอัตโนมัติ (Zero-Manual Operation DX) โดยมีโครงสร้างและตัวคุมกฎดังนี้:
 
-### 10.1 Auto Database Migrations & Advanced Provisioning
-ในอดีต นักพัฒนาต้องเข้าไปรันคำสั่ง `dotnet ef database update` หรือทำการ migrate ฐานข้อมูลเอง แต่ในโปรเจกต์นี้ กระบวนการทั้งหมดถูกรันอัตโนมัติทันทีที่ Container เริ่มทำงาน:
-- **`DatabaseMigrationSetup.cs`** จะดักจับตรวจสอบ Migrations ที่ยังหลงเหลือและรันคำสั่ง `context.Database.MigrateAsync()`
-- **`PostgresAdvancedConfigurator.cs` (เครื่องมือสลัดความล่าช้า):** สั่งตรวจสอบ PostgreSQL catalog หาตาราง `RiderLocationHistories` หากยังไม่ทำ Partitioning มันจะสั่งประมวลผลกระบวนการย้ายเชิงรุกทันที:
-  - ย้ายข้อมูลเก่าไปตารางพักสำรองชั่วคราว
-  - สร้าง Parent Table และสั่งรันลูป **Dynamic Monthly Provisioning** เพื่อสร้างตารางลูก (Partitions) แยกเก็บรายเดือนสำหรับเดือนปัจจุบันและเดือนล่วงหน้า 3 เดือนทันที (เช่น `RiderLocationHistories_2026_05`)
-  - โอนย้ายข้อมูลคืน และผูก GiST Index เชิงพื้นที่แบบอัตโนมัติ
-
-### 10.2 Compile-Driven Swagger to Frontend Sync (MSBuild Swagger Auto-gen)
-เพื่อขจัดปัญหารูปแบบออบเจกต์ DTO หน้าบ้าน Angular กับหลังบ้าน .NET ไม่ตรงกัน ตัวโปรเจกต์ได้ยึดโยงไปป์ไลน์ **MSBuild Target** ไว้ในไฟล์ `BackendApi.csproj`:
-
-```xml
-  <!-- สั่งประมวลผล Swagger JSON โดยอัตโนมัติทันทีหลังจากกระบวนการคอมไพล์บิวด์เสร็จสิ้น -->
-  <Target Name="GenerateSwagger" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' Or '$(SWAGGER_GEN_AUTO)' == 'true'">
-    <Exec Command="dotnet $(TargetPath) --generate-swagger" />
-  </Target>
-```
-
-#### กลไกการแยกโครงสร้างคำสั่ง (CLI Argument Handling in `Program.cs`):
-ในไฟล์ `Program.cs` เลเยอร์ Bootstrap จะดักจับพารามิเตอร์ CLI `--generate-swagger` เพื่อสั่งสกัดข้อมูลและปิดตัวอย่างสุภาพ (Graceful Exit) ทันที:
-```csharp
-// สั่งรัน Generator ทันทีหากพบบิลด์ไปป์ไลน์ทริกเกอร์ CLI
-if (args.Contains("--generate-swagger") || builder.Configuration["SWAGGER_GEN"] == "true")
-{
-    Log.Information("Generating Swagger/OpenAPI spec file...");
-    using (var scope = app.Services.CreateScope())
-    {
-        var swaggerProvider = scope.ServiceProvider.GetRequiredService<Swashbuckle.AspNetCore.Swagger.ISwaggerProvider>();
-        var swagger = swaggerProvider.GetSwagger("v1", null, "/");
-        var swaggerJson = swagger.SerializeAsJson(Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_0);
-        await File.WriteAllTextAsync("swagger.json", swaggerJson);
-        Log.Information("Swagger spec file generated successfully at swagger.json");
-    }
-    return; // สั่ง Exit ทันทีเพื่อปิดกระบวนการบิวด์โดยสมบูรณ์
-}
-```
-
-และฝั่ง Angular จะมีคำสั่ง `generate:api` คอยดึง API Dto เหล่านั้นมาเขียนเป็นคลาส TypeScript อัตโนมัติ (Compile-Time Type Safety)
+*   **Auto Database Migrations & Advanced Provisioning:**  
+    👉 [db-migration-seeding.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/db-migration-seeding.md) และ [MIGRATION-SERVICE.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/MIGRATION-SERVICE.md)  
+    รายละเอียดกลไกการทำ Auto-Migration บน EF Core และเครื่องมือ Dynamic Partitioning ของ `PostgresAdvancedConfigurator.cs` เพื่อแบ่งพาร์ทิชันตารางพิกัด Rider อัตโนมัติรายเดือน.
+    > [!WARNING]
+    > **⚠️ คำเตือนจาก Tech Lead (Deadlock Risk):** ในสภาพแวดล้อม Production ที่มีการ Scale Multi-Instance บังคับให้ปิดการรัน Auto-Migration ที่ Startup และสลับไปรันผ่าน CI/CD Single Runner หรือ Kubernetes Init Containers แทนเพื่อเลี่ยง PostgreSQL Deadlock.
+*   **MSBuild Compile-Driven Swagger & Frontend DTO Generation:**  
+    👉 [openapi-swagger-generation.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/openapi-swagger-generation.md)  
+    รายละเอียดกลไก MSBuild Targets ใน `.csproj` และ Command-line flags ใน `Program.cs` เพื่อแปลงและสลับบิลด์ Swagger spec ออกเป็น TypeScript DTO ท้องถิ่นอัตโนมัติ.
 
 ---
-
 ## บทที่ 11 — คำสั่ง Command Line ทั้งหมด (Docker, .NET, Angular, FastAPI, Redis-cli)
 
 รวบรวมคำสั่งสำคัญทั้งหมดสำหรับนักพัฒนาในการวิเคราะห์ ปรับปรุง และตรวจสอบการทำงานของระบบ:

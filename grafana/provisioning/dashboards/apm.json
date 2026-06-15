@@ -1,0 +1,79 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "API Request Durations & Errors",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Top 10 Slowest API Endpoints (Seconds)",
+      "targets": [
+        { "expr": "topk(10, sum(rate(http_request_duration_seconds_sum[5m])) by (controller, action) / sum(rate(http_request_duration_seconds_count[5m])) by (controller, action))", "legendFormat": "{{controller}}.{{action}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 1 },
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Error Rates (4xx & 5xx) per Endpoint",
+      "targets": [
+        { "expr": "sum(rate(http_requests_received_total{code=~'4..|5..'}[5m])) by (code, controller, action)", "legendFormat": "Status {{code}} - {{controller}}.{{action}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 1 },
+      "id": 3
+    },
+    {
+      "type": "row",
+      "title": "EF Core Database Query Performance",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Database Query Latency by Type (Seconds)",
+      "targets": [
+        { "expr": "sum(rate(delivery_db_query_duration_seconds_sum[5m])) by (query_type) / sum(rate(delivery_db_query_duration_seconds_count[5m])) by (query_type)", "legendFormat": "{{query_type}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 9 },
+      "id": 5
+    },
+    {
+      "type": "row",
+      "title": "SignalR Connections & Network Reconnects",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "Active SignalR Connections",
+      "targets": [
+        { "expr": "sum(delivery_signalr_active_connections) by (role)", "legendFormat": "{{role}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 17 },
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Client Reconnection Rates (Silent Drops)",
+      "targets": [
+        { "expr": "sum(rate(delivery_client_events_total{event_type='reconnecting'}[5m])) by (client_type)", "legendFormat": "{{client_type}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 17 },
+      "id": 8
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["delivery", "apm"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Application Performance Monitoring",
+  "uid": "delivery-apm",
+  "version": 1
+}

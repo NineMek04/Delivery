@@ -181,6 +181,14 @@ export class TrackingSignalRService {
       console.warn('SignalR Reconnecting...', error);
       this._connectionStatus.next('RECONNECTING');
       this.addAlert('Warning', 'Connection lost. Reconnecting...', 'warning');
+      const url = environment.config.baseConfig.apiUrl.replace('/api/v1', '') + '/api/v1/telemetry/client-events';
+      this.http.post(url, {
+        eventType: 'reconnecting',
+        clientType: 'ADMIN',
+        details: error?.message || 'SignalR connection lost, attempting reconnect'
+      }).subscribe({
+        error: (err) => console.error('Failed to log reconnecting event to backend telemetry', err)
+      });
     });
 
     this.hubConnection.onreconnected(connectionId => {

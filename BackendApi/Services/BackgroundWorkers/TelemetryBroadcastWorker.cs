@@ -125,6 +125,12 @@ public class TelemetryBroadcastWorker : BackgroundService
             .Where(s => s.State != OrderState.COMPLETED && s.State != OrderState.CANCELLED)
             .Sum(s => s.Count);
 
+        var twoMinutesAgo = DateTime.UtcNow.AddMinutes(-2);
+        var backlogSize = await dbContext.Orders.AsNoTracking()
+            .CountAsync(o => (o.State == OrderState.MATCHING || o.State == OrderState.OFFERING) &&
+                             o.CreatedAt <= twoMinutesAgo,
+                        ct);
+
         var totalRidersCount = stateCounts.Sum(s => s.Count);
         double avgDeliveries = totalRidersCount > 0 ? completedOrdersCount / (double)totalRidersCount : 0.0;
 
@@ -139,6 +145,9 @@ public class TelemetryBroadcastWorker : BackgroundService
         OperationalMetrics.ActiveRiders.Set(activeRiders);
         OperationalMetrics.ActiveOrders.Set(activeOrders);
         OperationalMetrics.DispatchMatchingOrders.Set(queueSize);
+        OperationalMetrics.IdleRiders.Set(idle);
+        OperationalMetrics.BusyRiders.Set(busy);
+        OperationalMetrics.DispatchBacklogOrders.Set(backlogSize);
 
         if (refreshHotspots)
         {

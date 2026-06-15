@@ -78,6 +78,19 @@ namespace BackendApi.Services.Telemetry
             using var scope = BeginLogScope(riderId);
             if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
+            if (accuracy <= 50.0)
+            {
+                OperationalMetrics.GpsAccuracyPointsTotal.WithLabels("excellent").Inc();
+            }
+            else if (accuracy <= 300.0)
+            {
+                OperationalMetrics.GpsAccuracyPointsTotal.WithLabels("weak").Inc();
+            }
+            else
+            {
+                OperationalMetrics.GpsAccuracyPointsTotal.WithLabels("poor").Inc();
+            }
+
             // Reject unusable points. Degraded points are broadcast to admins
             // for visibility, but never enter dispatch, Redis GEO, or history.
             if (accuracy > UiOnlyAccuracyThresholdMeters) return;

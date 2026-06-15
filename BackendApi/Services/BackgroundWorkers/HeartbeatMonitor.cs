@@ -164,7 +164,7 @@ public class HeartbeatMonitor : BackgroundService
                                 offeringOrder.CurrentOfferId is not null)
                             {
                                 await offerHandler.RejectOrTimeoutAsync(
-                                    offeringOrder.CurrentOfferId, rider.Id);
+                                    offeringOrder.CurrentOfferId, rider.Id, "timeout");
                             }
                         }
                     }

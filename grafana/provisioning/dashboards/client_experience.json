@@ -1,0 +1,55 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "GPS Accuracy & Quality Distribution",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "GPS Accuracy Quality points received over time",
+      "targets": [
+        { "expr": "sum(rate(delivery_gps_accuracy_points_total[5m])) by (quality)", "legendFormat": "{{quality}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 1 },
+      "id": 2
+    },
+    {
+      "type": "row",
+      "title": "Network Drops & Silent Reconnections",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Silent Reconnections / Offline drops (events/sec)",
+      "targets": [
+        { "expr": "sum(rate(delivery_client_events_total{event_type='reconnecting'}[5m])) by (client_type)", "legendFormat": "{{client_type}} drops", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 9 },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Local OSRM Unavailable Events per phase (Rider App)",
+      "targets": [
+        { "expr": "sum(rate(delivery_client_route_fallbacks_total{reason='LOCAL_OSRM_UNAVAILABLE'}[5m])) by (phase)", "legendFormat": "Fallback in {{phase}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 9 },
+      "id": 5
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["delivery", "client", "telemetry"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Client Experience & Telemetry",
+  "uid": "delivery-client-telemetry",
+  "version": 1
+}

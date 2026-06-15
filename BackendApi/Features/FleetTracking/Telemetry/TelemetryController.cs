@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
+using BackendApi.Setup;
 
 namespace BackendApi.Features.FleetTracking.Telemetry
 {
@@ -209,6 +211,31 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             }
 
             return Ok(ApiResponse<string>.Ok("Route fallback report accepted."));
+        }
+
+        /// <summary>
+        /// Ingests general client telemetry events (e.g. reconnections/network drops) from Angular or Flutter.
+        /// Authenticated and strictly rate-limited to 5 requests per minute.
+        /// </summary>
+        [HttpPost("client-events")]
+        [Authorize]
+        [EnableRateLimiting(SecurityConfiguration.TelemetryRateLimitPolicy)]
+        public ActionResult<ApiResponse<string>> PostClientEvents([FromBody] ClientEventRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(ApiResponse<string>.Fail("Request body cannot be null."));
+            }
+
+            OperationalMetrics.ClientEventsTotal.WithLabels(request.EventType, request.ClientType).Inc();
+
+            Logger.LogInformation(
+                "Telemetry client event received: ClientType={ClientType}, EventType={EventType}, Details={Details}",
+                request.ClientType,
+                request.EventType,
+                request.Details);
+
+            return Ok(ApiResponse<string>.Ok("Client event accepted."));
         }
     }
 }

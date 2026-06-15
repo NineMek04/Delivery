@@ -52,10 +52,12 @@ public static class ServiceSetup
         });
 
         // --- Database ---
-        services.AddDbContext<ApplicationDbContext>(options =>
+        services.AddSingleton<BackendApi.Services.Telemetry.EfCoreMetricsInterceptor>();
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
-                npgsql => npgsql.UseNetTopologySuite(handleOrdinates: Ordinates.XY)));
+                npgsql => npgsql.UseNetTopologySuite(handleOrdinates: Ordinates.XY))
+            .AddInterceptors(sp.GetRequiredService<BackendApi.Services.Telemetry.EfCoreMetricsInterceptor>()));
 
         services.AddHealthChecks()
             .AddNpgSql(

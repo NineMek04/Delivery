@@ -138,6 +138,7 @@ public class DispatchOfferHandler
             // แจ้ง Admin Dashboard และ ร้านค้า ลูกค้า
             foreach (var order in orders)
             {
+                BackendApi.Services.Telemetry.OperationalMetrics.DispatchMatchesTotal.WithLabels(order.DispatchAttempts.ToString(), "success").Inc();
                 await _adminNotifier.NotifyOrderAssignedAsync(order.Id, riderId, order.AssignedAt);
             }
 
@@ -157,7 +158,7 @@ public class DispatchOfferHandler
     /// <summary>
     /// Rider กดปฏิเสธ / Timeout → ปลดล็อค → Re-dispatch
     /// </summary>
-    public async Task RejectOrTimeoutAsync(string offerId, string riderId)
+    public async Task RejectOrTimeoutAsync(string offerId, string riderId, string reason = "rejected")
     {
         var db = _redis.GetDatabase();
         var lockKey = $"lock:offer:{offerId}";
@@ -198,6 +199,11 @@ public class DispatchOfferHandler
                     // FIX: Commit เพื่อให้ Rider เปลี่ยนเป็น IDLE สำเร็จ ไม่ติดใน RESERVED state จาก Rollback
                     await transaction.CommitAsync();
                     return;
+                }
+
+                foreach (var order in orders)
+                {
+                    BackendApi.Services.Telemetry.OperationalMetrics.DispatchMatchesTotal.WithLabels(order.DispatchAttempts.ToString(), reason).Inc();
                 }
 
                 bool allTransitioned = true;

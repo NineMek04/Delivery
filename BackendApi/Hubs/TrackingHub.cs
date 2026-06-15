@@ -109,6 +109,9 @@ public partial class TrackingHub : Hub
             }
         }
 
+        var roleLabel = MapRoleToLabel(role);
+        OperationalMetrics.SignalrActiveConnections.WithLabels(roleLabel).Inc();
+
         await base.OnConnectedAsync();
     }
 
@@ -149,6 +152,9 @@ public partial class TrackingHub : Hub
             }
         }
 
+        var roleLabel = MapRoleToLabel(role);
+        OperationalMetrics.SignalrActiveConnections.WithLabels(roleLabel).Dec();
+
         await base.OnDisconnectedAsync(exception);
     }
 
@@ -172,5 +178,14 @@ public partial class TrackingHub : Hub
             Context.Items["RiderId"] = riderId;
         }
         return riderId;
+    }
+
+    private static string MapRoleToLabel(string? role)
+    {
+        if (role == AuthConstants.AdminRole || role == AuthConstants.DispatcherRole) return "admin";
+        if (role == AuthConstants.RiderRole) return "rider";
+        if (role == AuthConstants.CustomerRole) return "customer";
+        if (role == AuthConstants.StorePartnerRole) return "store";
+        return "unknown";
     }
 }

@@ -46,6 +46,8 @@ public sealed class ClientRouteTelemetryService
             return false;
         }
 
+        OperationalMetrics.ClientRouteFallbacksTotal.WithLabels(request.Reason, request.RoutePhase).Inc();
+
         _logger.LogWarning(
             "Rider route fallback rendered. CorrelationId={CorrelationId} OrderId={OrderId} RiderId={RiderId} RoutePhase={RoutePhase} Reason={Reason} EncodedLength={EncodedLength}",
             correlationId,

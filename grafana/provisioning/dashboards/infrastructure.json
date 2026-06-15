@@ -1,0 +1,98 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Host & Container System Resources",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Host CPU & Memory Usage (%)",
+      "targets": [
+        { "expr": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)", "legendFormat": "Host CPU", "refId": "A" },
+        { "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100", "legendFormat": "Host Memory", "refId": "B" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 1 },
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "Container CPU Usage (Seconds/s)",
+      "targets": [
+        { "expr": "sum(rate(container_cpu_usage_seconds_total[5m])) by (container_label_com_docker_compose_service)", "legendFormat": "{{container_label_com_docker_compose_service}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 1 },
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Container Memory Usage (MB)",
+      "targets": [
+        { "expr": "sum(container_memory_usage_bytes) by (container_label_com_docker_compose_service) / 1024 / 1024", "legendFormat": "{{container_label_com_docker_compose_service}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 8 },
+      "id": 4
+    },
+    {
+      "type": "row",
+      "title": "Database & Cache Statistics (PostgreSQL & Redis)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL Cache Hit Ratio (%)",
+      "targets": [
+        { "expr": "sum(pg_statio_user_tables_heap_blks_hit) / (sum(pg_statio_user_tables_heap_blks_hit) + sum(pg_statio_user_tables_heap_blks_read) + 1) * 100", "legendFormat": "Cache Hit Ratio", "refId": "A" }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "PostgreSQL Deadlocks Rate",
+      "targets": [
+        { "expr": "sum(rate(pg_stat_database_deadlocks[5m]))", "legendFormat": "Deadlocks", "refId": "A" }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Redis Memory Usage (MB)",
+      "targets": [
+        { "expr": "redis_memory_used_bytes / 1024 / 1024", "legendFormat": "Redis Memory", "refId": "A" }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "id": 8
+    },
+    {
+      "type": "row",
+      "title": "RabbitMQ Alarms",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 9
+    },
+    {
+      "type": "stat",
+      "title": "RabbitMQ Active Alarms",
+      "targets": [
+        { "expr": "sum(rabbitmq_process_has_alarms)", "legendFormat": "Alarms", "refId": "A" }
+      ],
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 23 },
+      "id": 10
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["delivery", "infrastructure"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Infrastructure & Resource Monitoring",
+  "uid": "delivery-infrastructure",
+  "version": 1
+}

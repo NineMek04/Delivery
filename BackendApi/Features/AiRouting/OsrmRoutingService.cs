@@ -62,6 +62,7 @@ namespace BackendApi.Services.Ai
                 if (cached.HasValue)
                 {
                     _logger.LogInformation("Route details retrieved from Redis Cache: {Key}", cacheKey);
+                    OperationalMetrics.RoutingRequestsTotal.WithLabels("osrm").Inc();
                     using var doc = JsonDocument.Parse(cached.ToString());
                     var root = doc.RootElement;
                     return (
@@ -127,6 +128,8 @@ namespace BackendApi.Services.Ai
                             // เข้ารหัสพิกัดด้วย Google Polyline (ประหยัดพื้นที่จัดเก็บ 99%)
                             var polyline = PolylineEncoder.Encode(list);
 
+                            OperationalMetrics.RoutingRequestsTotal.WithLabels("osrm").Inc();
+
                             // บันทึกผลลัพธ์ลง Redis Cache (เก็บไว้ 24 ชั่วโมง)
                             try
                             {
@@ -150,6 +153,7 @@ namespace BackendApi.Services.Ai
             {
                 // Local OSRM unavailable (circuit open, timeout, connection refused).
                 // Fall back to Haversine straight-line — safe, local, no external calls.
+                OperationalMetrics.RoutingRequestsTotal.WithLabels("haversine").Inc();
                 _logger.LogWarning(ex, "Local OSRM unavailable for GetRouteDetailsAsync. Falling back to Haversine estimate.");
                 return HaversineRouteFallback(startLat, startLng, endLat, endLng);
             }

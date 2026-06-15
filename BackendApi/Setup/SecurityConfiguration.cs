@@ -14,6 +14,7 @@ namespace BackendApi.Setup;
 public static class SecurityConfiguration
 {
     public const string AuthRateLimitPolicy = "auth";
+    public const string TelemetryRateLimitPolicy = "telemetry_events";
 
     public static IServiceCollection AddBackendSecurity(
         this IServiceCollection services,
@@ -83,6 +84,17 @@ public static class SecurityConfiguration
                     {
                         PermitLimit = configuration.GetValue("RateLimiting:Auth:PermitLimit", 10),
                         Window = TimeSpan.FromMinutes(configuration.GetValue("RateLimiting:Auth:WindowMinutes", 1)),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
+
+            options.AddPolicy(TelemetryRateLimitPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"telemetry_events:{context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));

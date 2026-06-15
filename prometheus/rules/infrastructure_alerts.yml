@@ -1,0 +1,38 @@
+groups:
+  - name: infrastructure_alerts
+    rules:
+      - alert: HostOutOfMemory
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host is running out of memory"
+          description: "Available memory on the host is less than 10% (current value: {{ $value }}%)"
+
+      - alert: DatabaseConnectionsHigh
+        expr: (sum(pg_stat_database_numbackends) / sum(pg_settings_max_connections)) * 100 > 85
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection limit reached"
+          description: "Database active connections are above 85% of max allowed connections (current value: {{ $value }}%)"
+
+      - alert: ContainerOOMKilled
+        expr: rate(container_oom_events_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container OOM killed"
+          description: "Container {{ $labels.container_label_com_docker_compose_service }} has been killed due to out of memory"
+
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage is high"
+          description: "Disk usage on mount / is above 85% (current value: {{ $value }}%)"

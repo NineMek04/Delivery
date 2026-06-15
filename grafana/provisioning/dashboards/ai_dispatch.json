@@ -1,0 +1,83 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Routing Fallbacks & Dispatch Efficiencies",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "OSRM vs Haversine Routing Fallback Rate",
+      "targets": [
+        { "expr": "sum(rate(delivery_routing_requests_total[5m])) by (type)", "legendFormat": "{{type}}", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 1 },
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "Average Dispatch Distance (Rider to Shop in Meters)",
+      "targets": [
+        { "expr": "rate(delivery_dispatch_distance_meters_sum[5m]) / rate(delivery_dispatch_distance_meters_count[5m])", "legendFormat": "Avg Distance (meters)", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 1 },
+      "id": 3
+    },
+    {
+      "type": "row",
+      "title": "Dispatch Matching Success Rates & Retries",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Matching Attempts Outcome Rates",
+      "targets": [
+        { "expr": "sum(rate(delivery_dispatch_matches_total{attempt='1', status='success'}[5m]))", "legendFormat": "1st Attempt Success", "refId": "A" },
+        { "expr": "sum(rate(delivery_dispatch_matches_total{attempt=~'2|3', status='success'}[5m]))", "legendFormat": "Retry Success", "refId": "B" },
+        { "expr": "sum(rate(delivery_dispatch_matches_total{status='rejected'}[5m]))", "legendFormat": "Rider Rejections", "refId": "C" },
+        { "expr": "sum(rate(delivery_dispatch_matches_total{status='timeout'}[5m]))", "legendFormat": "Matching Timeouts", "refId": "D" },
+        { "expr": "sum(rate(delivery_dispatch_matches_total{status='cancelled'}[5m]))", "legendFormat": "Admin/System Cancellations", "refId": "E" }
+      ],
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 9 },
+      "id": 5
+    },
+    {
+      "type": "row",
+      "title": "Route ETA Accuracy & Deviations",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "Average Route Deviation (Expected vs Actual in Seconds)",
+      "targets": [
+        { "expr": "rate(delivery_route_deviation_seconds_sum[5m]) / rate(delivery_route_deviation_seconds_count[5m])", "legendFormat": "Avg Deviation (s)", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 17 },
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "P95 Route Deviation Duration (Seconds)",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(delivery_route_deviation_seconds_bucket[5m])) by (le))", "legendFormat": "P95 Deviation", "refId": "A" }
+      ],
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 17 },
+      "id": 8
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["delivery", "ai", "dispatch"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "AI Dispatch & Routing Quality",
+  "uid": "delivery-ai-dispatch",
+  "version": 1
+}

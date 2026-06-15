@@ -5,6 +5,7 @@ using BackendApi.Models;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
 using BackendApi.Services.Ai;
+using BackendApi.Services.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Order = BackendApi.Models.Order;
 
@@ -241,6 +242,7 @@ public class DispatchService
             foreach (var order in ordersToCancel)
             {
                 _logger.LogWarning("Order {OrderId} has exceeded maximum dispatch scan attempts (3). Cancelling order.", order.Id);
+                OperationalMetrics.DispatchMatchesTotal.WithLabels(order.DispatchAttempts.ToString(), "cancelled").Inc();
                 await _stateMachine.TransitionOrderAsync(order, OrderState.CANCELLED);
             }
             await _dbContext.SaveChangesAsync();
@@ -433,6 +435,7 @@ public class DispatchService
                 pickupPolyline = pickupRoute.Polyline;
                 pickupRouteDistanceMeters = pickupRoute.DistanceMeters;
                 pickupRouteDurationSeconds = pickupRoute.DurationSeconds;
+                OperationalMetrics.DispatchDistanceMeters.Observe(pickupRoute.DistanceMeters);
             }
             catch (Exception ex)
             {

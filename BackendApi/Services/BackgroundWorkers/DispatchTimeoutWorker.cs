@@ -95,7 +95,7 @@ public class DispatchTimeoutWorker : BackgroundService
                     "Offer expired: Offer {OfferId} (Orders: {OrderIds}) → Rider {RiderId}",
                     offer.CurrentOfferId, string.Join(", ", offer.OrderIds), offer.AssignedRiderId);
 
-                await offerHandler.RejectOrTimeoutAsync(offer.CurrentOfferId!, offer.AssignedRiderId!);
+                await offerHandler.RejectOrTimeoutAsync(offer.CurrentOfferId!, offer.AssignedRiderId!, "timeout");
             }
 
             _logger.LogInformation("Processed {Count} expired offers", uniqueOffers.Count);

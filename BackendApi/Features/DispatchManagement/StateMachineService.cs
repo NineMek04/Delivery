@@ -87,6 +87,11 @@ public class StateMachineService
                     break;
                 case OrderState.COMPLETED:
                     order.CompletedAt = DateTime.UtcNow;
+                    if (order.ExpectedDeliveryTime != default)
+                    {
+                        var deviationSeconds = (DateTime.UtcNow - order.ExpectedDeliveryTime).TotalSeconds;
+                        OperationalMetrics.RouteDeviationSeconds.Observe(deviationSeconds);
+                    }
                     break;
             }
 

@@ -113,11 +113,13 @@ namespace BackendApi.Controllers.Business
                 var lngVal = hashEntries.FirstOrDefault(e => e.Name == "lng").Value;
                 var ticksVal = hashEntries.FirstOrDefault(e => e.Name == "updated_at").Value;
                 var speedVal = hashEntries.FirstOrDefault(e => e.Name == "speed_kmh").Value;
+                var accuracyVal = hashEntries.FirstOrDefault(e => e.Name == "accuracy").Value;
 
                 double lat = latVal.HasValue ? (double)latVal : 0.0;
                 double lng = lngVal.HasValue ? (double)lngVal : 0.0;
                 long ticks = ticksVal.HasValue ? (long)ticksVal : 0;
                 double speed = speedVal.HasValue ? (double)speedVal : 0.0;
+                double accuracy = accuracyVal.HasValue ? (double)accuracyVal : 0.0;
 
                 // ใช้ข้อมูล snapped จาก Batch แทนที่จะดึง N+1
                 var snappedEntries = snappedResults[i];
@@ -168,6 +170,7 @@ namespace BackendApi.Controllers.Business
                     SnappedLng = snappedLng,
                     IsSnapped = isSnapped,
                     SpeedKmh = speed,
+                    Accuracy = accuracy,
                     Status = status,
                     UpdatedAt = ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : DateTime.UtcNow
                 });

@@ -77,7 +77,7 @@ namespace BackendApi.Services.Telemetry
             if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
 
             // 1. กรองความคลาดเคลื่อนเบื้องต้น (Drift Protection)
-            if (accuracy > 50) return;
+            if (accuracy > 300) return;
 
             // 1.5. Level 1 Server-Side Rate Limiting (Safety net for SignalR or unthrottled REST inputs)
             var currentQueueSize = _gpsPublisher.PendingQueueCount;
@@ -143,7 +143,7 @@ namespace BackendApi.Services.Telemetry
             // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache
             if (!isHistoricalPoint)
             {
-                await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh);
+                await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh, accuracy);
                 await _presenceManager.HandleRiderHeartbeatAsync(riderId);
             }
 
@@ -235,6 +235,7 @@ namespace BackendApi.Services.Telemetry
                     RiderId = riderId,
                     Lat = snappedLat,
                     Lng = snappedLng,
+                    Accuracy = accuracy,
                     Status = riderState,
                     Timestamp = now,
                     isSnapped = false
@@ -249,6 +250,7 @@ namespace BackendApi.Services.Telemetry
                         RiderId = riderId,
                         Lat = snappedLat,
                         Lng = snappedLng,
+                        Accuracy = accuracy,
                         Status = riderState,
                         Timestamp = now,
                         isSnapped = false
@@ -285,7 +287,7 @@ namespace BackendApi.Services.Telemetry
 
             // 1. กรองจุดที่คลาดเคลื่อนเบื้องต้น (Drift Protection) ขอบเขตพิกัด และช่วงเวลาที่ยอมรับได้
             var validPoints = batchPoints
-                .Where(p => p.Latitude >= -90 && p.Latitude <= 90 && p.Longitude >= -180 && p.Longitude <= 180 && p.Accuracy <= 50)
+                .Where(p => p.Latitude >= -90 && p.Latitude <= 90 && p.Longitude >= -180 && p.Longitude <= 180 && p.Accuracy <= 300)
                 .Where(p => p.Timestamp >= minTimestamp && p.Timestamp <= maxTimestamp)
                 .OrderBy(p => p.Timestamp) // เรียงลำดับตามเวลาแบบเรียงขึ้น (Ascending)
                 .ToList();

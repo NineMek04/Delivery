@@ -9,6 +9,7 @@ import '../config/environment.dart';
 import 'gps_buffer_service.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_constants.dart';
+import '../session/rider_session_service.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -147,7 +148,16 @@ class LocationService extends Notifier<LocationState> {
         ),
       );
 
-      if (position.accuracy <= 50.0) {
+      if (position.isMocked) {
+        _logger.e('Mock GPS position detected on start!');
+        state = state.copyWith(
+          error: 'ตรวจพบการโกงตำแหน่งพิกัด (Mock GPS) ไม่อนุญาตให้ใช้แอปพลิเคชัน',
+          isTracking: false,
+        );
+        return false;
+      }
+
+      if (position.accuracy <= 300.0) {
         state = LocationState(
           latitude: position.latitude,
           longitude: position.longitude,
@@ -163,7 +173,7 @@ class LocationService extends Notifier<LocationState> {
         // Tracking is active, but we intentionally wait for a usable point.
         state = const LocationState(isTracking: true);
         _logger.d(
-          'Initial GPS filtered: accuracy ${position.accuracy}m is > 50m',
+          'Initial GPS filtered: accuracy ${position.accuracy}m is > 300m',
         );
       }
     } catch (e) {
@@ -179,40 +189,7 @@ class LocationService extends Notifier<LocationState> {
     _mockTimer?.cancel();
     _mockTimer = null;
 
-    LocationSettings locationSettings;
-
-    if (kIsWeb) {
-      locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: Environment.gpsDistanceFilter,
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      locationSettings = AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: Environment.gpsDistanceFilter,
-        forceLocationManager: true,
-        intervalDuration: const Duration(seconds: 10),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationText: "แอปกำลังติดตามตำแหน่งของคุณเบื้องหลัง (สามารถกดยกเลิกการติดตามได้ในแอป)",
-          notificationTitle: "Rider App เปิดใช้งาน GPS",
-          enableWakeLock: true,
-        ),
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      locationSettings = AppleSettings(
-        accuracy: LocationAccuracy.high,
-        activityType: ActivityType.automotiveNavigation,
-        distanceFilter: Environment.gpsDistanceFilter,
-        pauseLocationUpdatesAutomatically: true,
-        showBackgroundLocationIndicator: true,
-        allowBackgroundLocationUpdates: true,
-      );
-    } else {
-      locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: Environment.gpsDistanceFilter,
-      );
-    }
+    final locationSettings = buildLocationSettings(intervalSeconds: 10);
 
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: locationSettings,
@@ -225,6 +202,57 @@ class LocationService extends Notifier<LocationState> {
     );
 
     _logger.i('🛰️ GPS tracking started (filter: ${Environment.gpsDistanceFilter}m)');
+  }
+
+  // Dynamic Settings Methods:
+  LocationSettings buildLocationSettings({required int intervalSeconds}) {
+    if (kIsWeb) {
+      return LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: Environment.gpsDistanceFilter,
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: Environment.gpsDistanceFilter,
+        forceLocationManager: true,
+        intervalDuration: Duration(seconds: intervalSeconds),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationText: "แอปกำลังติดตามตำแหน่งของคุณเบื้องหลัง (สามารถกดยกเลิกการติดตามได้ในแอป)",
+          notificationTitle: "Rider App เปิดใช้งาน GPS",
+          enableWakeLock: true,
+        ),
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: intervalSeconds > 10 ? 50 : Environment.gpsDistanceFilter,
+        pauseLocationUpdatesAutomatically: true,
+        showBackgroundLocationIndicator: true,
+        allowBackgroundLocationUpdates: true,
+      );
+    } else {
+      return LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: Environment.gpsDistanceFilter,
+      );
+    }
+  }
+
+  void updateSettings(LocationSettings settings) {
+    if (!state.isTracking) return;
+    _positionSubscription?.cancel();
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: settings,
+    ).listen(
+      _onPositionUpdate,
+      onError: (error) {
+        _logger.e('❌ GPS stream error', error: error);
+        state = state.copyWith(error: 'GPS tracking error: $error');
+      },
+    );
+    _logger.i('🛰️ GPS tracking settings dynamically updated');
   }
 
   void _startMockStream() {
@@ -292,9 +320,23 @@ class LocationService extends Notifier<LocationState> {
 
   /// Handler สำหรับ position update.
   void _onPositionUpdate(Position position) {
+    if (position.isMocked) {
+      _logger.e('Mock GPS position detected during update!');
+      state = state.copyWith(
+        error: 'ตรวจพบการโกงตำแหน่งพิกัด (Mock GPS) ไม่อนุญาตให้ใช้งาน',
+        isTracking: false,
+      );
+      stopTracking();
+      // บังคับเปลี่ยนสถานะออฟไลน์
+      Future.microtask(() {
+        ref.read(riderSessionServiceProvider.notifier).goOffline();
+      });
+      return;
+    }
+
     // ── 5. ตัวกรองพิกัด (Noise Filtering) ────────────────────────
-    if (position.accuracy > 50.0) {
-      _logger.d('🛑 GPS Noise filtered: accuracy ${position.accuracy}m is > 50m');
+    if (position.accuracy > 300.0) {
+      _logger.d('🛑 GPS Noise filtered: accuracy ${position.accuracy}m is > 300m');
       return;
     }
 

@@ -15,6 +15,7 @@ export interface RiderLocationUpdate {
   snappedLng?: number;
   isSnapped?: boolean;
   speedKmh?: number;
+  accuracy?: number;
   status: string; // OFFLINE, IDLE, RESERVED, BUSY, STALE
   timestamp: string;
 }
@@ -120,6 +121,7 @@ export class TrackingSignalRService {
               snappedLng: rider.snappedLng ?? rider.SnappedLng,
               isSnapped: rider.isSnapped ?? rider.IsSnapped ?? false,
               speedKmh: rider.speedKmh ?? rider.SpeedKmh ?? 0,
+              accuracy: rider.accuracy ?? rider.Accuracy ?? 0,
               status: rider.status ?? rider.Status ?? 'OFFLINE',
               timestamp: rider.updatedAt ?? rider.UpdatedAt ?? new Date().toISOString()
             });
@@ -239,6 +241,7 @@ export class TrackingSignalRService {
         isSnapped: data.isSnapped != null ? data.isSnapped : (data.IsSnapped != null ? data.IsSnapped : false),
         status: data.status || data.Status || 'OFFLINE',
         speedKmh: data.speedKmh ?? data.SpeedKmh ?? 0, // Added to resolve BUG-22
+        accuracy: data.accuracy ?? data.Accuracy ?? 0,
         timestamp: data.timestamp || data.Timestamp || new Date().toISOString()
       };
 

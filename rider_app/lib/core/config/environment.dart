@@ -1,5 +1,6 @@
 import '../api/web_url_resolver_stub.dart'
     if (dart.library.html) '../api/web_url_resolver_web.dart';
+import 'package:flutter/foundation.dart';
 
 /// Environment configuration for the Rider App.
 ///
@@ -79,10 +80,12 @@ class Environment {
 
   /// Demo-only fallback. Production builds must never publish a fabricated
   /// rider position when browser geolocation is unavailable.
-  static const bool enableMockGps = bool.fromEnvironment(
-    'ENABLE_MOCK_GPS',
-    defaultValue: true,
-  );
+  static const bool enableMockGps = kReleaseMode
+      ? false
+      : bool.fromEnvironment(
+          'ENABLE_MOCK_GPS',
+          defaultValue: true,
+        );
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 15);

@@ -49,7 +49,7 @@ public class RiderPresenceService
     /// <summary>
     /// อัปเดตพิกัด GPS ของ Rider ใน Redis (GEOADD + Hash + Speed Buffer)
     /// </summary>
-    public virtual async Task UpdateGpsAsync(string riderId, double lat, double lng, double speedKmh = 0.0)
+    public virtual async Task UpdateGpsAsync(string riderId, double lat, double lng, double speedKmh = 0.0, double accuracy = 0.0)
     {
         try
         {
@@ -66,7 +66,8 @@ public class RiderPresenceService
                 new HashEntry("lat", lat),
                 new HashEntry("lng", lng),
                 new HashEntry("updated_at", DateTime.UtcNow.Ticks),
-                new HashEntry("speed_kmh", speedKmh)
+                new HashEntry("speed_kmh", speedKmh),
+                new HashEntry("accuracy", accuracy)
             }));
             tasks.Add(batch.KeyExpireAsync(gpsKey, TimeSpan.FromHours(24)));
             tasks.Add(batch.StringSetAsync(
@@ -194,7 +195,7 @@ public class RiderPresenceService
     /// <summary>
     /// ดึงตำแหน่ง GPS ล่าสุดของ Rider จาก Redis
     /// </summary>
-    public virtual async Task<(double Lat, double Lng, DateTime UpdatedAt)?> GetLastKnownLocationAsync(string riderId)
+    public virtual async Task<(double Lat, double Lng, DateTime UpdatedAt, double Accuracy)?> GetLastKnownLocationAsync(string riderId)
     {
         try
         {
@@ -207,7 +208,10 @@ public class RiderPresenceService
             var lng = (double)entries.FirstOrDefault(e => e.Name == "lng").Value;
             var ticks = (long)entries.FirstOrDefault(e => e.Name == "updated_at").Value;
 
-            return (lat, lng, new DateTime(ticks, DateTimeKind.Utc));
+            var accuracyEntry = entries.FirstOrDefault(e => e.Name == "accuracy");
+            var accuracy = accuracyEntry.Value.HasValue ? (double)accuracyEntry.Value : 0.0;
+
+            return (lat, lng, new DateTime(ticks, DateTimeKind.Utc), accuracy);
         }
         catch (Exception ex)
         {

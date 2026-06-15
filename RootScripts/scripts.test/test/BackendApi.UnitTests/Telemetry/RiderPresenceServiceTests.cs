@@ -217,7 +217,7 @@ namespace BackendApi.UnitTests.Telemetry
             var presenceServiceMock = new Mock<RiderPresenceService>(_redisMock.Object, _presenceLoggerMock.Object);
 
             // Set up last known location 2 seconds ago at (13.7000, 100.5000)
-            var lastKnown = (Lat: 13.7000, Lng: 100.5000, UpdatedAt: DateTime.UtcNow.AddSeconds(-2));
+            var lastKnown = (Lat: 13.7000, Lng: 100.5000, UpdatedAt: DateTime.UtcNow.AddSeconds(-2), Accuracy: 10.0);
             presenceServiceMock.Setup(p => p.GetLastKnownLocationAsync(riderId)).ReturnsAsync(lastKnown);
 
             var telemetryService = new TelemetryService(
@@ -238,7 +238,7 @@ namespace BackendApi.UnitTests.Telemetry
 
             // Assert
             // UpdateGpsAsync should never be called for this warp coordinate
-            presenceServiceMock.Verify(p => p.UpdateGpsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>()), Times.Never);
+            presenceServiceMock.Verify(p => p.UpdateGpsAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>(), It.IsAny<double>()), Times.Never);
         }
     }
 }

@@ -80,6 +80,20 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       }
     });
 
+    ref.listen<DeliveryState>(deliveryNotifierProvider, (previous, next) {
+      if (!state.isOnline) return;
+      final hasActiveOrder = next.activeOrder != null;
+      final hadActiveOrder = previous?.activeOrder != null;
+
+      if (hasActiveOrder && !hadActiveOrder) {
+        // Rider status changed to BUSY
+        _updateGpsInterval(5); // 5s interval
+      } else if (!hasActiveOrder && hadActiveOrder) {
+        // Rider status changed to IDLE
+        _updateGpsInterval(30); // 30s interval
+      }
+    });
+
     return const RiderSessionState();
   }
 
@@ -177,6 +191,10 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       _logger.d("goOnline Step 7: Saving isOnline to Database");
       // Save status to database
       await ref.read(localDatabaseServiceProvider).saveIsOnline(true);
+
+      final hasActiveOrder = ref.read(deliveryNotifierProvider).activeOrder != null;
+      _updateGpsInterval(hasActiveOrder ? 5 : 30);
+
       _logger.i('Rider session online');
     } catch (e, stackTrace) {
       _logger.e('Exception in goOnline: $e', error: e, stackTrace: stackTrace);
@@ -325,6 +343,17 @@ class RiderSessionService extends Notifier<RiderSessionState> {
     _orderStatusSub?.cancel();
     _offerSub = null;
     _orderStatusSub = null;
+  }
+
+  void _updateGpsInterval(int seconds) {
+    try {
+      final locationNotifier = ref.read(locationServiceProvider.notifier);
+      final settings = locationNotifier.buildLocationSettings(intervalSeconds: seconds);
+      locationNotifier.updateSettings(settings);
+      _logger.i('Dynamic GPS polling rate modified to $seconds seconds');
+    } catch (e) {
+      _logger.w('Failed to update dynamic GPS settings: $e');
+    }
   }
 }
 

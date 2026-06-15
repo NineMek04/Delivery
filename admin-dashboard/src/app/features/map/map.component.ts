@@ -47,6 +47,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private map!: L.Map;
   private markers: Map<string, L.Marker> = new Map();
+  private accuracyCircles: Map<string, L.Circle> = new Map();
 
   // ── ขอบเขตแผนที่ประเทศไทย (Thailand Bounding Box) ──
   private readonly THAILAND_CENTER: L.LatLngTuple = [17.4138, 102.7872]; // อุดรธานี
@@ -182,6 +183,9 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.deliveryRouteLine) this.deliveryRouteLine.remove();
     if (this.activeRadarCircle) this.activeRadarCircle.remove();
     this.candidateMarkers.forEach(m => m.remove());
+
+    this.accuracyCircles.forEach(circle => circle.remove());
+    this.accuracyCircles.clear();
 
     if (this.map) {
       this.map.remove();
@@ -571,10 +575,29 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
   private updateMapMarkers(locationMap: Map<string, RiderLocationUpdate>): void {
     if (!this.map) return;
 
+    // Cleanup routines for offline/removed riders
+    this.markers.forEach((marker, id) => {
+      if (!locationMap.has(id)) {
+        marker.remove();
+        this.markers.delete(id);
+        const circle = this.accuracyCircles.get(id);
+        if (circle) {
+          circle.remove();
+          this.accuracyCircles.delete(id);
+        }
+      }
+    });
+
     locationMap.forEach((loc, riderId) => {
       let marker = this.markers.get(riderId);
       if (!this.matchesRiderFilter(loc)) {
         marker?.remove();
+        this.markers.delete(riderId);
+        const circle = this.accuracyCircles.get(riderId);
+        if (circle) {
+          circle.remove();
+          this.accuracyCircles.delete(riderId);
+        }
         return;
       }
 
@@ -593,16 +616,44 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           (displayLat === 0 && displayLng === 0)) return;
       const next = L.latLng(displayLat, displayLng);
 
+      // Accuracy Circle Logic
+      const accuracyValue = loc.accuracy ?? 0;
+      if (accuracyValue > 50) {
+        let circle = this.accuracyCircles.get(riderId);
+        if (circle) {
+          circle.setLatLng(next);
+          circle.setRadius(accuracyValue);
+          if (!this.map.hasLayer(circle)) circle.addTo(this.map);
+        } else {
+          circle = L.circle(next, {
+            radius: accuracyValue,
+            color: '#9ca3af',
+            fillColor: '#9ca3af',
+            fillOpacity: 0.15,
+            weight: 1
+          }).addTo(this.map);
+          this.accuracyCircles.set(riderId, circle);
+        }
+      } else {
+        const circle = this.accuracyCircles.get(riderId);
+        if (circle) {
+          circle.remove();
+          this.accuracyCircles.delete(riderId);
+        }
+      }
+
       const isActive = isWinner || ['RESERVED', 'BUSY'].includes(loc.status);
-      const statusColor = isWinner
-        ? '#3b82f6'
-        : loc.status === 'IDLE'
-          ? '#22c55e'
-          : loc.status === 'RESERVED'
-            ? '#eab308'
-            : loc.status === 'BUSY'
-              ? '#f97316'
-              : '#64748b';
+      const statusColor = accuracyValue > 50
+        ? '#9ca3af'
+        : (isWinner
+          ? '#3b82f6'
+          : loc.status === 'IDLE'
+            ? '#22c55e'
+            : loc.status === 'RESERVED'
+              ? '#eab308'
+              : loc.status === 'BUSY'
+                ? '#f97316'
+                : '#64748b');
 
       const customIcon = L.divIcon({
         html: `<div style="width:${isActive ? '24px' : '16px'};height:${isActive ? '24px' : '16px'};border-radius:50%;border:2px solid #fff;background-color:${statusColor};box-shadow: 0 0 ${isActive ? '24px' : '8px'} ${statusColor};transition:all 0.2s ease-in-out;"><div style="position:absolute;top:50%;left:50%;width:${isActive ? '10px' : '6px'};height:${isActive ? '10px' : '6px'};background:#fff;border-radius:50%;transform:translate(-50%,-50%);"></div></div>`,
@@ -636,7 +687,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         if (!this.map.hasLayer(marker)) {
           marker.addTo(this.map);
         }
-        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, loc.isSnapped, () => {
+        marker.setIcon(customIcon);
+        this.draw.animateMarker(riderId, this.assignedRiderId, marker, next, loc.status, loc.isSnapped && accuracyValue <= 50, () => {
           if (this.simAutoFollow && isWinner) {
             this.map.setView(next);
           }

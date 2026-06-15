@@ -13,6 +13,7 @@ public class RiderLocationDto
     public double SnappedLng { get; set; }
     public bool IsSnapped { get; set; }
     public double SpeedKmh { get; set; }
+    public double Accuracy { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
 }

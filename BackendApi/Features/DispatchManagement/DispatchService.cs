@@ -218,8 +218,45 @@ public class DispatchService
     public virtual async Task FindAndOfferAsync(List<Order> orders)
     {
         if (orders == null || orders.Count == 0) return;
+
+        // 1. ตรวจสอบและกรองออเดอร์ที่แสกนเกิน 3 ครั้งแล้วเพื่อเปลี่ยนสถานะเป็น CANCELLED
+        var ordersToCancel = new List<Order>();
+        var ordersToScan = new List<Order>();
+
+        foreach (var order in orders)
+        {
+            if (order.DispatchAttempts >= 3)
+            {
+                ordersToCancel.Add(order);
+            }
+            else
+            {
+                order.DispatchAttempts++;
+                ordersToScan.Add(order);
+            }
+        }
+
+        if (ordersToCancel.Count > 0)
+        {
+            foreach (var order in ordersToCancel)
+            {
+                _logger.LogWarning("Order {OrderId} has exceeded maximum dispatch scan attempts (3). Cancelling order.", order.Id);
+                await _stateMachine.TransitionOrderAsync(order, OrderState.CANCELLED);
+            }
+            await _dbContext.SaveChangesAsync();
+        }
+
+        if (ordersToScan.Count == 0)
+        {
+            return; // ไม่มีออเดอร์เหลือให้ค้นหาไรเดอร์
+        }
+
+        orders = ordersToScan;
         var firstOrder = orders.First();
         using var scope = BeginLogScope(firstOrder.Id, firstOrder.AssignedRiderId);
+
+        // บันทึกจำนวนครั้งที่สแกนที่เพิ่มขึ้นของออเดอร์ที่ถูกสแกน
+        await _dbContext.SaveChangesAsync();
 
         if (firstOrder.PickupLocation is null)
         {

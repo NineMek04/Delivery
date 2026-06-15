@@ -153,6 +153,7 @@ namespace BackendApi.UnitTests.Dispatch
                     await semaphore.WaitAsync();
                     try
                     {
+                        order.DispatchAttempts = 0;
                         // FindAndOfferAsync receives order inside list
                         await dispatchService.FindAndOfferAsync(new List<Order> { order });
                     }

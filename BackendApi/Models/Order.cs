@@ -75,6 +75,9 @@ namespace BackendApi.Models
         /// <summary>ระยะเวลาที่ลูกค้ายอมรับได้ (SLA) หน่วยนาที</summary>
         public int SlaLimitMinutes { get; set; } = 30;
 
+        /// <summary>จำนวนครั้งที่สแกนหาคนขับ (จำกัดไม่เกิน 3 ครั้ง)</summary>
+        public int DispatchAttempts { get; set; } = 0;
+
         // ── Timestamps (Additional to Auditable) ───────────────────
 
         public DateTime? AssignedAt { get; set; }

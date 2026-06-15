@@ -1,4 +1,4 @@
-# QA Test Map & Execution Manual (RootScripts/scripts.test/README.md)
+﻿# QA Test Map & Execution Manual (RootScripts/scripts.test/README.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือสำหรับ **QA Engineer, Software Tester** และ **Developers** เพื่อใช้เป็นศูนย์รวมการรันชุดทดสอบทั้งหมดในระบบ (Testing Hub) ตรวจสอบความถูกต้องของโปรแกรมในห้องปฏิบัติการ และประเมินพฤติกรรมเมื่อระบบรับทราฟฟิกสูงระดับวิกฤต
@@ -26,7 +26,7 @@
 เพื่อความง่ายในการส่งมอบและควบคุมความสะอาดของซอร์สโค้ด ห้ามละเมิดกฎดังต่อไปนี้เด็ดขาด:
 
 1.  **Single Test Hub Rule (กฎศูนย์ทดสอบหนึ่งเดียว):**  
-    ชุดการทดสอบทั้งหมด (ยกเว้น Angular) จะต้องจัดเก็บอยู่ภายใต้ไดเรกทอรี [RootScripts/scripts.test/test/](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts.test/test/) เท่านั้น ห้ามกระจายโฟลเดอร์ทดสอบปะปนกับ Source Code ฝั่งโปรดักชัน
+    ชุดการทดสอบทั้งหมด (ยกเว้น Angular) จะต้องจัดเก็บอยู่ภายใต้ไดเรกทอรี [RootScripts/scripts.test/test/](test/) เท่านั้น ห้ามกระจายโฟลเดอร์ทดสอบปะปนกับ Source Code ฝั่งโปรดักชัน
 2.  **No Test Files in Core Directories (ห้ามไฟล์ทดสอบปนเปื้อน):**  
     ห้ามสร้างโฟลเดอร์ชื่อ `tests/` หรือ `__tests__/` ปนอยู่ใน Subsystem แกนหลัก เช่น ห้ามสร้างใน `ai-engine/tests` แต่ให้ย้ายมาอยู่ที่ `RootScripts/scripts.test/test/ai-engine.tests/` แทน
 3.  **Angular Spec Files Exception (ข้อยกเว้น Angular):**  
@@ -119,5 +119,5 @@ node simulate-e2e.js
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Infrastructure, Telemetry & SLO Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-infra-devops.md)
-*   [State Machine & Telemetry Data Consistency Spec](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-consistency.md)
+*   [Infrastructure, Telemetry & SLO Specification](../../.docs/ai-context/spec-infra-devops.md)
+*   [State Machine & Telemetry Data Consistency Spec](../../.docs/ai-context/spec-consistency.md)

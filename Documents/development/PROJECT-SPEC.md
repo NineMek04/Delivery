@@ -285,22 +285,22 @@ Delivery/
 เบื้องหลังการทำงานระดับ Enterprise ที่ออกแบบขึ้นเพื่อรองรับทราฟฟิกระดับสูงได้รับการจัดระเบียบแยกเอกสารเพื่อความกระชับและลดความซ้ำซ้อน โดยมีรายละเอียดดังนี้:
 
 *   **Distributed Locking & Concurrency Control:**  
-    👉 [concurrency-locking.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/concurrency-locking.md)  
+    👉 [concurrency-locking.md](CODEBASE_PATTERNS/concurrency-locking.md)  
     อธิบายสเปกระบบ Distributed Lock ด้วย Redis SETNX (Lua Script), ระบบ PostgreSQL Failover Lock สำรอง, และระบบควบคุม Optimistic Concurrency Control ผ่าน PostgreSQL Shadow `xmin` Token กับการทำ PgBouncer Connection String.
 *   **Idempotency Protection (ป้องกันข้อความซ้ำ):**  
-    👉 [rabbitmq-idempotency.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/rabbitmq-idempotency.md)  
+    👉 [rabbitmq-idempotency.md](CODEBASE_PATTERNS/rabbitmq-idempotency.md)  
     อธิบายกลไกการสแกนและบันทึกข้อความผ่านตาราง `processed_events` และตัวเก็บกวาดข้อมูลเก่า `DbMaintenanceWorker` เพื่อความปลอดภัยในการทำงานของ RabbitMQ.
 *   **Windowed Telemetry & Anti-DOM-Thrash:**  
-    👉 [frontend-reactive-teardowns.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/frontend-reactive-teardowns.md)  
+    👉 [frontend-reactive-teardowns.md](CODEBASE_PATTERNS/frontend-reactive-teardowns.md)  
     รายละเอียดกลไกของ Telemetry Aggregator RAM ในการทำ Batching ข้อมูลพิกัดและล้างหน่วยความจำบน Angular/Leaflet เพื่อลดภาระการ Re-render ของ Browser.
 *   **Offline Local Storage & GPS Buffering:**  
-    👉 [sqlite-local-db.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/sqlite-local-db.md)  
+    👉 [sqlite-local-db.md](CODEBASE_PATTERNS/sqlite-local-db.md)  
     รายละเอียด SQLite (sqflite) บน Flutter ในตาราง `pending_gps_points` ระบบลบข้อมูลแบบ FIFO (10,000 จุด) และ Web Fallback เพื่อการรันงานในพื้นที่อับสัญญาณ.
 *   **App Routing Redirection (RBAC):**  
-    👉 [gorouter-rbac.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/gorouter-rbac.md)  
+    👉 [gorouter-rbac.md](CODEBASE_PATTERNS/gorouter-rbac.md)  
     โครงสร้างการเข้าถึงหน้าจอและระบบ Authentication Guards ผสมผสานสิทธิ์ของบทบาทผู้ใช้ด้วย GoRouter.
 *   **Unified API Response Wrapper:**  
-    👉 [api-response-wrapper.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/api-response-wrapper.md)  
+    👉 [api-response-wrapper.md](CODEBASE_PATTERNS/api-response-wrapper.md)  
     รายละเอียดการดักจับ HTTP Response ด้วย `GlobalResponseFilter` และสัญลักษณ์ข้ามผ่านด้วย `[DisableWrapper]`.
 
 ---
@@ -324,12 +324,12 @@ AI Agent ได้รับคำสั่งให้เชื่อถือ�
 ระบบทั้งหมดถูกกำหนดค่าให้บิวด์และทำงานได้เองแบบอัตโนมัติ (Zero-Manual Operation DX) โดยมีโครงสร้างและตัวคุมกฎดังนี้:
 
 *   **Auto Database Migrations & Advanced Provisioning:**  
-    👉 [db-migration-seeding.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/db-migration-seeding.md) และ [MIGRATION-SERVICE.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/MIGRATION-SERVICE.md)  
+    👉 [db-migration-seeding.md](CODEBASE_PATTERNS/db-migration-seeding.md) และ [MIGRATION-SERVICE.md](MIGRATION-SERVICE.md)  
     รายละเอียดกลไกการทำ Auto-Migration บน EF Core และเครื่องมือ Dynamic Partitioning ของ `PostgresAdvancedConfigurator.cs` เพื่อแบ่งพาร์ทิชันตารางพิกัด Rider อัตโนมัติรายเดือน.
     > [!WARNING]
     > **⚠️ คำเตือนจาก Tech Lead (Deadlock Risk):** ในสภาพแวดล้อม Production ที่มีการ Scale Multi-Instance บังคับให้ปิดการรัน Auto-Migration ที่ Startup และสลับไปรันผ่าน CI/CD Single Runner หรือ Kubernetes Init Containers แทนเพื่อเลี่ยง PostgreSQL Deadlock.
 *   **MSBuild Compile-Driven Swagger & Frontend DTO Generation:**  
-    👉 [openapi-swagger-generation.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/openapi-swagger-generation.md)  
+    👉 [openapi-swagger-generation.md](CODEBASE_PATTERNS/openapi-swagger-generation.md)  
     รายละเอียดกลไก MSBuild Targets ใน `.csproj` และ Command-line flags ใน `Program.cs` เพื่อแปลงและสลับบิลด์ Swagger spec ออกเป็น TypeScript DTO ท้องถิ่นอัตโนมัติ.
 
 ---

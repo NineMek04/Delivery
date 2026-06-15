@@ -1,4 +1,4 @@
-# RabbitMQ Event Broker Subsystem (rabbitmq/README.md)
+﻿# RabbitMQ Event Broker Subsystem (rabbitmq/README.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการบริหารจัดการ คอนฟิก และการจัดหมวดหมู่ข้อความเหตุการณ์ (Events) สำหรับตู้บริการ **RabbitMQ Message Broker** ในระบบจัดส่งอัจฉริยะ
@@ -19,7 +19,7 @@
 *   **พอร์ตหลัก (AMQP Port):** `5672` (สำหรับ Backend API ส่งและดักรับข้อความ)
 *   **แผงควบคุมหลัก (Management Dashboard):** `15672` (สำหรับแอดมินเข้าไปดูข้อความค้างคิว)
 *   **พอร์ต Metrics (Prometheus Ingest):** `15692` (ส่งข้อมูล metrics ไปหา Prometheus)
-*   **Enabled Plugins ([enabled_plugins](file:///c:/Users/ASUS/Desktop/Project/Delivery/rabbitmq/enabled_plugins)):**  
+*   **Enabled Plugins ([enabled_plugins](enabled_plugins)):**  
     ระบบเปิดใช้งานปลั๊กอิน `rabbitmq_management` และ `rabbitmq_prometheus` อัตโนมัติ เพื่อสนับสนุนระบบดักจับ Metrics ของ DevOps
 
 ---
@@ -84,5 +84,5 @@
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Integration Event and Consumer Details Spec](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-consistency.md)
-*   [Dead Letter Exchange and Error Queue Spec](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-dead-letter.md)
+*   [Integration Event and Consumer Details Spec](../.docs/ai-context/spec-consistency.md)
+*   [Dead Letter Exchange and Error Queue Spec](../.docs/ai-context/spec-dead-letter.md)

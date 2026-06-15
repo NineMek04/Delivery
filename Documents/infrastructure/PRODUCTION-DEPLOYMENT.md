@@ -1,4 +1,4 @@
-# Production Deployment & Security Configuration (Documents/infrastructure/PRODUCTION-DEPLOYMENT.md)
+﻿# Production Deployment & Security Configuration (Documents/infrastructure/PRODUCTION-DEPLOYMENT.md)
 
 คู่มือเล่มนี้รวบรวมแนวทางปฏิบัติที่ดีที่สุด (Best Practices) ด้านความปลอดภัยและการนำระบบขึ้นทำงานจริงบนสภาพแวดล้อมโปรดักชัน (Production Deployment)
 
@@ -9,11 +9,11 @@
 ความปลอดภัยระดับโครงสร้างพื้นฐานขึ้นอยู่กับนโยบาย **API Isolation** เพื่อป้องกันผู้ใช้ที่ไม่พึงประสงค์สืบค้นข้อมูลหรือรบกวนฐานข้อมูลหลักโดยตรง
 
 ### 1.1 การป้องกันบน Base Config (`docker-compose.yml`)
-- **แนวทางปฏิบัติ:** ไฟล์ [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml) หลักจะต้อง **ไม่มี** การประกาศพารามิเตอร์ `ports:` สำหรับบริการที่เป็นภายใน (Internal Services) เช่น `db`, `pgbouncer`, `redis`, `rabbitmq`, `vault`, `prometheus`, `alertmanager`
+- **แนวทางปฏิบัติ:** ไฟล์ [docker-compose.yml](../../docker-compose.yml) หลักจะต้อง **ไม่มี** การประกาศพารามิเตอร์ `ports:` สำหรับบริการที่เป็นภายใน (Internal Services) เช่น `db`, `pgbouncer`, `redis`, `rabbitmq`, `vault`, `prometheus`, `alertmanager`
 - **ผลลัพธ์:** คอนเทนเนอร์เหล่านี้จะคุยกันผ่านชื่อบริการภายใน Docker Network ส่วนตัวเท่านั้น ทำให้พอร์ตเหล่านี้ไม่ถูกเปิดรับทราฟฟิกจากอินเทอร์เน็ตภายนอกเครื่องโฮสต์
 
 ### 1.2 การกำหนดเฉพาะสำหรับการพัฒนา (`docker-compose.override.yml`)
-- **แนวทางปฏิบัติ:** พอร์ตพัฒนาเชิงเชื่อมต่อตรง (เช่น `5432`, `6379`, `15672`, `9090`) จะถูกประกาศไว้ในไฟล์เฉพาะที่เรียกว่า [docker-compose.override.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.override.yml) เท่านั้น
+- **แนวทางปฏิบัติ:** พอร์ตพัฒนาเชิงเชื่อมต่อตรง (เช่น `5432`, `6379`, `15672`, `9090`) จะถูกประกาศไว้ในไฟล์เฉพาะที่เรียกว่า [docker-compose.override.yml](../../docker-compose.override.yml) เท่านั้น
 - **การจำกัดไอพีเชื่อมต่อ:** ทุกการเชื่อมต่อพอร์ตในไฟล์ override จะต้องถูกผูกเข้ากับที่อยู่ **`127.0.0.1` (localhost)** เท่านั้น เพื่อป้องกันไม่ให้คนขับรถหรือบุคคลอื่นในวง LAN หรือเน็ตเวิร์กสาธารณะสแกนพอร์ตเจอ
   - *ตัวอย่างที่ถูกต้อง:* `"127.0.0.1:5432:5432"`
   - *ตัวอย่างที่ห้ามทำบน Production:* `"0.0.0.0:5432:5432"` (จะทำให้อินเทอร์เน็ตเข้าถึงฐานข้อมูลตรงๆ ได้)
@@ -25,7 +25,7 @@
 บนเซิร์ฟเวอร์จริง Nginx Proxy (ตู้ Gateway ขาเข้า) จะต้องผ่านกระบวนการเข้ารหัสสัญญาณข้อมูลทั้งหมดเพื่อป้องกันการดักจับพิกัดระหว่างเดินทาง (Man-in-the-Middle Attack)
 
 ### 2.1 การเขียนตั้งค่า Nginx Certs
-- **ตำแหน่งไฟล์:** [nginx-proxy/nginx.conf](file:///c:/Users/ASUS/Desktop/Project/Delivery/nginx-proxy/nginx.conf)
+- **ตำแหน่งไฟล์:** [nginx-proxy/nginx.conf](../../nginx-proxy/nginx.conf)
 - **ตัวอย่างรูปแบบคอนฟิกการเข้ารหัส (SSL Configuration Block):**
 
 ```nginx

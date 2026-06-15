@@ -1,4 +1,4 @@
-# AI Routing Engine (Python FastAPI)
+﻿# AI Routing Engine (Python FastAPI)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการพัฒนาสำหรับทีม **AI / Data Engineer (Python)** อธิบายโครงสร้าง อัลกอริทึมการแก้ปัญหา VRP (Vehicle Routing Problem) และการวิเคราะห์คำนวณตำแหน่งระยะทาง
@@ -17,8 +17,8 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 
 ### ข้อกำหนดทางเทคนิค (Prerequisites)
 *   **Python:** เวอร์ชัน 3.11.x (แนะนำเพื่อความเสถียรของ OR-Tools)
-*   **Libraries:** ดูรายละเอียดใน [requirements.txt](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/requirements.txt) (`fastapi`, `uvicorn`, `ortools` v9.8+, `pydantic` v2+)
-*   **ความปลอดภัย:** คอนฟิกโหลดค่าลับผ่าน AppRole ของ HashiCorp Vault ขาเริ่มระบบ (ดูที่ฟังก์ชัน `load_vault_config()` ใน [main.py](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/main.py#L8))
+*   **Libraries:** ดูรายละเอียดใน [requirements.txt](requirements.txt) (`fastapi`, `uvicorn`, `ortools` v9.8+, `pydantic` v2+)
+*   **ความปลอดภัย:** คอนฟิกโหลดค่าลับผ่าน AppRole ของ HashiCorp Vault ขาเริ่มระบบ (ดูที่ฟังก์ชัน `load_vault_config()` ใน [main.py](main.py#L8))
 
 ### วิธีการรันโปรเจกต์ภายในเครื่อง (Local Run)
 1.  สร้างและเปิดใช้งาน Virtual Environment:
@@ -46,7 +46,7 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 ## 3. อัลกอริทึมและการหาค่าดีที่สุด (Algorithm Logic)
 
 ### 3.1 การจัดคิวเส้นทาง (Google OR-Tools VRP Solver)
-ประมวลผลผ่านโมดูลหลัก [vrp_solver.py](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/app/core/vrp_solver.py):
+ประมวลผลผ่านโมดูลหลัก [vrp_solver.py](app/core/vrp_solver.py):
 *   **Vehicle Routing Problem (VRP):** แก้ไขสมการคำนวณเส้นทางพนักงานขนส่งหลายคนโดยใช้ `pywrapcp.RoutingModel`
 *   **Precedence Constraints (กฎการหยิบ/ส่งสินค้า):** กำหนดเงื่อนไขเด็ดขาดผ่าน `routing.AddPickupAndDelivery(...)` เพื่อสั่งให้ **"ตำแหน่งหยิบสินค้า (Pickup Node) ต้องได้รับการเยี่ยมเยือนก่อนตำแหน่งส่งสินค้า (Delivery Node) ของออเดอร์นั้นๆ เสมอ"**
 *   **Search Parameters (ฟังก์ชันค้นหา):** 
@@ -57,24 +57,24 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 *   **OSRM Integration:** ในโหมดเสถียรปกติ ระบบจะส่งรายชื่อชุดพิกัดละติจูด/ลองจิจูดไปยัง local OSRM Service (`http://osrm:5000/table/v1/driving/...`) เพื่อคำนวณหา Dijkstra Distance Matrix ระหว่างทุกหมุดพิกัดบนโครงข่ายถนนจริงจังหวัดอุดรธานี
 *   **Redis Cache:** มีการบันทึกค่า Matrix ระยะทางที่เพิ่งคำนวณลง Redis เพื่อประหยัด CPU ในคำร้องขอรอบถัดไป
 *   **Haversine Fallback (ระบบป้องกันล่ม):**  
-    หาก OSRM ล่มหรือมีปัญหาล่าช้า ระบบจะสลับมาใช้สูตรคำนวณทรงกลมโลก [haversine_distance](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/app/core/geo_utils.py#L8) เพื่อหาพิกัดระยะทางตรง (Straight-line distance in meters) และหารด้วยค่าความเร็วเฉลี่ยคงที่ (Rule-based average velocity) เป็นค่าประมาณการ ETA แทนทันที
+    หาก OSRM ล่มหรือมีปัญหาล่าช้า ระบบจะสลับมาใช้สูตรคำนวณทรงกลมโลก [haversine_distance](app/core/geo_utils.py#L8) เพื่อหาพิกัดระยะทางตรง (Straight-line distance in meters) และหารด้วยค่าความเร็วเฉลี่ยคงที่ (Rule-based average velocity) เป็นค่าประมาณการ ETA แทนทันที
 
 ---
 
 ## 4. โครงสร้างข้อมูลขาเข้า/ขาออก (API Interfaces)
 
-ระบบมี 3 Endpoints หลักที่เปิดรับใช้งานผ่าน [api.py](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/app/api/v1/api.py):
+ระบบมี 3 Endpoints หลักที่เปิดรับใช้งานผ่าน [api.py](app/api/v1/api.py):
 
 ### 4.1 `/api/v1/dispatch/rank` (Rider Selection)
 *   **เป้าหมาย:** จัดอันดับ Rider Candidates ที่พร้อมวิ่งงานในพื้นที่รอบร้านค้า (สูงสุด 200 รายการ)
-*   **Input ([DispatchRankRequest](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/app/models/dispatch_models.py)):**
+*   **Input ([DispatchRankRequest](app/models/dispatch_models.py)):**
     - `order`: ข้อมูลจุดรับ (Pickup) และจุดส่ง (Dropoff)
     - `candidates`: รายชื่อคนขับว่างงาน (`id`, `lat`, `lng`, `bearing`, `status`)
 *   **Output:** ลำดับและรายชื่อคนขับว่าง เรียงตามคะแนนความเหมาะสมสูงสุดลงไป (Scoring Score คำนวณจากระยะทางทาบถนน, ทิศทางหัวรถ `is_same_direction`, และพฤติกรรมปฏิเสธงานสะสม)
 
 ### 4.2 `/api/optimize-route` (VRP Route Optimization)
 *   **เป้าหมาย:** จัดคิวเส้นทางหยิบและส่งสินค้าหลายจุดสำหรับ Rider (Multi-Drop sequence)
-*   **Input ([Location](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/app/models/routing_models.py)):** รายชื่อของพิกัดแวะพักทั้งหมด, จำนวนรถที่มี และจุดจอดปล่อยรถ (Depot index)
+*   **Input ([Location](app/models/routing_models.py)):** รายชื่อของพิกัดแวะพักทั้งหมด, จำนวนรถที่มี และจุดจอดปล่อยรถ (Depot index)
 *   **Output:** ลำดับลำดับการเดินทางในอาร์เรย์ `optimized_route` พร้อมค่าระยะทางรวมเมตร `total_distance_meters`
 
 ### 4.3 `/api/v1/predict-eta` (ETA Estimator)
@@ -85,6 +85,6 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Contracts)
-*   [AI Routing Engine Core Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-ai-engine.md)
-*   [API Endpoints JSON Payloads Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/api-contracts.md)
-*   [GeoJSON Coordinate Standard Rules](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/geojson-contracts.md)
+*   [AI Routing Engine Core Specification](../.docs/ai-context/spec-ai-engine.md)
+*   [API Endpoints JSON Payloads Specification](../.docs/ai-context/contracts/api-contracts.md)
+*   [GeoJSON Coordinate Standard Rules](../.docs/ai-context/contracts/geojson-contracts.md)

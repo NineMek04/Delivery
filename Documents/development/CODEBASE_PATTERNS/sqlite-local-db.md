@@ -1,8 +1,8 @@
-# 💾 รูปแบบการทำข้อมูลสำรองท้องถิ่น (SQLite Local Database & Offline Buffering)
+﻿# 💾 รูปแบบการทำข้อมูลสำรองท้องถิ่น (SQLite Local Database & Offline Buffering)
 
 ในโมดูลของแอปพลิเคชันมือถือ Flutter (Rider App) มีความจำเป็นต้องทำงานแบบ Offline-First เนื่องจากคนขับรถต้องเคลื่อนที่ผ่านพื้นที่อับสัญญาณเน็ตเวิร์ก โดยใช้ SQLite ผ่านไลบรารี `sqflite` เพื่อป้องกันข้อมูลสูญหาย:
 
-- **ตำแหน่งตัวควบคุมหลัก:** [local_database_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/database/local_database_service.dart)
+- **ตำแหน่งตัวควบคุมหลัก:** [local_database_service.dart](../../../rider_app/lib/core/database/local_database_service.dart)
 
 ---
 
@@ -111,4 +111,4 @@
 > **หากในอนาคตต้องการย้ายระบบ (Migrate) จาก SQLite (sqflite) ไปเป็น Isar NoSQL จะต้อง:**
 > 1. **เพิ่ม Dependency:** เพิ่ม `isar` และ `isar_flutter_libs` ควบคู่กับการเรียกใช้งานตัวสร้าง `isar_generator` และ `build_runner` ใน `pubspec.yaml`
 > 2. **ปรับเปลี่ยน Model:** เปลี่ยนโครงสร้างการดึงคลาสโมเดลจากตารางแถว (Relational Rows) ไปเป็นคลาส `@Collection` เพื่อสร้าง Schema แบบ NoSQL
-> 3. **แก้ไข Service หลัก:** แก้ไขตัวบริการหลัก [local_database_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/database/local_database_service.dart) ให้เปลี่ยนไปเปิด `Isar.open()` และเรียกใช้ `isar.writeTxn()` แทนการคิวรีผ่าน raw SQL และ `Sqflite.firstIntValue` ในปัจจุบัน
+> 3. **แก้ไข Service หลัก:** แก้ไขตัวบริการหลัก [local_database_service.dart](../../../rider_app/lib/core/database/local_database_service.dart) ให้เปลี่ยนไปเปิด `Isar.open()` และเรียกใช้ `isar.writeTxn()` แทนการคิวรีผ่าน raw SQL และ `Sqflite.firstIntValue` ในปัจจุบัน

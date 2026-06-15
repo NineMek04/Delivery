@@ -1,6 +1,6 @@
-# ⚡ การป้องกันสภาวะหน่วงของกลุ่มเทรด (ThreadPool Starvation Prevention)
+﻿# ⚡ การป้องกันสภาวะหน่วงของกลุ่มเทรด (ThreadPool Starvation Prevention)
 
-ในตอนสตาร์ตบูต API หลัก มีการกำหนดตั้งค่าขนาดเทรดพื้นฐานขั้นต่ำไว้ใน [Program.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Program.cs#L20-L21):
+ในตอนสตาร์ตบูต API หลัก มีการกำหนดตั้งค่าขนาดเทรดพื้นฐานขั้นต่ำไว้ใน [Program.cs](../../../BackendApi/Program.cs#L20-L21):
 ```csharp
 System.Threading.ThreadPool.SetMinThreads(1000, 1000);
 ```

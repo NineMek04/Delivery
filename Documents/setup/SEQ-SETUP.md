@@ -1,4 +1,4 @@
-# Seq Centralized Logging Manual (Documents/setup/SEQ-SETUP.md)
+﻿# Seq Centralized Logging Manual (Documents/setup/SEQ-SETUP.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการตั้งค่าและการคิวรีสืบค้นล็อกโครงสร้างวัตถุ (**Centralized Structured Logging**) บนตู้บริการ **Seq Server** ร่วมกับตัวขับล็อก Serilog หลังบ้าน
@@ -23,7 +23,7 @@
 
 ## 3. การกำหนดตัวขับฝั่งหลังบ้าน (Serilog Setup & Core Log Rules)
 
-ฝั่ง Backend API มีการตั้งค่า Serilog Sink ชี้พิกัดในไฟล์ [appsettings.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/appsettings.json) ไปหาที่อยู่ `http://seq:5341`:
+ฝั่ง Backend API มีการตั้งค่า Serilog Sink ชี้พิกัดในไฟล์ [appsettings.json](../../BackendApi/appsettings.json) ไปหาที่อยู่ `http://seq:5341`:
 
 ### 3.1 กฎการยึดรอย Correlation ID (Trace Correlation Rules)
 ตามข้อกำหนดในการตรวจสอบประวัติข้อผิดพลาดข้าม Microservices (**`AGENTS.md §4`**) ล็อกของ Backend API ทุกเส้นบันทึกจะต้องแนบตัวแปรสามฟิลด์ต่อไปนี้เสมอ (ถ้ามี) เพื่อใช้เชื่อมโยงเหตุการณ์:
@@ -49,7 +49,7 @@
 
 ## 5. วิธีการขึ้นระบบและเปิดใช้งาน (Setup & Verification Steps)
 
-1.  ตรวจสอบการตั้งค่าตู้ Seq ในไฟล์ [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml):
+1.  ตรวจสอบการตั้งค่าตู้ Seq ในไฟล์ [docker-compose.yml](../../docker-compose.yml):
     ```yaml
       seq:
         image: datalust/seq:latest
@@ -73,5 +73,5 @@
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [DevOps Infrastructure Manual (README-DEVOPS.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/README-DEVOPS.md)
-*   [Trace Correlation & Logging Standard Rules](file:///c:/Users/ASUS/Desktop/Project/Delivery/CRITICAL-CODE-PROTECTION.md#L4)
+*   [DevOps Infrastructure Manual (README-DEVOPS.md)](../../README-DEVOPS.md)
+*   [Trace Correlation & Logging Standard Rules](../../CRITICAL-CODE-PROTECTION.md#L4)

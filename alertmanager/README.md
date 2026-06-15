@@ -1,4 +1,4 @@
-# Alertmanager Notification Subsystem (alertmanager/README.md)
+﻿# Alertmanager Notification Subsystem (alertmanager/README.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการบริหารจัดการเส้นทางเตือนภัยพิบัติ และกำหนดนโยบายส่งข้อความเตือนไปยังระบบแชทภายนอกสำหรับตู้บริการ **Alertmanager**
@@ -15,7 +15,7 @@
 
 ## 2. โครงสร้างและการคัดกรองข้อความ (Routing Configuration)
 
-รายละเอียดการส่งผ่านข้อความระบุไว้ในไฟล์หลัก [alertmanager.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/alertmanager/alertmanager.yml):
+รายละเอียดการส่งผ่านข้อความระบุไว้ในไฟล์หลัก [alertmanager.yml](alertmanager.yml):
 
 *   **Resolve Timeout:** กำหนดช่วงเวลา 5 นาที (`resolve_timeout: 5m`) หากสัญญาณเตือนเงียบหายเกิน 5 นาที ระบบจะสรุปส่งผลลัพธ์ว่าปัญหาความปลอดภัยได้รับการแก้ไขแล้ว (`send_resolved: true`)
 *   **Grouping Rules (การควบคุมความถี่):**
@@ -30,7 +30,7 @@
 
 *   **Default Receiver:** ข้อความเตือนภัยและผลสรุปหลังแก้ปัญหา (`send_resolved`) จะถูกส่งออกไปยังช่องทาง **`discord-webhook`**
 *   **การตั้งค่าใช้งานจริง (Remediation):**  
-    ก่อนนำระบบขึ้นทำงานจริง ทีม DevOps จะต้องแก้ไข URL ตัวแปร **`webhook_url`** ในไฟล์ [alertmanager.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/alertmanager/alertmanager.yml#L14) จากเดิมที่เป็นค่า placeholder ให้กลายเป็น URL Webhook จริงที่สร้างมาจากเซิร์ฟเวอร์ Discord ของบริษัท:
+    ก่อนนำระบบขึ้นทำงานจริง ทีม DevOps จะต้องแก้ไข URL ตัวแปร **`webhook_url`** ในไฟล์ [alertmanager.yml](alertmanager.yml#L14) จากเดิมที่เป็นค่า placeholder ให้กลายเป็น URL Webhook จริงที่สร้างมาจากเซิร์ฟเวอร์ Discord ของบริษัท:
     ```yaml
     receivers:
     - name: 'discord-webhook'
@@ -55,5 +55,5 @@
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Infrastructure, Telemetry & SLO Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-infra-devops.md)
-*   [Prometheus Metrics Subsystem (prometheus/README.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/prometheus/README.md)
+*   [Infrastructure, Telemetry & SLO Specification](../.docs/ai-context/spec-infra-devops.md)
+*   [Prometheus Metrics Subsystem (prometheus/README.md)](../prometheus/README.md)

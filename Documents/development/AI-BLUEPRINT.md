@@ -248,9 +248,9 @@ Delivery/
 
 รายละเอียดสเปก ข้อกำหนด และฟังก์ชันการใช้งานของแอปพลิเคชันมือถือ (Rider, Customer, StorePartner) ได้ถูกย้ายและแยกโครงสร้างออกเป็นเอกสารจำเพาะเพื่อประหยัด Token และป้องกันการซ้ำซ้อนในแบบแผนที่บวม โดยสามารถเปิดอ่านข้อมูลสถานะล่าสุดและสถาปัตยกรรมทางเทคนิคได้ที่:
 
-- **สเปกข้อกำหนดและการเชื่อมต่อ:** [.docs/ai-context/spec-mobile-rider.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-mobile-rider.md) (Rider Auth, GPS Rules, Background Sync, OSRM/SignalR contracts)
-- **สเปกการสำรองข้อมูลในเครื่อง (SQLite):** [sqlite-local-db.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/sqlite-local-db.md) (ตาราง `pending_gps_points`, `pending_status_updates` และระบบ FIFO trimming)
-- **การจัดสิทธิ์และเส้นทางแผนผัง:** [gorouter-rbac.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/gorouter-rbac.md) (GoRouter RBAC & Refresh Listenable)
+- **สเปกข้อกำหนดและการเชื่อมต่อ:** [.docs/ai-context/spec-mobile-rider.md](../../.docs/ai-context/spec-mobile-rider.md) (Rider Auth, GPS Rules, Background Sync, OSRM/SignalR contracts)
+- **สเปกการสำรองข้อมูลในเครื่อง (SQLite):** [sqlite-local-db.md](CODEBASE_PATTERNS/sqlite-local-db.md) (ตาราง `pending_gps_points`, `pending_status_updates` และระบบ FIFO trimming)
+- **การจัดสิทธิ์และเส้นทางแผนผัง:** [gorouter-rbac.md](CODEBASE_PATTERNS/gorouter-rbac.md) (GoRouter RBAC & Refresh Listenable)
 
 ### 9.1 สถานะภาพรวมโครงการโมบาย (ณ ปัจจุบัน)
 - **Rider App (Flutter):** 🟢 50% Ready (โครงสร้าง Auth, Secure Storage, SignalR, Background GPS, SQLite/sqflite offline buffer และ GoRouter RBAC พร้อมใช้งาน)

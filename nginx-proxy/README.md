@@ -1,4 +1,4 @@
-# Nginx Reverse Proxy Subsystem (nginx-proxy/README.md)
+﻿# Nginx Reverse Proxy Subsystem (nginx-proxy/README.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการกำหนดนโยบายรักษาความปลอดภัย การกรองทราฟฟิก และการจัดการโหลดพิกัดระดับเครือข่ายสำหรับระบบ **Nginx Reverse Proxy Gateway**
@@ -18,14 +18,14 @@
 
 ## 2. โครงสร้างและการตั้งค่าทางเทคนิค (Configuration Structure)
 
-บริการรันผ่านไฟล์หลัก [nginx.conf](file:///c:/Users/ASUS/Desktop/Project/Delivery/nginx-proxy/nginx.conf):
+บริการรันผ่านไฟล์หลัก [nginx.conf](nginx.conf):
 
 *   **Upstream Definition:** กำหนดสายส่งต่อไปหาคอนเทนเนอร์ต่างๆ ใน Docker:
     ```nginx
     upstream backend { server backend:80; }
     upstream frontend { server frontend:80; }
     ```
-*   **External Port Mapping:** ระบุพอร์ตเชื่อมต่อออกภายนอกใน [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml):
+*   **External Port Mapping:** ระบุพอร์ตเชื่อมต่อออกภายนอกใน [docker-compose.yml](../docker-compose.yml):
     -   พอร์ตรับบริการอินเทอร์เน็ต: `8081:80` (ทางเข้าหลัก)
 
 ---
@@ -50,10 +50,10 @@ Nginx บังคับฝัง Security Headers ลงในคำตอบ�
 
 ### 3.3 การป้องกันตัวชี้วัด (/metrics basic auth)
 *   ตัวชี้วัดสำหรับ Prometheus (/metrics) ได้รับการปิดกั้นและตรวจสอบผ่านระบบรหัสผ่านพื้นฐาน **Basic Authentication**
-*   ไฟล์ระบุรหัสผ่านอ้างอิงที่ [.htpasswd](file:///c:/Users/ASUS/Desktop/Project/Delivery/nginx-proxy/.htpasswd)
+*   ไฟล์ระบุรหัสผ่านอ้างอิงที่ [.htpasswd](.htpasswd)
 
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Infrastructure, Telemetry & SLO Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-infra-devops.md)
-*   [DevOps Deployment Manual (README-DEVOPS.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/README-DEVOPS.md)
+*   [Infrastructure, Telemetry & SLO Specification](../.docs/ai-context/spec-infra-devops.md)
+*   [DevOps Deployment Manual (README-DEVOPS.md)](../README-DEVOPS.md)

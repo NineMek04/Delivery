@@ -1,4 +1,4 @@
-# Walkthrough — Phase 6: Sprint 4 & Sprint 5 (Operational Intelligence & Event-Driven Architecture)
+﻿# Walkthrough — Phase 6: Sprint 4 & Sprint 5 (Operational Intelligence & Event-Driven Architecture)
 
 ยินดีด้วยครับ! การพัฒนาและตรวจสอบความถูกต้องของ **Phase 6 Sprint 5 (Event-Driven Architecture using RabbitMQ)** เสร็จสมบูรณ์แล้ว ระบบเปลี่ยนสถานะจาก "Prototype ทำงานได้ทั่วไป" เป็น **"Production-ready & Enterprise-grade Thesis Platform"** ที่สมบูรณ์แบบพร้อมสำหรับงานนำเสนอ ป้องกันการเกิดบั๊ก และมีดีไซน์ที่สวยงามโดดเด่นสะกดสายตา
 
@@ -9,7 +9,7 @@
 ### 1. Event-Driven Architecture (RabbitMQ Message Broker) — *Sprint 5*
 เราได้ปรับปรุงระบบจาก synchronous I/O ทั่วไปเป็นระบบ **Event-Driven Architecture (EDA)** เต็มตัว เพื่อลดภาระงานบน HTTP Thread และสนับสนุนการสเกลระบบขยายขนาด (Decoupling & Scalability):
 *   **RabbitMQ Message Broker**: ติดตั้งและกำหนดค่าบริการ `rabbitmq:3-management-alpine` ใน `docker-compose.yml` บนพอร์ตมาตรฐาน AMQP `5672` และหน้าควบคุมแลกเปลี่ยนข้อความ `15672`
-*   **Robust Event Bus Infrastructure**: พัฒนา `RabbitMqEventBus.cs` และ `IEventBus.cs` ใน [BackendApi/Infrastructure/EventBus/](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/EventBus/) ที่มีความแข็งแกร่งสูง:
+*   **Robust Event Bus Infrastructure**: พัฒนา `RabbitMqEventBus.cs` และ `IEventBus.cs` ใน [BackendApi/Infrastructure/EventBus/](../BackendApi/Infrastructure/EventBus/) ที่มีความแข็งแกร่งสูง:
     *   สร้างระบบตรวจสอบการเชื่อมต่อ Persistent Connection ป้องกันเน็ตเวิร์กหลุด
     *   กำหนด Exchange หลักเป็น `delivery_event_bus` แบบ `direct`
     *   กำหนดพิกัด Queue แบบ `durable: true` เพื่อประกันความทนทานของข้อมูลในกรณีระบบรีสตาร์ต
@@ -18,27 +18,27 @@
     *   `OrderStatusChangedIntegrationEvent`: เผยแพร่เมื่อสถานะการส่งของคำสั่งซื้อเปลี่ยนแปลง (`CREATED` -> `MATCHING` -> `OFFERING` -> `ASSIGNED` -> `PICKING_UP` -> `DELIVERING` -> `COMPLETED`)
     *   `RiderLocationUpdatedIntegrationEvent`: รับตำแหน่ง GPS ความถี่สูงจาก SignalR เพื่อแปลงเป็นอีเวนต์ส่งต่อประมวลผลตำแหน่งเชิงเวลา
 *   **Background Event Handlers**:
-    *   [OrderCreatedIntegrationEventHandler.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/EventBus/Handlers/OrderCreatedIntegrationEventHandler.cs)
-    *   [OrderStatusChangedIntegrationEventHandler.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/EventBus/Handlers/OrderStatusChangedIntegrationEventHandler.cs)
-    *   [RiderLocationUpdatedIntegrationEventHandler.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/EventBus/Handlers/RiderLocationUpdatedIntegrationEventHandler.cs)
+    *   [OrderCreatedIntegrationEventHandler.cs](../BackendApi/Infrastructure/EventBus/Handlers/OrderCreatedIntegrationEventHandler.cs)
+    *   [OrderStatusChangedIntegrationEventHandler.cs](../BackendApi/Infrastructure/EventBus/Handlers/OrderStatusChangedIntegrationEventHandler.cs)
+    *   [RiderLocationUpdatedIntegrationEventHandler.cs](../BackendApi/Infrastructure/EventBus/Handlers/RiderLocationUpdatedIntegrationEventHandler.cs)
 
 ---
 
 ### 2. Analytics & Spatial API (Backend) — *Sprint 4*
-*   **ระบบ DTO เชิงวิเคราะห์**: เพิ่มโมเดลการแลกเปลี่ยนข้อมูลเชิงลึกใน [AnalyticsDtos.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/DTOs/AnalyticsDtos.cs) ได้แก่:
+*   **ระบบ DTO เชิงวิเคราะห์**: เพิ่มโมเดลการแลกเปลี่ยนข้อมูลเชิงลึกใน [AnalyticsDtos.cs](../BackendApi/Models/DTOs/AnalyticsDtos.cs) ได้แก่:
     *   `AnalyticsSummaryDto` (อัตราการนำจ่ายสำเร็จ, เวลาเฉลี่ย, อัตราจัดส่งล้มเหลว)
     *   `RealtimeTelemetryDto` (ไรเดอร์ที่กำลังแอคทีฟ, GPS updates/sec, คิวการแจกจ่ายงาน)
     *   `RiderUtilizationDto` (ข้อมูลการใช้งานฝูงยานพาหนะ ไรเดอร์ไม่ว่าง/ว่าง/ออฟไลน์)
     *   `HeatmapPointDto` (ค่าพิกัด PostGIS และดัชนีความร้อนของออเดอร์)
-*   **บริการการคำนวณประสิทธิภาพสูง**: เขียน Query ประสิทธิภาพสูงลงบนฐานข้อมูล PostGIS ผ่าน [AnalyticsService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Analytics/AnalyticsService.cs) โดยแปลงพิกัดจุดจาก Geometry Point (`X` เป็น Longitude และ `Y` เป็น Latitude) เพื่อให้ฝั่งหน้าบ้านประมวลผลต่อได้ทันที
-*   **คอนโทรลเลอร์ควบคุมความปลอดภัย**: สร้าง [AnalyticsController.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Controllers/Business/AnalyticsController.cs) ภายใต้การจำกัดสิทธิ์นโยบาย `[Authorize(Policy = AuthConstants.OperationsPolicy)]` (เฉพาะผู้ดูแลระบบและ Dispatcher เท่านั้น)
+*   **บริการการคำนวณประสิทธิภาพสูง**: เขียน Query ประสิทธิภาพสูงลงบนฐานข้อมูล PostGIS ผ่าน [AnalyticsService.cs](../BackendApi/Services/Analytics/AnalyticsService.cs) โดยแปลงพิกัดจุดจาก Geometry Point (`X` เป็น Longitude และ `Y` เป็น Latitude) เพื่อให้ฝั่งหน้าบ้านประมวลผลต่อได้ทันที
+*   **คอนโทรลเลอร์ควบคุมความปลอดภัย**: สร้าง [AnalyticsController.cs](../BackendApi/Controllers/Business/AnalyticsController.cs) ภายใต้การจำกัดสิทธิ์นโยบาย `[Authorize(Policy = AuthConstants.OperationsPolicy)]` (เฉพาะผู้ดูแลระบบและ Dispatcher เท่านั้น)
 
 ---
 
 ### 3. High-Tech Analytics Dashboard (Frontend Angular 19) — *Sprint 4*
 เราทำการแปลงหน้าแดชบอร์ดสถิติให้กลายเป็นห้องควบคุมสไตล์ **Cyberpunk / Advanced Command HUD** ที่เปี่ยมไปด้วยข้อมูลสดใหม่:
-*   **กลไกการแลกเปลี่ยนข้อมูลอย่างมีมาตรฐาน**: สร้าง [analytics.service.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/core/services/analytics.service.ts) ผ่านโครงสร้าง Fluent API `DeliveryHttpRequest` และลบ Logic การคำนวณบนเบราว์เซอร์ออกทั้งหมด
-*   **Real-Time Telemetry HUD**: ปรับแต่ง [analytics.component.html](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/analytics/analytics.component.html) ให้แสดงแผงสถานะสด (Active Riders, GPS Updates Rate, Live Dispatch Queue Size) ด้วยวงจรอัปเดตข้อมูลอัตโนมัติทุกๆ 15 วินาที พร้อมระบบ **RxJS Memory Leak Prevention** ป้องกันหน้าเบราว์เซอร์ค้างโดยเคลียร์ Subscription อัตโนมัติใน `ngOnDestroy()`
+*   **กลไกการแลกเปลี่ยนข้อมูลอย่างมีมาตรฐาน**: สร้าง [analytics.service.ts](../admin-dashboard/src/app/core/services/analytics.service.ts) ผ่านโครงสร้าง Fluent API `DeliveryHttpRequest` และลบ Logic การคำนวณบนเบราว์เซอร์ออกทั้งหมด
+*   **Real-Time Telemetry HUD**: ปรับแต่ง [analytics.component.html](../admin-dashboard/src/app/features/analytics/analytics.component.html) ให้แสดงแผงสถานะสด (Active Riders, GPS Updates Rate, Live Dispatch Queue Size) ด้วยวงจรอัปเดตข้อมูลอัตโนมัติทุกๆ 15 วินาที พร้อมระบบ **RxJS Memory Leak Prevention** ป้องกันหน้าเบราว์เซอร์ค้างโดยเคลียร์ Subscription อัตโนมัติใน `ngOnDestroy()`
 *   **Delivery Trends & Rider Utilization Charts**: แสดงแผนภูมิกราฟเส้นคู่แบบนีออนเรืองแสง (Neon Cyan & Green) แสดงแนวโน้มออเดอร์ทั้งหมดเทียบกับออเดอร์เสร็จสิ้น และแผนภูมิโดนัทแสดงความพร้อมของไรเดอร์
 *   **PostGIS Spatial Demand Heatmap**: ใช้แผนที่สไตล์ CartoDB Dark Matter เพื่อความเปรียบต่างสูง และจำลองจุดความร้อน (Demand Hotzones) ด้วยการดึงข้อมูลพิกัด PostGIS มาวาดเป็นเส้นวงกลมเรืองแสงกึ่งโปร่งใส (Glowing Circles) รอบพิกัดต่างๆ ในเขตกรุงเทพมหานครและปริมณฑล พร้อมแสดงระดับความหนาแน่นเชิงสถิติ (Density Index %) ในรูปแบบ Tooltip และ Popup เมื่อคลิก
 
@@ -179,10 +179,10 @@ graph TD
 
 ### 1. การแบ่ง Partial Class (Partial Class Splitting Architecture)
 เราได้ทำการปรับโครงสร้าง `TrackingHub.cs` ออกเป็น 4 ไฟล์ย่อย เพื่อให้อ่านง่าย ดูแลรักษาง่าย และแยกความรับผิดชอบอย่างเด็ดขาดตามหลักการ Clean Architecture:
-*   [TrackingHub.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Hubs/TrackingHub.cs) (Core & Lifecycle): ดูแลการสร้าง Constructor, จัดการ Connection Lifecycle (`OnConnectedAsync` / `OnDisconnectedAsync`), และฟังก์ชันแชร์ร่วม
-*   [TrackingHub.Location.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Hubs/TrackingHub.Location.cs) (GPS & Heartbeats): รับสัญญาณพิกัด GPS และการส่งสัญญาณ Heartbeat เช็คความเคลื่อนไหว
-*   [TrackingHub.RiderStatus.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Hubs/TrackingHub.RiderStatus.cs) (Rider Presence & Status): จัดการการเปิด/ปิดระบบ และอัปเดตสถานะของไรเดอร์
-*   [TrackingHub.Dispatch.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Hubs/TrackingHub.Dispatch.cs) (Order Workflow): ควบคุมการกดตอบรับ (`AcceptOffer`) และปฏิเสธงาน (`RejectOffer`)
+*   [TrackingHub.cs](../BackendApi/Hubs/TrackingHub.cs) (Core & Lifecycle): ดูแลการสร้าง Constructor, จัดการ Connection Lifecycle (`OnConnectedAsync` / `OnDisconnectedAsync`), และฟังก์ชันแชร์ร่วม
+*   [TrackingHub.Location.cs](../BackendApi/Hubs/TrackingHub.Location.cs) (GPS & Heartbeats): รับสัญญาณพิกัด GPS และการส่งสัญญาณ Heartbeat เช็คความเคลื่อนไหว
+*   [TrackingHub.RiderStatus.cs](../BackendApi/Hubs/TrackingHub.RiderStatus.cs) (Rider Presence & Status): จัดการการเปิด/ปิดระบบ และอัปเดตสถานะของไรเดอร์
+*   [TrackingHub.Dispatch.cs](../BackendApi/Hubs/TrackingHub.Dispatch.cs) (Order Workflow): ควบคุมการกดตอบรับ (`AcceptOffer`) และปฏิเสธงาน (`RejectOffer`)
 
 ### 2. ฟีเจอร์ความทนทานและการเชื่อมต่อ (Hardening & Flutter Compatibility Features)
 *   **GPS Update Signature (`UpdateRiderLocation`)**: เพิ่มเมธอดรองรับ Flutter Client โดยไม่ต้องส่งค่าความแม่นยำ (Accuracy) จากฝั่งอุปกรณ์มือถือ และส่งพารามิเตอร์ accuracy เป็นดีฟอลต์ 10.0 เมตรอัตโนมัติภายใน
@@ -208,9 +208,9 @@ graph TD
 *   **Rider Utilization Chart Guard**: เพิ่ม Cache ตรวจสอบสถานะคนขับก่อนหน้าใน `syncUtilizationChart()` และสร้าง Reference ข้อมูล Chart Data ก้อนใหม่เพื่อส่งให้ `ng2-charts` **เฉพาะเมื่อมีค่า Riders Busy / Idle / Offline หรือ Average Deliveries เปลี่ยนแปลงจริงๆ เท่านั้น** หากคงที่ระบบจะสกัดการอัปเดตทันที ป้องกันไม่ให้ Canvas ของแผนภูมิโดนัทถูก Re-draw หรือสั่นไหวอย่างเปล่าประโยชน์ทุกๆ 2 วินาทีเมื่อ SignalR ทำการยิงอัปเดตเข้ามา
 
 ### 2. Backend: Telemetry Broadcast Noise/Jitter Suppression
-*   **GPS Rate Resolution Tighter**: ปรับปรุง [TelemetryAggregator.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Telemetry/TelemetryAggregator.cs) โดยทำการปัดเศษ `GpsUpdatesPerSecond` เหลือทศนิยม 1 ตำแหน่งแทน 2 ตำแหน่ง เพื่อไม่ให้ความแตกต่างเพียงเศษส่วนเล็กๆ ของ network ping สั่นสะเทือนกลายเป็น SignalR broadcast เสมอไป
+*   **GPS Rate Resolution Tighter**: ปรับปรุง [TelemetryAggregator.cs](../BackendApi/Services/Telemetry/TelemetryAggregator.cs) โดยทำการปัดเศษ `GpsUpdatesPerSecond` เหลือทศนิยม 1 ตำแหน่งแทน 2 ตำแหน่ง เพื่อไม่ให้ความแตกต่างเพียงเศษส่วนเล็กๆ ของ network ping สั่นสะเทือนกลายเป็น SignalR broadcast เสมอไป
 *   **Active-based Bypass check**: หาก `ActiveRidersCount == 0` (ไม่มีคนขับอยู่ในระบบ) ฟังก์ชัน `GetTelemetry` จะบังคับให้ GPS Updates Rate เป็น 0.0 Hz โดยตรง
-*   **0.5 Hz Tolerance and Zero Active Guard**: ใน [TelemetryBroadcastWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) ปรับเปลี่ยนการตรวจจับ `gpsUpdatesChanged` โดยเพิ่ม Noise Guard ให้พิจารณาว่า GPS Rate เปลี่ยนก็ต่อเมื่อขยับต่างจากรอบก่อน **อย่างน้อย 0.5 Hz ขึ้นไป และต้องมี Active Riders ในระบบมากกว่า 0 คนเท่านั้น**
+*   **0.5 Hz Tolerance and Zero Active Guard**: ใน [TelemetryBroadcastWorker.cs](../BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) ปรับเปลี่ยนการตรวจจับ `gpsUpdatesChanged` โดยเพิ่ม Noise Guard ให้พิจารณาว่า GPS Rate เปลี่ยนก็ต่อเมื่อขยับต่างจากรอบก่อน **อย่างน้อย 0.5 Hz ขึ้นไป และต้องมี Active Riders ในระบบมากกว่า 0 คนเท่านั้น**
 
 ### 3. ผลการทดสอบ (Verification & Performance Results)
 *   **Zero Compilation Errors**: ผลการสั่ง `dotnet build` บนโปรเจกต์ `BackendApi.csproj` และ Container image compile สำเร็จ 100% ปราศจาก Errors
@@ -231,10 +231,10 @@ graph TD
 *   **หน้าเว็บ (Web Platform)**: สลับไปใช้กลไกเข้าถึงมาตรฐาน `window.localStorage` ของภาษา HTML ที่ได้รับการสนับสนุนบนทุกเบราว์เซอร์ 100% (รวมถึงโหมดไม่ระบุตัวตนและระบบ HTTP ธรรมดา) พร้อมสร้างวงจรสำรอง **Memory Cache (In-Memory Map Fallback)** ป้องกันหากมีกรณีเบราว์เซอร์ปฏิเสธการเซฟทับตัวแปล
 *   **มือถือระบบจริง (Native Platforms - Android/iOS)**: ยังคงรักษามาตรฐานความปลอดภัยสูงสุดด้วย `FlutterSecureStorage` (Keychain / Keystore) เช่นเดิม ปลอดภัยจากการเข้าถึงโดยไม่ได้รับอนุญาต
 *   **โครงสร้างการแบ่งย่อย (Conditional Imports Pattern)**:
-    *   [safe_storage.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/auth/safe_storage.dart): คลาสอินเตอร์เฟซและแฟกทอรี
-    *   [safe_storage_stub.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/auth/safe_storage_stub.dart): ทางเลือกดีฟอลต์พอร์ตการใช้งาน
-    *   [safe_storage_web.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/auth/safe_storage_web.dart): ฝั่งเว็บ HTML LocalStorage
-    *   [safe_storage_mobile.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/auth/safe_storage_mobile.dart): ฝั่งโมบายล์ SecureStorage
+    *   [safe_storage.dart](../rider_app/lib/core/auth/safe_storage.dart): คลาสอินเตอร์เฟซและแฟกทอรี
+    *   [safe_storage_stub.dart](../rider_app/lib/core/auth/safe_storage_stub.dart): ทางเลือกดีฟอลต์พอร์ตการใช้งาน
+    *   [safe_storage_web.dart](../rider_app/lib/core/auth/safe_storage_web.dart): ฝั่งเว็บ HTML LocalStorage
+    *   [safe_storage_mobile.dart](../rider_app/lib/core/auth/safe_storage_mobile.dart): ฝั่งโมบายล์ SecureStorage
 
 ### 3. ผลการทดสอบ (Verification & Testing Results)
 *   **Build Completed Successfully**: การรันคำสั่ง `docker compose build rider-app` สำเร็จฉลุย 100% ไร้ข้อผิดพลาดของการแปลซอร์สโค้ด (0 Errors)
@@ -247,7 +247,7 @@ graph TD
 เราได้ปฏิวัติและทำระบบการตั้งค่าฐานข้อมูลระดับลึกของ PostgreSQL (Advanced Schema Configurator) ใหม่ทั้งหมดภายใต้สถาปัตยกรรม **ServiceMigration** เพื่อช่วยให้กระบวนการทำ **Squashing** (รวบรวมประวัติศาสตร์ Migrations จาก 26 ไฟล์เหลือเพียง 3 ไฟล์ baseline สะอาดสะอ้าน) ทำงานได้อย่างไร้รอยต่อ โดย **ไม่ต้องเขียนโค้ดมือหรือคำสั่ง Raw SQL ลงในไฟล์ Migration ของ EF Core อีกต่อไป**
 
 ### 1. สถาปัตยกรรมระบบ ServiceMigration (Code-First Advanced Setup Hook)
-ระบบถูกย้ายสิทธิ์และตั้งค่าการทำงานอย่างสมบูรณ์แบบแยกต่างหากอยู่ในโฟลเดอร์เฉพาะ [BackendApi/ServiceMigration/](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/ServiceMigration/):
+ระบบถูกย้ายสิทธิ์และตั้งค่าการทำงานอย่างสมบูรณ์แบบแยกต่างหากอยู่ในโฟลเดอร์เฉพาะ [BackendApi/ServiceMigration/](../BackendApi/ServiceMigration/):
 *   **`PostgresAdvancedConfigurator.cs`**:
     *   **Table Partitioning (RiderLocationHistories)**: ระบบจะเช็คประเภทตาราง (relkind) ผ่าน PostgreSQL catalog เสมอ หากตารางถูกเจนเนอเรตมาเป็นตารางธรรมดา (จาก EF Core baseline) ระบบจะทำการดรอปและสลับตารางเป็น Partitioned Table พร้อม `PARTITION BY RANGE ("RecordedAt")` ทันทีในระดับ Database Transaction
     *   **Dynamic Active Partitions Generation**: สร้าง Partition ล่วงหน้ารองรับข้อมูลปัจจุบันและอนาคต (เดือนปัจจุบัน + 3 เดือนข้างหน้า) แบบ Dynamic อิงจากเวลาขณะระบบสตาร์ต ป้องกันปัญหา insert ข้อมูล seeder หลุดช่วงวันที่ (Out of Range)
@@ -293,31 +293,31 @@ graph TD
 ## 🛠️ ผลงานที่ได้ดำเนินการเสร็จสิ้น (Accomplished Tasks)
 
 ### 1. ระบบส่งสัญญาณจีพีเอสและสเตตัสเรียลไทม์ฝั่งลูกค้า (Customer Real-time HUD)
-- **[TrackingHub.Location.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Hubs/TrackingHub.Location.cs)**: เพิ่มลอจิกในคำสั่งอัปเดตพิกัดคนขับ `UpdateLocation` โดยทำการสแกนหา ออเดอร์ที่กำลังรันงานอยู่ (`ASSIGNED`, `PICKING_UP`, `DELIVERING`) และกระจายสัญญาณจีพีเอสล่าสุด `RiderLocationUpdated` ไปหาลูกค้าในกลุ่ม SignalR `customer:{customerId}` อัตโนมัติในระดับมิลลิวินาที
-- **[OrderService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/OrderService.cs)**: เพิ่มระบบส่งสัญญาณ `OrderStatusChanged` (และสถานะยอมรับออเดอร์ในกลุ่ม `customer:{customerId}`) ทุกครั้งที่มีการเปลี่ยนผ่านสถานะออเดอร์ ทั้งในขั้นตอน `UpdateOrderStatusAsync`, `AcceptOrderByStoreAsync` และ `CancelOrderAsync`
+- **[TrackingHub.Location.cs](../BackendApi/Hubs/TrackingHub.Location.cs)**: เพิ่มลอจิกในคำสั่งอัปเดตพิกัดคนขับ `UpdateLocation` โดยทำการสแกนหา ออเดอร์ที่กำลังรันงานอยู่ (`ASSIGNED`, `PICKING_UP`, `DELIVERING`) และกระจายสัญญาณจีพีเอสล่าสุด `RiderLocationUpdated` ไปหาลูกค้าในกลุ่ม SignalR `customer:{customerId}` อัตโนมัติในระดับมิลลิวินาที
+- **[OrderService.cs](../BackendApi/Services/OrderService.cs)**: เพิ่มระบบส่งสัญญาณ `OrderStatusChanged` (และสถานะยอมรับออเดอร์ในกลุ่ม `customer:{customerId}`) ทุกครั้งที่มีการเปลี่ยนผ่านสถานะออเดอร์ ทั้งในขั้นตอน `UpdateOrderStatusAsync`, `AcceptOrderByStoreAsync` และ `CancelOrderAsync`
 
 ### 2. บันทึกและจัดการที่อยู่ของลูกค้า (CustomerAddress Spatial CRUD)
-- **[CustomerAddress.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/CustomerAddress.cs)**: สร้างโมเดลที่อยู่แบบ Soft Delete พร้อมจัดระเบียบฟิลด์พิกัดปักหมุดแผนที่ผ่านโครงสร้างสปาเชียล PostGIS `geometry(Point, 4326)`
-- **[CustomerAddressesController.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Controllers/MasterData/CustomerAddressesController.cs)**: พัฒนา CRUD API สำหรับลูกค้าเจาะจง `CurrentUserId` โดยมีระบบควบคุมทรานแซกชันฐานข้อมูล เมื่อตั้งค่าที่อยู่ใดเป็นเริ่มต้น (`IsDefault = true`) ระบบจะเคลียร์ที่อยู่อื่นให้เป็น `false` ทันที
+- **[CustomerAddress.cs](../BackendApi/Models/CustomerAddress.cs)**: สร้างโมเดลที่อยู่แบบ Soft Delete พร้อมจัดระเบียบฟิลด์พิกัดปักหมุดแผนที่ผ่านโครงสร้างสปาเชียล PostGIS `geometry(Point, 4326)`
+- **[CustomerAddressesController.cs](../BackendApi/Controllers/MasterData/CustomerAddressesController.cs)**: พัฒนา CRUD API สำหรับลูกค้าเจาะจง `CurrentUserId` โดยมีระบบควบคุมทรานแซกชันฐานข้อมูล เมื่อตั้งค่าที่อยู่ใดเป็นเริ่มต้น (`IsDefault = true`) ระบบจะเคลียร์ที่อยู่อื่นให้เป็น `false` ทันที
 
 ### 3. ระบบจัดหมวดหมู่และควบคุมร้านค้า (MenuCategory & Shop Settings)
-- **[MenuCategory.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/MenuCategory.cs)**: บูรณาการตารางหมวดหมู่เมนู ผูกโยงสินค้าเข้าหาหมวดหมู่หลักในฐานข้อมูลอย่างสมบูรณ์แบบ
-- **[MenuCategoriesController.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Controllers/MasterData/MenuCategoriesController.cs)**: พัฒนา CRUD API ควบคุมหมวดหมู่สินค้า
-- **[Shop.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/Shop.cs)**: ขยายขีดความสามารถ เพิ่มฟิลด์ควบคุมเวลาทำการ `IsOpen`, `PrepTimeMinutes`, `OpeningHours` ส่งต่อผ่าน `ShopDto` ไปฝั่งหน้าบ้าน
+- **[MenuCategory.cs](../BackendApi/Models/MenuCategory.cs)**: บูรณาการตารางหมวดหมู่เมนู ผูกโยงสินค้าเข้าหาหมวดหมู่หลักในฐานข้อมูลอย่างสมบูรณ์แบบ
+- **[MenuCategoriesController.cs](../BackendApi/Controllers/MasterData/MenuCategoriesController.cs)**: พัฒนา CRUD API ควบคุมหมวดหมู่สินค้า
+- **[Shop.cs](../BackendApi/Models/Shop.cs)**: ขยายขีดความสามารถ เพิ่มฟิลด์ควบคุมเวลาทำการ `IsOpen`, `PrepTimeMinutes`, `OpeningHours` ส่งต่อผ่าน `ShopDto` ไปฝั่งหน้าบ้าน
 
 ### 4. สแนปช็อคราคาสินค้าออเดอร์ตอนชำระเงิน (Order Snapshots)
-- **[OrderItem.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/OrderItem.cs)**: ป้องกันความผันผวนของราคาขายและการแก้ไขข้อมูลเมนูย้อนหลัง โดยการสร้างตารางสแนปช็อตเก็บราคาขาย ชื่อสินค้า ปริมาณ และตัวเลือกย่อยพิเศษ (options description) ณ เสี้ยววินาทีที่ลูกค้าสั่งซื้อ
-- **[OrderService.CreateOrderAsync](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/OrderService.cs)**: ดึงข้อมูลชื่อและราคาเมนูจากตาราง `MenuItems` มาสลักใส่ `OrderItems` อัตโนมัติ พร้อมสกรีนป้องกันค่าฟิลด์ความสัมพันธ์เปล่า (`string.Empty` ชี้ `ShopId`/`CustomerId` ให้สลับเป็๋น `null` ป้องกันปัญหาคีย์สัมพันธ์หลุด)
+- **[OrderItem.cs](../BackendApi/Models/OrderItem.cs)**: ป้องกันความผันผวนของราคาขายและการแก้ไขข้อมูลเมนูย้อนหลัง โดยการสร้างตารางสแนปช็อตเก็บราคาขาย ชื่อสินค้า ปริมาณ และตัวเลือกย่อยพิเศษ (options description) ณ เสี้ยววินาทีที่ลูกค้าสั่งซื้อ
+- **[OrderService.CreateOrderAsync](../BackendApi/Services/OrderService.cs)**: ดึงข้อมูลชื่อและราคาเมนูจากตาราง `MenuItems` มาสลักใส่ `OrderItems` อัตโนมัติ พร้อมสกรีนป้องกันค่าฟิลด์ความสัมพันธ์เปล่า (`string.Empty` ชี้ `ShopId`/`CustomerId` ให้สลับเป็๋น `null` ป้องกันปัญหาคีย์สัมพันธ์หลุด)
 
 ### 5. โครงข่ายแจ้งเตือนและสิทธิ์พาร์ทเนอร์ (FCM Notifications & User Mapping)
-- **[FcmToken.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/FcmToken.cs)**: บันทึกคีย์จดทะเบียนของดีไวซ์ FCM พร้อม API จดทะเบียนสำหรับหน้าบ้าน
-- **[User.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Models/User.cs)**: เพิ่มความสมบูรณ์ของโครงสร้างบัญชีร้านค้า โดยการผูกคีย์ `ShopId` (nullable) ลงบัญชีผู้ใช้ประเภท `StorePartner`
-- **[FcmNotificationService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Notifications/FcmNotificationService.cs)**: รองรับพุชแจ้งเตือน FCM ในเบื้องหลัง และมีระบบ **FCM Simulation Mode** โดยส่ง JSON พุชความละเอียดสูงผูกโยงข้อมูลตัวแปร Serilog Properties (`{@NotificationPayload}`) ส่งตรงไปแสดงบน **Seq Telemetry Hub** (http://localhost:5341) เมื่อไม่ได้ใส่คีย์กูเกิล
+- **[FcmToken.cs](../BackendApi/Models/FcmToken.cs)**: บันทึกคีย์จดทะเบียนของดีไวซ์ FCM พร้อม API จดทะเบียนสำหรับหน้าบ้าน
+- **[User.cs](../BackendApi/Models/User.cs)**: เพิ่มความสมบูรณ์ของโครงสร้างบัญชีร้านค้า โดยการผูกคีย์ `ShopId` (nullable) ลงบัญชีผู้ใช้ประเภท `StorePartner`
+- **[FcmNotificationService.cs](../BackendApi/Services/Notifications/FcmNotificationService.cs)**: รองรับพุชแจ้งเตือน FCM ในเบื้องหลัง และมีระบบ **FCM Simulation Mode** โดยส่ง JSON พุชความละเอียดสูงผูกโยงข้อมูลตัวแปร Serilog Properties (`{@NotificationPayload}`) ส่งตรงไปแสดงบน **Seq Telemetry Hub** (http://localhost:5341) เมื่อไม่ได้ใส่คีย์กูเกิล
 
 ### 6. ระบบสกัด OpenAPI (Swagger) แบบอัตโนมัติด้วย MSBuild
-- **[BackendApi.csproj](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/BackendApi.csproj)**: ฝังท่อคำสั่งคอมไพล์สำเร็จ (Post-Build Target) หลังบิวด์/พับลิชโค้ด ให้สั่งรันโปรเจกต์สกัดไฟล์ `swagger.json` ออกมาเตรียมไว้บนดิสก์ปลายทางโดยอัตโนมัติ
-- **[Program.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Program.cs)**: บูรณาการรับสวิตช์คำสั่งคอมมานด์ไลน์ `--generate-swagger` ซึ่งจะทำการสกัด Spec แล้วกระโดดสั่งปิดการทำงานของระบบทันที ทำให้สามารถสกัด Spec สำเร็จโดยไม่ต้องพึ่งพาหรือต่อฐานข้อมูล PostgreSQL/Redis เลย (เลี่ยงปัญหา Database Connection Trap ตอนคอมไพล์บน Docker Build)
-- **[Dockerfile](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Dockerfile)**: ตั้งค่า ENV `Jwt__Key` เป็นความยาว 32 ไบต์ชั่วคราวขณะคอมไพล์ช่วง Stage 1: Build เพื่อให้ระบบ Swashbuckle ผ่านการตรวจสอบความปลอดภัย JwtKey Startup Check ทำให้บิวด์พับลิชและสกัด Spec คอนเทนเนอร์เสร็จเรียบร้อยไร้รอยต่อ
+- **[BackendApi.csproj](../BackendApi/BackendApi.csproj)**: ฝังท่อคำสั่งคอมไพล์สำเร็จ (Post-Build Target) หลังบิวด์/พับลิชโค้ด ให้สั่งรันโปรเจกต์สกัดไฟล์ `swagger.json` ออกมาเตรียมไว้บนดิสก์ปลายทางโดยอัตโนมัติ
+- **[Program.cs](../BackendApi/Program.cs)**: บูรณาการรับสวิตช์คำสั่งคอมมานด์ไลน์ `--generate-swagger` ซึ่งจะทำการสกัด Spec แล้วกระโดดสั่งปิดการทำงานของระบบทันที ทำให้สามารถสกัด Spec สำเร็จโดยไม่ต้องพึ่งพาหรือต่อฐานข้อมูล PostgreSQL/Redis เลย (เลี่ยงปัญหา Database Connection Trap ตอนคอมไพล์บน Docker Build)
+- **[Dockerfile](../BackendApi/Dockerfile)**: ตั้งค่า ENV `Jwt__Key` เป็นความยาว 32 ไบต์ชั่วคราวขณะคอมไพล์ช่วง Stage 1: Build เพื่อให้ระบบ Swashbuckle ผ่านการตรวจสอบความปลอดภัย JwtKey Startup Check ทำให้บิวด์พับลิชและสกัด Spec คอนเทนเนอร์เสร็จเรียบร้อยไร้รอยต่อ
 
 ---
 
@@ -371,35 +371,35 @@ Passed!  - Failed:     0, Passed:    19, Skipped:     0, Total:    19, Duration:
 ## 🛠️ ผลงานที่ได้ดำเนินการเสร็จสิ้น (Accomplished Tasks)
 
 ### 1. การจัดระเบียบโครงสร้างระบบทดสอบรวมศูนย์ (Single Test Hub Constraint)
-- **[AGENTS.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/AGENTS.md)**: สลักกฎข้อบังคับข้อที่ 6 **"6. Testing Rules & Directories"** ห้ามมีไฟล์และโฟลเดอร์ทดสอบปนเปื้อนใน Context ไดเรกทอรีหลัก ให้เก็บไว้ใน `scripts/` เท่านั้น (ยกเว้น `.spec.ts` ของ Angular)
-- **[.cursorrules](file:///c:/Users/ASUS/Desktop/Project/Delivery/.cursorrules)**: สลักเงื่อนไข **Single Test Hub** ลงในหลักข้อกำหนดร่วมกันของระบบ
-- **ย้ายโฟลเดอร์รันเทส Python**: ย้ายไฟล์ทดสอบทั้งหมด (`test_vrp_solver.py`, `test_api_optimize.py`, `test_api_dispatch.py`) จาก `ai-engine/tests` ไปยังโฟลเดอร์รวมศูนย์กลางตัวใหม่ **[scripts/ai-engine.tests/](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/ai-engine.tests)** และทำการลบโฟลเดอร์ทดสอบเดิมออก
-- **[conftest.py](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/ai-engine.tests/conftest.py)**: พัฒนาไฟล์คอนฟิกสากลระดับระบบ เพื่อให้ PyTest ค้นหาพิกัดและโมดูล `ai-engine` ในระดับสูงสุดผ่านการเพิ่มพาธโดยอัตโนมัติ
+- **[AGENTS.md](../AGENTS.md)**: สลักกฎข้อบังคับข้อที่ 6 **"6. Testing Rules & Directories"** ห้ามมีไฟล์และโฟลเดอร์ทดสอบปนเปื้อนใน Context ไดเรกทอรีหลัก ให้เก็บไว้ใน `scripts/` เท่านั้น (ยกเว้น `.spec.ts` ของ Angular)
+- **[.cursorrules](../.cursorrules)**: สลักเงื่อนไข **Single Test Hub** ลงในหลักข้อกำหนดร่วมกันของระบบ
+- **ย้ายโฟลเดอร์รันเทส Python**: ย้ายไฟล์ทดสอบทั้งหมด (`test_vrp_solver.py`, `test_api_optimize.py`, `test_api_dispatch.py`) จาก `ai-engine/tests` ไปยังโฟลเดอร์รวมศูนย์กลางตัวใหม่ **[scripts/ai-engine.tests/](../scripts/ai-engine.tests)** และทำการลบโฟลเดอร์ทดสอบเดิมออก
+- **[conftest.py](../scripts/ai-engine.tests/conftest.py)**: พัฒนาไฟล์คอนฟิกสากลระดับระบบ เพื่อให้ PyTest ค้นหาพิกัดและโมดูล `ai-engine` ในระดับสูงสุดผ่านการเพิ่มพาธโดยอัตโนมัติ
 
 ### 2. ชุดทดสอบหน้าบ้าน Angular 19 ครอบคลุม 100% (Complete JS Spec Unit Tests)
-- **[login.component.spec.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/auth/login/login.component.spec.ts)**:
+- **[login.component.spec.ts](../admin-dashboard/src/app/features/auth/login/login.component.spec.ts)**:
   - **Form Validation**: ตรวจสอบการกรอกอีเมล/รหัสผ่านว่าง หรืออีเมลผิดรูปแบบ
   - **Role-based Redirects**: ทดสอบความถูกต้องในการล็อกอินและเปลี่ยนทิศทางนำทางผู้ใช้ `Admin` ไปยัง `/dashboard`, `Customer` ไปยัง `/customer`, และ `StorePartner` ไปยัง `/store-partner`
   - **Rider Login Block**: บล็อกผู้ใช้บทบาท `Rider` ทันที พร้อมยิงสัญญาณ SweetAlert2 แสดงหน้าต่างแจ้งเตือนและเรียกคำสั่ง logout ทันที
   - **Failed Login**: แสดงกล่องแจ้งเตือนความผิดพลาด SweetAlert2
 - **การปรับปรุงสเปกไฟล์อื่นๆ ให้คอมไพล์ผ่านฉลุย**:
-  - **[register.component.spec.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/auth/register/register.component.spec.ts)**: บูรณาการจำลอง AuthService และ provideRouter เพื่อไม่ให้ชนกับการดึง RouterLink
-  - **[customer.component.spec.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/customer/customer.component.spec.ts)** & **[store-partner.component.spec.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/features/store-partner/store-partner.component.spec.ts)**: บูรณาการจำลองโมเดล dependencies ทั้งหมดของ API Services, AuthService และ Lucide Angular Icons ป้องกันการแครชของ NullInjectorError
-  - **[app.component.spec.ts](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/src/app/app.component.spec.ts)**: ปลดล็อกลบเทสเก่าของ FleetControl ที่สลักเกินในระบบ skeleton ออกอย่างปลอดภัย
+  - **[register.component.spec.ts](../admin-dashboard/src/app/features/auth/register/register.component.spec.ts)**: บูรณาการจำลอง AuthService และ provideRouter เพื่อไม่ให้ชนกับการดึง RouterLink
+  - **[customer.component.spec.ts](../admin-dashboard/src/app/features/customer/customer.component.spec.ts)** & **[store-partner.component.spec.ts](../admin-dashboard/src/app/features/store-partner/store-partner.component.spec.ts)**: บูรณาการจำลองโมเดล dependencies ทั้งหมดของ API Services, AuthService และ Lucide Angular Icons ป้องกันการแครชของ NullInjectorError
+  - **[app.component.spec.ts](../admin-dashboard/src/app/app.component.spec.ts)**: ปลดล็อกลบเทสเก่าของ FleetControl ที่สลักเกินในระบบ skeleton ออกอย่างปลอดภัย
 
 ### 3. ชุดทดสอบประสิทธิภาพบูรณาการหลังบ้านตัวใหม่ (New Backend Integration Tests)
-- **[DeliveryWebApplicationFactory.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/BackendApi.IntegrationTests/DeliveryWebApplicationFactory.cs)**: เพิ่มและอัปเดตชุดค่าคอนฟิกเพื่อ **Bypass Rate Limiting** สำหรับสภาวะแวดล้อมระบบทดสอบ (`RateLimiting:Global:PermitLimit = 99999` และ `RateLimiting:Auth:PermitLimit = 99999`) ป้องกันการแครช 429 Too Many Requests จากการรันเทสพร้อมกันความถี่สูง
-- **[CustomerAddressTests.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/BackendApi.IntegrationTests/CustomerAddressTests.cs)**:
+- **[DeliveryWebApplicationFactory.cs](../scripts/BackendApi.IntegrationTests/DeliveryWebApplicationFactory.cs)**: เพิ่มและอัปเดตชุดค่าคอนฟิกเพื่อ **Bypass Rate Limiting** สำหรับสภาวะแวดล้อมระบบทดสอบ (`RateLimiting:Global:PermitLimit = 99999` และ `RateLimiting:Auth:PermitLimit = 99999`) ป้องกันการแครช 429 Too Many Requests จากการรันเทสพร้อมกันความถี่สูง
+- **[CustomerAddressTests.cs](../scripts/BackendApi.IntegrationTests/CustomerAddressTests.cs)**:
   - **CreateAddress**: สร้างที่อยู่อ้างอิง PostGIS coordinate และพิกัดลองจิจูด-ละติจูดถูกต้อง
   - **ResetDefaultAddresses**: ทดสอบความสมบูรณ์แบบของระบบทรานแซกชันในการเคลียร์ค่า `IsDefault` ของที่อยู่อื่นทันทีที่เพิ่มที่อยู่ตั้งต้นตัวใหม่
   - **TenantIsolation**: ทดสอบความปลอดภัยระดับข้อมูล เมื่อสวมรอยใช้สิทธิ์ User B ไปเรียกดู/อัปเดต/ลบ ที่อยู่ของ User A ระบบต้องคืนผลเป็น `403 Forbidden`
-- **[MenuCategoryTests.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/BackendApi.IntegrationTests/MenuCategoryTests.cs)**:
+- **[MenuCategoryTests.cs](../scripts/BackendApi.IntegrationTests/MenuCategoryTests.cs)**:
   - **CreateAndGetCategory**: ลงทะเบียนหมวดหมู่เมนู และทดสอบขอบเขตการดึงข้ามความสัมพันธ์ข้ามร้านค้า (`ShopId`) และยืนยันผลลัพธ์จัดเรียงลำดับตาม `DisplayOrder` เสมอ
   - **UpdateCategory**: ทดสอบการแก้ไขข้อมูลหมวดหมู่สินค้า
-- **[NotificationTests.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/BackendApi.IntegrationTests/NotificationTests.cs)**:
+- **[NotificationTests.cs](../scripts/BackendApi.IntegrationTests/NotificationTests.cs)**:
   - **RegisterNewFcmToken**: จดทะเบียน FCM token ตัวใหม่
   - **FcmTokenReuse**: ป้องกันข้อมูลซ้ำซ้อนในฐานข้อมูลเมื่อมีการเปลี่ยนคนล็อกอินบนเครื่องเดิม โดยระบบจะโยกสิทธิ์เปลี่ยนเจ้าของ `UserId` ได้ถูกต้อง
-- **[OrderLifecycleTests.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/scripts/BackendApi.IntegrationTests/OrderLifecycleTests.cs)**:
+- **[OrderLifecycleTests.cs](../scripts/BackendApi.IntegrationTests/OrderLifecycleTests.cs)**:
   - **OrderItem Snapshot Verification**: ยึดโยงความสัมพันธ์เพื่อทดสอบการป้องกันการแก้ไขราคาสินค้าย้อนหลัง โดยการ Seed ข้อมูลร้านค้าและเมนูจริงลงฐานข้อมูลทดสอบก่อนรันการสั่งซื้อ และตรวจสอบว่า `OrderItems` ได้ทำการถ่ายสำเนา (Snapshot) ราคาขายเมนู ณ เสี้ยววินาทีนั้นๆ อย่างแม่นยำ
 
 ---
@@ -442,7 +442,7 @@ Passed!  - Failed:     0, Passed:    26, Skipped:     0, Total:    26, Duration:
 ## 🌟 ผลลัพธ์และสิ่งที่ได้รับการปรับปรุง (Key Deliverables)
 
 ### 1. ฝั่ง Backend: Telemetry Pipeline & Reliability
-- **[TelemetryService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Telemetry/TelemetryService.cs) [ใหม่]:** 
+- **[TelemetryService.cs](../BackendApi/Services/Telemetry/TelemetryService.cs) [ใหม่]:** 
   - สร้างบริการประมวลผลข้อมูลเชิงพื้นที่แยกเฉพาะ (Pure Layer) โดยขจัดสัญญาสะท้อนตรงไปยังฐานข้อมูล PostgreSQL ทุก ๆ Tick 
   - จัดเก็บพิกัดล่าสุดลงเฉพาะบน Redis Presence Cache (`GeoAdd` + `HashSet`) สำหรับอ้างอิงสถานะเรียลไทม์ทั้งหมด
   - นำพิกัดดิบผ่านฟังก์ชัน OSRM nearest matching เพื่อทำ **Snap-to-Road** ให้ตรึงอยู่บนแนวถนนโดยอัตโนมัติก่อนส่งพิกัดออก
@@ -450,22 +450,22 @@ Passed!  - Failed:     0, Passed:    26, Skipped:     0, Total:    26, Duration:
   - **Dynamic Throttling:** คำนวณความเร็วในการเดินทางของไรเดอร์และหรี่ความถี่ (Throttle) ของการ Broadcast อัตโนมัติ (ขยับเร็วส่งถี่ขึ้นเพื่อความสมูท, ขยับช้าหรี่ลงเพื่อเซฟแบตเตอรี่และ Bandwidth)
   - **PostgreSQL Throttling Write:** อัปเดตพิกัด CurrentLocation ของตาราง `Riders` บนฐานข้อมูลหลักแบบ Throttled ทุก ๆ 10 วินาที
 
-- **[DispatchService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Dispatch/DispatchService.cs) [ปรับปรุง]:**
+- **[DispatchService.cs](../BackendApi/Services/Dispatch/DispatchService.cs) [ปรับปรุง]:**
   - **Atomic Offer Acceptance:** ติดตั้งระบบ **Redis Distributed Lock** (`lock:accept:offer:{offerId}`) เป็นเวลา 5 วินาทีก่อนทำรายการรับงาน ป้องกันไรเดอร์กดรับงานซ้อน (Race Condition)
   - **RowVersion Concurrency Token:** ดักจับ `DbUpdateConcurrencyException` ของ EF Core กรณีชนกันเพื่อให้ทำธุรกรรมได้อย่างสมบูรณ์และโปร่งใส
   - **Fallback Rule-Based Dispatch:** ติดตั้งสมองสำรองโดยการทำ Haversine distance-based nearest matching เป็น Fallback อัตโนมัติหาก AI Engine ทำงานล้มเหลวหรือหมดเวลา (Fault Tolerance)
 
-- **[TelemetryBroadcastWorker.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) [ปรับปรุง]:**
+- **[TelemetryBroadcastWorker.cs](../BackendApi/Services/BackgroundWorkers/TelemetryBroadcastWorker.cs) [ปรับปรุง]:**
   - เพิ่มการประมวลผลหาจุดออเดอร์หนาแน่นเรียลไทม์ (**Demand Hotspots Grid**) ทุก ๆ 5 วินาที โดยหาจากออเดอร์ในระยะ 1 ชั่วโมง และแปลงโครงข่ายพิกัดเป็น Grid Bucket ขนาด ~110 เมตร บันทึกผลลัพธ์ลง Redis Cache คีย์ `riders:hotspots:heatmap` เพื่อให้หน้าบ้านสามารถดึงผลลัพธ์เป็น Heatmap ได้อย่างรวดเร็ว
 
 ---
 
 ### 2. ฝั่ง Mobile Rider App: Smooth UI & turn-by-turn Navigation
 
-- **[location_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/location/location_service.dart) [ปรับปรุง]:**
+- **[location_service.dart](../rider_app/lib/core/location/location_service.dart) [ปรับปรุง]:**
   - ติดตั้งตัวกรองคลื่นรบกวนสัญญาณ **Simple Moving Average (SMA)** คอยเฉลี่ยค่าจาก 3 พิกัดล่าสุดเพื่อขจัดอาการ GPS Jitter ที่ขยับหมุดสั่นไปมาบนจุดเดิม
 
-- **[map_tracking_screen.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/features/tracking/screens/map_tracking_screen.dart) [ปรับปรุง]:**
+- **[map_tracking_screen.dart](../rider_app/lib/features/tracking/screens/map_tracking_screen.dart) [ปรับปรุง]:**
   - **Double Tween LERP Animation:** ครอบหน้าต่างแผนที่ด้วย `TweenAnimationBuilder` สองชั้น:
     1. `LatLngTween` ทำการเกลี่ยจุดพิกัด Lat/Lng นำทางเลื่อนจากพิกัดเดิมไปใหม่แบบ Linear Interpolation ในเวลา 1 วินาทีอย่างนุ่มนวลโดยไม่มีการวาร์ปกระโดด
     2. `AngleTween` จัดการหมุนทิศทางรถ (Bearing Rotation) โดยคำนวณและเกลี่ยตามทางโค้งที่สั้นที่สุด (Shortest-path angle interpolation) ไม่เกิดการสปินตัวครบรอบ 360 องศาเมื่อทิศทางข้ามจุดศูนย์

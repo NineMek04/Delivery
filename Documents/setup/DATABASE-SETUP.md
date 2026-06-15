@@ -1,4 +1,4 @@
-# PostgreSQL & PgBouncer Database Manual (Documents/setup/DATABASE-SETUP.md)
+﻿# PostgreSQL & PgBouncer Database Manual (Documents/setup/DATABASE-SETUP.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการตั้งค่าสเปกฐานข้อมูลหลักเชิงพื้นที่ (**PostgreSQL + PostGIS Extension**) และสระควบคุมตัวเชื่อมต่อฐานข้อมูล (**PgBouncer Connection Pooler**) สำหรับทีมผู้ดูแลระบบและหลังบ้าน
@@ -15,9 +15,9 @@
 
 ## 2. โครงสร้างและการตั้งค่าฐานข้อมูลเชิงพื้นที่ (PostgreSQL + PostGIS)
 
-รายละเอียดของสเปกฐานข้อมูลถูกกำหนดใน [ApplicationDbContext.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Data/ApplicationDbContext.cs) และควบคุมโครงสร้างเวอร์ชันผ่าน EF Core:
+รายละเอียดของสเปกฐานข้อมูลถูกกำหนดใน [ApplicationDbContext.cs](../../BackendApi/Data/ApplicationDbContext.cs) และควบคุมโครงสร้างเวอร์ชันผ่าน EF Core:
 
-*   **Database Baseline:** มีการรวบรวมตารางและ Schema เริ่มต้นแบบล้างใหม่ทั้งหมดไว้ในไฟล์สะสม [ConsolidatedBaseline20260614.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Migrations/20260614152246_ConsolidatedBaseline20260614.cs)
+*   **Database Baseline:** มีการรวบรวมตารางและ Schema เริ่มต้นแบบล้างใหม่ทั้งหมดไว้ในไฟล์สะสม [ConsolidatedBaseline20260614.cs](../../BackendApi/Migrations/20260614152246_ConsolidatedBaseline20260614.cs)
 *   **Spatial Indexing (GIST Indexes):**  
     เพื่อเพิ่มความเร็วในการคำนวณและค้นหาเชิงพื้นที่รอบตัว (เช่น ค้นหาไรเดอร์ในรัศมีร้านค้า) ระบบบังคับทำดัชนีพิเศษ **GIST (Generalized Search Tree) Indexes** บน Geometry Columns เสมอ:
     ```sql
@@ -31,7 +31,7 @@
 
 ## 3. การจูนแต่งประสิทธิภาพ PgBouncer (Connection Pooling)
 
-PgBouncer วางตัวอยู่เกาะหน้าตู้ฐานข้อมูลหลักใน [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml):
+PgBouncer วางตัวอยู่เกาะหน้าตู้ฐานข้อมูลหลักใน [docker-compose.yml](../../docker-compose.yml):
 
 ```yaml
   pgbouncer:
@@ -89,5 +89,5 @@ PgBouncer วางตัวอยู่เกาะหน้าตู้ฐา�
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Backend API Subsystem Specification Sheet](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-backend.md)
-*   [Scale Guide & Performance Tuning Manual (SCALE-GUIDE.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/infrastructure/SCALE-GUIDE.md)
+*   [Backend API Subsystem Specification Sheet](../../.docs/ai-context/spec-backend.md)
+*   [Scale Guide & Performance Tuning Manual (SCALE-GUIDE.md)](../infrastructure/SCALE-GUIDE.md)

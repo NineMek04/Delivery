@@ -1,4 +1,4 @@
-# 🗺️ OSRM Offline Map Compiler & Setup Guide (Documents/setup/OSRM-SETUP.md)
+﻿# 🗺️ OSRM Offline Map Compiler & Setup Guide (Documents/setup/OSRM-SETUP.md)
 
 เอกสารคู่มือสำหรับการดาวน์โหลด ติดตั้ง และกำหนดค่าเครื่องยนต์ประมวลผลเส้นทางแบบออฟไลน์ (**Open Source Routing Machine - OSRM**) เพื่อใช้งานกับระบบจราจรอัจฉริยะ **Smart Delivery Routing System** บนพื้นที่จังหวัดอุดรธานี และประเทศไทย
 
@@ -56,7 +56,7 @@
   ```powershell
   .\RootScripts\scripts\setup-osrm.ps1
   ```
-  *(หรือคลิกเพื่อดูสคริปต์: [setup-osrm.ps1](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts/setup-osrm.ps1))*
+  *(หรือคลิกเพื่อดูสคริปต์: [setup-osrm.ps1](../../RootScripts/scripts/setup-osrm.ps1))*
 
 * **ระบบปฏิบัติการ Linux / macOS (Bash):**
   ให้สิทธิ์การรันแล้วเรียกใช้งาน:
@@ -64,7 +64,7 @@
   chmod +x ./RootScripts/scripts/setup-osrm.sh
   ./RootScripts/scripts/setup-osrm.sh
   ```
-  *(หรือคลิกเพื่อดูสคริปต์: [setup-osrm.sh](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts/setup-osrm.sh))*
+  *(หรือคลิกเพื่อดูสคริปต์: [setup-osrm.sh](../../RootScripts/scripts/setup-osrm.sh))*
 
 ---
 
@@ -103,7 +103,7 @@ docker run --rm --user root -v "$(pwd)/osrm_data:/data" osrm/osrm-backend osrm-c
 
 ## 3. การรันบริการแผนที่ออฟไลน์บน Docker Compose (Service Deployment)
 
-บริการ OSRM ได้รับการผนวกไว้ในโครงสร้างการปรับใช้ระบบไมโครเซอร์วิสแล้ว ในไฟล์ [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml):
+บริการ OSRM ได้รับการผนวกไว้ในโครงสร้างการปรับใช้ระบบไมโครเซอร์วิสแล้ว ในไฟล์ [docker-compose.yml](../../docker-compose.yml):
 
 ```yaml
   osrm:
@@ -144,7 +144,7 @@ docker run --rm --user root -v "$(pwd)/osrm_data:/data" osrm/osrm-backend osrm-c
 ## 4. โครงสร้างความน่าเชื่อถือและการบีบอัดข้อมูลฝั่งหลังบ้าน (Backend Implementation)
 
 ### 🛡️ 1. อัลกอริทึม Resilience Dijkstra Fallback
-คลาส [OsrmRoutingService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Services/Ai/OsrmRoutingService.cs) ฝั่งหลังบ้านได้รับการติดตั้ง **Polly Policy (2 Retries + 15s Circuit Breaker)** เพื่อตัดการเชื่อมต่อทันทีที่ OSRM ออฟไลน์สะดุดและส่งต่อไปยัง Public OSRM อัตโนมัติ ป้องกันไม่ให้ออเดอร์ค้างหรือ API โหลดช้า:
+คลาส [OsrmRoutingService.cs](../../BackendApi/Services/Ai/OsrmRoutingService.cs) ฝั่งหลังบ้านได้รับการติดตั้ง **Polly Policy (2 Retries + 15s Circuit Breaker)** เพื่อตัดการเชื่อมต่อทันทีที่ OSRM ออฟไลน์สะดุดและส่งต่อไปยัง Public OSRM อัตโนมัติ ป้องกันไม่ให้ออเดอร์ค้างหรือ API โหลดช้า:
 
 ```csharp
 // สลับเรียกออฟไลน์ท้องถิ่นหรือออนไลน์ตามความพร้อม

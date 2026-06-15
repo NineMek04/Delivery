@@ -1,12 +1,12 @@
-# ⚡ ระบบอัปเดตและย้ายโครงสร้างฐานข้อมูลอัตโนมัติ (Automatic Database Migration & Seeding)
+﻿# ⚡ ระบบอัปเดตและย้ายโครงสร้างฐานข้อมูลอัตโนมัติ (Automatic Database Migration & Seeding)
 
 เพื่อความง่ายในการพัฒนาและติดตั้งระบบแบบไม่ต้องจัดการทีละขั้นตอนด้วยตนเอง (Zero-Ops Development Startup) ระบบได้รวมเอาการย้ายฐานข้อมูลและใส่ข้อมูลเริ่มต้นไว้ที่ระดับ Startup บูตหลังบ้าน:
 
-- **ตำแหน่งเรียกใช้งาน:** เมธอดขยาย `app.MigrateDatabaseAsync()` ในไฟล์ [Program.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Program.cs#L87) ซึ่งประมวลผลลอจิกใน [DatabaseMigrationSetup.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Setup/DatabaseMigrationSetup.cs)
+- **ตำแหน่งเรียกใช้งาน:** เมธอดขยาย `app.MigrateDatabaseAsync()` ในไฟล์ [Program.cs](../../../BackendApi/Program.cs#L87) ซึ่งประมวลผลลอจิกใน [DatabaseMigrationSetup.cs](../../../BackendApi/Setup/DatabaseMigrationSetup.cs)
 - **กลไกการทำงาน:**
   1. **Ensure Baseline History:** เรียกใช้ `MigrationBaselineCompatibility.EnsureBaselineHistoryAsync` เพื่อตรวจสอบตารางประวัติ EF migrations ให้เข้ากันได้กับฐานข้อมูลรุ่นเก่าหรือรุ่นใหม่
   2. **Auto-Execution of Pending Migrations:** ค้นหาประวัติ EF Migrations ค้างคา หากพบจะสั่งรันคำสั่ง DDL `context.Database.MigrateAsync()` ปรับปรุง Schema เป็นเวอร์ชันล่าสุดโดยอัตโนมัติ
-  3. **Advanced Schema configuration:** ประสานงานส่งต่อให้ [PostgresAdvancedConfigurator](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs) จัดตั้งตาราง Partition, Cluster และ Seed database views นอก EF context ทันที
+  3. **Advanced Schema configuration:** ประสานงานส่งต่อให้ [PostgresAdvancedConfigurator](../../../BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs) จัดตั้งตาราง Partition, Cluster และ Seed database views นอก EF context ทันที
   4. **Data Seeding & Mock Data:** ตรวจจับตัวแปร config `SeedMockData` หากเปิดใช้งานจะเรียก `DataSeeder.SeedAsync` เพื่อประมวลผลเขียนข้อมูลจำลองของร้านค้า เมนูอาหาร และบัญชีผู้ใช้อัตโนมัติ
 
 ---

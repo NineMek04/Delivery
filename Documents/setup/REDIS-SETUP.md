@@ -1,4 +1,4 @@
-# Redis Cache & Lock Database Manual (Documents/setup/REDIS-SETUP.md)
+﻿# Redis Cache & Lock Database Manual (Documents/setup/REDIS-SETUP.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการตั้งค่า กำหนดคีย์ข้อมูล (Key Design) และการจัดการระบบล็อกจำหน่ายงาน (**Redis Cache & Distributed Lock**) สำหรับนักพัฒนาและผู้ดูแลระบบ
@@ -15,7 +15,7 @@
 
 ## 2. โครงสร้างคีย์ข้อมูลหลัก (Core Keys Specification)
 
-รายละเอียดของสัญญากำหนดการสร้างคีย์ถูกระบุใน [.docs/ai-context/contracts/redis-keys.md](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/redis-keys.md):
+รายละเอียดของสัญญากำหนดการสร้างคีย์ถูกระบุใน [.docs/ai-context/contracts/redis-keys.md](../../.docs/ai-context/contracts/redis-keys.md):
 
 *   **Rider Presence Key:** `rider:presence:<rider_id>`  
     -   *ชนิดข้อมูล:* String  
@@ -46,7 +46,7 @@
 >    - **Instance 1: Cache & GPS Buffer** (สามารถใช้นโยบาย `allkeys-lru` หรือ `volatile-lru` ได้ตามความเหมาะสมและตั้งค่า Max Memory สูงๆ)
 >    - **Instance 2: Distributed Lock / Shared State** (ห้ามเปิดใช้ Eviction Policy หรือเลือกใช้ `noeviction` เพื่อรับประกันความแน่นอนของข้อมูล โดยหากแรมเต็มระบบจะพ่น Error แต่ล็อกจะไม่ถูกถอดออกก่อนหมดอายุ)
 
-ประมวลผลผ่านโมดูลหลังบ้าน [RedisLockService.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Infrastructure/Redis/RedisLockService.cs):
+ประมวลผลผ่านโมดูลหลังบ้าน [RedisLockService.cs](../../BackendApi/Infrastructure/Redis/RedisLockService.cs):
 *   **Mutual Exclusion:** เมื่อไรเดอร์กดยอมรับออเดอร์ (`AcceptOffer`), API จะสั่งยิง `AcquireLockAsync` เพื่อล๊อกคีย์ `lock:order:<order_id>` ทันที
 *   **Race Conditions Prevention:** การเช็คและเขียนล๊อกรันผ่านคำสั่ง Lua Script อะตอมมิกระดับเดี่ยวของ Redis เพื่อรับประกันความแน่นอนของการเขียนสถานะ แม้ว่าคำขอ Accept จะวิ่งเข้ามาชนกันที่ระดับไมโครวินาที
 *   **Emergency Local Fallback:** หากตู้ Redis เกิดขัดข้องออฟไลน์ไปกระทันหัน หลังบ้านจะทำการเปลี่ยนโหมด (Fallback Mode) ไปใช้ระบบล็อกฐานข้อมูล PostgreSQL (`SELECT FOR UPDATE`) ชั่วคราวอัตโนมัติ เพื่อรักษาความถูกต้องของธุรกรรม (Data integrity)
@@ -71,6 +71,6 @@
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Redis Keys Specification and TTL Contracts](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/redis-keys.md)
-*   [Scale Guide & Performance Tuning Manual (SCALE-GUIDE.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/infrastructure/SCALE-GUIDE.md)
-*   [Redis Distributed Lock Registry](file:///c:/Users/ASUS/Desktop/Project/Delivery/CRITICAL-CODE-PROTECTION.md#L41)
+*   [Redis Keys Specification and TTL Contracts](../../.docs/ai-context/contracts/redis-keys.md)
+*   [Scale Guide & Performance Tuning Manual (SCALE-GUIDE.md)](../infrastructure/SCALE-GUIDE.md)
+*   [Redis Distributed Lock Registry](../../CRITICAL-CODE-PROTECTION.md#L41)

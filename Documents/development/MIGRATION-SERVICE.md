@@ -1,4 +1,4 @@
-# ⚙️ Custom Database Migration Service Technical Guide (Documents/development/MIGRATION-SERVICE.md)
+﻿# ⚙️ Custom Database Migration Service Technical Guide (Documents/development/MIGRATION-SERVICE.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้จัดทำขึ้นสำหรับนักพัฒนา Backend API (.NET 8) เพื่อทำความเข้าใจรายละเอียดเชิงเทคนิคและการทำงานของระบบการทำ Schema Migration ขั้นสูงระดับองค์กรที่อยู่นอกเหนือความสามารถเริ่มต้นของ Entity Framework Core
@@ -13,7 +13,7 @@
 3. การระบุค่าปริยาย Concurrency Bytes สำหรับคอลัมน์ตรวจสอบความสอดคล้องข้อมูล (`RowVersion`)
 4. การทำดัชนีพร้อมกัน (**Concurrent Indexing**) เพื่อไม่ให้บล็อกการทำงานขณะเปิดระบบในระดับ Production
 
-เพื่อตอบสนองความต้องการเหล่านี้ ระบบจึงออกแบบคลาสแยกเฉพาะตัวคือ [PostgresAdvancedConfigurator.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs) ซึ่งจะทำงานโดยอัตโนมัติทันทีหลังจาก EF Core รันคำสั่ง `Database.MigrateAsync()` สำเร็จ ผ่านการประสานงานของ [DatabaseMigrationSetup.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Setup/DatabaseMigrationSetup.cs).
+เพื่อตอบสนองความต้องการเหล่านี้ ระบบจึงออกแบบคลาสแยกเฉพาะตัวคือ [PostgresAdvancedConfigurator.cs](../../BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs) ซึ่งจะทำงานโดยอัตโนมัติทันทีหลังจาก EF Core รันคำสั่ง `Database.MigrateAsync()` สำเร็จ ผ่านการประสานงานของ [DatabaseMigrationSetup.cs](../../BackendApi/Setup/DatabaseMigrationSetup.cs).
 
 ---
 
@@ -94,7 +94,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "IX_ProcessedEvents_ProcessedAt"
 ## 3. วิธีการตรวจสอบและควบคุมระบบย้ายฐานข้อมูล (Verification & Debugging)
 
 1. **การตรวจสอบผ่าน Log (Centralized Logging):**  
-   เข้าสู่ระบบ [Seq Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/setup/SEQ-SETUP.md) ค้นหาแท็กกรอง:
+   เข้าสู่ระบบ [Seq Manual](../setup/SEQ-SETUP.md) ค้นหาแท็กกรอง:
    `SourceContext = 'BackendApi.ServiceMigration.PostgresAdvancedConfigurator'`  
    *คุณต้องพบล็อกเหตุการณ์แจ้งข้อความสำเร็จ:* `✅ [ServiceMigration] Advanced PostgreSQL schema configuration completed successfully.`
 2. **การกู้คืนและการใช้งานคำสั่งย้อนกลับ (Rollback & Clean Start):**  

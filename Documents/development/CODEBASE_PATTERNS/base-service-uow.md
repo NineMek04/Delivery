@@ -1,6 +1,6 @@
-# 🏛️ Base Service / Unit of Work Pattern
+﻿# 🏛️ Base Service / Unit of Work Pattern
 
-การทำงานกับฐานข้อมูล EF Core ในระบบถูกห่อหุ้ม (Encapsulated) ด้วยคลาส [DBHandlerCore.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Core/DataHandlers/DBHandlerCore.cs) ทำหน้าที่เป็น Unit of Work และ Repository กลาง:
+การทำงานกับฐานข้อมูล EF Core ในระบบถูกห่อหุ้ม (Encapsulated) ด้วยคลาส [DBHandlerCore.cs](../../../BackendApi/Core/DataHandlers/DBHandlerCore.cs) ทำหน้าที่เป็น Unit of Work และ Repository กลาง:
 
 ### ⚙️ เทคนิคการเขียนโค้ดขั้นสูง:
 - **การจัดการ Audit เสมือนจริง (Automatic Audit Generation):**  

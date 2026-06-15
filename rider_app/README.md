@@ -1,4 +1,4 @@
-# Rider Mobile App Subsystem (Flutter)
+﻿# Rider Mobile App Subsystem (Flutter)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการพัฒนาสำหรับทีม **Mobile Developer (Flutter)** อธิบายโครงสร้างสถาปัตยกรรม Clean Architecture ระบบจัดการพิกัดเบื้องหลัง (Background Location) และกลไกทำงานออฟไลน์ (Offline-First SQLite Buffer)
@@ -79,18 +79,18 @@ lib/
 4.  **`BUSY`:** ไรเดอร์ตอบตกลงรับออเดอร์สำเร็จ กำลังวิ่งเดินทางไปส่งอาหาร (PICKUP -> DELIVERING)
 
 ### 4.2 การดึง GPS Telemetry & ระบบตรวจสอบความปลอดภัย (Anti-Spoofing & Filtering)
-การจัดการพิกัดมีความสำคัญสูงสุดในการประเมินประสิทธิภาพ จึงประมวลผลผ่าน [location_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/location/location_service.dart):
+การจัดการพิกัดมีความสำคัญสูงสุดในการประเมินประสิทธิภาพ จึงประมวลผลผ่าน [location_service.dart](lib/core/location/location_service.dart):
 *   **GPS Noise Filtering (กฎ 300 เมตร):** ค่าพิกัดใดๆ ที่ได้รับเข้ามาจากจีพีเอสมือถือ แต่มีรัศมีความคลาดเคลื่อน (`accuracy`) สูงกว่า **300 เมตร** จะถูกคัดกรองทิ้ง (Noise Filtered) ทันที เพื่อป้องกันพิกัดกระโดดบนแผนที่ (GPS Jitter/Drift)
 *   **ระบบตรวจสอบพิกัดปลอม (Anti-Spoofing/Mock GPS Block):**  
     ก่อนยอมรับพิกัดใดๆ แอปจะดึงพารามิเตอร์ `position.isMocked` มาตรวจสอบเสมอ หากตรวจพบค่าเป็นจริง (ผู้ใช้เปิดโปรแกรมโกงพิกัด/Fake GPS) แอปจะทำตามขั้นตอน:
     1.  ยกเลิกการเก็บตำแหน่งและปิดระบบ GPS Tracking ทันที
     2.  ส่งการแจ้งเตือนสยบผู้ใช้งาน (Alert Notification)
-    3.  เรียกใช้คำสั่งบังคับ Rider เป็น `OFFLINE` ทันที ([rider_session_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/session/rider_session_service.dart)) เพื่อตัดการรบกวนความสอดคล้องข้อมูลของ Backend
+    3.  เรียกใช้คำสั่งบังคับ Rider เป็น `OFFLINE` ทันที ([rider_session_service.dart](lib/core/session/rider_session_service.dart)) เพื่อตัดการรบกวนความสอดคล้องข้อมูลของ Backend
 
 ### 4.3 ระบบจัดการข้อมูลพิกัดออฟไลน์ (Offline SQLite Buffer & Ingestion)
 หากคนขับวิ่งรถผ่านจุดอับสัญญาณเน็ตเวิร์ก แอปจะเปลี่ยนเข้าสู่โหมดกักเก็บข้อมูลท้องถิ่น:
-1.  [location_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/location/location_service.dart) จะนำพิกัดที่กรองแล้วบันทึกลง SQLite ตาราง `pending_gps_points` ผ่าน [local_database_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/database/local_database_service.dart#L410) (จำกัดจำนวนสูงสุดที่ 10,000 จุด หากเกินจะทยอยลบจุดเก่าสุดออก)
-2.  เมื่อกลับเข้าสู่เครือข่ายสัญญาณปกติ [gps_buffer_service.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/core/location/gps_buffer_service.dart#L144) จะดึงพิกัดขึ้นมาทยอยส่ง (Batch Ingestion) ไปที่ endpoint `POST /api/v1/telemetry/gps/batch` ครั้งละ 100 จุดแบบเรียงตามเวลา (FIFO)
+1.  [location_service.dart](lib/core/location/location_service.dart) จะนำพิกัดที่กรองแล้วบันทึกลง SQLite ตาราง `pending_gps_points` ผ่าน [local_database_service.dart](lib/core/database/local_database_service.dart#L410) (จำกัดจำนวนสูงสุดที่ 10,000 จุด หากเกินจะทยอยลบจุดเก่าสุดออก)
+2.  เมื่อกลับเข้าสู่เครือข่ายสัญญาณปกติ [gps_buffer_service.dart](lib/core/location/gps_buffer_service.dart#L144) จะดึงพิกัดขึ้นมาทยอยส่ง (Batch Ingestion) ไปที่ endpoint `POST /api/v1/telemetry/gps/batch` ครั้งละ 100 จุดแบบเรียงตามเวลา (FIFO)
 3.  ใช้ระบบ **Adaptive Jitter Delay** (ถ่วงเวลาส่ง 500ms - 2000ms เพื่อป้องกันการยิงถล่มเซิร์ฟเวอร์หลังฟื้นคืนสัญญาณ)
 4.  ประยุกต์ใช้ **Backpressure Response Header** (`X-Recommended-Ping` จากเซิร์ฟเวอร์) มาปรับลดหรือเพิ่มรอบความถี่ในการส่งพิกัดให้อัตโนมัติ
 
@@ -101,6 +101,6 @@ lib/
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Contracts)
-*   [Flutter Subsystem Core Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-mobile-rider.md)
-*   [State Machine Configuration Matrix](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/state-machine.md)
-*   [SignalR WebSockets Connection Payloads](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/signalr-contracts.md)
+*   [Flutter Subsystem Core Specification](../.docs/ai-context/spec-mobile-rider.md)
+*   [State Machine Configuration Matrix](../.docs/ai-context/contracts/state-machine.md)
+*   [SignalR WebSockets Connection Payloads](../.docs/ai-context/contracts/signalr-contracts.md)

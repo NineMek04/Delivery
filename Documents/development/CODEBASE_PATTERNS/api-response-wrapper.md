@@ -1,8 +1,8 @@
-# 📦 รูปแบบการห่อหุ้มคำตอบรับ API ขากลับ (Unified REST API Response Wrapper)
+﻿# 📦 รูปแบบการห่อหุ้มคำตอบรับ API ขากลับ (Unified REST API Response Wrapper)
 
 เพื่อรักษาความเป็นมาตรฐานของคำตอบรับทาง HTTP (Unified API Contracts) ของทั้งโครงการ และอำนวยความสะดวกในการอ่านลอจิกขารับของฝั่ง Angular/Flutter ไคลเอนต์ ตัวระบบหลังบ้านมีการใช้ Action Filter สำหรับครอบโครงสร้าง JSON เสมอ:
 
-- **ตำแหน่งตัวควบคุมหลัก:** [GlobalResponseFilter.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Core/Filters/GlobalResponseFilter.cs)
+- **ตำแหน่งตัวควบคุมหลัก:** [GlobalResponseFilter.cs](../../../BackendApi/Core/Filters/GlobalResponseFilter.cs)
 
 ---
 
@@ -48,7 +48,7 @@
 
 สำหรับคำร้องขอบางประเภทที่ไม่จำเป็นต้องส่งค่ากลับเป็นโครงสร้าง JSON ดังกล่าว เช่น สถิติของ Prometheus (`/metrics`), ไฟล์รูปภาพยืนยันการรับส่งอาหาร, สัญญาณดาวน์โหลดสตรีมมิ่ง หรือหน้าจอยืนยันความสมบูรณ์ของระบบ (`/health`):
 
-- **ตัวบ่งชี้การยกเว้น ([DisableWrapperAttribute.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Core/Attributes/DisableWrapperAttribute.cs)):**  
+- **ตัวบ่งชี้การยกเว้น ([DisableWrapperAttribute.cs](../../../BackendApi/Core/Attributes/DisableWrapperAttribute.cs)):**  
   นักพัฒนาหลังบ้านสามารถประกาศประดับหัวข้อเมธอดนั้นๆ ด้วยแท็ก `[DisableWrapper]` ได้ทันที:
   ```csharp
   [HttpGet("metrics")]

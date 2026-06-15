@@ -1,8 +1,8 @@
-# 🛣️ ระบบควบคุมเส้นทางและความปลอดภัยแอปพลิเคชัน (GoRouter Role-Based Access Control)
+﻿# 🛣️ ระบบควบคุมเส้นทางและความปลอดภัยแอปพลิเคชัน (GoRouter Role-Based Access Control)
 
 ในฝั่งของแอปพลิเคชันมือถือ Flutter (Rider App) มีการออกแบบการควบคุมพาธหน้าจอต่างๆ (API Screen Routing) และแบ่งแยกหน้าที่ผู้ใช้งานตามบทบาท (Role-based separation) อย่างเข้มงวดผ่านการใช้งาน `go_router`:
 
-- **ตำแหน่งตัวควบคุมหลัก:** [app_router.dart](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/lib/app/app_router.dart)
+- **ตำแหน่งตัวควบคุมหลัก:** [app_router.dart](../../../rider_app/lib/app/app_router.dart)
 
 ---
 

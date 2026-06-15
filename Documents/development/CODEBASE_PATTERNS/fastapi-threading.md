@@ -1,6 +1,6 @@
-# 🐍 FastAPI Anti-Blocking Threading
+﻿# 🐍 FastAPI Anti-Blocking Threading
 
-ใน FastAPI AI Routing Engine ([optimize.py](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/app/api/v1/endpoints/optimize.py)) คำนวณเส้นทาง VRP:
+ใน FastAPI AI Routing Engine ([optimize.py](../../../ai-engine/app/api/v1/endpoints/optimize.py)) คำนวณเส้นทาง VRP:
 
 - **ปัญหา:** คำสั่งคำนวณ VRP (OR-Tools) เป็นการประมวลผลเชิง CPU หนักหน่วง (CPU-bound)
 - **สถาปัตยกรรมกันค้าง (Anti-Event-Loop-Blocking):**

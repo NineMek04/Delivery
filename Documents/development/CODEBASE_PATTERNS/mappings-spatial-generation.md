@@ -1,6 +1,6 @@
-# 🤖 Mapster Mapping & Spatial Auto-Generation
+﻿# 🤖 Mapster Mapping & Spatial Auto-Generation
 
-รายละเอียดในไฟล์ [MappingConfig.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Core/Mappings/MappingConfig.cs):
+รายละเอียดในไฟล์ [MappingConfig.cs](../../../BackendApi/Core/Mappings/MappingConfig.cs):
 - ผูกใช้แผนผังแปลงโมเดล Entity ↔ DTO ด้วยการตั้งค่าส่วนกลางหลีกเลี่ยงค่า null (`IgnoreNullValues(true)`)
 
 > [!IMPORTANT]

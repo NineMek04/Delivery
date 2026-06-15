@@ -1,6 +1,6 @@
-# 🏛️ Base Controller Pattern
+﻿# 🏛️ Base Controller Pattern
 
-คลาส [DeliveryControllerBase.cs](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/Core/DeliveryControllerBase.cs) ทำหน้าที่เป็นจุดศูนย์กลางของการควบคุม REST API ทั้งหมดของ .NET 8 Backend:
+คลาส [DeliveryControllerBase.cs](../../../BackendApi/Core/DeliveryControllerBase.cs) ทำหน้าที่เป็นจุดศูนย์กลางของการควบคุม REST API ทั้งหมดของ .NET 8 Backend:
 
 ### ⚙️ คุณลักษณะทางสถาปัตยกรรม:
 - **Routing & Content-Type:** บังคับโครงสร้างพาธ API รูปแบบเดียวกันทั้งหมดผ่าน `[Route("api/v1/[controller]")]` และส่งกลับ JSON เท่านั้นผ่าน `[Produces("application/json")]`

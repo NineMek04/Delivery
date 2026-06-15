@@ -1,4 +1,4 @@
-# Smart Delivery Routing System (ระบบจัดส่งอัจฉริยะแบบเรียลไทม์)
+﻿# Smart Delivery Routing System (ระบบจัดส่งอัจฉริยะแบบเรียลไทม์)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็น **Master Table of Contents (สารบัญหลักประจำโปรเจกต์)** ออกแบบมาเพื่อให้ผู้บริหารโครงการ (Project Manager), นักพัฒนาซอฟต์แวร์ (Developers) และทีมผู้ดูแลระบบ (DevOps/SysAdmin) สามารถทำความเข้าใจภาพรวมและระบบงานทั้งหมดได้ภายใน 2 นาที
@@ -106,73 +106,73 @@ sequenceDiagram
 
 ### 🏛️ คู่มือระบบย่อย (Subsystem Handover Guides)
 *   **สำหรับนักพัฒนา Backend (.NET):**  
-    👉 [Backend API Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/BackendApi/README.md)  
+    👉 [Backend API Subsystem Manual](BackendApi/README.md)  
     *(ข้อมูลการทำ DB Migrations, โครงสร้าง DbContext, ลอจิก DispatchService และ SignalR Hub)*
 *   **สำหรับนักพัฒนา Frontend (Angular):**  
-    👉 [Angular Admin Dashboard Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/admin-dashboard/README.md)  
+    👉 [Angular Admin Dashboard Manual](admin-dashboard/README.md)  
     *(ลอจิกการวาดแผนที่ Canvas, การรับข้อมูล SignalR แบบรีแอคทีฟ และการป้องกัน Memory Leak)*
 *   **สำหรับนักพัฒนา Mobile (Flutter):**  
-    👉 [Flutter Rider App Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/rider_app/README.md)  
+    👉 [Flutter Rider App Manual](rider_app/README.md)  
     *(สถาปัตยกรรม Riverpod, การทำงานเบื้องหลัง GPS Background, SQLite Buffer และระบบ Anti-Spoofing)*
 *   **สำหรับนักพัฒนา AI (Python/Data Science):**  
-    👉 [AI Engine Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/ai-engine/README.md)  
+    👉 [AI Engine Subsystem Manual](ai-engine/README.md)  
     *(การตั้งค่า VRP Solver, การคำนวณ Distance Matrix และการใช้งานระบบสำรอง Haversine)*
 
 ### ⚙️ คู่มือสำหรับ DevOps & SysAdmin
 *   **สำหรับทีม Deploy & Infra:**  
-    👉 [DevOps & Infrastructure Deployment Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/README-DEVOPS.md)  
+    👉 [DevOps & Infrastructure Deployment Manual](README-DEVOPS.md)  
     *(ข้อมูล Docker Topology, Nginx Proxy Rules, Prometheus Exporters และบอร์ดเตือนภัยวิกฤต Critical 9)*
 *   **คู่มือเกตเวย์จราจร Nginx (Nginx Ingress Proxy Guide):**  
-    👉 [Nginx Reverse Proxy Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/nginx-proxy/README.md)  
+    👉 [Nginx Reverse Proxy Subsystem Manual](nginx-proxy/README.md)  
     *(นโยบายความปลอดภัย Headers, การตั้งค่า Rate Limiting ป้องกัน DDoS และ Basic Auth)*
 *   **คู่มือฐานข้อมูลหลัก (PostgreSQL & PgBouncer Manual):**  
-    👉 [PostgreSQL & PgBouncer Database Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/setup/DATABASE-SETUP.md)  
+    👉 [PostgreSQL & PgBouncer Database Manual](Documents/setup/DATABASE-SETUP.md)  
     *(การตั้งค่าตาราง GIS PostGIS, สระจำลองธุรกรรม PgBouncer Transaction Mode และการย้าย DDL)*
 *   **คู่มือแคชความเร็วสูง (Redis Cache & Locking Manual):**  
-    👉 [Redis Cache & Lock Database Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/setup/REDIS-SETUP.md)  
+    👉 [Redis Cache & Lock Database Manual](Documents/setup/REDIS-SETUP.md)  
     *(สเปกคีย์ไรเดอร์ TTL, Lua Script ของระบบล็อก RedLock และนโยบาย volatile-lru)*
 *   **คู่มือระบบส่งข้อความคิว (RabbitMQ Message Broker Manual):**  
-    👉 [RabbitMQ Event Broker Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/rabbitmq/README.md)  
+    👉 [RabbitMQ Event Broker Subsystem Manual](rabbitmq/README.md)  
     *(สัญญากำหนดชื่อ Integration Events, ระบบ Dead Letter Exchange และระบบเช็คคิว ProcessedEvents)*
 *   **คู่มือศูนย์วิเคราะห์ประวัติล็อก (Seq Centralized Logging Manual):**  
-    👉 [Seq Centralized Logging Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/setup/SEQ-SETUP.md)  
+    👉 [Seq Centralized Logging Manual](Documents/setup/SEQ-SETUP.md)  
     *(การตั้งค่า Serilog Sink ข้อมูลหลังบ้าน, การสืบจับรอย Correlation ID และตัวอย่างคิวรีหาข้อยกเว้น)*
 *   **คู่มือแผนที่จราจร OSRM (OSRM Map Guide):**  
-    👉 [OSRM Map Data & Setup Reference](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/setup/OSRM-SETUP.md)  
+    👉 [OSRM Map Data & Setup Reference](Documents/setup/OSRM-SETUP.md)  
     *(ข้อมูล assets แผนที่, คำสั่งดาวน์โหลด/คอมไพล์โครงข่ายถนนจังหวัดอุดรธานี และ Docker volumes)*
 *   **คู่มือตัวจัดเก็บตัววัดค่าระบบ (Prometheus Metrics Manual):**  
-    👉 [Prometheus Metrics Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/prometheus/README.md)  
+    👉 [Prometheus Metrics Subsystem Manual](prometheus/README.md)  
     *(การตั้งค่า scrape jobs ของ exporters ทั้ง 4, กฎการ evaluate ล็อกเตือนภัยคุกคามและความเสถียร)*
 *   **คู่มือระบบตรวจสอบกราฟ (Grafana Dashboards):**  
-    👉 [Grafana Dashboards Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/README.md)  
+    👉 [Grafana Dashboards Subsystem Manual](grafana/README.md)  
     *(โครงสร้าง Automated Provisioning, ข้อมูลบอร์ดสรุปสถิตินำทาง และแผงเตือนภัยพิบัติทั้ง 7 บอร์ด)*
 *   **คู่มือคัดกรองจัดกลุ่มแจ้งเตือน (Alertmanager Notification Manual):**  
-    👉 [Alertmanager Notification Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/alertmanager/README.md)  
+    👉 [Alertmanager Notification Subsystem Manual](alertmanager/README.md)  
     *(เงื่อนไขเวลาคั่งค้าง Resolve Timeout, การจัดกลุ่ม Alert และการเชื่อมโยงระบบเตือนเข้า Discord Webhook)*
 *   **คู่มือความเสถียร (Scale Guide):**  
-    👉 [Scale Guide & Performance Tuning Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/infrastructure/SCALE-GUIDE.md)  
+    👉 [Scale Guide & Performance Tuning Manual](Documents/infrastructure/SCALE-GUIDE.md)  
     *(การจูน CPU/RAM คอนเทนเนอร์ และแคช Eviction Limits)*
 *   **คู่มือความปลอดภัยและการขึ้นจริง:**  
-    👉 [Production Deployment & Security Guidelines](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/infrastructure/PRODUCTION-DEPLOYMENT.md)  
+    👉 [Production Deployment & Security Guidelines](Documents/infrastructure/PRODUCTION-DEPLOYMENT.md)  
     *(การแยกพอร์ต IP, การเข้ารหัส SSL/TLS และกฎการกัน DDoS ด้วย Cloudflare WAF)*
 *   **คู่มือการเก็บรักษาข้อมูลถาวรในเครื่อง (PostgreSQL Persistent Storage):**  
-    👉 [PostgreSQL Persistent Storage Directory (postgres-data/README.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/postgres-data/README.md)  
+    👉 [PostgreSQL Persistent Storage Directory (postgres-data/README.md)](postgres-data/README.md)  
     *(การ Mount โวลลุ่มฐานข้อมูล Docker และข้อควรระวังเพื่อรักษาความถูกต้องทางกายภาพของไฟล์ข้อมูล)*
 
 ### 💻 คู่มือด้านโค้ดเบสและสคริปต์เสริม (Codebase & Script Manuals)
 *   **สคริปต์อัตโนมัติประจำระบบ:**  
-    👉 [System Helper & Bootstrap Scripts (RootScripts/scripts/README.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts/README.md)  
+    👉 [System Helper & Bootstrap Scripts (RootScripts/scripts/README.md)](RootScripts/scripts/README.md)  
     *(คู่มือการใช้งานสคริปต์สตาร์ตระบบทั้งหมด สคริปต์สตาร์ตหลังบ้าน สคริปต์ดาวน์โหลดแผนที่ และสคริปต์สแกนความปลอดภัย)*
 *   **คู่มือโครงสร้างบริการทำ Migration ของฐานข้อมูลเชิงลึก:**  
-    👉 [Custom Database Migration Service Technical Guide](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/MIGRATION-SERVICE.md)  
+    👉 [Custom Database Migration Service Technical Guide](Documents/development/MIGRATION-SERVICE.md)  
     *(คำอธิบายระบบการทำ Table Partitioning, Clustering และ Indexing อัตโนมัติใน PostgresAdvancedConfigurator.cs)*
 *   **คู่มืออธิบายโครงสร้างลอจิกและสถาปัตยกรรมโค้ดเบสหลัก:**  
-    👉 [Core Codebase Patterns & Architecture Technical Manual Directory](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/development/CODEBASE_PATTERNS/README.md)  
+    👉 [Core Codebase Patterns & Architecture Technical Manual Directory](Documents/development/CODEBASE_PATTERNS/README.md)  
     *(คู่มืออธิบายรูปแบบโครงสร้างโค้ดแยกย่อย: Base Controllers, Base Services, Middlewares/Headers, Validation & GIS index, Mapster, FastAPI Threading, Auto migrations, ThreadPool starvation, Idempotency, Concurrency locks, Frontend memory leaks และ trace logging)*
 
 ### 🧪 คู่มือการรันชุดทดสอบ (QA & Testing Center)
 *   **สำหรับทีมควบคุมคุณภาพและ QA:**  
-    👉 [QA Test Map & Execution Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/RootScripts/scripts.test/README.md)  
+    👉 [QA Test Map & Execution Manual](RootScripts/scripts.test/README.md)  
     *(วิธีการรัน C# Integration, Python AI Engine, Node.js E2E Simulators และสถิติล็อกของห้องแล็บ)*
 
 ---
@@ -180,8 +180,8 @@ sequenceDiagram
 ### 📂 เอกสารข้อกำหนดและการทำงานเชิงลึกดั้งเดิม (System Spec & Contracts)
 > [!IMPORTANT]
 > เอกสารดั้งเดิมยังคงจัดเก็บไว้อยู่ในไดเรกทอรี `.docs/ai-context/` เพื่อเป็นฐานอ้างอิงสัญญาระหว่างระบบ (Contract Reference)
-> *   [API REST Contracts & DTO Rules](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/api-contracts.md)
-> *   [SignalR WebSockets Hub Events Contract](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/signalr-contracts.md)
-> *   [State Machine & Order Transition Rules](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/state-machine.md)
-> *   [Redis Key-Value Design and TTL Limits](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/redis-keys.md)
-> *   [GeoJSON Coordinate Standard & Polyline Format](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/geojson-contracts.md)
+> *   [API REST Contracts & DTO Rules](.docs/ai-context/contracts/api-contracts.md)
+> *   [SignalR WebSockets Hub Events Contract](.docs/ai-context/contracts/signalr-contracts.md)
+> *   [State Machine & Order Transition Rules](.docs/ai-context/contracts/state-machine.md)
+> *   [Redis Key-Value Design and TTL Limits](.docs/ai-context/contracts/redis-keys.md)
+> *   [GeoJSON Coordinate Standard & Polyline Format](.docs/ai-context/contracts/geojson-contracts.md)

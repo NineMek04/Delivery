@@ -1,4 +1,4 @@
-# DevOps & Infrastructure Manual (README-DEVOPS.md)
+﻿# DevOps & Infrastructure Manual (README-DEVOPS.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้จัดทำขึ้นสำหรับทีม **DevOps Engineer** และ **System Administrator** เพื่อใช้ดูแลรักษาความปลอดภัยของระบบโครงสร้างพื้นฐาน (Infrastructure), การจัดการเน็ตเวิร์ก (Nginx Gateway), ระบบมอนิเตอร์ (Observability Stack) และการกำหนดนโยบายแจ้งเตือนเหตุฉุกเฉิน (Alerting Rules)
@@ -46,13 +46,13 @@
 เพื่อความมั่นคงปลอดภัยสูงสุด ระบบบังคับใช้นโยบาย **Port Isolation** อย่างเข้มงวด:
 
 ### 2.1 นโยบายสกัดกั้นการเชื่อมต่อตรงจากนอกตู้ (Port Isolation Rule)
-1.  ในไฟล์หลัก [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml) จะ **ไม่มีการเปิดเผยพอร์ตสู่สาธารณะ** ของบริการหลักภายใน ได้แก่ `db`, `pgbouncer`, `redis`, `rabbitmq`, `prometheus`, `alertmanager`
-2.  ในไฟล์พอร์ตสำหรับการพัฒนา [docker-compose.override.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.override.yml) หากต้องเปิดเผยพอร์ตเพื่อทดสอบระบบด่วน (เช่น `5432` สำหรับ pgAdmin หรือ `6379` สำหรับ RedisInsight) บังคับต้องเขียนจำกัดให้ผูกเฉพาะไอพีภายในเครื่อง **`127.0.0.1`** เท่านั้น:
+1.  ในไฟล์หลัก [docker-compose.yml](docker-compose.yml) จะ **ไม่มีการเปิดเผยพอร์ตสู่สาธารณะ** ของบริการหลักภายใน ได้แก่ `db`, `pgbouncer`, `redis`, `rabbitmq`, `prometheus`, `alertmanager`
+2.  ในไฟล์พอร์ตสำหรับการพัฒนา [docker-compose.override.yml](docker-compose.override.yml) หากต้องเปิดเผยพอร์ตเพื่อทดสอบระบบด่วน (เช่น `5432` สำหรับ pgAdmin หรือ `6379` สำหรับ RedisInsight) บังคับต้องเขียนจำกัดให้ผูกเฉพาะไอพีภายในเครื่อง **`127.0.0.1`** เท่านั้น:
     - *ตัวอย่างที่ถูกต้อง:* `"127.0.0.1:5432:5432"` (อนุญาตเฉพาะคนรันเครื่องตัวเองเข้าถึง)
     - *ตัวอย่างที่ห้ามทำเด็ดขาด:* `"0.0.0.0:5432:5432"` (จะทำให้คนอื่นในวงเน็ตเวิร์กเดียวกันสแกนเจาะข้อมูลได้)
 
 ### 2.2 บทบาทของ Nginx Reverse Proxy
-กำหนดสเปกในไฟล์ [nginx.conf](file:///c:/Users/ASUS/Desktop/Project/Delivery/nginx-proxy/nginx.conf):
+กำหนดสเปกในไฟล์ [nginx.conf](nginx-proxy/nginx.conf):
 *   **SSL/TLS Security:** บังคับเปลี่ยนการเชื่อมต่อ HTTP (พอร์ต 80) เป็น HTTPS (พอร์ต 443) และใช้เฉพาะโปรโตคอล TLS v1.2 / v1.3 พร้อม Cipher Suite ที่ปลอดภัย
 *   **CORS Management:** กรองและยอมรับเฉพาะ Origin ที่กำหนดไว้ เช่น `AllowedOrigins` ป้องกันสคริปต์หน้าบ้านถูกเบราว์เซอร์สกัดกั้น
 *   **Rate Limiting:** จำกัดเฉพาะจุดรับพิกัด GPS เพื่อสกัดกั้นแอปพลิเคชันไรเดอร์จำลองยิงถล่มทราฟฟิก (Telemetry DDOS Protection)
@@ -69,7 +69,7 @@
 *   นักพัฒนาสามารถใช้คำสั่งค้นหาแบบ Object เช่น `IsDefined(@Exception) or @Level = 'Error'` หรือกรองตาม component เช่น `Component = 'AiOptimizer'` เพื่อแก้ไขบั๊กหน้างานได้ทันที
 
 ### 3.2 ท่อข้อมูลตัววัดประสิทธิภาพ (Metrics Pipeline via Prometheus & Grafana)
-Prometheus ดึงค่าตัววัด (Scrape Metrics) จากพอร์ตส่งข้อมูลในระบบทุก 15 วินาที ตามที่ระบุไว้ใน [prometheus.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/prometheus.yml) ครอบคลุม:
+Prometheus ดึงค่าตัววัด (Scrape Metrics) จากพอร์ตส่งข้อมูลในระบบทุก 15 วินาที ตามที่ระบุไว้ใน [prometheus.yml](prometheus.yml) ครอบคลุม:
 *   สถิติ CPU/Memory คอนเทนเนอร์ (ผ่าน `cadvisor`)
 *   สถิติหน่วยความจำโฮสต์ (ผ่าน `node-exporter`)
 *   สถิติฐานข้อมูล PostgreSQL (ผ่าน `postgres-exporter`)
@@ -113,7 +113,7 @@ Prometheus ดึงค่าตัววัด (Scrape Metrics) จากพอ
 ---
 
 ### 4.2 เกณฑ์การเตือนระดับระบบ (Infrastructure & App Alerts)
-กำหนดเกณฑ์การเตือนภัยฉุกเฉินใน [infrastructure_alerts.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/prometheus/rules/infrastructure_alerts.yml) และ [security_alerts.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/prometheus/rules/security_alerts.yml):
+กำหนดเกณฑ์การเตือนภัยฉุกเฉินใน [infrastructure_alerts.yml](prometheus/rules/infrastructure_alerts.yml) และ [security_alerts.yml](prometheus/rules/security_alerts.yml):
 
 | ชื่อกฎเตือนภัย (Alert Name) | เกณฑ์การทริกเกอร์ (Expression Rule) | ระดับความฉุกเฉิน | การแก้ไขเบื้องต้น (Remediation) |
 | :--- | :--- | :---: | :--- |
@@ -129,10 +129,10 @@ Prometheus ดึงค่าตัววัด (Scrape Metrics) จากพอ
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Specs)
 *   **คู่มือระบบตรวจสอบกราฟ (Grafana Dashboards):**  
-    👉 [Grafana Dashboards Subsystem Manual](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/README.md)  
+    👉 [Grafana Dashboards Subsystem Manual](grafana/README.md)  
     *(อธิบายการเชื่อมต่อแหล่งข้อมูล, การตั้งบอร์ด และการจัดการค่า Alerts)*
 *   **คู่มือแผนที่จราจร OSRM (OSRM Map Guide):**  
-    👉 [OSRM Map Data & Setup Reference](file:///c:/Users/ASUS/Desktop/Project/Delivery/osrm_data/README.md)  
+    👉 [OSRM Map Data & Setup Reference](osrm_data/README.md)  
     *(รายละเอียดไฟล์แผนที่อุดรธานี, การบิวด์ MLD Dijkstra, และการรัน Sandbox)*
-*   [Infrastructure, Telemetry & SLO Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-infra-devops.md)
-*   [State Machine & Telemetry Data Consistency Spec](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-consistency.md)
+*   [Infrastructure, Telemetry & SLO Specification](.docs/ai-context/spec-infra-devops.md)
+*   [State Machine & Telemetry Data Consistency Spec](.docs/ai-context/spec-consistency.md)

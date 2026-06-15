@@ -1,4 +1,4 @@
-# Grafana Dashboards Subsystem (grafana/README.md)
+﻿# Grafana Dashboards Subsystem (grafana/README.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือการตั้งค่าและใช้งาน **Grafana Dashboards** เพื่อมอนิเตอร์สถานะระบบ สถิติทางธุรกิจ ความมั่นคงปลอดภัย และประสิทธิภาพของโครงสร้างพื้นฐาน
@@ -32,8 +32,8 @@ grafana/
             └── security.json         # ไฟล์บอร์ด System Security
 ```
 
-*   **Datasource Provisioning:** ไฟล์ [datasource.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/datasources/datasource.yml) จะทำการลงทะเบียนฐานข้อมูล Prometheus (`http://prometheus:9090`) เป็นแหล่งข้อมูลหลัก (Default Datasource) ให้อัตโนมัติทันทีที่เซิร์ฟเวอร์สตาร์ต
-*   **Dashboard Providers:** ไฟล์ [dashboard.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/dashboard.yml) จะสั่งการให้ Grafana ดึงไฟล์ JSON ในไดเรกทอรีท้องถิ่นไปติดตั้งแยกโฟลเดอร์บนหน้าจอให้อัตโนมัติ:
+*   **Datasource Provisioning:** ไฟล์ [datasource.yml](provisioning/datasources/datasource.yml) จะทำการลงทะเบียนฐานข้อมูล Prometheus (`http://prometheus:9090`) เป็นแหล่งข้อมูลหลัก (Default Datasource) ให้อัตโนมัติทันทีที่เซิร์ฟเวอร์สตาร์ต
+*   **Dashboard Providers:** ไฟล์ [dashboard.yml](provisioning/dashboards/dashboard.yml) จะสั่งการให้ Grafana ดึงไฟล์ JSON ในไดเรกทอรีท้องถิ่นไปติดตั้งแยกโฟลเดอร์บนหน้าจอให้อัตโนมัติ:
     1.  โฟลเดอร์ **`NOC & War Room`** $\rightarrow$ ดึงไฟล์จากไดเรกทอรี `noc/`
     2.  โฟลเดอร์ **`Security & Operations`** $\rightarrow$ ดึงไฟล์จากไดเรกทอรี `standard/`
 
@@ -44,38 +44,38 @@ grafana/
 ระบบมาพร้อมกับ 7 แดชบอร์ดสำเร็จรูปพร้อมใช้งานสำหรับการประเมินสภาพระบบ:
 
 ### 3.1 บอร์ดสงครามแผงควบคุมระดับสูง (NOC & War Room Dashboard)
-*   **ที่เก็บไฟล์:** [noc_dashboard.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/noc/noc_dashboard.json)
+*   **ที่เก็บไฟล์:** [noc_dashboard.json](provisioning/dashboards/noc/noc_dashboard.json)
 *   **หน้าที่:** แผงควบคุม Stat Panels ขนาดใหญ่ และใช้สีสัญญาณไฟจราจรเตือนภัยระดับ Single Points of Failure ครอบคลุม **9 จุดวิกฤต (The Critical 9)** เช่น อัตราใช้ Postgres Connections, แรม Redis Eviction, อัตราออเดอร์ Backlog ค้างเติ่ง, และ อัตราการสลับโหมดสำรองของ OSRM (Haversine Ratio)
 
 ### 3.2 บอร์ดความมั่นคงปลอดภัย (Security Dashboard)
-*   **ที่เก็บไฟล์:** [security.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/standard/security.json)
+*   **ที่เก็บไฟล์:** [security.json](provisioning/dashboards/standard/security.json)
 *   **หน้าที่:** มอนิเตอร์การจู่โจมและพฤติกรรมผิดปกติ เช่น อัตราการล็อกอินล้มเหลว (High Failed Logins), การระงับบัญชี (Account Lockouts), อัตราคำขอ CSRF Rejections ผิดปกติ, และจำนวนคำขอที่ถูกปฏิเสธเนื่องจากเกิน Rate Limits (DDoS Protection)
 
 ### 3.3 บอร์ดทรัพยากรฮาร์ดแวร์ (Infrastructure Dashboard)
-*   **ที่เก็บไฟล์:** [infrastructure.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/standard/infrastructure.json)
+*   **ที่เก็บไฟล์:** [infrastructure.json](provisioning/dashboards/standard/infrastructure.json)
 *   **หน้าที่:** ตรวจสอบภาระเครื่องโฮสต์และตู้ Docker (CPU, Memory, Disk, Network I/O) มอนิเตอร์หาคอนเทนเนอร์ที่ถูกเชือดดับ (OOMKilled) และวิเคราะห์ประสิทธิภาพคิว Connection Pooling ของ PgBouncer
 
 ### 3.4 บอร์ดประสานการทำงานระบบ AI (AI Dispatch Dashboard)
-*   **ที่เก็บไฟล์:** [ai_dispatch.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/standard/ai_dispatch.json)
+*   **ที่เก็บไฟล์:** [ai_dispatch.json](provisioning/dashboards/standard/ai_dispatch.json)
 *   **หน้าที่:** ติดตามความเร็วในการคิด VRP Solver ของ Google OR-Tools, จำนวนผู้ขับที่เป็น Candidates ในแต่ละพื้นที่, และความสำเร็จของการจับคู่ออเดอร์
 
 ### 3.5 บอร์ดประสิทธิภาพแอปพลิเคชัน (APM Dashboard)
-*   **ที่เก็บไฟล์:** [apm.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/standard/apm.json)
+*   **ที่เก็บไฟล์:** [apm.json](provisioning/dashboards/standard/apm.json)
 *   **หน้าที่:** รายงานความหน่วงเวลาเฉลี่ย (Average Latency) และ p95/p99 Latency ของ HTTP API Endpoints ต่างๆ ของ .NET Web API
 
 ### 3.6 บอร์ดตัวชี้วัดประสิทธิภาพธุรกิจ (Operations Dashboard)
-*   **ที่เก็บไฟล์:** [operations.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/standard/operations.json)
+*   **ที่เก็บไฟล์:** [operations.json](provisioning/dashboards/standard/operations.json)
 *   **หน้าที่:** มอนิเตอร์จำนวนออเดอร์ที่สร้าง (Order Created), สถานะยอดออเดอร์ส่งสำเร็จสะสม และจำนวนคนขับ Rider ที่กำลังออนไลน์อยู่ ณ ปัจจุบัน
 
 ### 3.7 บอร์ดประสบการณ์ผู้ใช้งาน (Client Experience Dashboard)
-*   **ที่เก็บไฟล์:** [client_experience.json](file:///c:/Users/ASUS/Desktop/Project/Delivery/grafana/provisioning/dashboards/standard/client_experience.json)
+*   **ที่เก็บไฟล์:** [client_experience.json](provisioning/dashboards/standard/client_experience.json)
 *   **หน้าที่:** มอนิเตอร์ความเร็วการแสดงผลหน้าบ้าน อัตราการเชื่อมต่อใหม่ (SignalR Websocket Reconnect Rate) และความลื่นไหลของพิกัดหน้าแอปมือถือ
 
 ---
 
 ## 4. วิธีการขึ้นระบบและเปิดใช้งาน (Setup & Verification Steps)
 
-1.  ตรวจสอบว่าบริการ Grafana มีการตั้งค่าการรันในไฟล์ [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml):
+1.  ตรวจสอบว่าบริการ Grafana มีการตั้งค่าการรันในไฟล์ [docker-compose.yml](../docker-compose.yml):
     ```yaml
       grafana:
         image: grafana/grafana:10.0.0
@@ -103,5 +103,5 @@ grafana/
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [Infrastructure, Telemetry & SLO Specification](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/spec-infra-devops.md)
-*   [DevOps Deployment Manual (README-DEVOPS.md)](file:///c:/Users/ASUS/Desktop/Project/Delivery/README-DEVOPS.md)
+*   [Infrastructure, Telemetry & SLO Specification](../.docs/ai-context/spec-infra-devops.md)
+*   [DevOps Deployment Manual (README-DEVOPS.md)](../README-DEVOPS.md)

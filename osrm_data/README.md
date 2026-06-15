@@ -1,4 +1,4 @@
-# OSRM Map Data & Setup Reference (osrm_data/README.md)
+﻿# OSRM Map Data & Setup Reference (osrm_data/README.md)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็นคู่มือสำหรับนักพัฒนาและผู้ดูแลระบบ เพื่อบริหารจัดการข้อมูลดิบแผนที่และขั้นตอนการคอมไพล์แผนที่จราจรออฟไลน์ (**Open Source Routing Machine - OSRM**) สำหรับใช้งานในการหาเส้นทางถนนจริงในจังหวัดอุดรธานี
@@ -43,7 +43,7 @@
 
 ## 4. โครงสร้างบริการระดับ Docker Compose (Service Setup)
 
-บริการถูกติดตั้งพอร์ตและการเข้าถึงไว้ใน [docker-compose.yml](file:///c:/Users/ASUS/Desktop/Project/Delivery/docker-compose.yml) ด้วยคำสั่งการรันนี้:
+บริการถูกติดตั้งพอร์ตและการเข้าถึงไว้ใน [docker-compose.yml](../docker-compose.yml) ด้วยคำสั่งการรันนี้:
 
 ```yaml
   osrm:
@@ -96,5 +96,5 @@
 ---
 
 ## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Context)
-*   [OSRM Offline Map Compiler & Setup Guide (เชิงลึก)](file:///c:/Users/ASUS/Desktop/Project/Delivery/Documents/OSRM-SETUP.md)
-*   [GeoJSON Coordinate Standard Rules](file:///c:/Users/ASUS/Desktop/Project/Delivery/.docs/ai-context/contracts/geojson-contracts.md)
+*   [OSRM Offline Map Compiler & Setup Guide (เชิงลึก)](../Documents/OSRM-SETUP.md)
+*   [GeoJSON Coordinate Standard Rules](../.docs/ai-context/contracts/geojson-contracts.md)

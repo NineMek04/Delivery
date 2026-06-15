@@ -16,6 +16,7 @@
 - **Idempotency Rule:** Consumer ทุกตัวบน RabbitMQ ต้องเช็คตาราง `ProcessedEvents` บน PostgreSQL ก่อนรัน Logic เสมอ เพื่อป้องกันข้อความซ้ำ
 - **Anti-Event-Loop-Blocking:** ห้ามใช้ `async def` กับ FastAPI endpoint ที่ทำงาน CPU-bound ล้วนๆ (เช่น OR-Tools, Haversine matrix) → ใช้ `def` ให้ FastAPI จัดการ Thread Pool
 - **Anti-XSS-Interpolation:** ห้ามทำ Raw String Interpolation ลง DOM ใน Angular/Leaflet popup → ต้อง escape input ก่อนเสมอ และใช้ Programmatic Event Binding แทน inline `onclick`
+- **Reactive UI & Memory Leak Prevention:** สำหรับหน้าจอ UI เมื่อมีการเปลี่ยนแปลงสถานะหรือมีข้อมูล/พิกัดเพิ่มเข้ามาในแผนที่ ระบบต้องอัปเดตและรีเฟรชเฉพาะจุด/ส่วนที่เกี่ยวข้องแบบเรียลไทม์โดยอัตโนมัติ (Reactive Refresh) โดยไม่ต้องกดรีเฟรชหน้าจอใหม่เอง และต้องกำจัดความเสี่ยงเรื่อง Memory Leak อย่างเข้มงวด เช่น การทำ Unsubscribe หรือ Teardown ของ SignalR subscriptions, Leaflet markers/layers, และ DOM event listeners เมื่อ Component ถูกทำลาย
 
 ## 4. Trace Correlation Rules
 All logs must include:

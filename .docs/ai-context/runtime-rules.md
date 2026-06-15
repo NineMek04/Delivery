@@ -52,6 +52,7 @@
 - ห้าม raw string interpolation ของข้อมูลภายนอกลง popup/DOM และห้าม inline `onclick`
 - HTTP dashboard ใช้ HttpOnly cookies + `withCredentials` + XSRF header;
   ห้ามเก็บ access/refresh token ใน localStorage
+- **Reactive UI & Memory Leak Prevention:** เมื่อมีการเปลี่ยนแปลงสถานะหรือมีพิกัด/ข้อมูลใหม่เพิ่มเข้ามาในแผนที่และ UI ระบบต้องทำการอัปเดตและเรนเดอร์เฉพาะจุดที่เปลี่ยนแปลงโดยอัตโนมัติแบบเรียลไทม์ (ไม่ต้องกดรีเฟรชหน้าจอเอง) และต้องป้องกัน Memory Leak โดยเคร่งครัด ผ่านการทำ Unsubscribe, Teardown สำหรับ SignalR, Leaflet layers และ event listeners ทุกครั้งเมื่อ component ถูกทำลาย
 
 ## 5. Flutter Rules
 

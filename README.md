@@ -1,4 +1,4 @@
-﻿# Smart Delivery Routing System (ระบบจัดส่งอัจฉริยะแบบเรียลไทม์)
+# Smart Delivery Routing System (ระบบจัดส่งอัจฉริยะแบบเรียลไทม์)
 
 > [!NOTE]
 > เอกสารฉบับนี้เป็น **Master Table of Contents (สารบัญหลักประจำโปรเจกต์)** ออกแบบมาเพื่อให้ผู้บริหารโครงการ (Project Manager), นักพัฒนาซอฟต์แวร์ (Developers) และทีมผู้ดูแลระบบ (DevOps/SysAdmin) สามารถทำความเข้าใจภาพรวมและระบบงานทั้งหมดได้ภายใน 2 นาที
@@ -30,7 +30,7 @@ graph TD
     BackendAPI -->|Publish Integration Events| RabbitMQ["RabbitMQ Broker (Port 5672)"]
 
     %% AI & Navigation Engine
-    BackendAPI -->|VRP Rank Request (HTTP)| AIEngine["AI Route Optimizer (FastAPI) (Port 8000)"]
+    BackendAPI -->|VRP Rank Request HTTP| AIEngine["AI Route Optimizer (FastAPI) (Port 8000)"]
     AIEngine -->|Read DB Spatial Data| PostGIS
     AIEngine -->|Road Snapping & Dijkstra| OSRM["OSRM Engine (Port 5000)"]
     BackendAPI -->|Resolve Route API| OSRM

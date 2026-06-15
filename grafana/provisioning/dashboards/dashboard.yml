@@ -1,11 +1,20 @@
 apiVersion: 1
 
 providers:
-  - name: 'Security Dashboards'
+  - name: 'Security & Operations Dashboards'
     orgId: 1
     folder: 'Security & Operations'
     type: file
     disableDeletion: false
     editable: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /etc/grafana/provisioning/dashboards/standard
+
+  - name: 'NOC & War Room Dashboards'
+    orgId: 1
+    folder: 'NOC & War Room'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/noc

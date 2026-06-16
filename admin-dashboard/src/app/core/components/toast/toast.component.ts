@@ -36,7 +36,7 @@ import { LucideAngularModule, Info, CheckCircle, AlertTriangle, XCircle, X } fro
   styles: [`
     .toast-container {
       position: fixed;
-      bottom: 24px;
+      top: 24px;
       right: 24px;
       z-index: 9999;
       display: flex;

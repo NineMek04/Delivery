@@ -194,7 +194,7 @@
 
   <!-- ── Order Detail Modal ─────────────────────────────────────────────── -->
   @if (showDetailModal && selectedOrder) {
-    <app-order-detail [order]="selectedOrder" [siblingOrders]="getSiblingOrders(selectedOrder)" (close)="closeOrderDetail()"></app-order-detail>
+    <app-order-detail [order]="selectedOrder" [siblingOrders]="getSiblingOrders(selectedOrder)" (close)="closeOrderDetail()" (actionSuccess)="refreshSingleOrder($event)"></app-order-detail>
   }
 
 </section>

@@ -74,6 +74,18 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
+    /// เคลียร์ประวัติออร์เดอร์ของลูกค้าที่ล็อกอินอยู่
+    /// </summary>
+    [HttpDelete("customer/clear")]
+    [Authorize(Roles = AuthConstants.CustomerRole)]
+    public async Task<ActionResult<ApiResponse>> ClearCustomerOrders(CancellationToken cancellationToken)
+    {
+        var (statusCode, response) = await _orderService.ClearCustomerOrdersAsync(CurrentUserId, cancellationToken);
+        return StatusCode(statusCode, response);
+    }
+
+
+    /// <summary>
     /// ดูออเดอร์เดียวตาม ID หรือ Tracking Code
     /// </summary>
     [HttpGet("{id}")]

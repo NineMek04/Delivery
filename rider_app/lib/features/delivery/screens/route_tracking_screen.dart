@@ -9,6 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/location/tile_cache_service.dart';
+import '../../../core/location/location_service.dart';
+import '../../../core/api/services/rider_route_api_service.dart';
 import '../../../models/order.dart';
 import '../providers/delivery_provider.dart';
 import '../../tracking/providers/tracking_provider.dart';
@@ -32,11 +34,16 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   bool _isUpdatingStatus = false;
   double _currentDistance = double.infinity;
   String? _dbDir;
+  List<LatLng> _currentRoutePoints = [];
 
   @override
   void initState() {
     super.initState();
     _loadDbDir();
+    final tracking = ref.read(locationServiceProvider);
+    if (tracking.latitude != null && tracking.longitude != null) {
+      ref.read(locationStateProvider.notifier).state = LatLng(tracking.latitude!, tracking.longitude!);
+    }
     Future.microtask(() => ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId));
   }
 
@@ -54,6 +61,27 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     }
   }
 
+  List<LatLng> _getTailRoute(List<LatLng> fullRoute, LatLng currentPos) {
+    if (fullRoute.isEmpty) return [];
+    
+    int closestIdx = 0;
+    double minDistance = double.infinity;
+    
+    for (int i = 0; i < fullRoute.length; i++) {
+      final dist = const Distance().as(
+        LengthUnit.Meter,
+        currentPos,
+        fullRoute[i],
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIdx = i;
+      }
+    }
+
+    return fullRoute.sublist(closestIdx);
+  }
+
   Future<void> _startGpsTracking(ActiveOrderState state) async {
     if (state.order == null) return;
     final order = state.order!;
@@ -68,7 +96,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
         _isTrackingStarted = true;
         _isPickedUp = true;
       });
-      _startDeliveryJourney(order);
+      await _startDeliveryJourney(order);
       return;
     } else if (status != 'PICKING_UP') {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -82,23 +110,41 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
 
     final simService = ref.read(simulatedJourneyProvider);
     
-    // Simulate route to pickup
+    // Resolve OSRM route to pickup dynamically
     List<LatLng> pickupRoute = [];
-    if (order.pickupLat != null && order.pickupLng != null) {
-      final pickup = LatLng(order.pickupLat!, order.pickupLng!);
-      pickupRoute = [
-        ref.read(locationStateProvider),
-        pickup,
-      ];
+    final currentPos = ref.read(locationStateProvider);
+    final pickup = LatLng(order.pickupLat!, order.pickupLng!);
+    try {
+      final route = await ref.read(riderRouteApiServiceProvider).resolve(
+        orderId: order.id,
+        routePhase: 'PICKUP',
+        currentLat: currentPos.latitude,
+        currentLng: currentPos.longitude,
+      );
+      pickupRoute = simService.decodePolyline(route.encodedPolyline);
+    } catch (e) {
+      pickupRoute = [currentPos, pickup];
     }
+
+    setState(() {
+      _currentRoutePoints = pickupRoute;
+    });
 
     simService.onDistanceUpdated = (dist) {
       if (mounted) setState(() => _currentDistance = dist);
     };
 
+    simService.onDestinationReached = () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reached Pickup Location! Slide to Pick Up.')),
+        );
+      }
+    };
+
     simService.startJourney(
       routeCoords: pickupRoute, 
-      destination: LatLng(order.pickupLat!, order.pickupLng!), 
+      destination: pickup, 
       locationStateController: ref.read(locationStateProvider.notifier),
     );
   }
@@ -117,7 +163,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
         _currentDistance = double.infinity;
       });
 
-      _startDeliveryJourney(order);
+      await _startDeliveryJourney(order);
 
     } else {
       final updated = await _updateOrderStatus(order.id, 'COMPLETED');
@@ -132,21 +178,47 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     }
   }
 
-  void _startDeliveryJourney(OrderDto order) {
+  Future<void> _startDeliveryJourney(OrderDto order) async {
     final simService = ref.read(simulatedJourneyProvider);
     List<LatLng> deliveryRoute = [];
+    final currentPos = ref.read(locationStateProvider);
+    final dropoff = LatLng(order.dropoffLat!, order.dropoffLng!);
+
     if (order.encodedPolyline != null) {
       deliveryRoute = simService.decodePolyline(order.encodedPolyline!);
     } else {
-      deliveryRoute = [
-        ref.read(locationStateProvider),
-        LatLng(order.dropoffLat!, order.dropoffLng!),
-      ];
+      try {
+        final route = await ref.read(riderRouteApiServiceProvider).resolve(
+          orderId: order.id,
+          routePhase: 'DELIVERY',
+          currentLat: currentPos.latitude,
+          currentLng: currentPos.longitude,
+        );
+        deliveryRoute = simService.decodePolyline(route.encodedPolyline);
+      } catch (_) {
+        deliveryRoute = [currentPos, dropoff];
+      }
     }
+
+    setState(() {
+      _currentRoutePoints = deliveryRoute;
+    });
+
+    simService.onDistanceUpdated = (dist) {
+      if (mounted) setState(() => _currentDistance = dist);
+    };
+
+    simService.onDestinationReached = () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reached Dropoff Location! Slide to Complete.')),
+        );
+      }
+    };
 
     simService.startJourney(
       routeCoords: deliveryRoute,
-      destination: LatLng(order.dropoffLat!, order.dropoffLng!),
+      destination: dropoff,
       locationStateController: ref.read(locationStateProvider.notifier),
     );
   }
@@ -215,6 +287,16 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                     ? CachedTileProvider(dbDir: _dbDir!)
                     : NetworkTileProvider(),
               ),
+              if (_currentRoutePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _getTailRoute(_currentRoutePoints, currentLocation),
+                      color: Colors.blueAccent,
+                      strokeWidth: 4.5,
+                    ),
+                  ],
+                ),
               MarkerLayer(
                 markers: [
                   Marker(

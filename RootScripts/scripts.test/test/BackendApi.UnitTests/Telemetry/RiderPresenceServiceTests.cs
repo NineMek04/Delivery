@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,11 +12,16 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using BackendApi.Data;
 using BackendApi.Hubs;
+using BackendApi.Hubs.Chat;
+using BackendApi.Hubs.Tracking;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Telemetry;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Services.Ai;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Services.Tracking;
 
 namespace BackendApi.UnitTests.Telemetry
@@ -349,3 +354,4 @@ namespace BackendApi.UnitTests.Telemetry
         }
     }
 }
+

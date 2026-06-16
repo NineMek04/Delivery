@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -401,3 +403,5 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         }
     }
 }
+
+

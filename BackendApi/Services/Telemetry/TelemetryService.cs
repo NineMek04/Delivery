@@ -1,9 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BackendApi.Data;
 using BackendApi.Hubs;
+using BackendApi.Hubs.Chat;
+using BackendApi.Hubs.Tracking;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Tracking;
@@ -15,6 +17,8 @@ using BackendApi.Core.StateMachines;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Features.FleetTracking.Models;
 using BackendApi.Security;
+using BackendApi.Security.Models;
+using BackendApi.Security.Services;
 
 namespace BackendApi.Services.Telemetry
 {
@@ -483,3 +487,4 @@ namespace BackendApi.Services.Telemetry
         }
     }
 }
+

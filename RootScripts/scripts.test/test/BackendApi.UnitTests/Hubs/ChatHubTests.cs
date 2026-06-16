@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
@@ -11,13 +11,22 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using BackendApi.Hubs;
+using BackendApi.Hubs.Chat;
+using BackendApi.Hubs.Tracking;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Core.Constants;
 using BackendApi.Core.StateMachines;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Security;
+using BackendApi.Security.Models;
+using BackendApi.Security.Services;
 
 namespace BackendApi.UnitTests.Hubs
 {
@@ -330,3 +339,5 @@ namespace BackendApi.UnitTests.Hubs
         }
     }
 }
+
+

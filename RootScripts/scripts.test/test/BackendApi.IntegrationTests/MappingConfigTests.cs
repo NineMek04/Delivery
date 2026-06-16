@@ -1,5 +1,7 @@
-using BackendApi.Core.Mappings;
+﻿using BackendApi.Core.Mappings;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using Mapster;
 using Xunit;
@@ -33,3 +35,5 @@ public class MappingConfigTests
         Assert.Equal(90, shop.Location.Y);
     }
 }
+
+

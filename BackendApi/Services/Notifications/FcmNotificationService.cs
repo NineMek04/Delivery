@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -8,6 +8,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using BackendApi.Core.DataHandlers;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -182,3 +184,5 @@ namespace BackendApi.Services.Notifications
         }
     }
 }
+
+

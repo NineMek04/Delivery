@@ -1,4 +1,6 @@
-using BackendApi.Core.Models;
+﻿using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -63,3 +65,4 @@ public sealed class StandardApiResponsesOperationFilter : IOperationFilter
         };
     }
 }
+

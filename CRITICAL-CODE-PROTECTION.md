@@ -1,4 +1,4 @@
-# Critical Code Protection Registry
+﻿# Critical Code Protection Registry
 
 **Version:** 1.1.0 | **Last Updated:** 2026-06-14
 
@@ -23,9 +23,9 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 | 11 | `BackendApi/Controllers/Business/AiController.cs` | backend AI proxy actions |
 | 12 | `BackendApi/Features/AiRouting/OsrmRoutingService.cs` | route, snap, trip sequence and degraded fallback |
 | 13 | `BackendApi/Features/DispatchManagement/DispatchService.cs` | dispatch orchestration and rider offer flow |
-| 14 | `BackendApi/Hubs/TrackingHub.cs` and partials | connection/auth/transport methods; Hub must stay transport-only |
-| 15 | `BackendApi/Setup/ServiceSetup.cs` | AI/OSRM HttpClient and required DI registrations |
-| 16 | `BackendApi/Setup/ApplicationSetup.cs` | `/hubs/tracking` mapping and middleware order |
+| 14 | `BackendApi/Hubs/Tracking/TrackingHub.cs` and partials | connection/auth/transport methods; Hub must stay transport-only |
+| 15 | `BackendApi/Setup/Extensions/ServiceSetup.cs` | AI/OSRM HttpClient and required DI registrations |
+| 16 | `BackendApi/Setup/Extensions/ApplicationSetup.cs` | `/hubs/tracking` mapping and middleware order |
 
 ## Tier 2: Feature Critical
 
@@ -42,7 +42,7 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 | 25 | `BackendApi/Core/DataHandlers/DBHandlerCore.cs` | shared CRUD/query contract |
 | 26 | `BackendApi/Services/BackgroundWorkers/DispatchTimeoutWorker.cs` | timeout re-dispatch |
 | 27 | `BackendApi/Services/BackgroundWorkers/HeartbeatMonitor.cs` | STALE/OFFLINE recovery and batched DB access |
-| 28 | `BackendApi/Services/BackgroundWorkers/OsrmSnapWorker.cs` | road snapping |
+| 28 | `BackendApi/Services/BackgroundWorkers/Jobs/OsrmSnapWorker.cs` | road snapping |
 | 29 | `BackendApi/Services/Telemetry/TelemetryService.cs` | GPS pipeline, Redis/DB fallback and authorized broadcast |
 | 30 | `rider_app/lib/core/signalr/signalr_service.dart` | `OfferReceived`, GPS, accept/reject |
 | 31 | `rider_app/lib/core/location/gps_buffer_service.dart` | SQLite queue, ordering and retry |
@@ -88,3 +88,4 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 
 เมื่อย้ายหรือเพิ่ม critical file ให้อัปเดต registry นี้ใน change เดียวกัน.
 ห้ามลบรายการโดยไม่มี Project Owner approval.
+

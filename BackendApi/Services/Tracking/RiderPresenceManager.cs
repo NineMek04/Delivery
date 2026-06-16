@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -56,7 +56,7 @@ namespace BackendApi.Services.Tracking
             
             // Publish integration event to RabbitMQ for durable out-of-process state transition
             var riderId = rider.Id;
-            var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+            var correlationId = BackendApi.Security.Services.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
 
             await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent(
                 riderId,
@@ -83,7 +83,7 @@ namespace BackendApi.Services.Tracking
             var riderId = rider.Id;
 
             // Publish integration event to RabbitMQ for durable out-of-process state transition
-            var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+            var correlationId = BackendApi.Security.Services.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
 
             await _eventBus.PublishAsync(new RiderStateChangedIntegrationEvent(
                 riderId,
@@ -198,3 +198,4 @@ namespace BackendApi.Services.Tracking
         }
     }
 }
+

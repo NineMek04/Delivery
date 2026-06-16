@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
@@ -64,7 +64,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             if (rateLimited)
             {
                 _logger.LogDebug("GPS Rate Limit hit for Rider {RiderId}. Throttling to {Interval}s.", riderId, intervalSeconds);
-                BackendApi.Security.SecurityMetrics.RateLimitRejectionsTotal.WithLabels("gps").Inc();
+                BackendApi.Security.Services.SecurityMetrics.RateLimitRejectionsTotal.WithLabels("gps").Inc();
             }
 
             // Return the actual rate limiting result
@@ -72,3 +72,4 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         }
     }
 }
+

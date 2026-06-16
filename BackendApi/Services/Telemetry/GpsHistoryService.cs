@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using BackendApi.Data;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -89,3 +91,5 @@ namespace BackendApi.Services.Telemetry
         }
     }
 }
+
+

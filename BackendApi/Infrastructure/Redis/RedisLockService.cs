@@ -1,6 +1,8 @@
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Infrastructure.Redis;
@@ -336,3 +338,5 @@ public class RedisLockService
 
     private static string RiderLockKey(string riderId) => $"dispatch:lock:rider:{riderId}";
 }
+
+

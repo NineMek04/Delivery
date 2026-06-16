@@ -1,9 +1,14 @@
-using BackendApi.Core.StateMachines;
+﻿using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Tracking;
 using Microsoft.AspNetCore.Http;
@@ -69,3 +74,5 @@ public class RiderPresenceManagerTests
         Assert.Equal(RiderState.BUSY, rider.State);
     }
 }
+
+

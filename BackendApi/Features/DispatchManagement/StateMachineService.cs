@@ -1,6 +1,8 @@
-using BackendApi.Core.StateMachines;
+﻿using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Infrastructure.EventBus;
 using BackendApi.Infrastructure.EventBus.Events;
 using BackendApi.Services.Telemetry;
@@ -8,7 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using System.Diagnostics;
-using Order = BackendApi.Models.Order;
+using Order = BackendApi.Models.Entities.Order;
 
 namespace BackendApi.Services.Dispatch;
 
@@ -60,7 +62,7 @@ public class StateMachineService
     /// </summary>
     public virtual async Task<bool> TransitionOrderAsync(Order order, OrderState newState)
     {
-        var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+        var correlationId = BackendApi.Security.Services.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
         using (_logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId,
@@ -189,7 +191,7 @@ public class StateMachineService
     /// </summary>
     public virtual async Task<bool> TransitionRiderAsync(Rider rider, RiderState newState)
     {
-        var correlationId = BackendApi.Security.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
+        var correlationId = BackendApi.Security.Services.CorrelationIdProvider.GetOrCreate(_httpContextAccessor);
         using (_logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId,
@@ -238,3 +240,6 @@ public class StateMachineService
         }
     }
 }
+
+
+

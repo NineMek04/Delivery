@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
@@ -17,7 +17,12 @@ using RabbitMQ.Client.Events;
 using Xunit;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Services.Telemetry;
 
@@ -314,3 +319,5 @@ namespace BackendApi.UnitTests.Telemetry
         }
     }
 }
+
+

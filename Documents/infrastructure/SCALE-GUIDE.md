@@ -93,7 +93,7 @@ services:
   - ควบคุมเฉพาะ Endpoint ของพิกัด GPS เช่น `/api/v1/telemetry/gps` ให้อยู่ที่สูงสุด **2 Requests/sec** ต่อหนึ่งไรเดอร์ เพื่อตัดการหน่วงของสคริปต์สแปม
 
 ### 4.2 .NET 8 Rate Limiting Middleware
-- **ตำแหน่งตั้งค่า:** มีการเรียกใช้ใน [ApplicationSetup.cs](../../BackendApi/Setup/ApplicationSetup.cs#L107) และประกาศนโยบายใน [ServiceSetup.cs](../../BackendApi/Setup/ServiceSetup.cs)
+- **ตำแหน่งตั้งค่า:** มีการเรียกใช้ใน [ApplicationSetup.cs](../../BackendApi/Setup/Extensions/ApplicationSetup.cs#L107) และประกาศนโยบายใน [ServiceSetup.cs](../../BackendApi/Setup/Extensions/ServiceSetup.cs)
 - **รูปแบบการทำงาน:**
   - การใช้งานสิทธิทั่วไป (Rider/Customer): ตั้งข้อจำกัดแบบ **Fixed Window** หรือ **Sliding Window** ราย User ID
   - ตัวอย่างการตั้งจูนพารามิเตอร์: จำกัดที่ 100 คำขอต่อ 1 นาที หากเกินจะคืนรหัสข้อผิดพลาด HTTP `429 Too Many Requests`
@@ -117,3 +117,4 @@ services:
 > 2. **แยกการรัน Migration ไปอยู่นอกตัวแอปหลัก:**
 >    - รันผ่าน **CI/CD Pipeline (Single Runner Job)** ก่อนเริ่มกระบวนการ Deploy ตัวแอปใหม่
 >    - ใช้ **Kubernetes Init Container** ที่ผูกอยู่กับ Database Migration CLI (เช่นใช้ dotnet ef bundle หรือคอนเทนเนอร์ตัวเดียวที่ตั้งค่ารัน Migration) รันให้เสร็จเรียบร้อยก่อนแอปพลิเคชันเวอร์ชันใหม่ใน Pods อื่นจะเริ่มบูต
+

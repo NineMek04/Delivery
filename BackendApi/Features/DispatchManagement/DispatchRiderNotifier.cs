@@ -1,6 +1,9 @@
-using BackendApi.Data;
+﻿using BackendApi.Data;
 using BackendApi.Services.Notifications;
 using BackendApi.Services.BackgroundWorkers;
+using BackendApi.Services.BackgroundWorkers.Queues;
+using BackendApi.Services.BackgroundWorkers.Maintenance;
+using BackendApi.Services.BackgroundWorkers.Jobs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +16,7 @@ namespace BackendApi.Services.Dispatch;
 /// </summary>
 public class DispatchRiderNotifier
 {
-    private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
+    private readonly IHubContext<BackendApi.Hubs.Tracking.TrackingHub> _hubContext;
     private readonly IFcmNotificationService _fcmService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -21,7 +24,7 @@ public class DispatchRiderNotifier
     private readonly IBackgroundTaskQueue _backgroundTaskQueue;
 
     public DispatchRiderNotifier(
-        IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
+        IHubContext<BackendApi.Hubs.Tracking.TrackingHub> hubContext,
         IFcmNotificationService fcmService,
         IServiceScopeFactory scopeFactory,
         IHttpContextAccessor httpContextAccessor,
@@ -86,3 +89,5 @@ public class DispatchRiderNotifier
         });
     }
 }
+
+

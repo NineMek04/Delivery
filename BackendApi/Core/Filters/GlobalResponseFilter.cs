@@ -1,5 +1,7 @@
-using BackendApi.Core.Attributes;
+﻿using BackendApi.Core.Attributes;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
@@ -115,3 +117,4 @@ public class GlobalResponseFilter : IAsyncResultFilter
         _ => "INTERNAL_ERROR"
     };
 }
+

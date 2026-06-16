@@ -1,5 +1,7 @@
-using BackendApi.Core.Filters;
+﻿using BackendApi.Core.Filters;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -66,3 +68,4 @@ public class ApiResponsePipelineTests
             new RouteData(),
             new ActionDescriptor());
 }
+

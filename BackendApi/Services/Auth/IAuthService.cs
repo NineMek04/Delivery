@@ -1,4 +1,6 @@
-using BackendApi.Core.Models;
+﻿using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using BackendApi.Models.DTOs;
 
 namespace BackendApi.Services.Auth;
@@ -31,4 +33,5 @@ public interface IAuthService
         string? userId,
         CancellationToken cancellationToken = default);
 }
+
 

@@ -1,10 +1,17 @@
-using System.Net;
+﻿using System.Net;
 using BackendApi.Core.StateMachines;
 using BackendApi.Hubs;
+using BackendApi.Hubs.Chat;
+using BackendApi.Hubs.Tracking;
 using BackendApi.Infrastructure.EventBus.Events;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Services.Ai;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Http;
@@ -15,13 +22,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using BackendApi.Data;
 using BackendApi.Services.BackgroundWorkers;
+using BackendApi.Services.BackgroundWorkers.Queues;
+using BackendApi.Services.BackgroundWorkers.Maintenance;
+using BackendApi.Services.BackgroundWorkers.Jobs;
 using BackendApi.Services.Telemetry;
 using BackendApi.Services.Dispatch;
 using BackendApi.Services.Tracking;
 using StackExchange.Redis;
 using BackendApi.Infrastructure.Redis;
 using Microsoft.Extensions.Logging;
-using Order = BackendApi.Models.Order;
+using Order = BackendApi.Models.Entities.Order;
 using Mapster;
 
 namespace BackendApi.UnitTests;
@@ -188,13 +198,13 @@ public class QABugRegressionTests
                 ["AllowedHosts"] = "*"
             })
             .Build();
-        var middleware = new BackendApi.Setup.CsrfValidationMiddleware(
+        var middleware = new BackendApi.Setup.Middlewares.CsrfValidationMiddleware(
             _ =>
             {
                 nextCalled = true;
                 return Task.CompletedTask;
             },
-            NullLogger<BackendApi.Setup.CsrfValidationMiddleware>.Instance,
+            NullLogger<BackendApi.Setup.Middlewares.CsrfValidationMiddleware>.Instance,
             configuration);
         var context = new DefaultHttpContext();
         context.Request.Method = HttpMethods.Post;
@@ -483,3 +493,5 @@ public class QABugRegressionTests
         }
     }
 }
+
+

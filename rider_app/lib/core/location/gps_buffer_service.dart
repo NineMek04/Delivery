@@ -185,10 +185,11 @@ class GpsBufferService {
         _logger.i('✅ Batch upload of ${batch.length} GPS points succeeded');
         await _db.deletePendingGpsPoints(batchIds);
 
-        // Chain next batch if more remain
+        // Chain next batch if more remain, respecting the rate limit interval
         if (await _db.getPendingGpsPointCount() > 0) {
-          final jitter = 500 + Random().nextInt(1500);
-          Future.delayed(Duration(milliseconds: jitter), syncBufferedPoints);
+          final delaySeconds = _syncIntervalSeconds < 3 ? 3 : _syncIntervalSeconds;
+          final delay = Duration(seconds: delaySeconds) + Duration(milliseconds: Random().nextInt(1000));
+          Future.delayed(delay, syncBufferedPoints);
         }
       } else if (response.statusCode == 429) {
         _logger.w('⚠️ Batch throttled (429) — keeping points');

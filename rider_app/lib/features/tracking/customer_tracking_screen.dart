@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +6,21 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../app/app_theme.dart';
 import '../../shared/utils/order_status_helper.dart';
+import '../../core/api/services/rider_route_api_service.dart';
+import 'services/simulated_journey_service.dart';
 import 'providers/tracking_provider.dart';
+
+class LatLngTween extends Tween<LatLng> {
+  LatLngTween({super.begin, super.end});
+
+  @override
+  LatLng lerp(double t) {
+    if (begin == null || end == null) return end ?? const LatLng(0, 0);
+    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
+    final lng = begin!.longitude + (end!.longitude - begin!.longitude) * t;
+    return LatLng(lat, lng);
+  }
+}
 
 class CustomerTrackingScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -18,6 +33,12 @@ class CustomerTrackingScreen extends ConsumerStatefulWidget {
 
 class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen> {
   final MapController _mapController = MapController();
+  List<LatLng> _routePoints = [];
+  bool _fetchingRoute = false;
+  String? _lastRoutePhase;
+  bool _isRouteResolved = false;
+  DateTime? _lastFetchTime;
+  LatLng? _lastAnimatedRiderPoint;
 
   @override
   void initState() {
@@ -29,11 +50,107 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
   void didUpdateWidget(covariant CustomerTrackingScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.orderId != widget.orderId) {
+      setState(() {
+        _routePoints = [];
+        _lastRoutePhase = null;
+        _isRouteResolved = false;
+        _lastFetchTime = null;
+        _lastAnimatedRiderPoint = null;
+      });
       Future.microtask(
         () => ref
             .read(activeOrderProvider.notifier)
             .watchOrder(widget.orderId),
       );
+    }
+  }
+
+  List<LatLng> _getTailRoute(List<LatLng> fullRoute, LatLng currentPos) {
+    if (fullRoute.isEmpty) return [];
+    
+    int closestIdx = 0;
+    double minDistanceSq = double.infinity;
+    final double lat = currentPos.latitude;
+    final double lng = currentPos.longitude;
+    
+    for (int i = 0; i < fullRoute.length; i++) {
+      final p = fullRoute[i];
+      final double dLat = lat - p.latitude;
+      final double dLng = lng - p.longitude;
+      final double distSq = dLat * dLat + dLng * dLng;
+      if (distSq < minDistanceSq) {
+        minDistanceSq = distSq;
+        closestIdx = i;
+      }
+    }
+
+    return fullRoute.sublist(closestIdx);
+  }
+
+  Future<void> _updateRoutePoints(String orderId, String status, double? riderLat, double? riderLng) async {
+    if (riderLat == null || riderLng == null) return;
+    
+    final routePhase = (status == 'ASSIGNED' || status == 'PICKING_UP') ? 'PICKUP' : (status == 'DELIVERING' ? 'DELIVERY' : null);
+    if (routePhase == null) {
+      if (_routePoints.isNotEmpty) {
+        setState(() {
+          _routePoints = [];
+          _isRouteResolved = false;
+        });
+      }
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_fetchingRoute) return;
+
+    final needsFetch = !_isRouteResolved || _lastRoutePhase != routePhase;
+    if (!needsFetch) return;
+
+    // Throttle retries to at least 10 seconds if we are currently showing fallback
+    if (!_isRouteResolved && _lastFetchTime != null && now.difference(_lastFetchTime!).inSeconds < 10) {
+      return;
+    }
+
+    _fetchingRoute = true;
+    _lastFetchTime = now;
+    _lastRoutePhase = routePhase;
+
+    try {
+      final simService = ref.read(simulatedJourneyProvider);
+      final route = await ref.read(riderRouteApiServiceProvider).resolve(
+        orderId: orderId,
+        routePhase: routePhase,
+        currentLat: riderLat,
+        currentLng: riderLng,
+      );
+      final pts = simService.decodePolyline(route.encodedPolyline);
+      
+      if (mounted) {
+        setState(() {
+          _routePoints = pts;
+          _isRouteResolved = pts.length >= 2;
+        });
+      }
+    } catch (_) {
+      // Fallback
+      _isRouteResolved = false;
+      final pickupPoint = _toPoint(
+        ref.read(activeOrderProvider).order?.pickupLat,
+        ref.read(activeOrderProvider).order?.pickupLng,
+      );
+      final dropoffPoint = _toPoint(
+        ref.read(activeOrderProvider).order?.dropoffLat,
+        ref.read(activeOrderProvider).order?.dropoffLng,
+      );
+      final dest = routePhase == 'PICKUP' ? pickupPoint : dropoffPoint;
+      if (dest != null && mounted) {
+        setState(() {
+          _routePoints = [LatLng(riderLat, riderLng), dest];
+        });
+      }
+    } finally {
+      _fetchingRoute = false;
     }
   }
 
@@ -48,6 +165,17 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
       state.order?.dropoffLat,
       state.order?.dropoffLng,
     );
+
+    if (state.order != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateRoutePoints(
+          state.order!.id,
+          state.order!.status,
+          state.riderLat,
+          state.riderLng,
+        );
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -73,56 +201,87 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                         // Map Section
                         Expanded(
                           flex: 3,
-                          child: FlutterMap(
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter: pickupPoint ??
-                                  dropoffPoint ??
-                                  const LatLng(17.4138, 102.7872),
-                              initialZoom: 14,
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.delivery.customer_app',
-                              ),
-                              MarkerLayer(
-                                markers: [
-                                  // Store Marker
-                                  if (pickupPoint != null)
-                                    Marker(
-                                      point: pickupPoint,
-                                      width: 40,
-                                      height: 40,
-                                      child: const Icon(
-                                        Icons.store,
-                                        color: Colors.red,
-                                        size: 30,
+                          child: Builder(
+                            builder: (context) {
+                              final riderLatLng = state.riderLat != null && state.riderLng != null
+                                  ? LatLng(state.riderLat!, state.riderLng!)
+                                  : (pickupPoint ?? dropoffPoint ?? const LatLng(17.4138, 102.7872));
+
+                              return TweenAnimationBuilder<LatLng>(
+                                tween: LatLngTween(
+                                  begin: _lastAnimatedRiderPoint ?? riderLatLng,
+                                  end: riderLatLng,
+                                ),
+                                duration: const Duration(seconds: 1),
+                                builder: (context, animatedRiderPoint, child) {
+                                  _lastAnimatedRiderPoint = animatedRiderPoint;
+
+                                  return FlutterMap(
+                                    mapController: _mapController,
+                                    options: MapOptions(
+                                      initialCenter: pickupPoint ??
+                                          dropoffPoint ??
+                                          const LatLng(17.4138, 102.7872),
+                                      initialZoom: 14,
+                                    ),
+                                    children: [
+                                      TileLayer(
+                                        urlTemplate: kIsWeb
+                                            ? '/map-tiles/{z}/{x}/{y}.png'
+                                            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                        userAgentPackageName: 'com.delivery.customer_app',
                                       ),
-                                    ),
-                                  // Customer Marker
-                                  if (dropoffPoint != null)
-                                    Marker(
-                                      point: dropoffPoint,
-                                      width: 40,
-                                      height: 40,
-                                      child: const Icon(
-                                        Icons.home,
-                                        color: Colors.blue,
-                                        size: 30,
+                                      if (_routePoints.isNotEmpty && state.riderLat != null && state.riderLng != null)
+                                        PolylineLayer(
+                                          polylines: [
+                                            Polyline(
+                                              points: _getTailRoute(_routePoints, animatedRiderPoint),
+                                              color: Colors.blueAccent,
+                                              strokeWidth: 4.5,
+                                            ),
+                                          ],
+                                        ),
+                                      MarkerLayer(
+                                        markers: [
+                                          // Store Marker
+                                          if (pickupPoint != null)
+                                            Marker(
+                                              point: pickupPoint,
+                                              width: 40,
+                                              height: 40,
+                                              child: const Icon(
+                                                Icons.store,
+                                                color: Colors.red,
+                                                size: 30,
+                                              ),
+                                            ),
+                                          // Customer Marker
+                                          if (dropoffPoint != null)
+                                            Marker(
+                                              point: dropoffPoint,
+                                              width: 40,
+                                              height: 40,
+                                              child: const Icon(
+                                                Icons.home,
+                                                color: Colors.blue,
+                                                size: 30,
+                                              ),
+                                            ),
+                                          // Rider Marker (if available)
+                                          if (state.riderLat != null && state.riderLng != null)
+                                            Marker(
+                                              point: animatedRiderPoint,
+                                              width: 40,
+                                              height: 40,
+                                              child: const Icon(Icons.delivery_dining, color: AppTheme.primaryColor, size: 35),
+                                            ),
+                                        ],
                                       ),
-                                    ),
-                                  // Rider Marker (if available)
-                                  if (state.riderLat != null && state.riderLng != null)
-                                    Marker(
-                                      point: LatLng(state.riderLat!, state.riderLng!),
-                                      width: 40,
-                                      height: 40,
-                                      child: const Icon(Icons.delivery_dining, color: AppTheme.primaryColor, size: 35),
-                                    ),
-                                ],
-                              ),
-                            ],
+                                    ],
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ),
                         // Details Section

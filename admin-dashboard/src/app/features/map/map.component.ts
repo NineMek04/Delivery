@@ -453,7 +453,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         weight: 4,
         dashArray: '8, 8',
         className: 'path-animate'
-      }).addTo(this.map);
+      }); // Soft-deleted: removed .addTo(this.map)
     } else if (offer.riderId && order.pickupLat && order.pickupLng) {
       const locMap = this.trackingService.getRiderLocations();
       const riderLoc = locMap.get(offer.riderId);
@@ -466,7 +466,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
           weight: 4,
           dashArray: '8, 8',
           className: 'path-animate'
-        }).addTo(this.map);
+        }); // Soft-deleted: removed .addTo(this.map)
       }
     }
 
@@ -482,7 +482,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         weight: 4,
         dashArray: '8, 8',
         className: 'path-animate'
-      }).addTo(this.map);
+      }); // Soft-deleted: removed .addTo(this.map)
 
       if (this.simAutoFollow) {
         const bounds = L.latLngBounds(roadCoords);
@@ -564,7 +564,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         weight: 4,
         dashArray: '8, 8',
         className: 'path-animate'
-      }).addTo(this.map);
+      }); // Soft-deleted: removed .addTo(this.map)
     }
 
     if (order.pickupLat && order.pickupLng && order.dropoffLat && order.dropoffLng) {
@@ -579,7 +579,7 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         weight: 4,
         dashArray: '8, 8',
         className: 'path-animate'
-      }).addTo(this.map);
+      }); // Soft-deleted: removed .addTo(this.map)
 
       if (this.simAutoFollow) {
         const bounds = L.latLngBounds(roadCoords);

@@ -1,5 +1,6 @@
 using BackendApi.Data;
 using BackendApi.Features.AiRouting;
+using BackendApi.Security.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Services.Ai;
@@ -26,30 +27,50 @@ public sealed class RiderRouteService
         string correlationId,
         CancellationToken cancellationToken)
     {
-        var riderId = await _dbContext.Users
+        var dbUser = await _dbContext.Users
             .AsNoTracking()
             .Where(user => user.Id == userId)
-            .Select(user => user.RiderId)
+            .Select(user => new { user.RiderId, user.Role })
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(riderId))
+        if (dbUser is null)
         {
             return null;
         }
 
         var order = await _dbContext.Orders
             .AsNoTracking()
-            .Where(item => item.Id == request.OrderId &&
-                           item.AssignedRiderId == riderId)
+            .Where(item => item.Id == request.OrderId)
             .Select(item => new
             {
                 item.Id,
                 item.PickupLocation,
-                item.DropoffLocation
+                item.DropoffLocation,
+                item.CustomerId,
+                item.AssignedRiderId
             })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (order is null)
+        {
+            return null;
+        }
+
+        bool isAllowed = false;
+        if (dbUser.Role == AuthConstants.AdminRole || dbUser.Role == AuthConstants.DispatcherRole)
+        {
+            isAllowed = true;
+        }
+        else if (order.CustomerId == userId)
+        {
+            isAllowed = true;
+        }
+        else if (!string.IsNullOrWhiteSpace(dbUser.RiderId) && order.AssignedRiderId == dbUser.RiderId)
+        {
+            isAllowed = true;
+        }
+
+        if (!isAllowed)
         {
             return null;
         }
@@ -77,7 +98,7 @@ public sealed class RiderRouteService
             "Rider route resolved. CorrelationId={CorrelationId} OrderId={OrderId} RiderId={RiderId} RoutePhase={RoutePhase} Source={Source}",
             correlationId,
             order.Id,
-            riderId,
+            dbUser.RiderId ?? order.AssignedRiderId ?? string.Empty,
             request.RoutePhase,
             source);
 

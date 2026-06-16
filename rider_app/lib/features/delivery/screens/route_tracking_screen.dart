@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -15,6 +16,18 @@ import '../../../models/order.dart';
 import '../providers/delivery_provider.dart';
 import '../../tracking/providers/tracking_provider.dart';
 import '../../tracking/services/simulated_journey_service.dart';
+
+class LatLngTween extends Tween<LatLng> {
+  LatLngTween({super.begin, super.end});
+
+  @override
+  LatLng lerp(double t) {
+    if (begin == null || end == null) return end ?? const LatLng(0, 0);
+    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
+    final lng = begin!.longitude + (end!.longitude - begin!.longitude) * t;
+    return LatLng(lat, lng);
+  }
+}
 
 final locationStateProvider = StateProvider<LatLng>((ref) => const LatLng(17.4138, 102.7872));
 
@@ -35,14 +48,18 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   double _currentDistance = double.infinity;
   String? _dbDir;
   List<LatLng> _currentRoutePoints = [];
+  LatLng? _lastAnimatedLocation;
 
   @override
   void initState() {
     super.initState();
     _loadDbDir();
-    final tracking = ref.read(locationServiceProvider);
-    if (tracking.latitude != null && tracking.longitude != null) {
-      ref.read(locationStateProvider.notifier).state = LatLng(tracking.latitude!, tracking.longitude!);
+    final simService = ref.read(simulatedJourneyProvider);
+    if (!simService.isRunning) {
+      final tracking = ref.read(locationServiceProvider);
+      if (tracking.latitude != null && tracking.longitude != null) {
+        ref.read(locationStateProvider.notifier).state = LatLng(tracking.latitude!, tracking.longitude!);
+      }
     }
     Future.microtask(() => ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId));
   }
@@ -52,6 +69,15 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
       final dbPath = await getDatabasesPath();
       if (mounted) setState(() => _dbDir = dbPath);
     } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    final simService = ref.read(simulatedJourneyProvider);
+    simService.onDistanceUpdated = null;
+    simService.onDestinationReached = null;
+    _mapController.dispose();
+    super.dispose();
   }
 
   void _callCustomer() async {
@@ -65,16 +91,17 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     if (fullRoute.isEmpty) return [];
     
     int closestIdx = 0;
-    double minDistance = double.infinity;
+    double minDistanceSq = double.infinity;
+    final double lat = currentPos.latitude;
+    final double lng = currentPos.longitude;
     
     for (int i = 0; i < fullRoute.length; i++) {
-      final dist = const Distance().as(
-        LengthUnit.Meter,
-        currentPos,
-        fullRoute[i],
-      );
-      if (dist < minDistance) {
-        minDistance = dist;
+      final p = fullRoute[i];
+      final double dLat = lat - p.latitude;
+      final double dLng = lng - p.longitude;
+      final double distSq = dLat * dLat + dLng * dLng;
+      if (distSq < minDistanceSq) {
+        minDistanceSq = distSq;
         closestIdx = i;
       }
     }
@@ -110,6 +137,23 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
 
     final simService = ref.read(simulatedJourneyProvider);
     
+    if (simService.isRunning) {
+      setState(() {
+        _currentRoutePoints = simService.currentRoute;
+      });
+      simService.onDistanceUpdated = (dist) {
+        if (mounted) setState(() => _currentDistance = dist);
+      };
+      simService.onDestinationReached = () {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Reached Pickup Location! Slide to Pick Up.')),
+          );
+        }
+      };
+      return;
+    }
+
     // Resolve OSRM route to pickup dynamically
     List<LatLng> pickupRoute = [];
     final currentPos = ref.read(locationStateProvider);
@@ -273,60 +317,73 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
       ),
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: currentLocation,
-              initialZoom: 14.0,
+          TweenAnimationBuilder<LatLng>(
+            tween: LatLngTween(
+              begin: _lastAnimatedLocation ?? currentLocation,
+              end: currentLocation,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-                subdomains: const ['a', 'b', 'c', 'd'],
-                tileProvider: _dbDir != null
-                    ? CachedTileProvider(dbDir: _dbDir!)
-                    : NetworkTileProvider(),
-              ),
-              if (_currentRoutePoints.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _getTailRoute(_currentRoutePoints, currentLocation),
-                      color: Colors.blueAccent,
-                      strokeWidth: 4.5,
-                    ),
-                  ],
+            duration: const Duration(seconds: 1),
+            builder: (context, animatedLocation, child) {
+              _lastAnimatedLocation = animatedLocation;
+
+              return FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: currentLocation,
+                  initialZoom: 14.0,
                 ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: currentLocation,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(Icons.motorcycle, color: Colors.blue, size: 30),
+                children: [
+                  TileLayer(
+                    urlTemplate: kIsWeb
+                        ? '/map-tiles/{z}/{x}/{y}.png'
+                        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                    subdomains: kIsWeb ? const [] : const ['a', 'b', 'c', 'd'],
+                    tileProvider: !kIsWeb && _dbDir != null
+                        ? CachedTileProvider(dbDir: _dbDir!)
+                        : NetworkTileProvider(),
                   ),
-                  if (!_isPickedUp)
-                    Marker(
-                      point: pickupLocation,
-                      width: 40,
-                      height: 40,
-                      child: Container(
-                        decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                        child: const Icon(Icons.store, color: Colors.white, size: 20),
+                  if (_currentRoutePoints.isNotEmpty)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: _getTailRoute(_currentRoutePoints, animatedLocation),
+                          color: Colors.blueAccent,
+                          strokeWidth: 4.5,
+                        ),
+                      ],
+                    ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: animatedLocation,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.motorcycle, color: Colors.blue, size: 30),
                       ),
-                    ),
-                  Marker(
-                    point: dropoffLocation,
-                    width: 40,
-                    height: 40,
-                    child: Container(
-                      decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                      child: const Icon(Icons.home, color: Colors.white, size: 20),
-                    ),
+                      if (!_isPickedUp)
+                        Marker(
+                          point: pickupLocation,
+                          width: 40,
+                          height: 40,
+                          child: Container(
+                            decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                            child: const Icon(Icons.store, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      Marker(
+                        point: dropoffLocation,
+                        width: 40,
+                        height: 40,
+                        child: Container(
+                          decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                          child: const Icon(Icons.home, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
 
           Positioned(

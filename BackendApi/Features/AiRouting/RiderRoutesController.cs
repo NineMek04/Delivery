@@ -1,4 +1,4 @@
-﻿using BackendApi.Core;
+using BackendApi.Core;
 using BackendApi.Core.Models;
 using BackendApi.Core.Models.Response;
 using BackendApi.Core.Models.Entities;
@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BackendApi.Features.AiRouting;
 
-[Authorize(Policy = AuthConstants.RiderPolicy)]
+[Authorize]
 [Route("api/v1/rider-routes")]
 public sealed class RiderRoutesController : DeliveryControllerBase
 {

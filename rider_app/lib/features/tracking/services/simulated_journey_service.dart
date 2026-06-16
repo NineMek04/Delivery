@@ -16,6 +16,11 @@ class SimulatedJourneyService {
   List<LatLng> _currentRoute = [];
   int _currentIndex = 0;
   bool _isRunning = false;
+  List<double> _remainingDistances = [];
+
+  List<LatLng> get currentRoute => _currentRoute;
+  int get currentIndex => _currentIndex;
+  bool get isRunning => _isRunning;
   
   Function(double distanceToTarget)? onDistanceUpdated;
   Function()? onDestinationReached;
@@ -30,12 +35,25 @@ class SimulatedJourneyService {
     stopJourney();
     if (routeCoords.isEmpty) return;
 
-    // Interpolate coordinates for smooth 300ms steps (e.g. ~12 meters per step)
-    _currentRoute = _interpolateCoordinates(routeCoords, 12.0);
+    // Interpolate coordinates for 3-second steps (e.g. ~30 meters per step)
+    _currentRoute = _interpolateCoordinates(routeCoords, 30.0);
     _currentIndex = 0;
     _isRunning = true;
 
-    _timer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
+    // Precalculate remaining distances along the route O(N)
+    _remainingDistances = List<double>.filled(_currentRoute.length, 0.0);
+    double accum = 0.0;
+    final distanceCalc = const Distance();
+    for (int i = _currentRoute.length - 2; i >= 0; i--) {
+      accum += distanceCalc.as(
+        LengthUnit.Meter,
+        _currentRoute[i],
+        _currentRoute[i + 1],
+      );
+      _remainingDistances[i] = accum;
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (_currentIndex >= _currentRoute.length) {
         stopJourney();
         if (onDestinationReached != null) {
@@ -57,15 +75,10 @@ class SimulatedJourneyService {
         5.0, // simulated GPS accuracy in meters
       );
 
-      // Calculate distance to destination along the route coordinates
+      // Get distance in O(1) time
       double distance = 0.0;
-      final distanceCalc = const Distance();
-      for (int i = _currentIndex; i < _currentRoute.length - 1; i++) {
-        distance += distanceCalc.as(
-          LengthUnit.Meter,
-          _currentRoute[i],
-          _currentRoute[i + 1],
-        );
+      if (_currentIndex < _remainingDistances.length) {
+        distance = _remainingDistances[_currentIndex];
       }
 
       if (onDistanceUpdated != null) {
@@ -81,8 +94,6 @@ class SimulatedJourneyService {
     _timer?.cancel();
     _timer = null;
   }
-
-  bool get isRunning => _isRunning;
 
   List<LatLng> decodePolyline(String encoded) {
     List<LatLng> poly = [];
@@ -126,8 +137,17 @@ class SimulatedJourneyService {
       final start = coords[i];
       final end = coords[i + 1];
       
+      // Skip invalid placeholder coordinates (e.g. 0.0, 0.0) which cause massive step counts
+      if (start.latitude == 0.0 || start.longitude == 0.0 || end.latitude == 0.0 || end.longitude == 0.0) {
+        continue;
+      }
+      
       final dist = distanceCalc.as(LengthUnit.Meter, start, end);
-      final numSteps = max(1, (dist / stepDistanceMeters).floor());
+      int numSteps = (dist / stepDistanceMeters).floor();
+      if (numSteps > 150) {
+        numSteps = 150; // Cap steps per segment to prevent UI thread lockup on huge distances
+      }
+      numSteps = max(1, numSteps);
       
       final latDiff = end.latitude - start.latitude;
       final lngDiff = end.longitude - start.longitude;
@@ -138,6 +158,10 @@ class SimulatedJourneyService {
           start.latitude + latDiff * t,
           start.longitude + lngDiff * t,
         ));
+      }
+
+      if (interpolated.length > 3000) {
+        break; // Cap total points to prevent memory bloat/lag
       }
     }
     return interpolated;

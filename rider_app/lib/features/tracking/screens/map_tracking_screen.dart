@@ -300,15 +300,17 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     if (currentPos == null || fullRoute.isEmpty) return fullRoute;
     
     int closestIdx = 0;
-    double minDistance = double.infinity;
+    double minDistanceSq = double.infinity;
+    final double lat = currentPos.latitude;
+    final double lng = currentPos.longitude;
     
     for (int i = 0; i < fullRoute.length; i++) {
-      final dist = Geolocator.distanceBetween(
-        currentPos.latitude, currentPos.longitude,
-        fullRoute[i].latitude, fullRoute[i].longitude
-      );
-      if (dist < minDistance) {
-        minDistance = dist;
+      final p = fullRoute[i];
+      final double dLat = lat - p.latitude;
+      final double dLng = lng - p.longitude;
+      final double distSq = dLat * dLat + dLng * dLng;
+      if (distSq < minDistanceSq) {
+        minDistanceSq = distSq;
         closestIdx = i;
       }
     }

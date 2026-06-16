@@ -1,6 +1,10 @@
-using BackendApi.Core;
+﻿using BackendApi.Core;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using BackendApi.Security;
+using BackendApi.Security.Models;
+using BackendApi.Security.Services;
 using BackendApi.Services.Ai;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -50,3 +54,4 @@ public sealed class RiderRoutesController : DeliveryControllerBase
         return Ok(ApiResponse<RiderRouteResponse>.Ok(route));
     }
 }
+

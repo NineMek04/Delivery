@@ -1,13 +1,17 @@
-using BackendApi.Core.StateMachines;
+﻿using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
+using BackendApi.Security.Models;
+using BackendApi.Security.Services;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Telemetry;
 using Microsoft.EntityFrameworkCore;
-using Order = BackendApi.Models.Order;
+using Order = BackendApi.Models.Entities.Order;
 
 namespace BackendApi.Services.Dispatch;
 
@@ -562,3 +566,5 @@ public class DispatchService
         });
     }
 }
+
+

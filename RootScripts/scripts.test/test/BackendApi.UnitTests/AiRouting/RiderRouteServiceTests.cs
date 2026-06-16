@@ -1,9 +1,14 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
 using BackendApi.Data;
 using BackendApi.Features.AiRouting;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Services.Ai;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -12,7 +17,7 @@ using Moq;
 using Moq.Protected;
 using NetTopologySuite.Geometries;
 using StackExchange.Redis;
-using DeliveryOrder = BackendApi.Models.Order;
+using DeliveryOrder = BackendApi.Models.Entities.Order;
 
 namespace BackendApi.UnitTests.AiRouting;
 
@@ -142,3 +147,6 @@ public sealed class RiderRouteServiceTests
             capturedRequest.RequestUri!.ToString());
     }
 }
+
+
+

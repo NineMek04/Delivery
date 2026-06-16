@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -8,6 +8,9 @@ using Xunit;
 using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 
 namespace BackendApi.UnitTests.Dispatch;
 
@@ -155,3 +158,4 @@ public class RedisLockServiceFallbackTests
         Assert.Equal(offerId, holder); // Holder remains unchanged
     }
 }
+

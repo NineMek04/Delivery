@@ -1,4 +1,6 @@
-using BackendApi.Core.Models;
+﻿using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Core.DataHandlers;
@@ -50,3 +52,4 @@ public static class DBHandlerCoreExtensions
             .ToPaginatedListAsync(page, pageSize, cancellationToken);
     }
 }
+

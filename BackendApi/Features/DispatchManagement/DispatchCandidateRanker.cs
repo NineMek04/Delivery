@@ -1,4 +1,6 @@
-using BackendApi.Models;
+﻿using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using BackendApi.Services.Ai;
 using BackendApi.Infrastructure.Redis;
@@ -98,3 +100,5 @@ public class DispatchCandidateRanker
 /// ผลลัพธ์ Ranked Candidate ที่ได้จาก AI Engine หรือ Fallback
 /// </summary>
 public record RankedCandidate(string RiderId, double DistanceKm, double Score, int EtaMinutes);
+
+

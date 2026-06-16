@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using BackendApi.Data;
 using BackendApi.Core.StateMachines;
@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 
 namespace BackendApi.Infrastructure.EventBus.Handlers
 {
@@ -26,14 +28,14 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
         private readonly ApplicationDbContext _dbContext;
         private readonly StateMachineService _stateMachine;
         private readonly RiderPresenceService _presenceService;
-        private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
+        private readonly IHubContext<BackendApi.Hubs.Tracking.TrackingHub> _hubContext;
         private readonly ILogger<RiderStateChangedIntegrationEventHandler> _logger;
 
         public RiderStateChangedIntegrationEventHandler(
             ApplicationDbContext dbContext,
             StateMachineService stateMachine,
             RiderPresenceService presenceService,
-            IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
+            IHubContext<BackendApi.Hubs.Tracking.TrackingHub> hubContext,
             ILogger<RiderStateChangedIntegrationEventHandler> logger)
         {
             _dbContext = dbContext;
@@ -213,3 +215,5 @@ namespace BackendApi.Infrastructure.EventBus.Handlers
                  o.State == OrderState.DELIVERING));
     }
 }
+
+

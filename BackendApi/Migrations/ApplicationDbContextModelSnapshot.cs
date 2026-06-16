@@ -24,7 +24,7 @@ namespace BackendApi.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("BackendApi.Models.ChatMessage", b =>
+            modelBuilder.Entity("BackendApi.Models.SystemModels.SystemModels.ChatMessage", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -92,7 +92,7 @@ namespace BackendApi.Migrations
                     b.ToTable("ChatMessages");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.CustomerAddress", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.CustomerAddress", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -212,7 +212,7 @@ namespace BackendApi.Migrations
                     b.ToTable("CustomerAddresses");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.DistributedLock", b =>
+            modelBuilder.Entity("BackendApi.Models.SystemModels.SystemModels.DistributedLock", b =>
                 {
                     b.Property<string>("LockKey")
                         .HasMaxLength(250)
@@ -234,7 +234,7 @@ namespace BackendApi.Migrations
                     b.ToTable("DistributedLocks");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.FcmToken", b =>
+            modelBuilder.Entity("BackendApi.Models.SystemModels.SystemModels.FcmToken", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -300,7 +300,7 @@ namespace BackendApi.Migrations
                     b.ToTable("FcmTokens");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuCategory", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuCategory", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -391,7 +391,7 @@ namespace BackendApi.Migrations
                     b.ToTable("MenuCategories");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItem", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -491,7 +491,7 @@ namespace BackendApi.Migrations
                     b.ToTable("MenuItems");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItemOption", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItemOption", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -570,7 +570,7 @@ namespace BackendApi.Migrations
                     b.ToTable("MenuItemOptions");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItemOptionItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItemOptionItem", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -646,7 +646,7 @@ namespace BackendApi.Migrations
                     b.ToTable("MenuItemOptionItems");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.Order", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.Order", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -805,7 +805,7 @@ namespace BackendApi.Migrations
                     b.ToTable("Orders");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.OrderItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.OrderItem", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -900,7 +900,7 @@ namespace BackendApi.Migrations
                     b.ToTable("OrderItems");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.ProcessedEvent", b =>
+            modelBuilder.Entity("BackendApi.Models.SystemModels.SystemModels.ProcessedEvent", b =>
                 {
                     b.Property<Guid>("EventId")
                         .HasColumnType("uuid");
@@ -920,7 +920,7 @@ namespace BackendApi.Migrations
                     b.ToTable("ProcessedEvents");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.Rider", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.Rider", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1015,7 +1015,7 @@ namespace BackendApi.Migrations
                     b.ToTable("Riders");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.RiderLocationHistory", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.RiderLocationHistory", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1042,7 +1042,7 @@ namespace BackendApi.Migrations
                     b.ToTable("RiderLocationHistories");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.Shop", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.Shop", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1145,7 +1145,7 @@ namespace BackendApi.Migrations
                     b.ToTable("Shops");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.User", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.User", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1263,9 +1263,9 @@ namespace BackendApi.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.ChatMessage", b =>
+            modelBuilder.Entity("BackendApi.Models.SystemModels.SystemModels.ChatMessage", b =>
                 {
-                    b.HasOne("BackendApi.Models.Order", "Order")
+                    b.HasOne("BackendApi.Models.Entities.Order", "Order")
                         .WithMany()
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1274,9 +1274,9 @@ namespace BackendApi.Migrations
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.CustomerAddress", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.CustomerAddress", b =>
                 {
-                    b.HasOne("BackendApi.Models.User", "User")
+                    b.HasOne("BackendApi.Models.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1285,9 +1285,9 @@ namespace BackendApi.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.FcmToken", b =>
+            modelBuilder.Entity("BackendApi.Models.SystemModels.SystemModels.FcmToken", b =>
                 {
-                    b.HasOne("BackendApi.Models.User", "User")
+                    b.HasOne("BackendApi.Models.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1296,9 +1296,9 @@ namespace BackendApi.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuCategory", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuCategory", b =>
                 {
-                    b.HasOne("BackendApi.Models.Shop", "Shop")
+                    b.HasOne("BackendApi.Models.Entities.Shop", "Shop")
                         .WithMany("MenuCategories")
                         .HasForeignKey("ShopId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1307,13 +1307,13 @@ namespace BackendApi.Migrations
                     b.Navigation("Shop");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItem", b =>
                 {
-                    b.HasOne("BackendApi.Models.MenuCategory", "MenuCategory")
+                    b.HasOne("BackendApi.Models.Entities.MenuCategory", "MenuCategory")
                         .WithMany("MenuItems")
                         .HasForeignKey("MenuCategoryId");
 
-                    b.HasOne("BackendApi.Models.Shop", "Shop")
+                    b.HasOne("BackendApi.Models.Entities.Shop", "Shop")
                         .WithMany("MenuItems")
                         .HasForeignKey("ShopId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1324,9 +1324,9 @@ namespace BackendApi.Migrations
                     b.Navigation("Shop");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItemOption", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItemOption", b =>
                 {
-                    b.HasOne("BackendApi.Models.MenuItem", "MenuItem")
+                    b.HasOne("BackendApi.Models.Entities.MenuItem", "MenuItem")
                         .WithMany("Options")
                         .HasForeignKey("MenuItemId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1335,9 +1335,9 @@ namespace BackendApi.Migrations
                     b.Navigation("MenuItem");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItemOptionItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItemOptionItem", b =>
                 {
-                    b.HasOne("BackendApi.Models.MenuItemOption", "MenuItemOption")
+                    b.HasOne("BackendApi.Models.Entities.MenuItemOption", "MenuItemOption")
                         .WithMany("Items")
                         .HasForeignKey("MenuItemOptionId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1346,13 +1346,13 @@ namespace BackendApi.Migrations
                     b.Navigation("MenuItemOption");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.Order", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.Order", b =>
                 {
-                    b.HasOne("BackendApi.Models.User", "Customer")
+                    b.HasOne("BackendApi.Models.Entities.User", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId");
 
-                    b.HasOne("BackendApi.Models.Shop", "Shop")
+                    b.HasOne("BackendApi.Models.Entities.Shop", "Shop")
                         .WithMany()
                         .HasForeignKey("ShopId");
 
@@ -1361,15 +1361,15 @@ namespace BackendApi.Migrations
                     b.Navigation("Shop");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.OrderItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.OrderItem", b =>
                 {
-                    b.HasOne("BackendApi.Models.MenuItem", "MenuItem")
+                    b.HasOne("BackendApi.Models.Entities.MenuItem", "MenuItem")
                         .WithMany()
                         .HasForeignKey("MenuItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BackendApi.Models.Order", "Order")
+                    b.HasOne("BackendApi.Models.Entities.Order", "Order")
                         .WithMany("Items")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1380,36 +1380,36 @@ namespace BackendApi.Migrations
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.User", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.User", b =>
                 {
-                    b.HasOne("BackendApi.Models.Shop", "Shop")
+                    b.HasOne("BackendApi.Models.Entities.Shop", "Shop")
                         .WithMany()
                         .HasForeignKey("ShopId");
 
                     b.Navigation("Shop");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuCategory", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuCategory", b =>
                 {
                     b.Navigation("MenuItems");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItem", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItem", b =>
                 {
                     b.Navigation("Options");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.MenuItemOption", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.MenuItemOption", b =>
                 {
                     b.Navigation("Items");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.Order", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.Order", b =>
                 {
                     b.Navigation("Items");
                 });
 
-            modelBuilder.Entity("BackendApi.Models.Shop", b =>
+            modelBuilder.Entity("BackendApi.Models.Entities.Shop", b =>
                 {
                     b.Navigation("MenuCategories");
 
@@ -1419,3 +1419,5 @@ namespace BackendApi.Migrations
         }
     }
 }
+
+

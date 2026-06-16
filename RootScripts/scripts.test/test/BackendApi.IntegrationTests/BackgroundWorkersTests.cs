@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using BackendApi.Services.BackgroundWorkers;
+using BackendApi.Services.BackgroundWorkers.Queues;
+using BackendApi.Services.BackgroundWorkers.Maintenance;
+using BackendApi.Services.BackgroundWorkers.Jobs;
 using Xunit;
 
 namespace BackendApi.IntegrationTests;
@@ -63,3 +66,4 @@ public class BackgroundWorkersTests
         Assert.Null(exception);
     }
 }
+

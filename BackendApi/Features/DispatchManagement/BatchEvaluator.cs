@@ -1,5 +1,7 @@
-using BackendApi.Data;
+﻿using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Services.Ai;
 using BackendApi.Core.Helpers;
 using BackendApi.Core.StateMachines;
@@ -185,3 +187,5 @@ public class BatchEvaluator
         return diff <= toleranceDegrees;
     }
 }
+
+

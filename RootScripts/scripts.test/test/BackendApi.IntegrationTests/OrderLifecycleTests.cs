@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,6 +6,8 @@ using Xunit;
 using Microsoft.Extensions.DependencyInjection;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 
 namespace BackendApi.IntegrationTests;
 
@@ -229,3 +231,5 @@ public class OrderLifecycleTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
+
+

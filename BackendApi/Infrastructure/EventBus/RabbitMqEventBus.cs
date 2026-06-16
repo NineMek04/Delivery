@@ -99,20 +99,20 @@ public class RabbitMqEventBus : IEventBus, IDisposable
                     _connection = factory.CreateConnection();
                     _connection.ConnectionShutdown += (sender, e) =>
                     {
-                        BackendApi.Security.SecurityMetrics.RabbitMqConnectionStatus.Set(0);
+                        BackendApi.Security.Services.SecurityMetrics.RabbitMqConnectionStatus.Set(0);
                     };
                     if (retryCount > 1)
                     {
-                        BackendApi.Security.SecurityMetrics.RabbitMqReconnectsTotal.Inc();
+                        BackendApi.Security.Services.SecurityMetrics.RabbitMqReconnectsTotal.Inc();
                     }
                     connected = true;
-                    BackendApi.Security.SecurityMetrics.RabbitMqConnectionStatus.Set(1);
+                    BackendApi.Security.Services.SecurityMetrics.RabbitMqConnectionStatus.Set(1);
                 }
                 catch (Exception ex)
                 {
                     if (retryCount >= maxRetries)
                     {
-                        BackendApi.Security.SecurityMetrics.RabbitMqConnectionStatus.Set(0);
+                        BackendApi.Security.Services.SecurityMetrics.RabbitMqConnectionStatus.Set(0);
                         _logger.LogCritical(ex, "Failed to connect to RabbitMQ broker after {MaxRetries} attempts.", maxRetries);
                         throw;
                     }
@@ -485,7 +485,7 @@ public class RabbitMqEventBus : IEventBus, IDisposable
             }
 
             // Record event as successfully processed by this handler
-            dbContext.ProcessedEvents.Add(new BackendApi.Models.ProcessedEvent
+            dbContext.ProcessedEvents.Add(new BackendApi.Models.SystemModels.ProcessedEvent
             {
                 EventId = eventId,
                 HandlerName = handlerType.Name,
@@ -508,3 +508,6 @@ public class RabbitMqEventBus : IEventBus, IDisposable
         _disposed = true;
     }
 }
+
+
+

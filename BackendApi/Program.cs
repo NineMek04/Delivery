@@ -1,4 +1,7 @@
-using BackendApi.Setup;
+﻿using BackendApi.Setup;
+using BackendApi.Setup.Middlewares;
+using BackendApi.Setup.Configuration;
+using BackendApi.Setup.Extensions;
 using Serilog;
 using Microsoft.OpenApi.Extensions;
 
@@ -104,3 +107,4 @@ finally
 }
 
 public partial class Program { }
+

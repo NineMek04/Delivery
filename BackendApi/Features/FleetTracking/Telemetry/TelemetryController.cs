@@ -1,11 +1,15 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BackendApi.Core;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using BackendApi.Services.Telemetry;
 using BackendApi.Security;
+using BackendApi.Security.Models;
+using BackendApi.Security.Services;
 using BackendApi.Features.FleetTracking.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +17,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using BackendApi.Setup;
+using BackendApi.Setup.Middlewares;
+using BackendApi.Setup.Configuration;
+using BackendApi.Setup.Extensions;
 
 namespace BackendApi.Features.FleetTracking.Telemetry
 {
@@ -63,7 +70,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 return Unauthorized(ApiResponse<string>.Fail("User could not be identified."));
             }
 
-            var user = await DB.GetQuery<BackendApi.Models.User>(asNoTracking: true)
+            var user = await DB.GetQuery<BackendApi.Models.Entities.User>(asNoTracking: true)
                 .Select(u => new { u.Id, u.RiderId })
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -126,7 +133,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
                 return Unauthorized(ApiResponse<string>.Fail("User could not be identified."));
             }
 
-            var user = await DB.GetQuery<BackendApi.Models.User>(asNoTracking: true)
+            var user = await DB.GetQuery<BackendApi.Models.Entities.User>(asNoTracking: true)
                 .Select(u => new { u.Id, u.RiderId })
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -239,3 +246,5 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         }
     }
 }
+
+

@@ -1,4 +1,4 @@
-using BackendApi.Core.DataHandlers;
+﻿using BackendApi.Core.DataHandlers;
 using BackendApi.Core.StateMachines;
 using BackendApi.Models.DTOs;
 using Microsoft.EntityFrameworkCore;
@@ -18,12 +18,12 @@ public class AnalyticsService : IAnalyticsService
     {
         var today = DateTime.UtcNow.Date;
 
-        var riders = await _db.GetQuery<Models.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
+        var riders = await _db.GetQuery<Models.Entities.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
         
         var activeRiders = riders.Count(r => r.State == RiderState.BUSY);
         var idleRiders = riders.Count(r => r.State == RiderState.IDLE);
 
-        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true)
+        var orders = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true)
             .Where(o => o.CreatedAt >= today || o.State == OrderState.CREATED || o.State == OrderState.MATCHING || o.State == OrderState.ASSIGNED || o.State == OrderState.PICKING_UP || o.State == OrderState.DELIVERING)
             .ToListAsync(cancellationToken);
 
@@ -58,7 +58,7 @@ public class AnalyticsService : IAnalyticsService
     {
         var startDate = DateTime.UtcNow.Date.AddDays(-days + 1);
 
-        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true)
+        var orders = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true)
             .Where(o => o.CreatedAt >= startDate)
             .ToListAsync(cancellationToken);
 
@@ -77,13 +77,13 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<List<RiderPerformanceDto>> GetTopPerformingRidersAsync(int count = 5, CancellationToken cancellationToken = default)
     {
-        var riders = await _db.GetQuery<Models.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
+        var riders = await _db.GetQuery<Models.Entities.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
         
-        var users = await _db.GetQuery<Models.User>(asNoTracking: true)
+        var users = await _db.GetQuery<Models.Entities.User>(asNoTracking: true)
             .Where(u => u.RiderId != null)
             .ToListAsync(cancellationToken);
 
-        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true)
+        var orders = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true)
             .Where(o => o.State == OrderState.COMPLETED && o.AssignedRiderId != null)
             .ToListAsync(cancellationToken);
 
@@ -115,7 +115,7 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<AnalyticsSummaryDto> GetAnalyticsSummaryAsync(CancellationToken cancellationToken = default)
     {
-        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true).ToListAsync(cancellationToken);
+        var orders = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true).ToListAsync(cancellationToken);
 
         var total = orders.Count;
         var completed = orders.Count(o => o.State == OrderState.COMPLETED);
@@ -144,17 +144,17 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<RealtimeTelemetryDto> GetRealtimeTelemetryAsync(CancellationToken cancellationToken = default)
     {
-        var riders = await _db.GetQuery<Models.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
+        var riders = await _db.GetQuery<Models.Entities.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
         var activeRiders = riders.Count(r => r.State != RiderState.OFFLINE);
 
         var oneMinuteAgo = DateTime.UtcNow.AddMinutes(-1);
-        var gpsCount = await _db.GetQuery<Models.RiderLocationHistory>(asNoTracking: true)
+        var gpsCount = await _db.GetQuery<Models.Entities.RiderLocationHistory>(asNoTracking: true)
             .Where(lh => lh.RecordedAt >= oneMinuteAgo)
             .CountAsync(cancellationToken);
 
         var gpsUpdatesPerSecond = Math.Round(gpsCount / 60.0, 2);
 
-        var queueSize = await _db.GetQuery<Models.Order>(asNoTracking: true)
+        var queueSize = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true)
             .Where(o => o.State == OrderState.MATCHING || o.State == OrderState.OFFERING)
             .CountAsync(cancellationToken);
 
@@ -168,13 +168,13 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<RiderUtilizationDto> GetRiderUtilizationAsync(CancellationToken cancellationToken = default)
     {
-        var riders = await _db.GetQuery<Models.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
+        var riders = await _db.GetQuery<Models.Entities.Rider>(asNoTracking: true).ToListAsync(cancellationToken);
         
         var busy = riders.Count(r => r.State == RiderState.BUSY);
         var idle = riders.Count(r => r.State == RiderState.IDLE || r.State == RiderState.RESERVED);
         var offline = riders.Count(r => r.State == RiderState.OFFLINE || r.State == RiderState.STALE);
 
-        var completedOrdersCount = await _db.GetQuery<Models.Order>(asNoTracking: true)
+        var completedOrdersCount = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true)
             .Where(o => o.State == OrderState.COMPLETED)
             .CountAsync(cancellationToken);
 
@@ -191,7 +191,7 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<List<HeatmapPointDto>> GetHeatmapPointsAsync(CancellationToken cancellationToken = default)
     {
-        var orders = await _db.GetQuery<Models.Order>(asNoTracking: true)
+        var orders = await _db.GetQuery<Models.Entities.Order>(asNoTracking: true)
             .Where(o => o.PickupLocation != null)
             .Select(o => new { o.PickupLocation!.X, o.PickupLocation!.Y })
             .ToListAsync(cancellationToken);
@@ -207,4 +207,5 @@ public class AnalyticsService : IAnalyticsService
         return result;
     }
 }
+
 

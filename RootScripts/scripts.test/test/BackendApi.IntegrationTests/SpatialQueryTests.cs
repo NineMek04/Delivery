@@ -1,9 +1,17 @@
-using BackendApi.Data;
+﻿using BackendApi.Data;
 using BackendApi.Core.Mappings;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 using BackendApi.Services.BackgroundWorkers;
+using BackendApi.Services.BackgroundWorkers.Queues;
+using BackendApi.Services.BackgroundWorkers.Maintenance;
+using BackendApi.Services.BackgroundWorkers.Jobs;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -325,3 +333,5 @@ public class SpatialQueryTests : IAsyncLifetime
         Assert.True(count > 0, $"Partition '{partitionName}' should have been created by PartitionMaintenanceWorker");
     }
 }
+
+

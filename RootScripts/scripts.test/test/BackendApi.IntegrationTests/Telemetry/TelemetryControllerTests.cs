@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -10,6 +10,8 @@ using BackendApi.Features.FleetTracking.Telemetry;
 using BackendApi.Features.FleetTracking.Models;
 using BackendApi.Features.AiRouting;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 
 namespace BackendApi.IntegrationTests
 {
@@ -427,3 +429,4 @@ namespace BackendApi.IntegrationTests
         }
     }
 }
+

@@ -1,7 +1,9 @@
-using BackendApi.Models;
+﻿using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using Microsoft.AspNetCore.SignalR;
 using StackExchange.Redis;
-using Order = BackendApi.Models.Order;
+using Order = BackendApi.Models.Entities.Order;
 
 namespace BackendApi.Services.Dispatch;
 
@@ -10,11 +12,11 @@ namespace BackendApi.Services.Dispatch;
 /// </summary>
 public class DispatchAdminNotifier
 {
-    private readonly IHubContext<BackendApi.Hubs.TrackingHub> _hubContext;
+    private readonly IHubContext<BackendApi.Hubs.Tracking.TrackingHub> _hubContext;
     private readonly ILogger<DispatchAdminNotifier> _logger;
 
     public DispatchAdminNotifier(
-        IHubContext<BackendApi.Hubs.TrackingHub> hubContext,
+        IHubContext<BackendApi.Hubs.Tracking.TrackingHub> hubContext,
         ILogger<DispatchAdminNotifier> logger)
     {
         _hubContext = hubContext;
@@ -107,3 +109,5 @@ public class DispatchAdminNotifier
         };
     }
 }
+
+

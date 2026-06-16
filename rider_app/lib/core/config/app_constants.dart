@@ -1,4 +1,4 @@
-/// App-wide constants for the Rider App.
+﻿/// App-wide constants for the Rider App.
 ///
 /// เทียบกับ:
 /// - .NET: `BackendApi/Security/AuthConstants.cs`
@@ -20,7 +20,7 @@ class AppConstants {
   static const String userDataKey = 'delivery_user_data';
 
   // ── Rider Status ───────────────────────────────────────────────────
-  /// ตรงกับ Rider.Status ใน BackendApi/Models/Rider.cs
+  /// ตรงกับ Rider.Status ใน BackendApi/Models/Entities/Rider.cs
   static const String statusAvailable = 'IDLE';
   static const String statusReserved = 'RESERVED';
   static const String statusBusy = 'BUSY';
@@ -29,7 +29,7 @@ class AppConstants {
   static const int riderHeartbeatIntervalSeconds = 10;
 
   // ── Order Status ───────────────────────────────────────────────────
-  /// ตรงกับ Order.Status ใน BackendApi/Models/Order.cs
+  /// ตรงกับ Order.Status ใน BackendApi/Models/Entities/Order.cs
   static const String orderAssigned = 'ASSIGNED';
   static const String orderDelivering = 'DELIVERING';
   static const String orderCompleted = 'COMPLETED';
@@ -41,3 +41,4 @@ class AppConstants {
   static const String ordersEndpoint = 'orders';
   static const String authEndpoint = 'auth';
 }
+

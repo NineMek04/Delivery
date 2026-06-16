@@ -1,9 +1,15 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
+using BackendApi.Security.Models;
+using BackendApi.Security.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -513,3 +519,5 @@ public sealed class AuthService : IAuthService
                ?? normalizedRole;
     }
 }
+
+

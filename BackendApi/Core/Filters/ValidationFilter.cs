@@ -1,8 +1,10 @@
-using FluentValidation;
+﻿using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using BackendApi.Core.Models;
+using BackendApi.Core.Models.Response;
+using BackendApi.Core.Models.Entities;
 
 namespace BackendApi.Core.Filters;
 
@@ -65,3 +67,4 @@ public class ValidationFilter : IAsyncActionFilter
         await next();
     }
 }
+

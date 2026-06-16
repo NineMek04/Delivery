@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,11 +10,16 @@ using Xunit;
 using NetTopologySuite.Geometries;
 using BackendApi.Data;
 using BackendApi.Models;
+using BackendApi.Models.Entities;
+using BackendApi.Models.SystemModels;
 using BackendApi.Services.Ai;
 using BackendApi.Services.Dispatch;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Core.StateMachines;
 using BackendApi.Services;
+using BackendApi.Services.Auth;
+using BackendApi.Services.Notifications;
+using BackendApi.Services.Orders;
 
 namespace BackendApi.UnitTests.Dispatch
 {
@@ -464,3 +469,5 @@ namespace BackendApi.UnitTests.Dispatch
         }
     }
 }
+
+

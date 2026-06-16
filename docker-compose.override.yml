@@ -11,6 +11,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - Authentication__RequireSecureCookie=false
+      - RateLimiting__Global__PermitLimit=50000
+      - RateLimiting__Auth__PermitLimit=50000
     ports:
       - "127.0.0.1:5000:80"
 

@@ -10,8 +10,8 @@ def rank_dispatch_candidates(request: DispatchRankRequest):
     """
     Phase A: Receive a list of idle Riders and return them ranked by suitability.
     """
-    if len(request.candidates) > 200:
-        raise HTTPException(status_code=422, detail="Too many candidates. Maximum allowed is 200.")
+    if len(request.candidates) > 2000:
+        raise HTTPException(status_code=422, detail="Too many candidates. Maximum allowed is 2000.")
 
     if not request.candidates:
         return {"ranked_candidates": []}

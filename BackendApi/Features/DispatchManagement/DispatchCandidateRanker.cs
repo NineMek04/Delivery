@@ -1,4 +1,4 @@
-﻿using BackendApi.Models;
+using BackendApi.Models;
 using BackendApi.Models.Entities;
 using BackendApi.Models.SystemModels;
 using BackendApi.Models.DTOs;
@@ -35,6 +35,11 @@ public class DispatchCandidateRanker
     {
         try
         {
+            // Limit to top 150 closest candidates to prevent AI engine candidate overload (max 200 candidates limit)
+            if (candidates.Count > 150)
+            {
+                candidates = candidates.OrderBy(c => c.DistanceKm).Take(150).ToList();
+            }
                 // ดึง rider speed จาก Redis 5-point Moving Average
                 var candidateDtos = new List<DispatchCandidateDto>();
                 foreach (var c in candidates)

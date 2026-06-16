@@ -27,6 +27,7 @@ export class OrderDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input({ required: true }) order!: OrderDto;
   @Input() siblingOrders: OrderDto[] = [];
   @Output() close = new EventEmitter<void>();
+  @Output() actionSuccess = new EventEmitter<string>();
 
   @ViewChild('miniMap', { static: false }) miniMapEl?: ElementRef<HTMLElement>;
 
@@ -213,7 +214,11 @@ export class OrderDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     }).then(result => {
       if (!result.isConfirmed) return;
       this.orderService.cancelOrder(this.order.id!).subscribe({
-        next:  () => { Swal.fire({ icon:'success', title:'ยกเลิกสำเร็จ', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' }); this.close.emit(); },
+        next:  () => {
+          Swal.fire({ icon:'success', title:'ยกเลิกสำเร็จ', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' });
+          this.actionSuccess.emit(this.order.id!);
+          this.close.emit();
+        },
         error: () => { Swal.fire({ icon:'error', title:'ผิดพลาด', text:'ไม่สามารถยกเลิกได้', background:'#1e293b', color:'#f8fafc' }); }
       });
     });
@@ -222,7 +227,11 @@ export class OrderDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   retryDispatch(): void {
     if (!this.order.id) return;
     this.orderService.retryDispatch(this.order.id).subscribe({
-      next:  () => { Swal.fire({ icon:'success', title:'Dispatch ใหม่แล้ว', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' }); this.close.emit(); },
+      next:  () => {
+        Swal.fire({ icon:'success', title:'Dispatch ใหม่แล้ว', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' });
+        this.actionSuccess.emit(this.order.id!);
+        this.close.emit();
+      },
       error: () => { Swal.fire({ icon:'error', title:'ผิดพลาด', text:'ไม่สามารถ Dispatch ได้', background:'#1e293b', color:'#f8fafc' }); }
     });
   }

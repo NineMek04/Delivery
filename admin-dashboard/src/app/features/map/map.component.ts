@@ -406,7 +406,11 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         className: 'ai-radar-pulse'
       }).addTo(this.map);
 
-      this.map.setView([data.pickupLat, data.pickupLng], 14);
+      // Only auto-recenter the map if the user is not actively inspecting another order/rider/modal
+      const hasFocusOnOtherItem = this.showOrderDetailModal || this.selectedOrder || this.assignedRiderId;
+      if (!hasFocusOnOtherItem) {
+        this.map.setView([data.pickupLat, data.pickupLng], 14);
+      }
 
       if (Array.isArray(data.nearbyRiders)) {
         data.nearbyRiders.forEach((rider: any) => {
@@ -717,13 +721,16 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
         created.on('popupopen', () => {
           const popupEl = created.getPopup()?.getElement();
           if (!popupEl) return;
-          popupEl.querySelector('.btn-contact')?.addEventListener('click', () => {
+          popupEl.querySelector('.btn-contact')?.addEventListener('click', (e) => {
+            e.stopPropagation();
             this.zone.run(() => this.contactRider(riderId));
           });
-          popupEl.querySelector('.btn-cancel')?.addEventListener('click', () => {
+          popupEl.querySelector('.btn-cancel')?.addEventListener('click', (e) => {
+            e.stopPropagation();
             this.zone.run(() => this.cancelRiderOrder(riderId));
           });
-          popupEl.querySelector('.btn-route')?.addEventListener('click', () => {
+          popupEl.querySelector('.btn-route')?.addEventListener('click', (e) => {
+            e.stopPropagation();
             this.zone.run(() => this.showRiderRoute(riderId));
           });
         });

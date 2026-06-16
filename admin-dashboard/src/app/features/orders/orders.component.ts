@@ -134,7 +134,7 @@ export class OrdersComponent implements OnInit {
   // Data loading — fetch ALL and filter locally (backend supports page+search)
   // ─────────────────────────────────────────────────────────────────────────
 
-  loadOrders(): void {
+  loadOrders(keepPage = false): void {
     this.isLoading  = true;
     this.hasError   = false;
     this.newOrderCount = 0;
@@ -146,7 +146,9 @@ export class OrdersComponent implements OnInit {
     ).subscribe({
       next: orders => {
         this.allOrders = orders;
-        this.currentPage = 1;
+        if (!keepPage) {
+          this.currentPage = 1;
+        }
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -154,6 +156,28 @@ export class OrdersComponent implements OnInit {
         this.isLoading = false;
         this.hasError  = true;
         this.cdr.markForCheck();
+      }
+    });
+  }
+
+  refreshSingleOrder(id: string): void {
+    this.orderService.getById(id).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: updatedOrder => {
+        const index = this.allOrders.findIndex(o => o.id === id);
+        if (index !== -1) {
+          this.allOrders[index] = updatedOrder;
+          this.recentlyUpdated.add(id);
+          setTimeout(() => {
+            this.recentlyUpdated.delete(id);
+            this.cdr.markForCheck();
+          }, 3000);
+          this.cdr.markForCheck();
+        }
+      },
+      error: err => {
+        console.error('Failed to refresh order', id, err);
       }
     });
   }
@@ -373,7 +397,7 @@ export class OrdersComponent implements OnInit {
       ).subscribe({
         next: () => {
           Swal.fire({ icon:'success', title:'ยกเลิกสำเร็จ', timer:1500, showConfirmButton:false, background:'#1e293b', color:'#f8fafc' });
-          this.loadOrders();
+          this.refreshSingleOrder(id);
         },
         error: err => {
           const msg = err?.error?.message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
@@ -404,7 +428,7 @@ export class OrdersComponent implements OnInit {
       ).subscribe({
         next: () => {
           Swal.fire({ icon:'success', title:'Dispatch ใหม่สำเร็จ', text:'ระบบกำลังหาไรเดอร์', background:'#1e293b', color:'#f8fafc' });
-          this.loadOrders();
+          this.refreshSingleOrder(id);
         },
         error: err => {
           const msg = err?.error?.message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';

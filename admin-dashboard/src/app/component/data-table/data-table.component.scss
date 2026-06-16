@@ -175,16 +175,18 @@ tr:hover td {
 .page-numbers {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-width: 260px; /* fixed/min-width to avoid pagination controls resizing when page changes */
 }
 
 .page-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 32px;
+  width: 32px; /* use fixed width instead of min-width to prevent shifting */
   height: 32px;
-  padding: 0 6px;
+  padding: 0;
   border-radius: 4px;
   border: 1px solid rgba(136, 136, 136, 0.24);
   background: rgba(136, 136, 136, 0.05);
@@ -213,9 +215,13 @@ tr:hover td {
 }
 
 .pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   color: var(--color-text-muted);
   font: 700 12px var(--font-mono);
-  padding: 0 4px;
   user-select: none;
 }
 

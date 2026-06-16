@@ -106,13 +106,22 @@ class OrderApiService {
     }
   }
 
-  /// Fetch all orders belonging to the shop of the currently authenticated StorePartner.
   Future<List<OrderDto>> getShopOrders() async {
     try {
       final response = await _dio.get('${AppConstants.ordersEndpoint}/shop');
       final parsed = parseApiListResponse(response.data, OrderDto.fromJson);
       ensureSuccess(parsed);
       return parsed.value ?? [];
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
+
+  Future<void> clearCustomerOrders() async {
+    try {
+      final response = await _dio.delete('${AppConstants.ordersEndpoint}/customer/clear');
+      final parsed = parseApiResponse(response.data, (json) => json);
+      ensureSuccess(parsed);
     } on DioException catch (e) {
       throw wrapDioError(e).error ?? e;
     }

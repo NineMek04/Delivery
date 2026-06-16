@@ -53,7 +53,17 @@ class _ActiveDeliveryScreenState extends ConsumerState<ActiveDeliveryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.map_outlined),
-            onPressed: () => context.goNamed('tracking'),
+            onPressed: () {
+              final activeOrder = state.activeOrder;
+              if (activeOrder != null) {
+                context.pushNamed(
+                  'routeTracking',
+                  pathParameters: {'orderId': activeOrder.id},
+                );
+              } else {
+                context.goNamed('tracking');
+              }
+            },
           ),
           IconButton(
             icon: const Icon(Icons.refresh),

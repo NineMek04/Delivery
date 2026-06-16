@@ -9,6 +9,7 @@ import '../../../models/shop.dart';
 import '../cart/widgets/cart_action_button.dart';
 import '../cart/providers/cart_provider.dart';
 import 'widgets/dish_options_bottom_sheet.dart';
+import '../cart/widgets/cart_bottom_sheet.dart';
 
 class ShopDetailsScreen extends ConsumerStatefulWidget {
   final String shopId;
@@ -78,6 +79,34 @@ class _ShopDetailsScreenState extends ConsumerState<ShopDetailsScreen> {
         ),
       );
     }
+  }
+
+  void _onBuyNow(BuildContext context, MenuItemDto dish) {
+    if (dish.options != null && dish.options!.isNotEmpty) {
+      showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => DishOptionsBottomSheet(dish: dish, isBuyNow: true),
+      ).then((val) {
+        if (val == true) {
+          _showCartBottomSheet();
+        }
+      });
+    } else {
+      ref.read(cartProvider.notifier).clearCart();
+      ref.read(cartProvider.notifier).addItem(dish);
+      _showCartBottomSheet();
+    }
+  }
+
+  void _showCartBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CartBottomSheet(),
+    );
   }
 
   @override
@@ -220,7 +249,7 @@ class _ShopDetailsScreenState extends ConsumerState<ShopDetailsScreen> {
                         sliver: SliverGrid(
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            childAspectRatio: 0.72,
+                            childAspectRatio: 0.60,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
                           ),
@@ -292,6 +321,29 @@ class _ShopDetailsScreenState extends ConsumerState<ShopDetailsScreen> {
                                                 ),
                                               ),
                                             ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            height: 28,
+                                            child: ElevatedButton(
+                                              onPressed: () => _onBuyNow(context, dish),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AppTheme.primaryColor,
+                                                padding: EdgeInsets.zero,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'ซื้อทันที',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),

@@ -54,7 +54,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (mounted) {
             ErrorDialog.showSuccess(context, 'รับงานแล้ว');
             Future<void>.delayed(Duration.zero, () {
-              if (mounted) context.goNamed('tracking');
+              if (mounted) {
+                final activeOrder = ref.read(deliveryNotifierProvider).activeOrder;
+                if (activeOrder != null) {
+                  context.pushNamed(
+                    'routeTracking',
+                    pathParameters: {'orderId': activeOrder.id},
+                  );
+                } else {
+                  context.goNamed('tracking');
+                }
+              }
             });
           }
         } catch (e) {
@@ -352,7 +362,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              context.goNamed('tracking');
+                              context.pushNamed(
+                                'routeTracking',
+                                pathParameters: {'orderId': delivery.activeOrder!.id},
+                              );
                             },
                           ),
                         ),
@@ -377,7 +390,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
-                        onPressed: () => context.goNamed('tracking'),
+                        onPressed: () {
+                          final activeOrder = delivery.activeOrder;
+                          if (activeOrder != null) {
+                            context.pushNamed(
+                              'routeTracking',
+                              pathParameters: {'orderId': activeOrder.id},
+                            );
+                          } else {
+                            context.goNamed('tracking');
+                          }
+                        },
                         icon: const Icon(Icons.map),
                         label: const Text('เปิดแผนที่'),
                       ),

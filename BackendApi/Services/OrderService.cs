@@ -419,6 +419,27 @@ public class OrderService : IOrderService
         return (StatusCodes.Status200OK, ApiResponse<List<OrderDto>>.Ok(dtos));
     }
 
+    public async Task<(int StatusCode, ApiResponse Response)> ClearCustomerOrdersAsync(
+        string? customerId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(customerId))
+            return (StatusCodes.Status401Unauthorized, ApiResponse.Fail("User ID not found in token."));
+
+        var orders = await _db.GetQuery<Order>()
+            .Where(o => o.CustomerId == customerId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var order in orders)
+        {
+            await _db.DeleteObjectAsync<Order>(order.Id, softDelete: true, cancellationToken);
+        }
+
+        await _db.CommitChangesAsync(cancellationToken);
+        return (StatusCodes.Status200OK, ApiResponse.Ok("ล้างประวัติออร์เดอร์สำเร็จ"));
+    }
+
+
     public async Task<(int StatusCode, ApiResponse<List<OrderDto>> Response)> GetShopOrdersAsync(
         string shopId,
         CancellationToken cancellationToken)

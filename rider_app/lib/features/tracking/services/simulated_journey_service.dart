@@ -57,12 +57,16 @@ class SimulatedJourneyService {
         5.0, // simulated GPS accuracy in meters
       );
 
-      // Calculate distance to destination
-      final distance = const Distance().as(
-        LengthUnit.Meter, 
-        currentLocation, 
-        destination,
-      );
+      // Calculate distance to destination along the route coordinates
+      double distance = 0.0;
+      final distanceCalc = const Distance();
+      for (int i = _currentIndex; i < _currentRoute.length - 1; i++) {
+        distance += distanceCalc.as(
+          LengthUnit.Meter,
+          _currentRoute[i],
+          _currentRoute[i + 1],
+        );
+      }
 
       if (onDistanceUpdated != null) {
         onDistanceUpdated!(distance);

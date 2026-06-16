@@ -54,7 +54,57 @@ class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
     final ordersAsync = ref.watch(customerOrdersProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ออเดอร์ของฉัน')),
+      appBar: AppBar(
+        title: const Text('ออเดอร์ของฉัน'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            tooltip: 'ล้างประวัติออเดอร์',
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('ล้างประวัติออเดอร์'),
+                  content: const Text('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติออเดอร์ทั้งหมด?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('ยกเลิก'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('ล้างประวัติ', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                try {
+                  await ref.read(orderApiServiceProvider).clearCustomerOrders();
+                  ref.invalidate(customerOrdersProvider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('ล้างประวัติออเดอร์เรียบร้อยแล้ว'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('ไม่สามารถล้างประวัติออเดอร์ได้: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+          ),
+        ],
+      ),
       body: ordersAsync.when(
         data: (orders) => orders.isEmpty
             ? RefreshIndicator(

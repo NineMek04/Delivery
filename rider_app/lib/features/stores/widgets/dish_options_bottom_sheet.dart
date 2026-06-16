@@ -7,10 +7,12 @@ import '../../cart/providers/cart_provider.dart';
 
 class DishOptionsBottomSheet extends ConsumerStatefulWidget {
   final MenuItemDto dish;
+  final bool isBuyNow;
 
   const DishOptionsBottomSheet({
     super.key,
     required this.dish,
+    this.isBuyNow = false,
   });
 
   @override
@@ -120,6 +122,10 @@ class _DishOptionsBottomSheetState extends ConsumerState<DishOptionsBottomSheet>
     final optionsDescription = descriptions.join(' | ');
     final optionsPrice = _optionsPriceTotal;
 
+    if (widget.isBuyNow) {
+      ref.read(cartProvider.notifier).clearCart();
+    }
+
     // Add to cart with riverpod provider
     for (int i = 0; i < _quantity; i++) {
       ref.read(cartProvider.notifier).addItem(
@@ -130,13 +136,17 @@ class _DishOptionsBottomSheetState extends ConsumerState<DishOptionsBottomSheet>
       );
     }
 
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('เพิ่ม ${widget.dish.name} ลงตะกร้าแล้ว'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    if (widget.isBuyNow) {
+      Navigator.pop(context, true);
+    } else {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เพิ่ม ${widget.dish.name} ลงตะกร้าแล้ว'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   @override
@@ -373,7 +383,9 @@ class _DishOptionsBottomSheetState extends ConsumerState<DishOptionsBottomSheet>
                     ),
                   ),
                   child: Text(
-                    'เพิ่มลงตะกร้า • ${formatCurrency.format(_totalPrice)}',
+                    widget.isBuyNow
+                        ? 'ซื้อทันที • ${formatCurrency.format(_totalPrice)}'
+                        : 'เพิ่มลงตะกร้า • ${formatCurrency.format(_totalPrice)}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

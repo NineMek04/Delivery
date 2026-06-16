@@ -49,6 +49,10 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   String? _dbDir;
   List<LatLng> _currentRoutePoints = [];
   LatLng? _lastAnimatedLocation;
+  DateTime? _lastUpdateReceivedTime;
+  Duration _animationDuration = const Duration(seconds: 3);
+  double? _prevLat;
+  double? _prevLng;
 
   @override
   void initState() {
@@ -290,6 +294,33 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     final currentLocation = ref.watch(locationStateProvider);
     final state = ref.watch(activeOrderProvider);
     
+    // Listen to real GPS updates when simulation is not running
+    ref.listen<LocationState>(locationServiceProvider, (previous, next) {
+      final simService = ref.read(simulatedJourneyProvider);
+      if (!simService.isRunning && next.latitude != null && next.longitude != null) {
+        ref.read(locationStateProvider.notifier).state = LatLng(next.latitude!, next.longitude!);
+      }
+    });
+
+    final simService = ref.read(simulatedJourneyProvider);
+    // Measure dynamic interval when coordinates change
+    if (currentLocation.latitude != _prevLat || currentLocation.longitude != _prevLng) {
+      _prevLat = currentLocation.latitude;
+      _prevLng = currentLocation.longitude;
+      
+      final now = DateTime.now();
+      if (_lastUpdateReceivedTime != null) {
+        final diff = now.difference(_lastUpdateReceivedTime!);
+        var seconds = diff.inSeconds;
+        if (seconds < 1) seconds = 1;
+        if (seconds > 11) seconds = 11;
+        _animationDuration = Duration(seconds: seconds);
+      } else {
+        _animationDuration = simService.isRunning ? const Duration(seconds: 3) : const Duration(seconds: 10);
+      }
+      _lastUpdateReceivedTime = now;
+    }
+
     if (state.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (state.order == null) return const Scaffold(body: Center(child: Text('Order not found')));
 
@@ -322,7 +353,7 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
               begin: _lastAnimatedLocation ?? currentLocation,
               end: currentLocation,
             ),
-            duration: const Duration(seconds: 1),
+            duration: _animationDuration,
             builder: (context, animatedLocation, child) {
               _lastAnimatedLocation = animatedLocation;
 

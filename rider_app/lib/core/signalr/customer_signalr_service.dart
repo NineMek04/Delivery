@@ -26,6 +26,7 @@ class CustomerRiderLocationUpdatedEvent {
   final double longitude;
   final String? status;
   final DateTime? timestamp;
+  final String? snappedPolyline;
 
   const CustomerRiderLocationUpdatedEvent({
     required this.riderId,
@@ -33,6 +34,7 @@ class CustomerRiderLocationUpdatedEvent {
     required this.longitude,
     this.status,
     this.timestamp,
+    this.snappedPolyline,
   });
 }
 
@@ -182,6 +184,7 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
         return;
       }
 
+      final snappedPolyline = _asString(map['snappedPolyline'] ?? map['SnappedPolyline']);
       _riderLocationController.add(
         CustomerRiderLocationUpdatedEvent(
           riderId: riderId,
@@ -189,6 +192,7 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
           longitude: longitude,
           status: _asString(map['status'] ?? map['Status']),
           timestamp: _asDateTime(map['timestamp'] ?? map['Timestamp']),
+          snappedPolyline: snappedPolyline,
         ),
       );
     });

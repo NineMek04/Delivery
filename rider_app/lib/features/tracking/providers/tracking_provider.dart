@@ -54,9 +54,18 @@ class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
       _locationSubscription = signalR.onRiderLocationUpdated.listen((event) {
         final assignedRiderId = state.order?.assignedRiderId;
         if (assignedRiderId != null && event.riderId == assignedRiderId) {
+          final currentTimestamp = state.riderTimestamp;
+          if (currentTimestamp != null &&
+              event.timestamp != null &&
+              event.timestamp!.isBefore(currentTimestamp)) {
+            // Discard older/out-of-order coordinate to prevent marker from jumping back
+            return;
+          }
           state = state.copyWith(
             riderLat: event.latitude,
             riderLng: event.longitude,
+            riderTimestamp: event.timestamp ?? DateTime.now(),
+            snappedPolyline: event.snappedPolyline,
           );
         }
       });
@@ -99,6 +108,8 @@ class ActiveOrderState {
   final OrderDto? order;
   final double? riderLat;
   final double? riderLng;
+  final DateTime? riderTimestamp;
+  final String? snappedPolyline;
 
   const ActiveOrderState({
     this.isLoading = false,
@@ -106,6 +117,8 @@ class ActiveOrderState {
     this.order,
     this.riderLat,
     this.riderLng,
+    this.riderTimestamp,
+    this.snappedPolyline,
   });
 
   ActiveOrderState copyWith({
@@ -114,6 +127,8 @@ class ActiveOrderState {
     OrderDto? order,
     double? riderLat,
     double? riderLng,
+    DateTime? riderTimestamp,
+    String? snappedPolyline,
   }) {
     return ActiveOrderState(
       isLoading: isLoading ?? this.isLoading,
@@ -121,6 +136,8 @@ class ActiveOrderState {
       order: order ?? this.order,
       riderLat: riderLat ?? this.riderLat,
       riderLng: riderLng ?? this.riderLng,
+      riderTimestamp: riderTimestamp ?? this.riderTimestamp,
+      snappedPolyline: snappedPolyline ?? this.snappedPolyline,
     );
   }
 }

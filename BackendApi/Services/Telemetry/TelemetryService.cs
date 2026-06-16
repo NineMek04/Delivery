@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -135,11 +135,64 @@ namespace BackendApi.Services.Telemetry
                 return;
             }
 
-            // 2. ข้ามการทำ Snap-to-Road ใน Hot Path ไปก่อนเพื่อป้องกัน Thread Pool Exhaustion
-            // OSRM HTTP Request จะบล็อก Thread และเกิด Timeout (1.5s) หากมีโหลด 500 req/sec
-            // ในสถาปัตยกรรม V4, แอป Rider จะแสดงผล Snap เองที่ฝั่ง Client แล้ว ส่ง raw พิกัดมาได้เลย
+            // 2. Call OSRM Snap-to-Road asynchronously
             double snappedLat = lat;
             double snappedLng = lng;
+            bool isSnapped = false;
+            string? snappedPolyline = null;
+
+            try
+            {
+                var snappedResult = await _routingService.SnapToRoadAsync(lat, lng);
+                snappedLat = snappedResult.Lat;
+                snappedLng = snappedResult.Lng;
+                isSnapped = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to snap coordinate ({Lat}, {Lng}) for Rider {RiderId}", lat, lng, riderId);
+            }
+
+            // Resolve Snapped Polyline for active order if any
+            try
+            {
+                var activeOrder = await _dbContext.Orders
+                    .AsNoTracking()
+                    .Where(o => o.AssignedRiderId == riderId && 
+                                (o.State == OrderState.ASSIGNED || 
+                                 o.State == OrderState.PICKING_UP || 
+                                 o.State == OrderState.DELIVERING))
+                    .Select(o => new { o.State, o.PickupLocation, o.DropoffLocation })
+                    .FirstOrDefaultAsync();
+
+                if (activeOrder != null)
+                {
+                    double? destLat = null;
+                    double? destLng = null;
+
+                    if (activeOrder.State == OrderState.ASSIGNED || activeOrder.State == OrderState.PICKING_UP)
+                    {
+                        destLat = activeOrder.PickupLocation?.Y;
+                        destLng = activeOrder.PickupLocation?.X;
+                    }
+                    else if (activeOrder.State == OrderState.DELIVERING)
+                    {
+                        destLat = activeOrder.DropoffLocation?.Y;
+                        destLng = activeOrder.DropoffLocation?.X;
+                    }
+
+                    if (destLat.HasValue && destLng.HasValue)
+                    {
+                        var routeResult = await _routingService.GetRouteDetailsAsync(snappedLat, snappedLng, destLat.Value, destLng.Value);
+                        snappedPolyline = routeResult.Polyline;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve snapped polyline for Rider {RiderId}", riderId);
+            }
+
             // 3. ป้องกันการวาร์ปกระโดดข้ามพิกัดระยะไกล (Teleport Protection)
             var lastGps = await _presenceService.GetLastKnownLocationAsync(riderId);
             bool isHistoricalPoint = false;
@@ -172,11 +225,33 @@ namespace BackendApi.Services.Telemetry
                     speedKmh = (distForSpeed / timeDiffForSpeed) * 3.6; // m/s → km/h
             }
 
+            var db = _redis.GetDatabase();
+
             // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache
             if (!isHistoricalPoint)
             {
-                await _presenceService.UpdateGpsAsync(riderId, snappedLat, snappedLng, speedKmh, accuracy);
+                await _presenceService.UpdateGpsAsync(riderId, lat, lng, speedKmh, accuracy);
                 await _presenceManager.HandleRiderHeartbeatAsync(riderId);
+
+                // Save snapped coordinate to Redis Cache
+                if (isSnapped)
+                {
+                    try
+                    {
+                        var snappedGpsKey = $"riders:snapped_gps:{riderId}";
+                        await db.HashSetAsync(snappedGpsKey, new[]
+                        {
+                            new HashEntry("lat", snappedLat),
+                            new HashEntry("lng", snappedLng),
+                            new HashEntry("updated_at", DateTime.UtcNow.Ticks)
+                        });
+                        await db.KeyExpireAsync(snappedGpsKey, TimeSpan.FromHours(24));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to cache snapped coordinates to Redis for Rider {RiderId}", riderId);
+                    }
+                }
             }
 
             // 6. โยนพิกัดลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร
@@ -194,7 +269,6 @@ namespace BackendApi.Services.Telemetry
             }
 
             // 8. จัดการ Dynamic Throttling สำหรับ Broadcast ผ่าน SignalR
-            var db = _redis.GetDatabase();
             var lastBroadcastKey = $"telemetry:last_broadcast:{riderId}";
             var lastBroadcast = await db.HashGetAllAsync(lastBroadcastKey);
 
@@ -255,7 +329,8 @@ namespace BackendApi.Services.Telemetry
                     Accuracy = accuracy,
                     State = riderState,
                     Timestamp = now,
-                    isSnapped = false
+                    isSnapped = isSnapped,
+                    snappedPolyline = snappedPolyline
                 });
 
                 // B. ค้นหาออเดอร์ที่ค้างอยู่ของไรเดอร์คนนี้เพื่อส่งพิกัดหาแอปลูกค้า (ผ่าน Redis Cache เลี่ยง DB)
@@ -270,7 +345,8 @@ namespace BackendApi.Services.Telemetry
                         Accuracy = accuracy,
                         State = riderState,
                         Timestamp = now,
-                        isSnapped = false
+                        isSnapped = isSnapped,
+                        snappedPolyline = snappedPolyline
                     });
                 }
 

@@ -39,6 +39,11 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
   bool _isRouteResolved = false;
   DateTime? _lastFetchTime;
   LatLng? _lastAnimatedRiderPoint;
+  DateTime? _lastUpdateReceivedTime;
+  Duration _animationDuration = const Duration(seconds: 5);
+  String? _lastSnappedPolyline;
+  double? _prevRiderLat;
+  double? _prevRiderLng;
 
   @override
   void initState() {
@@ -56,6 +61,11 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
         _isRouteResolved = false;
         _lastFetchTime = null;
         _lastAnimatedRiderPoint = null;
+        _lastUpdateReceivedTime = null;
+        _animationDuration = const Duration(seconds: 5);
+        _lastSnappedPolyline = null;
+        _prevRiderLat = null;
+        _prevRiderLng = null;
       });
       Future.microtask(
         () => ref
@@ -166,6 +176,33 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
       state.order?.dropoffLng,
     );
 
+    // Apply real-time snapped polyline if received from SignalR
+    if (state.snappedPolyline != null && state.snappedPolyline != _lastSnappedPolyline) {
+      _lastSnappedPolyline = state.snappedPolyline;
+      final pts = ref.read(simulatedJourneyProvider).decodePolyline(state.snappedPolyline!);
+      if (pts.length >= 2) {
+        _routePoints = pts;
+        _isRouteResolved = true;
+      }
+    }
+
+    // Measure dynamic interval when coordinates change
+    if (state.riderLat != null && state.riderLng != null &&
+        (state.riderLat != _prevRiderLat || state.riderLng != _prevRiderLng)) {
+      _prevRiderLat = state.riderLat;
+      _prevRiderLng = state.riderLng;
+      
+      final now = DateTime.now();
+      if (_lastUpdateReceivedTime != null) {
+        final diff = now.difference(_lastUpdateReceivedTime!);
+        var seconds = diff.inSeconds;
+        if (seconds < 1) seconds = 1;
+        if (seconds > 6) seconds = 6;
+        _animationDuration = Duration(seconds: seconds);
+      }
+      _lastUpdateReceivedTime = now;
+    }
+
     if (state.order != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _updateRoutePoints(
@@ -212,7 +249,7 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                                   begin: _lastAnimatedRiderPoint ?? riderLatLng,
                                   end: riderLatLng,
                                 ),
-                                duration: const Duration(seconds: 1),
+                                duration: _animationDuration,
                                 builder: (context, animatedRiderPoint, child) {
                                   _lastAnimatedRiderPoint = animatedRiderPoint;
 

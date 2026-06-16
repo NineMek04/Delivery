@@ -91,6 +91,11 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   final Set<String> _requestedLocalRoutes = <String>{};
   final Map<String, String> _localRoutePolylines = <String, String>{};
 
+  DateTime? _lastUpdateReceivedTime;
+  Duration _animationDuration = const Duration(seconds: 3);
+  double? _prevLat;
+  double? _prevLng;
+
   @override
   void initState() {
     super.initState();
@@ -557,6 +562,24 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         ? LatLng(tracking.latitude!, tracking.longitude!)
         : null;
 
+    final activeRiderPoint = riderPoint ?? _simRiderPoint;
+    if (activeRiderPoint != null && (activeRiderPoint.latitude != _prevLat || activeRiderPoint.longitude != _prevLng)) {
+      _prevLat = activeRiderPoint.latitude;
+      _prevLng = activeRiderPoint.longitude;
+
+      final now = DateTime.now();
+      if (_lastUpdateReceivedTime != null) {
+        final diff = now.difference(_lastUpdateReceivedTime!);
+        var seconds = diff.inSeconds;
+        if (seconds < 1) seconds = 1;
+        if (seconds > 11) seconds = 11;
+        _animationDuration = Duration(seconds: seconds);
+      } else {
+        _animationDuration = const Duration(seconds: 3);
+      }
+      _lastUpdateReceivedTime = now;
+    }
+
     final order = delivery.activeOrder;
 
     // หากสิ้นสุดงานจำลอง (completed หรือ idle) และไม่มีงานจริง ให้เคลียร์จุดหมายและเส้นทางออก
@@ -658,10 +681,10 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
               children: [
                 TweenAnimationBuilder<LatLng>(
                   tween: LatLngTween(
-                    begin: _lastAnimatedPoint ?? riderPoint ?? _simRiderPoint ?? center,
-                    end: riderPoint ?? _simRiderPoint ?? center,
+                     begin: _lastAnimatedPoint ?? riderPoint ?? _simRiderPoint ?? center,
+                     end: riderPoint ?? _simRiderPoint ?? center,
                   ),
-                  duration: const Duration(seconds: 1),
+                  duration: _animationDuration,
                   builder: (context, animatedRiderPoint, child) {
                     _lastAnimatedPoint = animatedRiderPoint;
 

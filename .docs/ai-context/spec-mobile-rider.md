@@ -55,6 +55,8 @@
   fallback once per order/phase/reason without interrupting navigation.
 - During an active order, the map follows the rider at navigation zoom 17.5;
   route fitting is reserved for non-navigation/initial overview states.
+- การเคลื่อนที่จำลองของไรเดอร์ใช้จุดพิกัดจริงของ OSRM ที่สตรีมเข้ามา แทนการวาดเส้นพิกัดกระจัด (Straight Line) และทำการวัดระยะทางถนนจริงที่เหลืออยู่โดยหาผลรวมความยาวของเซกเมนต์ OSRM เส้นทางทั้งหมด
+- การวาดเส้นทางบนแผนที่จะคำนวณและดึงพิกัดที่ผ่านไปแล้วออก (`_getTailRoute`) เพื่อแสดงเฉพาะเส้นทางส่วนที่ยังวิ่งไม่ถึงไปยังปลายทางแบบเรียลไทม์
 - Flutter web map tiles use the Rider Nginx same-origin `/map-tiles/` proxy;
   Nginx stores successful tiles in a persistent 30-day disk cache. Native
   clients may continue using a direct tile provider with local cache.
@@ -69,6 +71,8 @@
 - create/update สำเร็จต้อง refresh provider จาก API response/DB ไม่อาศัย optimistic
   local list เพียงอย่างเดียว
 - Customer order/tracking ต้อง filter ตาม authenticated customer และ assigned rider
+- Customer order history สามารถล้างลบประวัติแบบ Soft Delete (`DelFlag = 'Y'`) ได้ผ่าน API `DELETE /api/v1/orders/customer/clear`
+- ปุ่ม "ซื้อทันที" (Buy Now) บนรายละเอียดเมนูร้านค้า ข้ามขั้นตอนการหยิบลงตะกร้าแบบเดิมโดยการล้างรายการในตะกร้าทั้งหมด แล้วเพิ่มสินค้านี้รายการเดียวพร้อมตัวเลือกเสริม จากนั้นแสดงบานหน้าต่างยืนยันสั่งซื้อและชำระเงิน (`CartBottomSheet`) ทันที
 
 ## 7. Required APIs
 
@@ -78,6 +82,7 @@ POST /api/v1/auth/refresh
 POST /api/v1/auth/logout
 GET  /api/v1/orders/my
 GET  /api/v1/orders/customer
+DELETE /api/v1/orders/customer/clear
 GET  /api/v1/orders/shop
 PATCH /api/v1/orders/{id}/status
 GET/POST/PUT/DELETE /api/v1/menu-items

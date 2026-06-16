@@ -2,7 +2,7 @@
 
 > อ่านไฟล์นี้ก่อนทุกงาน แล้วเปิดเฉพาะเอกสารที่ตรงกับขอบเขตงาน
 
-**Version:** 1.0.0 | **Last Updated:** 2026-06-14
+**Version:** 1.0.0 | **Last Updated:** 2026-06-16
 
 ## 1. Required Reading Order
 

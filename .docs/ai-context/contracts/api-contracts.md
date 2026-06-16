@@ -40,6 +40,7 @@ Register public roles จำกัด Customer, Rider, StorePartner.
 POST  /orders
 GET   /orders
 GET   /orders/customer
+DELETE /orders/customer/clear
 GET   /orders/{idOrTrackingCode}
 GET   /orders/my
 GET   /orders/shop
@@ -71,6 +72,10 @@ Create request fields:
 Server derives/validates identity and shop/menu ownership; client-supplied IDs
 ห้ามใช้ข้าม tenant. Order response uses `trackingCode`, `status`,
 `assignedRiderId`, route fields and batch fields.
+
+Clear Customer History:
+- Endpoint: `DELETE /orders/customer/clear`
+- Description: Soft-deletes all order history associated with the authenticated customer by setting `DelFlag = 'Y'` (which does a soft delete in DB via DBHandlerCore). Returns a standard success response.
 
 ## 4. Shops And Menus
 

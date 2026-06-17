@@ -1,10 +1,10 @@
-﻿# เอกสารข้อกำหนดทางสถาปัตยกรรมวิศวกรรมซอฟต์แวร์ระดับสูง (Master System Architecture & Project Specification)
+# เอกสารข้อกำหนดทางสถาปัตยกรรมวิศวกรรมซอฟต์แวร์ระดับสูง (Master System Architecture & Project Specification)
 ## โครงการ: ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์ (AI-Optimized Smart Delivery Routing System)
 
-> **เวอร์ชัน:** V3.0 — Full Technical & Academic Research Specification  
-> **จัดทำเมื่อ:** 25 พฤษภาคม 2569  
-> **ระดับความเข้มข้น:** Senior Systems Engineer / Thesis Research Level  
-> **สถานะ:** Production-Ready & Automated Build Validated  
+> **เวอร์ชัน:** V3.1 — Full Technical Specification  
+> **จัดทำเมื่อ:** 17 มิถุนายน 2569  
+> **ระดับความเข้มข้น:** Senior Systems Engineer / Technical Lead  
+> **สถานะ:** Production-Grade Prototype & Automated Build Validated  
 
 ---
 
@@ -31,7 +31,7 @@
 โปรเจกต์นี้ไม่ใช่ระบบส่งอาหารทั่วไป แต่เป็น **Intelligent Transportation Platform** ระดับวิศวกรรมที่รวมแนวคิดด้าน Distributed Systems, Event-Driven Architecture, Realtime Streaming, Spatial Computing, AI-assisted Dispatch และ High-frequency Telemetry เข้าไว้ในระบบเดียว
 
 ### 1.1 วัตถุประสงค์หลักของระบบ
-- **Realtime Order Management:** จัดการวงจรชีวิตออเดอร์ (Order Lifecycle) ตั้งแต่การจองคิวจนถึงส่งมอบสำเร็จในรูปแบบ Event-sourced ที่ตรวจสอบความถูกต้องได้
+- **Realtime Order Management:** จัดการวงจรชีวิตออเดอร์ (Order Lifecycle) ตั้งแต่การจองคิวจนถึงส่งมอบสำเร็จในรูปแบบ Event-Driven Architecture (EDA) ที่มีระบบ Idempotency ตรวจจับข้อความซ้ำผ่านตาราง ProcessedEvents
 - **Live Rider Tracking:** ติดตามพิกัดดาวเทียม (GPS) ของ Rider ความถี่ระดับ Sub-second ผ่านท่อส่งสัญญาณ SignalR WebSockets
 - **AI-assisted Dispatch:** ใช้ปัญญาประดิษฐ์และ Google OR-Tools ช่วยคำนวณลำดับจุดแวะพัก (VRP), จัดตรรกะคะแนนผู้ขับขี่ (Dispatch Score), และวิเคราะห์ความล่าช้าชั่วโมงเร่งด่วน (Rush Hour Multiplier)
 - **High-frequency Telemetry Buffer:** รับข้อมูล GPS Tick ความถี่สูง นำมาผ่านบัฟเฟอร์พัก (Aggregation Buffer) บน Redis ก่อนทำการกระจายข่าวออกและบันทึกฐานข้อมูลเพื่อป้องกัน UI แฮง
@@ -76,12 +76,12 @@
 
 ### 2.3 AI & Routing Stack (Python Engine & OSRM)
 - **FastAPI:** เว็บเฟรมเวิร์กฝั่ง Python ที่รวดเร็วและรองรับ Asynchronous I/O เป็นเลิศ
-- **Python 3.11+:** ใช้เขียนอัลกอริทึม VRP Vroom และประเมิน ML models
+- **Python 3.11+:** ใช้เขียนอัลกอริทึม VRP Vroom และโค้ด Heuristic ในการทำนายเวลา
 - **Pydantic (v2):** วาลิเดตโครงสร้าง Request/Response Schemas ก่อนเข้ากระบวนการ AI
 - **Google OR-Tools:** รันอัลกอริทึม VRP สำหรับการค้นหาเส้นทางที่ดีที่สุดตามกลยุทธ์ `PATH_CHEAPEST_ARC`
 - **NumPy & Pandas:** จัดการสไลซ์ข้อมูลและคำนวณคณิตศาสตร์แบบ Matrix
-- **Scikit-learn:** โหลดประเมินผล LinearRegression และ RandomForest สำหรับคาดการณ์เวลารับ-ส่ง (AI ETA Engine)
 - **OSRM (Open Source Routing Machine 5.x):** เครื่องคำนวณระยะทางและเวลาตามเครือข่ายถนนจริง (Dijkstra's offline algorithm) รันคู่กับ OpenStreetMap Data ภาคอีสานของประเทศไทย
+- **Deterministic ETA Engine:** ระบบคาดการณ์เวลาเดินทางที่ใช้ข้อมูลระยะเวลาเดินทางจาก OSRM เป็นฐาน ปรับแต่งด้วยตัวคูณสภาพแวดล้อม (สภาพจราจร, สภาพอากาศ, ช่วงเวลาเร่งด่วน และอัตราความเร็วจริงของไรเดอร์) แทนการใช้ live ML model
 
 ---
 
@@ -108,7 +108,6 @@
 ### 3.3 Python pip Libraries (AI Engine)
 - **`fastapi` & `uvicorn`:** คอนโทรลเลอร์และเครื่องรัน API Server
 - **`httpx`:** ไคลเอนต์ยิงคำขอ HTTP Call ไปหา OSRM Service แบบไม่บล็อก Thread (Async Client)
-- **`joblib`:** คลายข้อมูลโมเดลปัญญาประดิษฐ์ที่ถูกเซฟเก็บไว้ (Model deserialization)
 
 ---
 
@@ -241,7 +240,7 @@ Delivery/
                                                                              │
          ┌─────────────────────────── (กระจายส่งไปยังผู้ฟัง) ────────────────┘
          ├────────► [ FastAPI Engine ]: ประเมินผล ETA & Scoring
-         ├────────► [ NotificationService ]: ส่ง FCM เด้งมือถือลูกค้า
+         ├────────► [ NotificationService ]: ส่ง SignalR Alerts (และ FCM ในอนาคต)
          └────────► [ AnalyticsService ]: อัปเดตข้อมูลกราฟแอดมิน
 ```
 

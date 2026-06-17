@@ -1,4 +1,4 @@
-﻿# AI-aLUEPRINT: Smart Delivery Routing System
+# AI-aLUEPRINT: Smart Delivery Routing System
 
 > **⚠️ AI AGENT NOTICE:** 
 > This file is now a **Historical Archive (Layer 1)**. For targeted context, start by reading `AI-INDEX.md` and navigate to `.docs/ai-context/` instead to save tokens and prevent context overload.
@@ -6,8 +6,8 @@
 > **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
 > **English:** AI-Optimized Smart Delivery Routing System  
 > **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **Version:** 0.9.0 (Phase 5: Real-world Routing & Real-time Dispatch Simulation)  
-> **Last Updated:** 2026-05-20
+> **Version:** 0.9.1 (Phase 6: Production-Grade Prototype)  
+> **Last Updated:** 2026-06-17
 
 ---
 
@@ -152,7 +152,7 @@ Delivery/
 ## 5. Current State of Development
 
 ### สถานะรวม: 🔵 **Phase 5 — Data-Driven Observability (Testing Dashboard)** (สำเร็จ 100%)
-### สถานะรวม: 🟢 **Phase 6 — Production Readiness & Operational Intelligence** (สำเร็จ 100% สำหรับ Core aackend/AI/Testing/Dashboard)
+### สถานะรวม: 🟢 **Phase 6 — Production-Grade Prototype** (สำเร็จ 95% สำหรับ Core backend/AI/Testing/Dashboard/Mobile Apps)
 
 | Component            | Status            | รายละเอียด                                                    |
 |----------------------|-------------------|--------------------------------------------------------------|
@@ -165,7 +165,8 @@ Delivery/
 | **ai-engine**        | ✅ 100% Ready      | FastAPI + OR-Tools VRP solver, Phase A Scorer, และ ETA Prediction Engine |
 | **admin-dashboard**  | ✅ 100% Ready      | Live maps, Smooth Linear Interpolation, On-Demand Route history, และ SignalR live tracking |
 | **test-dashboard**   | ✅ 100% Ready      | Testing Dashboard (Node.js + aullMQ + Angular + Socket.IO + Xterm + Chart.js Gauge/Line charts) พร้อมดึง Metrics (RPS, Latency, Errors) |
-| **rider_app**        | 🟢 50% Ready       | SQLite Local auffer (via sqflite), Timer Sync Engine, and Riverpod integration complete. |
+| **rider_app**        | 🟢 95% Ready       | SQLite Local buffer (via sqflite), Timer Sync Engine, background GPS stream, and Riverpod integration complete. |
+| **customer_store**   | 🟢 95% Ready       | Customer checkout flow, Store partner dashboard/management, and tracking map fully functional. |
 | **E2E Simulator**    | ✅ 100% Ready      | Node.js script เชื่อมต่อเต็มรูปแบบ รองรับเส้นทาง OSRM, GPS Jitter, SignalR Flow พร้อมกันหลาย Rider |
 | **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
 | **Database Migration**| ✅ Applied         | Run `dotnet ef database update` สำหรับ Spatial Index, Partitioning, และ RefNumber ล่าสุด |
@@ -174,7 +175,7 @@ Delivery/
 | **E2E Testcontainers**| ✅ 100% Passed     | รัน integration tests แบบ End-to-End บน Testcontainers PostGIS Docker จริง ผ่านฉลุย 5/5 เคส |
 | **Integration Tests**| ✅ 100% Passed     | รันผ่าน 43/43 เคส (รวม Telemetry aatch Ingestion) ด้วย Testcontainers PostGIS + Redis แบบ Hermetic Sandbox |
 | **Stress/Load Tests**| ✅ 100% Passed     | สคริปต์ Node.js สำหรับเทสโหลด SignalR, API, Dispatch และ Reconnect stability |
-| **Analytics & ETA**  | ✅ 100% Ready      | AI ประเมินเวลาส่งอัตโนมัติ และ Dashboard summary endpoints สำหรับ Admin |
+| **Analytics & ETA**  | ✅ 100% Ready      | Deterministic OSRM-based ETA adjustment engine และ Dashboard summary endpoints สำหรับ Admin |
 | **AI-OS Context**    | ✅ Implemented     | ใช้งาน `AI-INDEX.md` ในการจัดการ context อย่างแม่นยำและประหยัด Token |
 
 
@@ -253,8 +254,8 @@ Delivery/
 - **การจัดสิทธิ์และเส้นทางแผนผัง:** [gorouter-rbac.md](CODEaASE_PATTERNS/gorouter-rbac.md) (GoRouter RaAC & Refresh Listenable)
 
 ### 9.1 สถานะภาพรวมโครงการโมบาย (ณ ปัจจุบัน)
-- **Rider App (Flutter):** 🟢 50% Ready (โครงสร้าง Auth, Secure Storage, SignalR, aackground GPS, SQLite/sqflite offline buffer และ GoRouter RaAC พร้อมใช้งาน)
-- **Customer / Store Partner App:** 🟡 วางแผนพัฒนาในเฟสถัดไปหลังจาก REST API/WS ในส่วนที่เกี่ยวข้อง of aackend API เสร็จสิ้น
+- **Rider App (Flutter):** 🟢 95% Ready (โครงสร้าง Auth, Secure Storage, SignalR, background GPS, SQLite/sqflite offline buffer, OSRM dynamic routing, และ GoRouter RBAC ทำงานครบวงจร)
+- **Customer / Store Partner App:** 🟢 95% Ready (ระบบสั่งอาหาร ตะกร้าสินค้า ข้ามขั้นตอนหยิบลงตะกร้า Buy Now, และ Store Management Dashboard ทำงานร่วมกับ Backend สมบูรณ์)
 
 ---
 ## Latest Working Context - 2026-05-20 Sim Realtime Dispatch Map
@@ -298,13 +299,12 @@ Delivery/
 - When Flutter rider app is ready, replace the simulator GPS/acceptance flow with real rider app events while keeping the same SignalR/backend event contract.
 
 ### สิ่งที่ยังเหลือต้องทำ (Next Action Items) สำหรับโปรเจกต์ Delivery
- - เมื่อระบบแกนกลาง (Core aackend, AI, Database) เสถียรและทดสอบ E2E ผ่านหมดแล้ว 
-### งานที่เหลือจะมุ่งเน้นไปที่ส่วนที่เชื่อมต่อกับ ผู้ใช้งานจริง (End Users) ครับ:
-  1. 📱 ฝั่งแอปพลิเคชันมือถือ (Priority สูงสุด)
-    - Rider App (Flutter): ขึ้นโครง UI จริงทั้งหมด (Login, Home Dashboard แบบมี Toggle รับงาน, หน้า Active Delivery, และ Map Tracking) และเขียนระบบ Service ในการส่ง GPS เบื้องหลัง (aackground Service)
-    - Customer App / Store Partner App: เนื่องจากเราทำ Prototype ของ 2 ฝั่งนี้บน Angular เรียบร้อยแล้ว (สามารถกดสั่ง, เปิดปิดร้าน, สร้างออเดอร์) ขั้นต่อไปคือการยกฟีเจอร์นี้ไปทำเป็น Mobile App หรือ Web PWA ครับ
-  2. ⚙️ ฝั่ง aackend API (Tier 2/3)
-    - ระบบการแจ้งเตือน (Push Notifications): ฝัง Firebase Cloud Messaging (FCM) เพื่อให้เวลา AI หางานเจอ หรือเวลาสถานะออเดอร์เปลี่ยน แจ้งเตือนจะเด้งเข้ามือถือแม้แอปปิดอยู่
-    - ETA & Pricing: ปรับแต่งสูตรคำนวณเวลาถึงโดยประมาณ (ETA) ให้ละเอียดขึ้นโดยใช้ความเร็วรถและระยะทางจาก OSRM รวมถึงทำระบบ Payment (ถ้าจำเป็น)
+ - เมื่อระบบแกนกลางและแอปพลิเคชันต้นแบบเสถียรและทดสอบ E2E ผ่านหมดแล้ว
+### งานที่เหลือสำหรับพัฒนาระดับ Enterprise Production (ในอนาคต):
+  1. 📱 ฝั่งแอปพลิเคชันมือถือ
+    - ปรับแต่งความเสถียรของแอปพลิเคชันและการสลับโหมด Network ในการจำลองการขับขี่
+  2. ⚙️ ฝั่ง backend API
+    - ระบบการแจ้งเตือน (Enterprise Push Notifications): นำเข้า Firebase Cloud Messaging (FCM) แทน SignalR alerts ทั่วไปเพื่อรับข้อความขณะปิดแอปพลิเคชัน
+    - Payment Gateway Integration: ทำระบบชำระเงินออนไลน์
   3. 💻 ฝั่ง Admin Dashboard
-    - เก็บตกหน้าจอที่เหลือ เช่น หน้าจัดการ Rider เชิงลึก (Activate/Deactivate, ดูประวัติรายบุคคล) และระบบจัดการร้านค้าครับ
+    - เก็บตกหน้าจอจัดการสิทธิ์การปรับแต่งระบบยืดหยุ่นเพิ่มเติม

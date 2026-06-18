@@ -75,7 +75,11 @@ Server derives/validates identity and shop/menu ownership; client-supplied IDs
 
 Clear Customer History:
 - Endpoint: `DELETE /orders/customer/clear`
-- Description: Soft-deletes all order history associated with the authenticated customer by setting `DelFlag = 'Y'` (which does a soft delete in DB via DBHandlerCore). Returns a standard success response.
+- Contract: Soft-deletes all order history associated with the authenticated
+  customer. Entities that inherit the current base model must use `IsDeleted =
+  true`; legacy entities with `DelFlag`/`DEL_FLAG` may keep that compatibility
+  path. This endpoint must never physically delete completed customer history.
+  Returns a standard success response.
 
 ## 4. Shops And Menus
 
@@ -116,7 +120,7 @@ GET /rider-locations/{riderId}/history?from=...&to=...
 POST /telemetry/gps
 POST /telemetry/gps/batch
 POST /telemetry/client-route-fallback
-GET /telemetry/mobile-config
+GET /telemetry/config/mobile
 POST /rider-routes/resolve
 ```
 

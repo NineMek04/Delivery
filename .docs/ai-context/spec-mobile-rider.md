@@ -71,7 +71,7 @@
 - create/update สำเร็จต้อง refresh provider จาก API response/DB ไม่อาศัย optimistic
   local list เพียงอย่างเดียว
 - Customer order/tracking ต้อง filter ตาม authenticated customer และ assigned rider
-- Customer order history สามารถล้างลบประวัติแบบ Soft Delete (`DelFlag = 'Y'`) ได้ผ่าน API `DELETE /api/v1/orders/customer/clear`
+- Customer order history สามารถล้างลบประวัติแบบ Soft Delete ได้ผ่าน API `DELETE /api/v1/orders/customer/clear`; current entities use `IsDeleted`, while legacy entities may use `DelFlag`.
 - ปุ่ม "ซื้อทันที" (Buy Now) บนรายละเอียดเมนูร้านค้า ข้ามขั้นตอนการหยิบลงตะกร้าแบบเดิมโดยการล้างรายการในตะกร้าทั้งหมด แล้วเพิ่มสินค้านี้รายการเดียวพร้อมตัวเลือกเสริม จากนั้นแสดงบานหน้าต่างยืนยันสั่งซื้อและชำระเงิน (`CartBottomSheet`) ทันที
 - **Store Dashboard / Management Screen Flow:** 
   - จัดการรายการเมนูร้านค้า (ดู/ลบ/แก้ไข ในรูปแบบ Grid เมนูการ์ด รวมถึงการเลือกปักหมุดตำแหน่งร้านค้าด้วยแผนที่)

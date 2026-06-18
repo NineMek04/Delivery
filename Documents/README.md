@@ -6,6 +6,10 @@
 
 ## 📚 รายชื่อคู่มือแยกตามหมวดหมู่ (Documentation Directory Catalog)
 
+### 0. เอกสารส่งต่อทีมล่าสุด (Recommended Handoff Pack)
+*   👉 [Delivery System Handoff](handoff/README.md)
+    *(ชุดเอกสารอ่านต่อทีม แยกตาม Backend, Realtime, Flutter, Admin, DevOps, AI/OSRM พร้อม audit ว่าเอกสารเดิมตรงหรือไม่ตรงกับ codebase)*
+
 ### ⚙️ 1. คู่มือการตั้งค่าติดตั้งบริการ (Service Setup Guides)
 *   👉 [PostgreSQL & PgBouncer Database Manual](setup/DATABASE-SETUP.md)  
     *(การตั้งค่าตาราง GIS PostGIS, สระจำลองธุรกรรม PgBouncer Transaction Mode และข้อพึงระวัง ORM)*
@@ -36,9 +40,9 @@
 *   👉 [Core Codebase Patterns & Architecture Technical Manual Directory](development/CODEBASE_PATTERNS/README.md)  
     *(คู่มืออธิบายรูปแบบโครงสร้างโค้ดแยกย่อย: Base Controllers, Base Services, Middlewares/Headers, Validation & GIS index, Mapster, FastAPI Threading, Auto migrations, ThreadPool starvation, Idempotency, Concurrency locks, Frontend memory leaks และ trace logging)*
 *   👉 [Project Specification Master Sheet (PROJECT-SPEC.md)](development/PROJECT-SPEC.md)  
-    *(ข้อกำหนดเชิงเทคนิคและสัญญาเชื่อมต่อระบบทั้งหมดของโปรเจกต์เดิม)*
+    *(สเปกระบบรวมทุกส่วนสำหรับทีมส่งต่อ อ่านเพื่อเข้าใจ requirements, contracts, runtime, testing และ operations ทั้งระบบ)*
 *   👉 [AI Architecture Blueprint (AI-BLUEPRINT.md)](development/AI-BLUEPRINT.md)  
-    *(พิมพ์เขียวความเข้ากันได้ของระบบ AI VRP Solver และสูตร Dijkstra)*
+    *(พิมพ์เขียว AI-assisted dispatch, routing, telemetry และ realtime delivery coordination โดยไม่ปนกับ full system spec)*
 *   👉 [Project context reference (project-context.md)](development/project-context.md)  
     *(รายละเอียดบริบทของโครงการในการจับคู่ออเดอร์แบบเรียลไทม์)*
 

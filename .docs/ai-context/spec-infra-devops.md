@@ -8,7 +8,8 @@ Active services:
 
 `db`, `pgbouncer`, `backend`, `redis`, `ai-service`, `frontend`, `rider-app`,
 `osrm`, `nginx-proxy`, `seq`, `prometheus`, `grafana`, `alertmanager`,
-`rabbitmq`, `vault`, `vault-bootstrap`
+`rabbitmq`, `vault`, `vault-bootstrap`, `cadvisor`, `node-exporter`,
+`postgres-exporter`, `redis-exporter`
 
 Base compose ไม่ควร expose internal ports. Development override bind ทุก port
 กับ `127.0.0.1`.
@@ -32,6 +33,11 @@ argument defaults to `false` and production must not enable it.
 | Grafana | 3000 | 3000 |
 | RabbitMQ UI | 15672 | 15672 |
 | Vault | 8200 | 8200 |
+| Alertmanager | 9093 | 9093 |
+| cAdvisor | internal | 8080 |
+| Node exporter | internal | 9100 |
+| PostgreSQL exporter | internal | 9187 |
+| Redis exporter | internal | 9121 |
 
 ## 2. Database And Cache
 

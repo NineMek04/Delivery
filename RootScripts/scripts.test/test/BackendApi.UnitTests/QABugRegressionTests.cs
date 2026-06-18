@@ -31,6 +31,8 @@ using BackendApi.Services.Tracking;
 using StackExchange.Redis;
 using BackendApi.Infrastructure.Redis;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
+using BackendApi.Core.DataHandlers;
 using Order = BackendApi.Models.Entities.Order;
 using Mapster;
 
@@ -73,6 +75,53 @@ public class QABugRegressionTests
         }.Adapt<RiderDto>();
 
         Assert.Equal("RESERVED", dto.Status);
+    }
+
+    [Fact]
+    public async Task DeleteObjectAsync_WhenEntityUsesIsDeleted_SetsSoftDeleteFieldsDirectly()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var currentUserService = new Mock<ICurrentUserService>();
+        var dbContext = new ApplicationDbContext(options, currentUserService.Object);
+
+        var userId = Guid.NewGuid();
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new Claim(ClaimTypes.Name, "QA User")
+                ],
+                "TestAuth"))
+        };
+        httpContext.Connection.RemoteIpAddress = IPAddress.Parse("127.0.0.1");
+
+        var accessor = new Mock<IHttpContextAccessor>();
+        accessor.SetupGet(x => x.HttpContext).Returns(httpContext);
+        var db = new DBHandlerCore(dbContext, new ConditionContext(), accessor.Object);
+
+        var shop = new Shop
+        {
+            Id = "shop-soft-delete",
+            Name = "Soft Delete Shop",
+            MenuName = "Menu",
+            MenuPrice = 10,
+            RowVersion = []
+        };
+        dbContext.Shops.Add(shop);
+        await dbContext.SaveChangesAsync();
+
+        var deleted = await db.DeleteObjectAsync<Shop>(shop.Id, softDelete: true);
+
+        Assert.NotNull(deleted);
+        Assert.True(deleted.IsDeleted);
+        Assert.NotNull(deleted.DeletedAt);
+        Assert.Equal(userId, deleted.DeletedByUserId);
+        Assert.Equal("QA User", deleted.DeletedByName);
+        Assert.Equal("127.0.0.1", deleted.DeletedFromIp);
+        Assert.Equal(EntityState.Modified, dbContext.Entry(deleted).State);
     }
 
     [Fact]

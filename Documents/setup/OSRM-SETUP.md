@@ -8,7 +8,7 @@
 
 ในระบบ **Smart Delivery Routing System** การคำนวณระยะทางและพิกัดถนนจริงสำหรับจัดส่งสินค้าแบบวินาทีต่อวินาที (Real-road Dijkstra Routing) จำเป็นต้องมีประสิทธิภาพสูงมาก (Latency < 200ms) เพื่อหลีกเลี่ยงคอขวดบนฐานข้อมูลและคงประสิทธิภาพของเครื่องยนต์ AI (VRP Solver)
 
-ระบบของเราออกแบบมาโดยใช้สถาปัตยกรรมนำร่องระบบขนส่งออฟไลน์ความเร็วสูงควบคู่ไปกับแผนสำรองออนไลน์แบบยืดหยุ่น:
+ระบบของเราออกแบบมาโดยใช้สถาปัตยกรรมนำร่องระบบขนส่งออฟไลน์ความเร็วสูง โดยเรียก Local OSRM ภายในเครือข่ายเท่านั้น และใช้ Haversine fallback ภายในระบบเมื่อ OSRM ไม่พร้อมใช้งาน:
 
 ```
                   ┌───────────────────────────────┐
@@ -25,14 +25,8 @@
        │ (Offline Engine Port 5001)│                          │
  ┌─────▼──────────┐               │                          ▼
  │ Returns Route  │               │              ┌────────────────────────┐
- └────────────────┘               │              │ 3. Public OSRM API     │ (Dijkstra Online Fallback)
+ └────────────────┘               │              │ 3. Haversine Straight  │ (Local emergency fallback)
                                  │              └──────────┬─────────────┘
-                                 │                         │
-                                 │       Success           │ Fail (完全 Offline)
-                                 │                         ▼
-                                 │              ┌────────────────────────┐
-                                 │              │ 4. Haversine Straight  │ (Emergency fallback)
-                                 │              └────────────────────────┘
                                  │
               ┌──────────────────▼──────────────────┐
               │ 5. Google Polyline Compression (99%)│
@@ -144,10 +138,9 @@ docker run --rm --user root -v "$(pwd)/osrm_data:/data" osrm/osrm-backend osrm-c
 ## 4. โครงสร้างความน่าเชื่อถือและการบีบอัดข้อมูลฝั่งหลังบ้าน (Backend Implementation)
 
 ### 🛡️ 1. อัลกอริทึม Resilience Dijkstra Fallback
-คลาส [OsrmRoutingService.cs](../../BackendApi/Services/Ai/OsrmRoutingService.cs) ฝั่งหลังบ้านได้รับการติดตั้ง **Polly Policy (2 Retries + 15s Circuit Breaker)** เพื่อตัดการเชื่อมต่อทันทีที่ OSRM ออฟไลน์สะดุดและส่งต่อไปยัง Public OSRM อัตโนมัติ ป้องกันไม่ให้ออเดอร์ค้างหรือ API โหลดช้า:
+คลาส [OsrmRoutingService.cs](../../BackendApi/Features/AiRouting/OsrmRoutingService.cs) ฝั่งหลังบ้านใช้ **Polly Retry + Circuit Breaker** เรียก Local OSRM เท่านั้น หาก OSRM ล่มจะ fallback เป็น Haversine ภายในเครื่องเพื่อป้องกันข้อมูล GPS หลุดออกไปนอกระบบ:
 
 ```csharp
-// สลับเรียกออฟไลน์ท้องถิ่นหรือออนไลน์ตามความพร้อม
 var url = $"{_localOsrmUrl}/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=full&geometries=geojson";
 try
 {
@@ -155,8 +148,7 @@ try
 }
 catch
 {
-    var publicUrl = $"http://router.project-osrm.org/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=full&geometries=geojson";
-    response = await _httpClient.GetAsync(publicUrl);
+    return HaversineRouteFallback(startLat, startLng, endLat, endLng);
 }
 ```
 

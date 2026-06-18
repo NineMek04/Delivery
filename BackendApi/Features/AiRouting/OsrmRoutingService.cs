@@ -186,6 +186,33 @@ namespace BackendApi.Services.Ai
         /// </summary>
         public async Task<(double Lat, double Lng)> SnapToRoadAsync(double lat, double lng)
         {
+            var roundedLat = Math.Round(lat, 4);
+            var roundedLng = Math.Round(lng, 4);
+            var cacheKey = string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "route:snap:cache:{0:F4}:{1:F4}",
+                roundedLat, roundedLng);
+
+            var db = _redis.GetDatabase();
+
+            try
+            {
+                var cached = await db.StringGetAsync(cacheKey);
+                if (cached.HasValue)
+                {
+                    _logger.LogInformation("Snapped coordinates retrieved from Redis Cache: {Key}", cacheKey);
+                    using var doc = JsonDocument.Parse(cached.ToString());
+                    var root = doc.RootElement;
+                    var cachedLat = root.GetProperty("lat").GetDouble();
+                    var cachedLng = root.GetProperty("lng").GetDouble();
+                    return (cachedLat, cachedLng);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read snap cache from Redis.");
+            }
+
             using var timer = OperationalMetrics.OsrmRequestDuration.WithLabels("nearest").NewTimer();
             var latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var lngStr = lng.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -215,6 +242,19 @@ namespace BackendApi.Services.Ai
                             var location = waypoint.GetProperty("location");
                             var snappedLng = location[0].GetDouble();
                             var snappedLat = location[1].GetDouble();
+
+                            // Save to Redis Snap Cache
+                            try
+                            {
+                                var cacheData = new { lat = snappedLat, lng = snappedLng };
+                                await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(cacheData), TimeSpan.FromHours(24));
+                                _logger.LogInformation("Snapped coordinates successfully saved to Redis Cache: {Key}", cacheKey);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to write snap cache to Redis.");
+                            }
+
                             return (snappedLat, snappedLng);
                         }
                     }

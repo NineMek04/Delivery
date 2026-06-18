@@ -17,6 +17,7 @@ Redis เป็น operational cache เท่านั้น; PostgreSQL เป
 | `dispatch:inject_lock:rider:{riderId}` | String | short | batch injection lock |
 | `lock:offer:{offerId}` | String | short | accept/reject concurrency |
 | `route:cache:{lat1:F5}:{lng1:F5}:{lat2:F5}:{lng2:F5}` | String | 24 h | OSRM result cache |
+| `route:snap:cache:{lat:F4}:{lng:F4}` | String | 24 h | OSRM nearest snap cache |
 
 ## Rules
 

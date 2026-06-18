@@ -27,6 +27,8 @@ class CustomerRiderLocationUpdatedEvent {
   final String? status;
   final DateTime? timestamp;
   final String? snappedPolyline;
+  final double? routeDistance;
+  final double? routeDuration;
 
   const CustomerRiderLocationUpdatedEvent({
     required this.riderId,
@@ -35,6 +37,8 @@ class CustomerRiderLocationUpdatedEvent {
     this.status,
     this.timestamp,
     this.snappedPolyline,
+    this.routeDistance,
+    this.routeDuration,
   });
 }
 
@@ -185,6 +189,8 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
       }
 
       final snappedPolyline = _asString(map['snappedPolyline'] ?? map['SnappedPolyline']);
+      final routeDist = _asDouble(map['routeDistance'] ?? map['RouteDistance']);
+      final routeDur = _asDouble(map['routeDuration'] ?? map['RouteDuration']);
       _riderLocationController.add(
         CustomerRiderLocationUpdatedEvent(
           riderId: riderId,
@@ -193,6 +199,8 @@ class CustomerSignalRService extends Notifier<CustomerSignalRState> {
           status: _asString(map['status'] ?? map['Status']),
           timestamp: _asDateTime(map['timestamp'] ?? map['Timestamp']),
           snappedPolyline: snappedPolyline,
+          routeDistance: routeDist,
+          routeDuration: routeDur,
         ),
       );
     });

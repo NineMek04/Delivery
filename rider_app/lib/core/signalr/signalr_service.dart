@@ -44,13 +44,16 @@ class RiderStatusResult {
   });
 }
 
-/// Rider location event used by simulation mirror UI.
+/// Rider location event used by simulation mirror UI and real-time route updates.
 class RiderLocationUpdateEvent {
   final String riderId;
   final double latitude;
   final double longitude;
   final String status;
   final DateTime timestamp;
+  final String? snappedPolyline;
+  final double? routeDistance;
+  final double? routeDuration;
 
   const RiderLocationUpdateEvent({
     required this.riderId,
@@ -58,6 +61,9 @@ class RiderLocationUpdateEvent {
     required this.longitude,
     required this.status,
     required this.timestamp,
+    this.snappedPolyline,
+    this.routeDistance,
+    this.routeDuration,
   });
 }
 
@@ -367,6 +373,9 @@ class SignalRService extends Notifier<SignalRConnectionState> {
       if (riderId.isEmpty || latitude == null || longitude == null) return;
 
       final timestampRaw = map['timestamp']?.toString() ?? map['Timestamp']?.toString();
+      final snappedPoly = map['snappedPolyline']?.toString() ?? map['SnappedPolyline']?.toString();
+      final routeDist = _toDouble(map['routeDistance'] ?? map['RouteDistance']);
+      final routeDur = _toDouble(map['routeDuration'] ?? map['RouteDuration']);
       _riderLocationController.add(
         RiderLocationUpdateEvent(
           riderId: riderId,
@@ -374,6 +383,9 @@ class SignalRService extends Notifier<SignalRConnectionState> {
           longitude: longitude,
           status: map['status']?.toString() ?? map['Status']?.toString() ?? 'UNKNOWN',
           timestamp: timestampRaw != null ? (DateTime.tryParse(timestampRaw) ?? DateTime.now()) : DateTime.now(),
+          snappedPolyline: (snappedPoly != null && snappedPoly.isNotEmpty) ? snappedPoly : null,
+          routeDistance: routeDist,
+          routeDuration: routeDur,
         ),
       );
     });

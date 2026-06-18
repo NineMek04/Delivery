@@ -31,7 +31,7 @@ class CustomerTrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<CustomerTrackingScreen> createState() => _CustomerTrackingScreenState();
 }
 
-class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen> {
+class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   List<LatLng> _routePoints = [];
   bool _fetchingRoute = false;
@@ -45,10 +45,72 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
   double? _prevRiderLat;
   double? _prevRiderLng;
 
+  bool _mapReady = false;
+  String? _lastFollowSignature;
+  late final AnimationController _positionAnimController;
+  late final AnimationController _routeAnimController;
+  LatLng _animatedRiderPosition = const LatLng(17.4138, 102.7872);
+  LatLng? _animTargetPosition;
+
   @override
   void initState() {
     super.initState();
+    final activeOrder = ref.read(activeOrderProvider);
+    if (activeOrder.riderLat != null && activeOrder.riderLng != null) {
+      _animatedRiderPosition = LatLng(activeOrder.riderLat!, activeOrder.riderLng!);
+    }
+    _positionAnimController = AnimationController(
+      vsync: this,
+      duration: _animationDuration,
+    )..addListener(_onPositionAnimTick);
+    // Repeating controller drives the flowing dashed line animation (marching ants)
+    _routeAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
     Future.microtask(() => ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId));
+  }
+
+  void _onPositionAnimTick() {
+    if (_animTargetPosition == null || _lastAnimatedRiderPoint == null) return;
+    final t = _positionAnimController.value;
+    final begin = _lastAnimatedRiderPoint!;
+    final end = _animTargetPosition!;
+    final lat = begin.latitude + (end.latitude - begin.latitude) * t;
+    final lng = begin.longitude + (end.longitude - begin.longitude) * t;
+    setState(() {
+      _animatedRiderPosition = LatLng(lat, lng);
+    });
+  }
+
+  void _onRiderPositionChanged(LatLng newPoint) {
+    final now = DateTime.now();
+    if (_lastUpdateReceivedTime != null) {
+      final diff = now.difference(_lastUpdateReceivedTime!);
+      var seconds = diff.inSeconds;
+      if (seconds < 1) seconds = 1;
+      if (seconds > 6) seconds = 6;
+      _animationDuration = Duration(seconds: seconds);
+    } else {
+      _animationDuration = const Duration(seconds: 5);
+    }
+    _lastUpdateReceivedTime = now;
+
+    _lastAnimatedRiderPoint = _animatedRiderPosition;
+    _animTargetPosition = newPoint;
+    _positionAnimController.duration = _animationDuration;
+    _positionAnimController.forward(from: 0.0);
+  }
+
+  void _followRider(LatLng point, String signature) {
+    if (!_mapReady || _lastFollowSignature == signature) return;
+    _lastFollowSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mapReady) return;
+      try {
+        _mapController.move(point, 15.0);
+      } catch (_) {}
+    });
   }
 
   @override
@@ -66,13 +128,72 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
         _lastSnappedPolyline = null;
         _prevRiderLat = null;
         _prevRiderLng = null;
+        _animTargetPosition = null;
       });
+      _positionAnimController.stop();
       Future.microtask(
         () => ref
             .read(activeOrderProvider.notifier)
             .watchOrder(widget.orderId),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _positionAnimController.dispose();
+    _routeAnimController.dispose();
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  /// Builds an animated dashed polyline layer driven by [_routeAnimController].
+  /// Simulates the "marching ants" flowing dash effect from the test-dashboard.
+  /// [isPickup] = true → orange dashes (heading to store)
+  ///              false → cyan dashes (delivering to customer)
+  Widget _buildAnimatedPolylineLayer(List<LatLng> points, {required bool isPickup}) {
+    const double dashLength = 20.0;
+    const double gapLength = 12.0;
+    const double totalPattern = dashLength + gapLength;
+    final Color routeColor = isPickup
+        ? const Color(0xFFFF9800)   // orange — pickup
+        : const Color(0xFF00E5FF);  // cyan   — delivery
+
+    return AnimatedBuilder(
+      animation: _routeAnimController,
+      builder: (context, _) {
+        // Shift the dash/gap lengths to create a sliding offset illusion.
+        final double offset = _routeAnimController.value * totalPattern;
+        // segments alternates [dash, gap, dash, gap...].
+        // Leading dash of 'offset' shifts the phase; the trailing full cycle
+        // ensures the pattern tiles seamlessly.
+        final List<double> segments = [
+          offset,       // leading partial dash (phase shift)
+          gapLength,
+          dashLength,
+          gapLength,
+        ];
+        return PolylineLayer(
+          polylines: [
+            Polyline(
+              points: points,
+              color: routeColor.withValues(alpha: 0.90),
+              strokeWidth: 5.0,
+              pattern: StrokePattern.dashed(
+                segments: segments,
+                patternFit: PatternFit.extendFinalDash,
+              ),
+            ),
+            // Faded base line for depth/contrast
+            Polyline(
+              points: points,
+              color: routeColor.withValues(alpha: 0.20),
+              strokeWidth: 5.0,
+            ),
+          ],
+        );
+      },
+    );
   }
 
   List<LatLng> _getTailRoute(List<LatLng> fullRoute, LatLng currentPos) {
@@ -191,16 +312,20 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
         (state.riderLat != _prevRiderLat || state.riderLng != _prevRiderLng)) {
       _prevRiderLat = state.riderLat;
       _prevRiderLng = state.riderLng;
-      
-      final now = DateTime.now();
-      if (_lastUpdateReceivedTime != null) {
-        final diff = now.difference(_lastUpdateReceivedTime!);
-        var seconds = diff.inSeconds;
-        if (seconds < 1) seconds = 1;
-        if (seconds > 6) seconds = 6;
-        _animationDuration = Duration(seconds: seconds);
-      }
-      _lastUpdateReceivedTime = now;
+      final newPoint = LatLng(state.riderLat!, state.riderLng!);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _onRiderPositionChanged(newPoint);
+      });
+    }
+
+    if (state.riderLat != null && state.riderLng != null && state.order != null) {
+      final riderLatLng = LatLng(state.riderLat!, state.riderLng!);
+      _followRider(
+        riderLatLng,
+        '${state.order!.id}|${state.riderLat!.toStringAsFixed(5)}|'
+        '${state.riderLng!.toStringAsFixed(5)}',
+      );
     }
 
     if (state.order != null) {
@@ -240,83 +365,76 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                           flex: 3,
                           child: Builder(
                             builder: (context) {
-                              final riderLatLng = state.riderLat != null && state.riderLng != null
-                                  ? LatLng(state.riderLat!, state.riderLng!)
-                                  : (pickupPoint ?? dropoffPoint ?? const LatLng(17.4138, 102.7872));
-
-                              return TweenAnimationBuilder<LatLng>(
-                                tween: LatLngTween(
-                                  begin: _lastAnimatedRiderPoint ?? riderLatLng,
-                                  end: riderLatLng,
+                              return FlutterMap(
+                                mapController: _mapController,
+                                options: MapOptions(
+                                  initialCenter: pickupPoint ??
+                                      dropoffPoint ??
+                                      const LatLng(17.4138, 102.7872),
+                                  initialZoom: 14,
+                                  onMapReady: () {
+                                    setState(() => _mapReady = true);
+                                  },
                                 ),
-                                duration: _animationDuration,
-                                builder: (context, animatedRiderPoint, child) {
-                                  _lastAnimatedRiderPoint = animatedRiderPoint;
-
-                                  return FlutterMap(
-                                    mapController: _mapController,
-                                    options: MapOptions(
-                                      initialCenter: pickupPoint ??
-                                          dropoffPoint ??
-                                          const LatLng(17.4138, 102.7872),
-                                      initialZoom: 14,
+                                children: [
+                                  TileLayer(
+                                    urlTemplate: kIsWeb
+                                        ? '/map-tiles/{z}/{x}/{y}.png'
+                                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    userAgentPackageName: 'com.delivery.customer_app',
+                                  ),
+                                  if (_routePoints.isNotEmpty && state.riderLat != null && state.riderLng != null)
+                                    Builder(
+                                      builder: (context) {
+                                        final bool useLiveRoute = state.snappedPolyline != null && state.snappedPolyline!.isNotEmpty;
+                                        final List<LatLng> displayPoints = useLiveRoute
+                                            ? _routePoints
+                                            : _getTailRoute(_routePoints, _animatedRiderPosition);
+                                        // Determine phase: PICKUP (to store) or DELIVERY (to customer)
+                                        final bool isPickupPhase = !(state.order?.status == 'DELIVERING');
+                                        return _buildAnimatedPolylineLayer(
+                                          displayPoints,
+                                          isPickup: isPickupPhase,
+                                        );
+                                      }
                                     ),
-                                    children: [
-                                      TileLayer(
-                                        urlTemplate: kIsWeb
-                                            ? '/map-tiles/{z}/{x}/{y}.png'
-                                            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                        userAgentPackageName: 'com.delivery.customer_app',
-                                      ),
-                                      if (_routePoints.isNotEmpty && state.riderLat != null && state.riderLng != null)
-                                        PolylineLayer(
-                                          polylines: [
-                                            Polyline(
-                                              points: _getTailRoute(_routePoints, animatedRiderPoint),
-                                              color: Colors.blueAccent,
-                                              strokeWidth: 4.5,
-                                            ),
-                                          ],
+                                  MarkerLayer(
+                                    markers: [
+                                      // Store Marker
+                                      if (pickupPoint != null)
+                                        Marker(
+                                          point: pickupPoint,
+                                          width: 40,
+                                          height: 40,
+                                          child: const Icon(
+                                            Icons.store,
+                                            color: Colors.red,
+                                            size: 30,
+                                          ),
                                         ),
-                                      MarkerLayer(
-                                        markers: [
-                                          // Store Marker
-                                          if (pickupPoint != null)
-                                            Marker(
-                                              point: pickupPoint,
-                                              width: 40,
-                                              height: 40,
-                                              child: const Icon(
-                                                Icons.store,
-                                                color: Colors.red,
-                                                size: 30,
-                                              ),
-                                            ),
-                                          // Customer Marker
-                                          if (dropoffPoint != null)
-                                            Marker(
-                                              point: dropoffPoint,
-                                              width: 40,
-                                              height: 40,
-                                              child: const Icon(
-                                                Icons.home,
-                                                color: Colors.blue,
-                                                size: 30,
-                                              ),
-                                            ),
-                                          // Rider Marker (if available)
-                                          if (state.riderLat != null && state.riderLng != null)
-                                            Marker(
-                                              point: animatedRiderPoint,
-                                              width: 40,
-                                              height: 40,
-                                              child: const Icon(Icons.delivery_dining, color: AppTheme.primaryColor, size: 35),
-                                            ),
-                                        ],
-                                      ),
+                                      // Customer Marker
+                                      if (dropoffPoint != null)
+                                        Marker(
+                                          point: dropoffPoint,
+                                          width: 40,
+                                          height: 40,
+                                          child: const Icon(
+                                            Icons.home,
+                                            color: Colors.blue,
+                                            size: 30,
+                                          ),
+                                        ),
+                                      // Rider Marker (if available)
+                                      if (state.riderLat != null && state.riderLng != null)
+                                        Marker(
+                                          point: _animatedRiderPosition,
+                                          width: 40,
+                                          height: 40,
+                                          child: const Icon(Icons.delivery_dining, color: AppTheme.primaryColor, size: 35),
+                                        ),
                                     ],
-                                  );
-                                },
+                                  ),
+                                ],
                               );
                             },
                           ),
@@ -341,6 +459,30 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  if (state.routeDuration != null || state.routeDistance != null) ...[
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[50],
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.blue[100]!),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.timer, color: AppTheme.primaryColor),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'ไรเดอร์กำลังนำส่ง! จะถึงในประมาณ ${_formatDuration(state.routeDuration)} (${_formatDistance(state.routeDistance)})',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
                                   _OrderProgressBar(status: state.order!.status),
                                   const Divider(height: 24),
                                   const Text(
@@ -482,6 +624,31 @@ class _OrderProgressBar extends StatelessWidget {
         margin: const EdgeInsets.only(top: 12),
       ),
     );
+  }
+}
+
+String _formatDistance(double? meters) {
+  if (meters == null) return '--';
+  if (meters < 1000) {
+    return '${meters.toStringAsFixed(0)} m';
+  } else {
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+}
+
+String _formatDuration(double? seconds) {
+  if (seconds == null) return '--';
+  final minutes = (seconds / 60).round();
+  if (minutes < 60) {
+    return '$minutes mins';
+  } else {
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    if (remainingMins == 0) {
+      return '$hours hrs';
+    } else {
+      return '$hours hrs $remainingMins mins';
+    }
   }
 }
 

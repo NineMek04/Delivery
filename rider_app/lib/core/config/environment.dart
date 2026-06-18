@@ -88,6 +88,6 @@ class Environment {
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 15);
   static const int gpsDistanceFilter = 10;
-  static const int gpsUpdateIntervalSeconds = 5;
+  static const int gpsUpdateIntervalSeconds = 2;
   static const int offerCountdownSeconds = 30;
 }

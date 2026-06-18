@@ -31,7 +31,6 @@ class LocationService extends Notifier<LocationState> {
   StreamSubscription<Position>? _positionSubscription;
   Timer? _mockTimer;
   int _mockIntervalSeconds = Environment.gpsUpdateIntervalSeconds;
-  final List<Position> _locationHistory = [];
 
   @override
   LocationState build() {
@@ -190,7 +189,7 @@ class LocationService extends Notifier<LocationState> {
     _mockTimer?.cancel();
     _mockTimer = null;
 
-    final locationSettings = buildLocationSettings(intervalSeconds: 10);
+    final locationSettings = buildLocationSettings(intervalSeconds: Environment.gpsUpdateIntervalSeconds);
 
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: locationSettings,
@@ -356,36 +355,35 @@ class LocationService extends Notifier<LocationState> {
       return;
     }
 
-    // กรองด้วย Simple Moving Average (SMA) จาก 3 พิกัดล่าสุดเพื่อลด Jitter
-    _locationHistory.add(position);
-    if (_locationHistory.length > 3) {
-      _locationHistory.removeAt(0);
-    }
+    // กรองด้วย Exponential Moving Average (EMA) เพื่อลด Jitter โดยไม่สร้าง lag มากเท่า SMA
+    // alpha = 0.6 → ให้น้ำหนักกับค่าใหม่มากกว่าค่าเก่า (ตอบสนองเร็ว, lag น้อย)
+    const double alpha = 0.6;
+    double emaLat;
+    double emaLng;
+    double emaAccuracy;
 
-    double sumLat = 0;
-    double sumLng = 0;
-    double sumAccuracy = 0;
-    for (var pos in _locationHistory) {
-      sumLat += pos.latitude;
-      sumLng += pos.longitude;
-      sumAccuracy += pos.accuracy;
+    if (state.latitude != null && state.longitude != null) {
+      emaLat = alpha * position.latitude + (1 - alpha) * state.latitude!;
+      emaLng = alpha * position.longitude + (1 - alpha) * state.longitude!;
+      emaAccuracy = alpha * position.accuracy + (1 - alpha) * (state.accuracy ?? position.accuracy);
+    } else {
+      emaLat = position.latitude;
+      emaLng = position.longitude;
+      emaAccuracy = position.accuracy;
     }
-    final avgLat = sumLat / _locationHistory.length;
-    final avgLng = sumLng / _locationHistory.length;
-    final avgAccuracy = sumAccuracy / _locationHistory.length;
 
     final heading = _normalizeHeading(_readHeading(position));
     state = state.copyWith(
-      latitude: avgLat,
-      longitude: avgLng,
-      accuracy: avgAccuracy,
+      latitude: emaLat,
+      longitude: emaLng,
+      accuracy: emaAccuracy,
       heading: heading,
       lastUpdated: DateTime.now(),
       error: null,
     );
 
     // ส่งพิกัดไปยัง Local DB Buffer สำหรับ Offline Buffering และ Batch Ingestion
-    ref.read(gpsBufferServiceProvider).bufferLocation(avgLat, avgLng, avgAccuracy, heading: heading);
+    ref.read(gpsBufferServiceProvider).bufferLocation(emaLat, emaLng, emaAccuracy, heading: heading);
   }
 
   double? _normalizeHeading(double? heading) {

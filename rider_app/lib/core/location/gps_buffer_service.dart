@@ -32,7 +32,7 @@ class GpsBufferService {
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
   Timer? _syncTimer;
-  int _syncIntervalSeconds = 5;
+  int _syncIntervalSeconds = 2;
   bool _isSyncing = false;
   bool _isSyncingStatus = false;
 
@@ -73,7 +73,7 @@ class GpsBufferService {
 
   /// Adjusts sync frequency based on backend backpressure header.
   void updateSyncInterval(int intervalSeconds) {
-    if (intervalSeconds < 3) intervalSeconds = 3;
+    if (intervalSeconds < 2) intervalSeconds = 2;
     if (_syncIntervalSeconds != intervalSeconds) {
       _logger.i('🔄 Adjusting sync interval: $_syncIntervalSeconds → $intervalSeconds seconds');
       _syncIntervalSeconds = intervalSeconds;
@@ -187,7 +187,7 @@ class GpsBufferService {
 
         // Chain next batch if more remain, respecting the rate limit interval
         if (await _db.getPendingGpsPointCount() > 0) {
-          final delaySeconds = _syncIntervalSeconds < 3 ? 3 : _syncIntervalSeconds;
+          final delaySeconds = _syncIntervalSeconds < 2 ? 2 : _syncIntervalSeconds;
           final delay = Duration(seconds: delaySeconds) + Duration(milliseconds: Random().nextInt(1000));
           Future.delayed(delay, syncBufferedPoints);
         }

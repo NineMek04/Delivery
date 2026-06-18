@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
@@ -13,6 +13,7 @@ using BackendApi.Models;
 using BackendApi.Models.Entities;
 using BackendApi.Models.SystemModels;
 using BackendApi.Services.Ai;
+using BackendApi.Services.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
@@ -277,43 +278,16 @@ namespace BackendApi.Services.BackgroundWorkers.Jobs
                 }
             }
 
-            // 2. Call OSRM Snap-to-Road
-            double snappedLat = point.Lat;
-            double snappedLng = point.Lng;
-
-            using (var scope = _serviceProvider.CreateScope())
-            {
-                var routingService = scope.ServiceProvider.GetRequiredService<OsrmRoutingService>();
-                var snappedResult = await routingService.SnapToRoadAsync(point.Lat, point.Lng);
-                snappedLat = snappedResult.Lat;
-                snappedLng = snappedResult.Lng;
-            }
-
-            var now = DateTime.UtcNow;
-
-            // 3. Write beautiful snapped coordinates to Redis Hash
-            var snappedGpsKey = $"riders:snapped_gps:{point.RiderId}";
-            await db.HashSetAsync(snappedGpsKey, new[]
-            {
-                new HashEntry("lat", snappedLat),
-                new HashEntry("lng", snappedLng),
-                new HashEntry("updated_at", now.ToString("o"))
-            });
-            await db.KeyExpireAsync(snappedGpsKey, TimeSpan.FromHours(24));
-
             // Record snap timestamp
             var currentPointUnix = (point.Timestamp - DateTime.UnixEpoch).TotalSeconds;
             await db.StringSetAsync(lastSnapKey, currentPointUnix, TimeSpan.FromSeconds(30));
 
-            // 4. Broadcast snap telemetry via SignalR
-            await _hubContext.Clients.Group("admins").SendAsync("RiderLocationSnapped", new
+            // 2. Delegate snap, routing, and broadcasting to TelemetryService
+            using (var scope = _serviceProvider.CreateScope())
             {
-                RiderId = point.RiderId,
-                Lat = snappedLat,
-                Lng = snappedLng,
-                Timestamp = point.Timestamp,
-                isSnapped = true
-            });
+                var telemetryService = scope.ServiceProvider.GetRequiredService<TelemetryService>();
+                await telemetryService.ProcessSnapAndBroadcastAsync(point);
+            }
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)

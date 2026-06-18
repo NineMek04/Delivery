@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -29,6 +30,56 @@ class LatLngTween extends Tween<LatLng> {
   }
 }
 
+class AngleTween extends Tween<double> {
+  AngleTween({super.begin, super.end});
+
+  @override
+  double lerp(double t) {
+    if (begin == null || end == null) return end ?? 0.0;
+    double diff = (end! - begin!) % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    return begin! + diff * t;
+  }
+}
+
+double _calculateBearing(LatLng start, LatLng end) {
+  final lat1 = start.latitude * math.pi / 180;
+  final lon1 = start.longitude * math.pi / 180;
+  final lat2 = end.latitude * math.pi / 180;
+  final lon2 = end.longitude * math.pi / 180;
+  final dLon = lon2 - lon1;
+  final y = math.sin(dLon) * math.cos(lat2);
+  final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+  final radians = math.atan2(y, x);
+  return (radians * 180 / math.pi + 360) % 360;
+}
+
+String _formatDistance(double? meters) {
+  if (meters == null) return '--';
+  if (meters < 1000) {
+    return '${meters.toStringAsFixed(0)} m';
+  } else {
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+}
+
+String _formatDuration(double? seconds) {
+  if (seconds == null) return '--';
+  final minutes = (seconds / 60).round();
+  if (minutes < 60) {
+    return '$minutes mins';
+  } else {
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    if (remainingMins == 0) {
+      return '$hours hrs';
+    } else {
+      return '$hours hrs $remainingMins mins';
+    }
+  }
+}
+
 final locationStateProvider = StateProvider<LatLng>((ref) => const LatLng(17.4138, 102.7872));
 
 class RouteTrackingScreen extends ConsumerStatefulWidget {
@@ -40,7 +91,7 @@ class RouteTrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<RouteTrackingScreen> createState() => _RouteTrackingScreenState();
 }
 
-class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
+class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   bool _isPickedUp = false;
   bool _isTrackingStarted = false;
@@ -54,6 +105,17 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
   double? _prevLat;
   double? _prevLng;
 
+  bool _mapReady = false;
+  String? _lastFollowSignature;
+  late final AnimationController _positionAnimController;
+  late final AnimationController _headingAnimController;
+  late final AnimationController _routeAnimController;
+  LatLng _animatedPosition = const LatLng(17.4138, 102.7872);
+  LatLng? _animTargetPosition;
+  double _animatedHeading = 0.0;
+  double? _animTargetHeading;
+  double? _lastAnimatedHeading;
+
   @override
   void initState() {
     super.initState();
@@ -65,7 +127,88 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
         ref.read(locationStateProvider.notifier).state = LatLng(tracking.latitude!, tracking.longitude!);
       }
     }
+    _animatedPosition = ref.read(locationStateProvider);
+    _positionAnimController = AnimationController(
+      vsync: this,
+      duration: _animationDuration,
+    )..addListener(_onPositionAnimTick);
+    _headingAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..addListener(_onHeadingAnimTick);
+    // Repeating controller drives the flowing dashed line animation (marching ants)
+    _routeAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
     Future.microtask(() => ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId));
+  }
+
+  void _onPositionAnimTick() {
+    if (_animTargetPosition == null || _lastAnimatedLocation == null) return;
+    final t = _positionAnimController.value;
+    final begin = _lastAnimatedLocation!;
+    final end = _animTargetPosition!;
+    final lat = begin.latitude + (end.latitude - begin.latitude) * t;
+    final lng = begin.longitude + (end.longitude - begin.longitude) * t;
+    setState(() {
+      _animatedPosition = LatLng(lat, lng);
+    });
+  }
+
+  void _onHeadingAnimTick() {
+    if (_animTargetHeading == null || _lastAnimatedHeading == null) return;
+    final t = _headingAnimController.value;
+    final begin = _lastAnimatedHeading!;
+    final end = _animTargetHeading!;
+    double diff = (end - begin) % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    setState(() {
+      _animatedHeading = begin + diff * t;
+    });
+  }
+
+  void _onRiderPositionChanged(LatLng newPoint, double? heading) {
+    final now = DateTime.now();
+    if (_lastUpdateReceivedTime != null) {
+      final diff = now.difference(_lastUpdateReceivedTime!);
+      var seconds = diff.inSeconds;
+      if (seconds < 1) seconds = 1;
+      if (seconds > 11) seconds = 11;
+      _animationDuration = Duration(seconds: seconds);
+    } else {
+      final simService = ref.read(simulatedJourneyProvider);
+      _animationDuration = simService.isRunning ? const Duration(seconds: 3) : const Duration(seconds: 10);
+    }
+    _lastUpdateReceivedTime = now;
+
+    _lastAnimatedLocation = _animatedPosition;
+    _animTargetPosition = newPoint;
+    _positionAnimController.duration = _animationDuration;
+    _positionAnimController.forward(from: 0.0);
+
+    double? finalHeading = heading;
+    if (finalHeading == null && _lastAnimatedLocation != null && _lastAnimatedLocation != newPoint) {
+      finalHeading = _calculateBearing(_lastAnimatedLocation!, newPoint);
+    }
+
+    if (finalHeading != null) {
+      _lastAnimatedHeading = _animatedHeading;
+      _animTargetHeading = finalHeading;
+      _headingAnimController.forward(from: 0.0);
+    }
+  }
+
+  void _followRider(LatLng point, String signature) {
+    if (!_mapReady || _lastFollowSignature == signature) return;
+    _lastFollowSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mapReady) return;
+      try {
+        _mapController.move(point, 15.0);
+      } catch (_) {}
+    });
   }
 
   Future<void> _loadDbDir() async {
@@ -80,6 +223,9 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     final simService = ref.read(simulatedJourneyProvider);
     simService.onDistanceUpdated = null;
     simService.onDestinationReached = null;
+    _positionAnimController.dispose();
+    _headingAnimController.dispose();
+    _routeAnimController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -111,6 +257,54 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     }
 
     return fullRoute.sublist(closestIdx);
+  }
+
+  /// Builds an animated dashed polyline layer driven by [_routeAnimController].
+  /// Simulates the "marching ants" flowing dash effect from the test-dashboard.
+  /// [isPickup] = true  → orange dashes (heading to store)
+  ///              false → cyan dashes   (delivering to customer)
+  Widget _buildAnimatedPolylineLayer(List<LatLng> points, {required bool isPickup}) {
+    const double dashLength = 20.0;
+    const double gapLength = 12.0;
+    const double totalPattern = dashLength + gapLength;
+    final Color routeColor = isPickup
+        ? const Color(0xFFFF9800)   // orange — pickup
+        : const Color(0xFF00E5FF);  // cyan   — delivery
+
+    return AnimatedBuilder(
+      animation: _routeAnimController,
+      builder: (context, _) {
+        final double offset = _routeAnimController.value * totalPattern;
+        // segments alternates [dash, gap, dash, gap...].
+        // Leading dash of 'offset' shifts the phase; the trailing full cycle
+        // ensures the pattern tiles seamlessly.
+        final List<double> segments = [
+          offset,       // leading partial dash (phase shift)
+          gapLength,
+          dashLength,
+          gapLength,
+        ];
+        return PolylineLayer(
+          polylines: [
+            Polyline(
+              points: points,
+              color: routeColor.withValues(alpha: 0.90),
+              strokeWidth: 5.0,
+              pattern: StrokePattern.dashed(
+                segments: segments,
+                patternFit: PatternFit.extendFinalDash,
+              ),
+            ),
+            // Faded base line for depth/contrast
+            Polyline(
+              points: points,
+              color: routeColor.withValues(alpha: 0.20),
+              strokeWidth: 5.0,
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _startGpsTracking(ActiveOrderState state) async {
@@ -303,22 +497,15 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     });
 
     final simService = ref.read(simulatedJourneyProvider);
+    final tracking = ref.watch(locationServiceProvider);
     // Measure dynamic interval when coordinates change
     if (currentLocation.latitude != _prevLat || currentLocation.longitude != _prevLng) {
       _prevLat = currentLocation.latitude;
       _prevLng = currentLocation.longitude;
-      
-      final now = DateTime.now();
-      if (_lastUpdateReceivedTime != null) {
-        final diff = now.difference(_lastUpdateReceivedTime!);
-        var seconds = diff.inSeconds;
-        if (seconds < 1) seconds = 1;
-        if (seconds > 11) seconds = 11;
-        _animationDuration = Duration(seconds: seconds);
-      } else {
-        _animationDuration = simService.isRunning ? const Duration(seconds: 3) : const Duration(seconds: 10);
-      }
-      _lastUpdateReceivedTime = now;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _onRiderPositionChanged(currentLocation, tracking.heading);
+      });
     }
 
     if (state.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -329,6 +516,34 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
     final dropoffLocation = LatLng(order.dropoffLat ?? 17.4000, order.dropoffLng ?? 102.7800);
     
     final bool canSlide = _isTrackingStarted && _currentDistance <= 50;
+
+    // Camera following logic
+    if (_isTrackingStarted) {
+      _followRider(
+        currentLocation,
+        '${order.id}|${currentLocation.latitude.toStringAsFixed(5)}|'
+        '${currentLocation.longitude.toStringAsFixed(5)}',
+      );
+    }
+
+    // Live snapped route resolution
+    final bool hasLiveRoute = state.snappedPolyline != null && state.snappedPolyline!.isNotEmpty;
+    final List<LatLng> routePoints;
+    final bool useLiveRoute;
+
+    if (hasLiveRoute) {
+      final livePoints = simService.decodePolyline(state.snappedPolyline!);
+      if (livePoints.length >= 2) {
+        routePoints = livePoints;
+        useLiveRoute = true;
+      } else {
+        routePoints = _currentRoutePoints;
+        useLiveRoute = false;
+      }
+    } else {
+      routePoints = _currentRoutePoints;
+      useLiveRoute = false;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -348,73 +563,62 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
       ),
       body: Stack(
         children: [
-          TweenAnimationBuilder<LatLng>(
-            tween: LatLngTween(
-              begin: _lastAnimatedLocation ?? currentLocation,
-              end: currentLocation,
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: currentLocation,
+              initialZoom: 14.0,
+              onMapReady: () {
+                setState(() => _mapReady = true);
+              },
             ),
-            duration: _animationDuration,
-            builder: (context, animatedLocation, child) {
-              _lastAnimatedLocation = animatedLocation;
-
-              return FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: currentLocation,
-                  initialZoom: 14.0,
+            children: [
+              TileLayer(
+                urlTemplate: kIsWeb
+                    ? '/map-tiles/{z}/{x}/{y}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                subdomains: kIsWeb ? const [] : const ['a', 'b', 'c', 'd'],
+                tileProvider: !kIsWeb && _dbDir != null
+                    ? CachedTileProvider(dbDir: _dbDir!)
+                    : NetworkTileProvider(),
+              ),
+              if (routePoints.isNotEmpty)
+                _buildAnimatedPolylineLayer(
+                  useLiveRoute
+                      ? routePoints
+                      : _getTailRoute(routePoints, _animatedPosition),
+                  isPickup: !_isPickedUp,
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate: kIsWeb
-                        ? '/map-tiles/{z}/{x}/{y}.png'
-                        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-                    subdomains: kIsWeb ? const [] : const ['a', 'b', 'c', 'd'],
-                    tileProvider: !kIsWeb && _dbDir != null
-                        ? CachedTileProvider(dbDir: _dbDir!)
-                        : NetworkTileProvider(),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _animatedPosition,
+                    width: 96,
+                    height: 96,
+                    child: RiderLocationMarker(heading: _animatedHeading),
                   ),
-                  if (_currentRoutePoints.isNotEmpty)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: _getTailRoute(_currentRoutePoints, animatedLocation),
-                          color: Colors.blueAccent,
-                          strokeWidth: 4.5,
-                        ),
-                      ],
+                  if (!_isPickedUp)
+                    Marker(
+                      point: pickupLocation,
+                      width: 40,
+                      height: 40,
+                      child: Container(
+                        decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                        child: const Icon(Icons.store, color: Colors.white, size: 20),
+                      ),
                     ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: animatedLocation,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(Icons.motorcycle, color: Colors.blue, size: 30),
-                      ),
-                      if (!_isPickedUp)
-                        Marker(
-                          point: pickupLocation,
-                          width: 40,
-                          height: 40,
-                          child: Container(
-                            decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                            child: const Icon(Icons.store, color: Colors.white, size: 20),
-                          ),
-                        ),
-                      Marker(
-                        point: dropoffLocation,
-                        width: 40,
-                        height: 40,
-                        child: Container(
-                          decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                          child: const Icon(Icons.home, color: Colors.white, size: 20),
-                        ),
-                      ),
-                    ],
+                  Marker(
+                    point: dropoffLocation,
+                    width: 40,
+                    height: 40,
+                    child: Container(
+                      decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                      child: const Icon(Icons.home, color: Colors.white, size: 20),
+                    ),
                   ),
                 ],
-              );
-            },
+              ),
+            ],
           ),
 
           Positioned(
@@ -444,7 +648,9 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                             style: GoogleFonts.poppins(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            'Status: ${order.status}',
+                            state.routeDuration != null
+                                ? '${_formatDuration(state.routeDuration)} left'
+                                : 'Status: ${order.status}',
                             style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
                         ],
@@ -457,7 +663,9 @@ class _RouteTrackingScreenState extends ConsumerState<RouteTrackingScreen> {
                             style: GoogleFonts.poppins(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            _currentDistance == double.infinity ? '--' : '${(_currentDistance).toStringAsFixed(0)} m',
+                            (state.routeDistance != null || _currentDistance != double.infinity)
+                                ? _formatDistance(state.routeDistance ?? _currentDistance)
+                                : '--',
                             style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
                           ),
                         ],
@@ -606,5 +814,91 @@ class _SlideToConfirmState extends State<SlideToConfirm> {
         );
       },
     );
+  }
+}
+
+class RiderLocationMarker extends StatelessWidget {
+  const RiderLocationMarker({super.key, this.heading});
+
+  final double? heading;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 96,
+      height: 96,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (heading != null)
+            Transform.rotate(
+              angle: heading! * math.pi / 180,
+              child: CustomPaint(
+                size: const Size(76, 76),
+                painter: HeadingConePainter(
+                  color: const Color(0xFF1A73E8).withOpacity(0.32),
+                ),
+              ),
+            ),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF1A73E8).withOpacity(0.18),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1A73E8).withOpacity(0.42),
+                  blurRadius: 18,
+                  spreadRadius: 7,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF1A73E8),
+              border: Border.all(color: const Color(0xFFF8FAFC), width: 3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HeadingConePainter extends CustomPainter {
+  const HeadingConePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final path = Path()
+      ..moveTo(center.dx, 2)
+      ..lineTo(center.dx - 22, center.dy + 8)
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy + 18,
+        center.dx + 22,
+        center.dy + 8,
+      )
+      ..close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant HeadingConePainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }

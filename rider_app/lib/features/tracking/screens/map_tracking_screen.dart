@@ -56,7 +56,8 @@ class MapTrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<MapTrackingScreen> createState() => _MapTrackingScreenState();
 }
 
-class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
+class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
+    with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   static const _defaultCenter = LatLng(17.4138, 102.7872);
   static const double _navigationZoom = 17.5;
@@ -96,14 +97,93 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
   double? _prevLat;
   double? _prevLng;
 
+  // Real-time snapped polyline จาก SignalR (OSRM route จากตำแหน่งปัจจุบัน → ปลายทาง)
+  String? _liveSnappedPolyline;
+  double? _routeDistance;
+  double? _routeDuration;
+
+  // AnimationController สำหรับ position interpolation
+  late final AnimationController _positionAnimController;
+  late final AnimationController _headingAnimController;
+  late final AnimationController _routeAnimController;
+  LatLng _animatedPosition = _defaultCenter;
+  double _animatedHeading = 0.0;
+  LatLng? _animTargetPosition;
+  double? _animTargetHeading;
+
   @override
   void initState() {
     super.initState();
+    _positionAnimController = AnimationController(
+      vsync: this,
+      duration: _animationDuration,
+    )..addListener(_onPositionAnimTick);
+    _headingAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..addListener(_onHeadingAnimTick);
+    // Repeating controller drives the flowing dashed line animation (marching ants)
+    _routeAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
     _loadDbDir();
     _bindSimStreams();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(deliveryNotifierProvider.notifier).loadOrders();
     });
+  }
+
+  void _onPositionAnimTick() {
+    if (_animTargetPosition == null || _lastAnimatedPoint == null) return;
+    final t = _positionAnimController.value;
+    final begin = _lastAnimatedPoint!;
+    final end = _animTargetPosition!;
+    final lat = begin.latitude + (end.latitude - begin.latitude) * t;
+    final lng = begin.longitude + (end.longitude - begin.longitude) * t;
+    setState(() {
+      _animatedPosition = LatLng(lat, lng);
+    });
+  }
+
+  void _onHeadingAnimTick() {
+    if (_animTargetHeading == null || _lastAnimatedHeading == null) return;
+    final t = _headingAnimController.value;
+    final begin = _lastAnimatedHeading!;
+    final end = _animTargetHeading!;
+    double diff = (end - begin) % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    setState(() {
+      _animatedHeading = begin + diff * t;
+    });
+  }
+
+  /// เรียกเมื่อพิกัดไรเดอร์เปลี่ยน — คำนวณ animation duration และเริ่ม animation
+  void _onRiderPositionChanged(LatLng newPoint, double? heading) {
+    final now = DateTime.now();
+    if (_lastUpdateReceivedTime != null) {
+      final diff = now.difference(_lastUpdateReceivedTime!);
+      var seconds = diff.inSeconds;
+      if (seconds < 1) seconds = 1;
+      if (seconds > 11) seconds = 11;
+      _animationDuration = Duration(seconds: seconds);
+    } else {
+      _animationDuration = const Duration(seconds: 3);
+    }
+    _lastUpdateReceivedTime = now;
+
+    // บันทึกจุดเริ่มต้นของ animation
+    _lastAnimatedPoint = _animatedPosition;
+    _animTargetPosition = newPoint;
+    _positionAnimController.duration = _animationDuration;
+    _positionAnimController.forward(from: 0.0);
+
+    if (heading != null) {
+      _lastAnimatedHeading = _animatedHeading;
+      _animTargetHeading = heading;
+      _headingAnimController.forward(from: 0.0);
+    }
   }
 
   Future<void> _loadDbDir() async {
@@ -125,6 +205,9 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     _offerSub?.cancel();
     _statusSub?.cancel();
     _riderLocationSub?.cancel();
+    _positionAnimController.dispose();
+    _headingAnimController.dispose();
+    _routeAnimController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -228,7 +311,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     });
 
     _riderLocationSub = signalRService.onRiderLocationUpdated.listen((event) {
-      if (!_simMirrorEnabled || !mounted) return;
+      if (!mounted) return;
 
       // กรองเฉพาะพิกัดที่เป็นของไรเดอร์คนปัจจุบัน
       final currentRiderId = ref.read(authServiceProvider.notifier).userId;
@@ -236,10 +319,26 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         return;
       }
 
+      // อัปเดต snapped polyline เรียลไทม์เสมอ (ไม่ขึ้นกับ sim mirror)
+      // snappedPolyline คือเส้นทาง OSRM จากจุดปัจจุบัน → ปลายทาง ที่ Backend คำนวณให้
+      if (event.snappedPolyline != null && event.snappedPolyline!.isNotEmpty) {
+        setState(() {
+          _liveSnappedPolyline = event.snappedPolyline;
+        });
+      }
+
       setState(() {
-        _simRiderPoint = LatLng(event.latitude, event.longitude);
-        _simRiderLabel = _shortRider(event.riderId);
+        _routeDistance = event.routeDistance;
+        _routeDuration = event.routeDuration;
       });
+
+      // อัปเดตข้อมูล sim mirror เฉพาะเมื่อเปิดอยู่
+      if (_simMirrorEnabled) {
+        setState(() {
+          _simRiderPoint = LatLng(event.latitude, event.longitude);
+          _simRiderLabel = _shortRider(event.riderId);
+        });
+      }
     });
   }
 
@@ -341,6 +440,75 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
           : 'MISSING_POLYLINE',
       encodedLength: encodedPolyline?.length,
     );
+  }
+
+  /// Builds an animated dashed polyline layer driven by [_routeAnimController].
+  /// Simulates the "marching ants" flowing dash effect from the test-dashboard.
+  /// [isPickup] = true  → orange dashes (heading to store)
+  ///              false → cyan dashes   (delivering to customer)
+  Widget _buildAnimatedPolylineLayer(List<LatLng> points, {required bool isPickup}) {
+    const double dashLength = 20.0;
+    const double gapLength = 12.0;
+    const double totalPattern = dashLength + gapLength;
+    final Color routeColor = isPickup
+        ? const Color(0xFFFF9800)   // orange — pickup
+        : const Color(0xFF00E5FF);  // cyan   — delivery
+
+    return AnimatedBuilder(
+      animation: _routeAnimController,
+      builder: (context, _) {
+        final double offset = _routeAnimController.value * totalPattern;
+        // segments alternates [dash, gap, dash, gap...].
+        // Leading dash of 'offset' shifts the phase; the trailing full cycle
+        // ensures the pattern tiles seamlessly.
+        final List<double> segments = [
+          offset,       // leading partial dash (phase shift)
+          gapLength,
+          dashLength,
+          gapLength,
+        ];
+        return PolylineLayer(
+          polylines: [
+            Polyline(
+              points: points,
+              color: routeColor.withValues(alpha: 0.90),
+              strokeWidth: 5.0,
+              pattern: StrokePattern.dashed(
+                segments: segments,
+                patternFit: PatternFit.extendFinalDash,
+              ),
+            ),
+            // Faded base line for depth/contrast
+            Polyline(
+              points: points,
+              color: routeColor.withValues(alpha: 0.20),
+              strokeWidth: 5.0,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Resolve route จาก static polyline (Order/Offer) เมื่อไม่มี live snappedPolyline
+  _ResolvedRoute _resolveStaticRoute(
+    OrderDto order,
+    bool isHeadingToPickup,
+    String? localRoutePolyline,
+    String? pickupRoute,
+    LatLng? riderPoint,
+    LatLng? pickup,
+    LatLng? dropoff,
+  ) {
+    return isHeadingToPickup
+        ? _resolveRoute(
+            localRoutePolyline ?? pickupRoute,
+            [riderPoint, pickup],
+          )
+        : _resolveRoute(
+            localRoutePolyline ?? order.encodedPolyline,
+            [riderPoint ?? pickup, dropoff],
+          );
   }
 
   void _reportRouteFallback(
@@ -476,7 +644,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
 
     if (target == null) return const SizedBox.shrink();
 
-    final distance = Geolocator.distanceBetween(
+    final distance = _routeDistance ?? Geolocator.distanceBetween(
       riderPos.latitude, riderPos.longitude,
       target.latitude, target.longitude
     );
@@ -562,22 +730,15 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
         ? LatLng(tracking.latitude!, tracking.longitude!)
         : null;
 
+    // เมื่อพิกัดเปลี่ยน → เรียก AnimationController (ย้ายมาจาก build ไป listener)
     final activeRiderPoint = riderPoint ?? _simRiderPoint;
     if (activeRiderPoint != null && (activeRiderPoint.latitude != _prevLat || activeRiderPoint.longitude != _prevLng)) {
       _prevLat = activeRiderPoint.latitude;
       _prevLng = activeRiderPoint.longitude;
-
-      final now = DateTime.now();
-      if (_lastUpdateReceivedTime != null) {
-        final diff = now.difference(_lastUpdateReceivedTime!);
-        var seconds = diff.inSeconds;
-        if (seconds < 1) seconds = 1;
-        if (seconds > 11) seconds = 11;
-        _animationDuration = Duration(seconds: seconds);
-      } else {
-        _animationDuration = const Duration(seconds: 3);
-      }
-      _lastUpdateReceivedTime = now;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _onRiderPositionChanged(activeRiderPoint, tracking.heading);
+      });
     }
 
     final order = delivery.activeOrder;
@@ -603,26 +764,40 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
     final localRoutePolyline = order == null
         ? null
         : _localRoutePolylines[_routeKey(order.id, routePhase)];
-    final resolvedRoute = order != null
-        ? (isHeadingToPickup
-            ? _resolveRoute(
-                localRoutePolyline ?? pickupRoute,
-                [riderPoint, pickup],
-              )
-            : _resolveRoute(
-                localRoutePolyline ?? order.encodedPolyline,
-                [riderPoint ?? pickup, dropoff],
-              ))
-        : _ResolvedRoute(
-            points: isFinished
-                ? const <LatLng>[]
-                : (_simPhase == SimFlowPhase.pickup
-                    ? _simPickupRoute
-                    : _simDeliveryRoute),
-          );
+
+    // === Route Resolution (Fix #4: ใช้ snappedPolyline จาก SignalR เป็นลำดับแรก) ===
+    // _liveSnappedPolyline คือเส้นทาง OSRM ที่ Backend คำนวณจากตำแหน่ง snapped ปัจจุบัน → ปลายทาง
+    // จึงเป็นเส้นทางที่แม่นยำที่สุดและไม่ต้องทำ _getTailRoute เพราะเริ่มจากจุดปัจจุบันอยู่แล้ว
+    final bool hasLiveRoute = _liveSnappedPolyline != null && order != null;
+    final _ResolvedRoute resolvedRoute;
+    final bool useLiveRoute;
+
+    if (hasLiveRoute) {
+      final livePoints = decodePolyline(_liveSnappedPolyline!);
+      if (livePoints.length >= 2) {
+        resolvedRoute = _ResolvedRoute(points: livePoints);
+        useLiveRoute = true;
+      } else {
+        resolvedRoute = _resolveStaticRoute(order, isHeadingToPickup, localRoutePolyline, pickupRoute, riderPoint, pickup, dropoff);
+        useLiveRoute = false;
+      }
+    } else if (order != null) {
+      resolvedRoute = _resolveStaticRoute(order, isHeadingToPickup, localRoutePolyline, pickupRoute, riderPoint, pickup, dropoff);
+      useLiveRoute = false;
+    } else {
+      resolvedRoute = _ResolvedRoute(
+          points: isFinished
+              ? const <LatLng>[]
+              : (_simPhase == SimFlowPhase.pickup
+                  ? _simPickupRoute
+                  : _simDeliveryRoute),
+        );
+      useLiveRoute = false;
+    }
 
     if (order != null &&
         riderPoint != null &&
+        !useLiveRoute &&
         resolvedRoute.fallbackReason != null) {
       _requestLocalOsrmRoute(
         order,
@@ -632,10 +807,13 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
       );
     }
 
-    final routePoints = _getTailRoute(
-      resolvedRoute.points,
-      riderPoint ?? _simRiderPoint,
-    );
+    // Fix #4: ข้าม _getTailRoute เมื่อมี liveRoute (เส้นทางเริ่มจากจุดปัจจุบันอยู่แล้ว)
+    final routePoints = useLiveRoute
+        ? resolvedRoute.points
+        : _getTailRoute(
+            resolvedRoute.points,
+            riderPoint ?? _simRiderPoint,
+          );
 
     final center = riderPoint ?? _simRiderPoint ?? pickup ?? dropoff ?? _defaultCenter;
     final viewportPoints = <LatLng>{
@@ -659,6 +837,9 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
       );
     }
 
+    // ใช้ _animatedPosition จาก AnimationController แทน (ไม่ต้อง TweenAnimationBuilder)
+    final animatedRiderPoint = riderPoint != null ? _animatedPosition : (_simRiderPoint ?? center);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Map Tracking'),
@@ -679,124 +860,99 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
           Expanded(
             child: Stack(
               children: [
-                TweenAnimationBuilder<LatLng>(
-                  tween: LatLngTween(
-                     begin: _lastAnimatedPoint ?? riderPoint ?? _simRiderPoint ?? center,
-                     end: riderPoint ?? _simRiderPoint ?? center,
-                  ),
-                  duration: _animationDuration,
-                  builder: (context, animatedRiderPoint, child) {
-                    _lastAnimatedPoint = animatedRiderPoint;
-
-                    return TweenAnimationBuilder<double>(
-                      tween: AngleTween(
-                        begin: _lastAnimatedHeading ?? tracking.heading ?? 0.0,
-                        end: tracking.heading ?? 0.0,
-                      ),
-                      duration: const Duration(milliseconds: 500),
-                      builder: (context, animatedHeading, child) {
-                        _lastAnimatedHeading = animatedHeading;
-
-                        return FlutterMap(
-                          mapController: _mapController,
-                          options: MapOptions(
-                            initialCenter: center,
-                            initialZoom: 14,
-                            onMapReady: () {
-                              _mapReady = true;
-                              _lastViewportSignature = null;
-                              _lastFollowSignature = null;
-                              if (order != null && riderPoint != null) {
-                                _followRider(
-                                  riderPoint,
-                                  'ready|${order.id}|'
-                                  '${riderPoint.latitude.toStringAsFixed(5)}|'
-                                  '${riderPoint.longitude.toStringAsFixed(5)}',
-                                );
-                              } else {
-                                _fitMapToRoute(
-                                  viewportPoints,
-                                  'ready|${order?.id}|${routePoints.length}',
-                                );
-                              }
-                            },
-                          ),
-                          children: [
-                            TileLayer(
-                              urlTemplate: kIsWeb
-                                  ? '/map-tiles/{z}/{x}/{y}.png'
-                                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.delivery.rider_app',
-                              tileProvider: !kIsWeb && _dbDir != null
-                                  ? CachedTileProvider(dbDir: _dbDir!)
-                                  : NetworkTileProvider(),
-                            ),
-                            if (routePoints.isNotEmpty)
-                              PolylineLayer(
-                                polylines: [
-                                  Polyline(
-                                    points: routePoints,
-                                    color: Theme.of(context).colorScheme.primary,
-                                    strokeWidth: 4,
-                                  ),
-                                ],
-                              ),
-                            if (riderPoint != null &&
-                                tracking.isTracking &&
-                                tracking.accuracy != null)
-                              CircleLayer(
-                                circles: [
-                                  CircleMarker(
-                                    point: animatedRiderPoint,
-                                    radius: math.max(5.0, tracking.accuracy!),
-                                    useRadiusInMeter: true,
-                                    color: const Color(0xFF1A73E8).withOpacity(0.16),
-                                    borderColor: const Color(0xFF1A73E8).withOpacity(0.36),
-                                    borderStrokeWidth: 1.5,
-                                  ),
-                                ],
-                              ),
-                            MarkerLayer(
-                              markers: [
-                                if (_simMirrorEnabled && _simRiderPoint != null)
-                                  Marker(
-                                    point: animatedRiderPoint,
-                                    width: 44,
-                                    height: 44,
-                                    child: const Icon(
-                                      Icons.two_wheeler,
-                                      color: Colors.purple,
-                                      size: 34,
-                                    ),
-                                  ),
-                                if (riderPoint != null)
-                                  Marker(
-                                    point: animatedRiderPoint,
-                                    width: 96,
-                                    height: 96,
-                                    child: RiderLocationMarker(heading: animatedHeading),
-                                  ),
-                                if (pickup != null)
-                                  Marker(
-                                    point: pickup,
-                                    width: 40,
-                                    height: 40,
-                                    child: const Icon(Icons.store, color: Colors.orange, size: 32),
-                                  ),
-                                if (dropoff != null)
-                                  Marker(
-                                    point: dropoff,
-                                    width: 40,
-                                    height: 40,
-                                    child: const Icon(Icons.home, color: Colors.green, size: 32),
-                                  ),
-                              ],
-                            ),
-                          ],
+                // Fix #3: FlutterMap ไม่อยู่ใน TweenAnimationBuilder อีกต่อไป
+                // ใช้ _animatedPosition จาก AnimationController แทน
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 14,
+                    onMapReady: () {
+                      _mapReady = true;
+                      _lastViewportSignature = null;
+                      _lastFollowSignature = null;
+                      if (order != null && riderPoint != null) {
+                        _followRider(
+                          riderPoint,
+                          'ready|${order.id}|'
+                          '${riderPoint.latitude.toStringAsFixed(5)}|'
+                          '${riderPoint.longitude.toStringAsFixed(5)}',
                         );
-                      },
-                    );
-                  },
+                      } else {
+                        _fitMapToRoute(
+                          viewportPoints,
+                          'ready|${order?.id}|${routePoints.length}',
+                        );
+                      }
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: kIsWeb
+                          ? '/map-tiles/{z}/{x}/{y}.png'
+                          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.delivery.rider_app',
+                      tileProvider: !kIsWeb && _dbDir != null
+                          ? CachedTileProvider(dbDir: _dbDir!)
+                          : NetworkTileProvider(),
+                    ),
+                    if (routePoints.isNotEmpty)
+                      _buildAnimatedPolylineLayer(
+                        routePoints,
+                        isPickup: isHeadingToPickup,
+                      ),
+                    if (riderPoint != null &&
+                        tracking.isTracking &&
+                        tracking.accuracy != null)
+                      CircleLayer(
+                        circles: [
+                          CircleMarker(
+                            point: animatedRiderPoint,
+                            radius: math.max(5.0, tracking.accuracy!),
+                            useRadiusInMeter: true,
+                            color: const Color(0xFF1A73E8).withOpacity(0.16),
+                            borderColor: const Color(0xFF1A73E8).withOpacity(0.36),
+                            borderStrokeWidth: 1.5,
+                          ),
+                        ],
+                      ),
+                    MarkerLayer(
+                      markers: [
+                        if (_simMirrorEnabled && _simRiderPoint != null)
+                          Marker(
+                            point: animatedRiderPoint,
+                            width: 44,
+                            height: 44,
+                            child: const Icon(
+                              Icons.two_wheeler,
+                              color: Colors.purple,
+                              size: 34,
+                            ),
+                          ),
+                        if (riderPoint != null)
+                          Marker(
+                            point: animatedRiderPoint,
+                            width: 96,
+                            height: 96,
+                            child: RiderLocationMarker(heading: _animatedHeading),
+                          ),
+                        if (pickup != null)
+                          Marker(
+                            point: pickup,
+                            width: 40,
+                            height: 40,
+                            child: const Icon(Icons.store, color: Colors.orange, size: 32),
+                          ),
+                        if (dropoff != null)
+                          Marker(
+                            point: dropoff,
+                            width: 40,
+                            height: 40,
+                            child: const Icon(Icons.home, color: Colors.green, size: 32),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
                 // Turn-by-Turn Navigation Panel overlay
                 if ((riderPoint != null || _simRiderPoint != null) && (order != null || _simPhase != SimFlowPhase.idle))
@@ -855,6 +1011,27 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen> {
                       ),
                     ),
                     const Divider(height: 20),
+                  ],
+                  if (_routeDuration != null || _routeDistance != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'ประมาณการส่งสินค้า (AI ETA)',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
+                        Text(
+                          '${_formatDuration(_routeDuration)} (${_formatDistance(_routeDistance)})',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
                   ],
                   Text(
                     tracking.isTracking ? 'GPS Tracking Active' : 'Offline',
@@ -1033,5 +1210,30 @@ class HeadingConePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant HeadingConePainter oldDelegate) {
     return oldDelegate.color != color;
+  }
+}
+
+String _formatDistance(double? meters) {
+  if (meters == null) return '--';
+  if (meters < 1000) {
+    return '${meters.toStringAsFixed(0)} m';
+  } else {
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+}
+
+String _formatDuration(double? seconds) {
+  if (seconds == null) return '--';
+  final minutes = (seconds / 60).round();
+  if (minutes < 60) {
+    return '$minutes mins';
+  } else {
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    if (remainingMins == 0) {
+      return '$hours hrs';
+    } else {
+      return '$hours hrs $remainingMins mins';
+    }
   }
 }

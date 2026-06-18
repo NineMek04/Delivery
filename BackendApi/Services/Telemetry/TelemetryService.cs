@@ -135,70 +135,12 @@ namespace BackendApi.Services.Telemetry
                 return;
             }
 
-            // 2. Call OSRM Snap-to-Road asynchronously
-            double snappedLat = lat;
-            double snappedLng = lng;
-            bool isSnapped = false;
-            string? snappedPolyline = null;
-
-            try
-            {
-                var snappedResult = await _routingService.SnapToRoadAsync(lat, lng);
-                snappedLat = snappedResult.Lat;
-                snappedLng = snappedResult.Lng;
-                isSnapped = true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to snap coordinate ({Lat}, {Lng}) for Rider {RiderId}", lat, lng, riderId);
-            }
-
-            // Resolve Snapped Polyline for active order if any
-            try
-            {
-                var activeOrder = await _dbContext.Orders
-                    .AsNoTracking()
-                    .Where(o => o.AssignedRiderId == riderId && 
-                                (o.State == OrderState.ASSIGNED || 
-                                 o.State == OrderState.PICKING_UP || 
-                                 o.State == OrderState.DELIVERING))
-                    .Select(o => new { o.State, o.PickupLocation, o.DropoffLocation })
-                    .FirstOrDefaultAsync();
-
-                if (activeOrder != null)
-                {
-                    double? destLat = null;
-                    double? destLng = null;
-
-                    if (activeOrder.State == OrderState.ASSIGNED || activeOrder.State == OrderState.PICKING_UP)
-                    {
-                        destLat = activeOrder.PickupLocation?.Y;
-                        destLng = activeOrder.PickupLocation?.X;
-                    }
-                    else if (activeOrder.State == OrderState.DELIVERING)
-                    {
-                        destLat = activeOrder.DropoffLocation?.Y;
-                        destLng = activeOrder.DropoffLocation?.X;
-                    }
-
-                    if (destLat.HasValue && destLng.HasValue)
-                    {
-                        var routeResult = await _routingService.GetRouteDetailsAsync(snappedLat, snappedLng, destLat.Value, destLng.Value);
-                        snappedPolyline = routeResult.Polyline;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to resolve snapped polyline for Rider {RiderId}", riderId);
-            }
-
-            // 3. ป้องกันการวาร์ปกระโดดข้ามพิกัดระยะไกล (Teleport Protection)
+            // 3. ป้องกันการวาร์ปกระโดดข้ามพิกัดระยะไกล (Teleport Protection) - ใช้พิกัดดิบในการตรวจสอบ
             var lastGps = await _presenceService.GetLastKnownLocationAsync(riderId);
             bool isHistoricalPoint = false;
             if (lastGps is not null)
             {
-                var distMeters = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, snappedLat, snappedLng);
+                var distMeters = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, lat, lng);
                 var timeDiffSeconds = (now - lastGps.Value.UpdatedAt).TotalSeconds;
 
                 if (timeDiffSeconds <= 0)
@@ -215,11 +157,11 @@ namespace BackendApi.Services.Telemetry
                 }
             }
 
-            // 4. คำนวณความเร็วจาก GPS point ก่อนหน้า (reuse lastGps จากด้านบน)
+            // 4. คำนวณความเร็วจาก GPS point ก่อนหน้า (ใช้พิกัดดิบ)
             double speedKmh = 0.0;
             if (lastGps is not null && !isHistoricalPoint)
             {
-                var distForSpeed = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, snappedLat, snappedLng);
+                var distForSpeed = HaversineDistance(lastGps.Value.Lat, lastGps.Value.Lng, lat, lng);
                 var timeDiffForSpeed = (now - lastGps.Value.UpdatedAt).TotalSeconds;
                 if (timeDiffForSpeed > 0)
                     speedKmh = (distForSpeed / timeDiffForSpeed) * 3.6; // m/s → km/h
@@ -227,36 +169,17 @@ namespace BackendApi.Services.Telemetry
 
             var db = _redis.GetDatabase();
 
-            // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache
+            // 5. บันทึกพิกัดเรียลไทม์ + ความเร็วลงเฉพาะ Redis Presence Cache (ใช้พิกัดดิบ)
             if (!isHistoricalPoint)
             {
                 await _presenceService.UpdateGpsAsync(riderId, lat, lng, speedKmh, accuracy);
                 await _presenceManager.HandleRiderHeartbeatAsync(riderId);
-
-                // Save snapped coordinate to Redis Cache
-                if (isSnapped)
-                {
-                    try
-                    {
-                        var snappedGpsKey = $"riders:snapped_gps:{riderId}";
-                        await db.HashSetAsync(snappedGpsKey, new[]
-                        {
-                            new HashEntry("lat", snappedLat),
-                            new HashEntry("lng", snappedLng),
-                            new HashEntry("updated_at", DateTime.UtcNow.Ticks)
-                        });
-                        await db.KeyExpireAsync(snappedGpsKey, TimeSpan.FromHours(24));
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to cache snapped coordinates to Redis for Rider {RiderId}", riderId);
-                    }
-                }
             }
 
-            // 6. โยนพิกัดลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร
-            _gpsPublisher.Publish(new TrackPoint(riderId, snappedLat, snappedLng, now));
-            _gpsPublisher.PublishForSnap(new TrackPoint(riderId, snappedLat, snappedLng, now));
+            // 6. โยนพิกัดดิบลงคิว RabbitMQ แบบ Durable ป้องกันข้อมูลสูญหายระดับองค์กร
+            // Background Worker จะเป็นผู้นำไป Snap และดึงเส้นทางอย่างเป็นระบบแบบ Asynchronous
+            _gpsPublisher.Publish(new TrackPoint(riderId, lat, lng, now));
+            _gpsPublisher.PublishForSnap(new TrackPoint(riderId, lat, lng, now));
 
             // 7. เพิ่มตัวนับ GPS Tick สำหรับแสดงอัตราผ่านทางหน้าหลังบ้าน
             _aggregator.IncrementGpsTick();
@@ -268,7 +191,7 @@ namespace BackendApi.Services.Telemetry
                 return;
             }
 
-            // 8. จัดการ Dynamic Throttling สำหรับ Broadcast ผ่าน SignalR
+            // 8. จัดการ Dynamic Throttling สำหรับ Broadcast ผ่าน SignalR (ใช้พิกัดดิบ)
             var lastBroadcastKey = $"telemetry:last_broadcast:{riderId}";
             var lastBroadcast = await db.HashGetAllAsync(lastBroadcastKey);
 
@@ -287,7 +210,7 @@ namespace BackendApi.Services.Telemetry
                     var lastTicks = (long)ticksEntry.Value;
 
                     var timeDiff = (now - new DateTime(lastTicks, DateTimeKind.Utc)).TotalSeconds;
-                    var distanceMoved = HaversineDistance(lastLat, lastLng, snappedLat, snappedLng);
+                    var distanceMoved = HaversineDistance(lastLat, lastLng, lat, lng);
 
                     if (timeDiff > 0)
                     {
@@ -320,41 +243,39 @@ namespace BackendApi.Services.Telemetry
                 // ดึงสถานะไรเดอร์ปัจจุบัน (จาก Redis Cache ก่อน เลี่ยง DB)
                 var riderState = await GetRiderStateAsync(db, riderId);
 
-                // A. ส่งพิกัดเรียลไทม์หา Admin Dashboard
+                // A. ส่งพิกัดเรียลไทม์หา Admin Dashboard เท่านั้น (แบบยังไม่ได้ Snap ณ วินาทีแรก เพื่อความลื่นไหล)
+                // หมายเหตุ: ไม่ broadcast ไปหาลูกค้าจาก Hot path แล้ว เพื่อป้องกัน marker กระโดด
+                // ลูกค้าจะได้รับพิกัด Snapped จาก ProcessSnapAndBroadcastAsync (Background Worker) เท่านั้น
                 await _hubContext.Clients.Group(AdminGroup).SendAsync("RiderLocationUpdated", new
                 {
                     RiderId = riderId,
-                    Lat = snappedLat,
-                    Lng = snappedLng,
+                    Lat = lat,
+                    Lng = lng,
                     Accuracy = accuracy,
                     State = riderState,
                     Timestamp = now,
-                    isSnapped = isSnapped,
-                    snappedPolyline = snappedPolyline
+                    isSnapped = false,
+                    snappedPolyline = (string?)null
                 });
 
-                // B. ค้นหาออเดอร์ที่ค้างอยู่ของไรเดอร์คนนี้เพื่อส่งพิกัดหาแอปลูกค้า (ผ่าน Redis Cache เลี่ยง DB)
-                var customerIds = await GetActiveCustomerIdsAsync(db, riderId);
-                foreach (var customerId in customerIds)
+                // B. ส่งพิกัดเรียลไทม์หา Rider's own group (สำหรับ Simulation Mirror เพื่อการเคลื่อนไหวที่ลื่นไหลแบบเรียลไทม์)
+                await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("RiderLocationUpdated", new
                 {
-                    await _hubContext.Clients.Group($"customer:{customerId}").SendAsync("RiderLocationUpdated", new
-                    {
-                        RiderId = riderId,
-                        Lat = snappedLat,
-                        Lng = snappedLng,
-                        Accuracy = accuracy,
-                        State = riderState,
-                        Timestamp = now,
-                        isSnapped = isSnapped,
-                        snappedPolyline = snappedPolyline
-                    });
-                }
+                    RiderId = riderId,
+                    Lat = lat,
+                    Lng = lng,
+                    Accuracy = accuracy,
+                    State = riderState,
+                    Timestamp = now,
+                    isSnapped = false,
+                    snappedPolyline = (string?)null
+                });
 
                 // อัปเดตพิกัดส่งออกล่าสุดลงใน Redis
                 await db.HashSetAsync(lastBroadcastKey, new[]
                 {
-                    new HashEntry("lat", snappedLat),
-                    new HashEntry("lng", snappedLng),
+                    new HashEntry("lat", lat),
+                    new HashEntry("lng", lng),
                     new HashEntry("ticks", now.Ticks)
                 });
                 await db.KeyExpireAsync(lastBroadcastKey, TimeSpan.FromHours(24));
@@ -547,6 +468,191 @@ namespace BackendApi.Services.Telemetry
             }
 
             return customerIds;
+        }
+
+        /// <summary>
+        /// ประมวลผลการ Snap พิกัดและดึงรายละเอียดเส้นทางในแบบ Asynchronous/Event-driven จาก Background Worker
+        /// </summary>
+        public async Task ProcessSnapAndBroadcastAsync(TrackPoint point)
+        {
+            var riderId = point.RiderId;
+            var lat = point.Lat;
+            var lng = point.Lng;
+            var now = point.Timestamp;
+
+            using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["CorrelationId"] = Guid.NewGuid().ToString(), // background task correlation
+                ["OrderId"] = null,
+                ["RiderId"] = riderId
+            });
+
+            double snappedLat = lat;
+            double snappedLng = lng;
+            bool isSnapped = false;
+            string? snappedPolyline = null;
+
+            // 1. Call OSRM Snap-to-Road
+            try
+            {
+                var snappedResult = await _routingService.SnapToRoadAsync(lat, lng);
+                snappedLat = snappedResult.Lat;
+                snappedLng = snappedResult.Lng;
+                isSnapped = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to snap coordinate ({Lat}, {Lng}) in worker for Rider {RiderId}", lat, lng, riderId);
+            }
+
+            var db = _redis.GetDatabase();
+
+            // Save snapped coordinate to Redis Cache
+            if (isSnapped)
+            {
+                try
+                {
+                    var snappedGpsKey = $"riders:snapped_gps:{riderId}";
+                    await db.HashSetAsync(snappedGpsKey, new[]
+                    {
+                        new HashEntry("lat", snappedLat),
+                        new HashEntry("lng", snappedLng),
+                        new HashEntry("updated_at", DateTime.UtcNow.Ticks)
+                    });
+                    await db.KeyExpireAsync(snappedGpsKey, TimeSpan.FromHours(24));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cache snapped coordinates to Redis in worker for Rider {RiderId}", riderId);
+                }
+            }
+
+            double? routeDistance = null;
+            double? routeDuration = null;
+
+            // 2. Resolve Snapped Polyline for active order if any
+            try
+            {
+                var activeOrder = await _dbContext.Orders
+                    .AsNoTracking()
+                    .Where(o => o.AssignedRiderId == riderId && 
+                                (o.State == OrderState.ASSIGNED || 
+                                 o.State == OrderState.PICKING_UP || 
+                                 o.State == OrderState.DELIVERING))
+                    .Select(o => new { o.Id, o.State, o.PickupLocation, o.DropoffLocation })
+                    .FirstOrDefaultAsync();
+
+                if (activeOrder != null)
+                {
+                    double? destLat = null;
+                    double? destLng = null;
+                    var orderId = activeOrder.Id;
+                    var status = activeOrder.State.ToString();
+
+                    if (activeOrder.State == OrderState.ASSIGNED || activeOrder.State == OrderState.PICKING_UP)
+                    {
+                        destLat = activeOrder.PickupLocation?.Y;
+                        destLng = activeOrder.PickupLocation?.X;
+                    }
+                    else if (activeOrder.State == OrderState.DELIVERING)
+                    {
+                        destLat = activeOrder.DropoffLocation?.Y;
+                        destLng = activeOrder.DropoffLocation?.X;
+                    }
+
+                    _logger.LogInformation(
+                        "Route Debug | Rider:{RiderId} Order:{OrderId} Status:{Status} Start:{Lat},{Lng} Dest:{DestLat},{DestLng}",
+                        riderId,
+                        orderId,
+                        status,
+                        snappedLat,
+                        snappedLng,
+                        destLat,
+                        destLng
+                    );
+
+                    if (destLat.HasValue && destLng.HasValue)
+                    {
+                        var routeResult = await _routingService.GetRouteDetailsAsync(snappedLat, snappedLng, destLat.Value, destLng.Value);
+                        snappedPolyline = routeResult.Polyline;
+                        routeDistance = routeResult.DistanceMeters;
+                        routeDuration = routeResult.DurationSeconds;
+
+                        _logger.LogInformation(
+                            "Route Result Debug | DistanceMeters:{DistanceMeters} DurationSeconds:{DurationSeconds} EncodedPolyline:{EncodedPolyline}",
+                            routeDistance,
+                            routeDuration,
+                            snappedPolyline
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve snapped polyline in worker for Rider {RiderId}", riderId);
+            }
+
+            // 3. Broadcast Snapped Location and Path via SignalR to Admin & Customers
+            var riderState = await GetRiderStateAsync(db, riderId);
+
+            // A. Broadcast Snapped to Admin Group
+            await _hubContext.Clients.Group(AdminGroup).SendAsync("RiderLocationUpdated", new
+            {
+                RiderId = riderId,
+                Lat = snappedLat,
+                Lng = snappedLng,
+                Accuracy = 5.0, // default/simulated accuracy for snapped coordinates
+                State = riderState,
+                Timestamp = now,
+                isSnapped = isSnapped,
+                snappedPolyline = snappedPolyline,
+                routeDistance = routeDistance,
+                routeDuration = routeDuration
+            });
+
+            // B. Broadcast Snapped to Customers (แหล่งเดียวที่ลูกค้าได้รับพิกัด — ป้องกัน marker กระโดดจาก Raw+Snapped)
+            var customerIds = await GetActiveCustomerIdsAsync(db, riderId);
+            foreach (var customerId in customerIds)
+            {
+                await _hubContext.Clients.Group($"customer:{customerId}").SendAsync("RiderLocationUpdated", new
+                {
+                    RiderId = riderId,
+                    Lat = snappedLat,
+                    Lng = snappedLng,
+                    Accuracy = 5.0,
+                    State = riderState,
+                    Timestamp = now,
+                    isSnapped = isSnapped,
+                    snappedPolyline = snappedPolyline,
+                    routeDistance = routeDistance,
+                    routeDuration = routeDuration
+                });
+            }
+
+            // C. Broadcast Snapped to Rider's own group (ไรเดอร์ได้รับ snappedPolyline เพื่ออัปเดตเส้นทางแบบเรียลไทม์)
+            await _hubContext.Clients.Group($"rider:{riderId}").SendAsync("RiderLocationUpdated", new
+            {
+                RiderId = riderId,
+                Lat = snappedLat,
+                Lng = snappedLng,
+                Accuracy = 5.0,
+                State = riderState,
+                Timestamp = now,
+                isSnapped = isSnapped,
+                snappedPolyline = snappedPolyline,
+                routeDistance = routeDistance,
+                routeDuration = routeDuration
+            });
+
+            // D. Broadcast RiderLocationSnapped to admins (backward compatibility)
+            await _hubContext.Clients.Group(AdminGroup).SendAsync("RiderLocationSnapped", new
+            {
+                RiderId = riderId,
+                Lat = snappedLat,
+                Lng = snappedLng,
+                Timestamp = now,
+                isSnapped = true
+            });
         }
 
         private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2) =>

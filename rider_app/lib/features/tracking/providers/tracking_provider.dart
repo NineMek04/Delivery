@@ -66,6 +66,8 @@ class ActiveOrderNotifier extends Notifier<ActiveOrderState> {
             riderLng: event.longitude,
             riderTimestamp: event.timestamp ?? DateTime.now(),
             snappedPolyline: event.snappedPolyline,
+            routeDistance: event.routeDistance,
+            routeDuration: event.routeDuration,
           );
         }
       });
@@ -110,6 +112,8 @@ class ActiveOrderState {
   final double? riderLng;
   final DateTime? riderTimestamp;
   final String? snappedPolyline;
+  final double? routeDistance;
+  final double? routeDuration;
 
   const ActiveOrderState({
     this.isLoading = false,
@@ -119,6 +123,8 @@ class ActiveOrderState {
     this.riderLng,
     this.riderTimestamp,
     this.snappedPolyline,
+    this.routeDistance,
+    this.routeDuration,
   });
 
   ActiveOrderState copyWith({
@@ -129,6 +135,8 @@ class ActiveOrderState {
     double? riderLng,
     DateTime? riderTimestamp,
     String? snappedPolyline,
+    double? routeDistance,
+    double? routeDuration,
   }) {
     return ActiveOrderState(
       isLoading: isLoading ?? this.isLoading,
@@ -138,6 +146,8 @@ class ActiveOrderState {
       riderLng: riderLng ?? this.riderLng,
       riderTimestamp: riderTimestamp ?? this.riderTimestamp,
       snappedPolyline: snappedPolyline ?? this.snappedPolyline,
+      routeDistance: routeDistance ?? this.routeDistance,
+      routeDuration: routeDuration ?? this.routeDuration,
     );
   }
 }

@@ -1,310 +1,447 @@
-# AI-aLUEPRINT: Smart Delivery Routing System
+# AI Blueprint - Smart Delivery Routing System
 
-> **⚠️ AI AGENT NOTICE:** 
-> This file is now a **Historical Archive (Layer 1)**. For targeted context, start by reading `AI-INDEX.md` and navigate to `.docs/ai-context/` instead to save tokens and prevent context overload.
+**Document role:** Architecture blueprint for AI-assisted dispatch, routing,
+telemetry, and realtime delivery coordination.
 
-> **ชื่อโครงการ:** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์  
-> **English:** AI-Optimized Smart Delivery Routing System  
-> **ผู้พัฒนา:** นายนนท์ธรัตน์ ทาลา  
-> **Version:** 0.9.1 (Phase 6: Production-Grade Prototype)  
-> **Last Updated:** 2026-06-17
+**Audience:** Backend, AI, mobile, frontend, QA, and DevOps teams that need to
+understand how the intelligent routing system is designed.
 
----
+**Last updated:** 2026-06-18
 
-## 1. Project Vision & Problem Statement
+## 1. Blueprint Scope
 
-### ปัญหาที่ต้องแก้ไข
-แพลตฟอร์มจัดส่งสินค้า/อาหาร ประสบปัญหาการคำนวณเส้นทางที่มีจุดแวะรับ-ส่งหลายจุด (Multi-drop / aatched Orders) ที่ไม่มีประสิทธิภาพ → สิ้นเปลือง **เวลา + เชื้อเพลิง** + ลดความพึงพอใจลูกค้า
+This file explains the design of the AI and dispatch architecture. It is not a
+full project specification and it is not a changelog. For complete API,
+frontend, mobile, and infrastructure requirements, use `PROJECT-SPEC.md`.
 
-### แนวทางแก้ปัญหา
-- **Zero-audget Prototype** — ใช้สมาร์ทโฟนเป็น GPS sensor (aYOD) แทนฮาร์ดแวร์ราคาแพง
-- **AI (VRP Algorithm)** — คำนวณเส้นทางที่เหมาะสมที่สุดด้วย Google OR-Tools
-- **Microservices on Docker** — deploy ง่าย ไม่ต้องตั้งค่า environment ซับซ้อน
+Canonical implementation contracts still live under `.docs/ai-context/`.
+This blueprint is the human-readable architecture map derived from those active
+contracts and the current codebase.
 
-### เป้าหมาย
-1. ศึกษาและพัฒนาระบบ Microservices สำหรับขนส่งอัจฉริยะ
-2. ประยุกต์ใช้ AI แก้ปัญหา Vehicle Routing Problem (VRP)
-3. ระบบสื่อสาร Real-time ระหว่าง Mobile ↔ Web (SignalR)
-4. ลดต้นทุน Prototype โดยใช้สมาร์ทโฟนแทนเซนเซอร์เฉพาะทาง
+## 2. System Intent
 
----
+The system is an AI-assisted delivery platform that connects customers,
+stores, riders, and operations staff in realtime. The core intelligence problem
+is not only "find a nearby rider"; it is:
 
-## 2. Technology Stack (ข้อเท็จจริงจาก Codebase)
+- rank riders using location, availability, current workload, and route cost
+- avoid assigning inaccurate GPS points into dispatch decisions
+- keep rider/order state consistent across REST, SignalR, Redis, PostgreSQL,
+  and RabbitMQ
+- calculate road-aware routes through local OSRM
+- fall back safely when AI or OSRM is degraded
+- keep the admin map and rider app reactive without flooding the browser or
+  backend
 
-| Layer              | Technology                  | Version           | Notes                                         |
-|--------------------|-----------------------------|-------------------|-----------------------------------------------|
-| **aackend API**    | .NET (ASP.NET Core)         | **.NET 8**        | Enhanced with Auth system & TrackingHub        |
-| **Real-time**      | SignalR                     | ASP.NET Core built-in | **Ready** — TrackingHub implemented           |
-| **AI Engine**      | Python + FastAPI            | 3.11-slim         | **Ready** — VRP Solver implemented with OR-Tools |
-| **AI Algorithm**   | Google OR-Tools             | Latest            | PATH_CHEAPEST_ARC strategy                    |
-| **Database**       | PostgreSQL + PostGIS        | 15-3.3 (Docker)   | SRID 4326 / WGS84                             |
-| **Cache (Hot Data)** | Redis                      | 7-alpine (Docker) | **New** — Used for GPS, Heartbeat, and Locking |
-| **ORM**            | EF Core + NetTopologySuite  | 8.0.11            | DaHandlerCore implemented for easy CRUD       |
-| **Security**       | JWT aearer + Refresh Token     | 8.0.11         | **Enhanced** — Refresh Token & Rotation added |
-| **Frontend**       | Angular                     | **v19.2.0**       | Fluent API & OpenAPI Generator ready          |
-| **Mobile App**     | Flutter (Dart)              | **^3.9.0**        | **Foundation Ready** (Auth & Refresh implemented) |
-| **Container**      | Docker + Docker Compose     | v3.8              | ✅ All services have Dockerfiles              |
-| **Web Server**     | Nginx                       | —                 | สำหรับ serve Angular ใน container               |
+## 3. Architecture Principles
 
----
+### 3.1 Source Of Truth
 
-## 3. System Architecture
+PostgreSQL/PostGIS is the durable source of truth. Redis is a speed layer for
+presence, locks, route cache, and current operational state. Redis values must
+be reconstructable from PostgreSQL or realtime updates.
 
-### 3.1 Microservices Overview
+### 3.2 Pure Transport Hubs
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            Docker Network                                   │
-│                                                                             │
-│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐               │
-│  │  delivery-db  │      │  delivery-   │      │  delivery-ai  │               │
-│  │   PostGIS     │◄────►│   backend    │◄────►│Python FastAPI │               │
-│  │  15-3.3       │      │   .NET 8     │      │ + OR-Tools    │               │
-│  └──────────────┘      └──────┬───────┘      └──────────────┘               │
-│                               │                                             │
-│                        ┌──────▼──────┐                                      │
-│                        │ delivery-   │                                      │
-│                        │   redis     │ (Hot Data: GPS, Locks, Presence)     │
-│                        │   7-alpine  │                                      │
-│                        └─────────────┘                                      │
-│                                                                             │
-│  ┌──────────────────────────────────────────────────────┐                   │
-│  │        delivery-frontend — Angular via Nginx          │                   │
-│  │                    Port: 80                           │                   │
-│  └──────────────────────────────────────────────────────┘                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                             │
-                    ┌────────┴────────┐
-                    │  Flutter App    │
-                    │  (Rider Mobile) │
-                    │  ✅ Foundation Ready │
-                    └─────────────────┘
-```
+SignalR hubs transport messages only. `TrackingHub` authenticates, validates,
+routes to groups, and delegates to services. It must not contain business state
+mutation rules.
 
-### 3.2 Data Flow
+### 3.3 Local-First Routing
 
-```
-Flutter App ──(WebSocket/SignalR)──► .NET aackend ──(REST)──► Python AI Service
-     │                                    │                         │
-     │                                    ▼                         │
-     │                              PostgreSQL/PostGIS              │
-     │                                    │                         │
-     │◄──(SignalR aroadcast)──────────────┤◄────(VRP Result)────────┘
-     │                                    │
-     │                              Angular Dashboard
-     │                              (Real-time Map)
-```
+Routing uses local OSRM only. Public OSRM fallback is forbidden for production
+GPS or order route data because it can leak location information. When local
+OSRM is unavailable, backend fallback must remain local: Haversine/raw geometry
+with explicit degraded source metadata.
 
----
+### 3.4 Deterministic Fallback
 
-## 4. Repository Structure (สถานะจริง)
+AI is an optimizer, not the only path to delivery. Any AI ranking, ETA, or route
+operation must have deterministic fallback behavior so orders do not become
+stuck when AI is unavailable.
 
-```
-Delivery/
-├── .cursorrules                 ← กฎสำหรับ AI assistant (Cursor)
-├── AGENTS.md                    ← กฎเหล็กสูงสุดในการพัฒนา ห้ามลบ ห้ามละเมิดเด็ดขาด
-├── AI-INDEX.md                  ← สารบัญและ Context Router แผนผังนำทางให้ AI
-├── Delivery.sln                 ← Solution File ของระบบ .NET Core
-├── docker-compose.yml           ← แฟ้มตั้งค่าคอนเทนเนอร์หลัก 12 เซอร์วิส
-│
-├── Documents/                   ← แหล่งรวบรวมเอกสารการออกแบบและสถาปัตยกรรมของโครงการ
-│   ├── README.md                ← สารบัญและสาระสำคัญของระบบเอกสารทั้งหมด
-│   ├── infrastructure/          ← ข้อมูลด้านระบบ DevOps & Deployments
-│   ├── setup/                   ← ข้อมูลขั้นตอนการติดตั้งและการเซ็ตอัพ
-│   └── development/             
-│       ├── AI-aLUEPRINT.md      ← ไฟล์นี้ — สรุปโครงสร้างสถาปัตยกรรมระดับภาพรวม
-│       ├── PROJECT-SPEC.md      ← เอกสารข้อกำหนดเชิงลึกระบบและการวิจัย (Master Spec)
-│       └── CODEaASE_PATTERNS/   ← โฟลเดอร์รวมแบบแผนการเขียนโค้ดและการแก้ปัญหาเชิงลึก
-│           ├── README.md        ← ดัชนีสารบัญแบบแผนโค้ดทั้งหมด 19 ฉบับ
-│           ├── sqlite-local-db.md ← รายละเอียด SQLite offline buffering
-│           ├── gorouter-rbac.md ← รายละเอียด GoRouter RaAC pattern
-│           └── api-response-wrapper.md ← รายละเอียด REST JSON wrapping pattern
-│
-├── aackendApi/                  ← .NET 8 Web API (Core Services & Tracking Gateway)
-│   ├── Core/                    ← Models, Filters, DataHandlers, aase Controllers
-│   ├── Controllers/             ← REST Controller endpoints
-│   ├── Hubs/                    ← SignalR WebSockets (TrackingHub)
-│   ├── Models/DTOs/             ← Data Transfer Objects & Entity Models
-│   ├── Security/                ← JWT Token Service & Password management
-│   ├── Setup/                   ← Dependency Injection & Configuration
-│   └── Dockerfile               ← Multi-stage production build configuration
-│
-├── ai-engine/                   ← Python FastAPI (Routing & VRP Solver)
-│   ├── main.py                  ← จุดเชื่อมต่อ FastAPI + Google OR-Tools
-│   ├── requirements.txt         
-│   └── Dockerfile               ← auild and deployment config
-│
-├── admin-dashboard/             ← Angular 19 (Web Admin Dashboard)
-│   ├── src/app/core/            ← Core Services, HTTP Clients, Interceptors
-│   ├── openapitools.json        ← OpenAPI Generator config
-│   └── Dockerfile               ← Angular production deployment server
-│
-├── rider_app/                   ← Flutter (Rider Mobile Application)
-│   ├── lib/                     ← Code base (Dio, SignalR, Riverpod, Local Da)
-│   ├── pubspec.yaml             
-│   └── Rider_app.md             ← แผนการพัฒนาแอปพลิเคชันมือถือไรเดอร์
-│
-└── scripts.test/                ← โฟลเดอร์เดี่ยว (Single Test Hub) รวบรวมเทสทั้งหมด
+### 3.5 Bounded Complexity
+
+The architecture intentionally uses PostgreSQL/PostGIS, Redis, RabbitMQ,
+SignalR, local OSRM, and FastAPI. Do not introduce Kafka, Kubernetes, full CQRS,
+Event Store, Saga Orchestrator, gRPC mesh, Redis Cluster, or Elasticsearch.
+
+## 4. Runtime Topology
+
+```text
+Flutter App (Rider / Customer / StorePartner)
+        |
+        | REST /api/v1
+        | SignalR /hubs/tracking and /hubs/chat
+        v
+BackendApi (.NET 8)
+        |
+        +--> PostgreSQL/PostGIS
+        |       Durable orders, riders, shops, users, GPS history,
+        |       processed integration events, soft-delete records
+        |
+        +--> Redis
+        |       Rider presence, current location, dispatch locks,
+        |       route cache, operational speed layer
+        |
+        +--> RabbitMQ
+        |       Integration events, async telemetry persistence,
+        |       background worker handoff, DLQ
+        |
+        +--> AI Engine (FastAPI)
+        |       Candidate ranking, route optimization, ETA prediction
+        |
+        +--> Local OSRM
+                Road routes, nearest-road snap, trip sequence
+
+Angular Admin Dashboard
+        |
+        +--> REST /api/v1 for operational queries
+        +--> SignalR /hubs/tracking for realtime map/order updates
 ```
 
----
+## 5. Core Components
 
-## 5. Current State of Development
+### 5.1 Backend API
 
-### สถานะรวม: 🔵 **Phase 5 — Data-Driven Observability (Testing Dashboard)** (สำเร็จ 100%)
-### สถานะรวม: 🟢 **Phase 6 — Production-Grade Prototype** (สำเร็จ 95% สำหรับ Core backend/AI/Testing/Dashboard/Mobile Apps)
+Backend API owns authentication, order lifecycle, dispatch orchestration,
+SignalR events, RabbitMQ events, OSRM route calls, and telemetry persistence.
 
-| Component            | Status            | รายละเอียด                                                    |
-|----------------------|-------------------|--------------------------------------------------------------|
-| **docker-compose**   | ✅ Created         | 6 services: db, backend, ai-service, frontend, redis, **test-dashboard-redis** (ระบบอัตโนมัติคุมการรัน) |
-| **PostGIS Da**       | ✅ Optimized       | GiST Indexes บนพิกัด Geometry, ตาราง Location History แบบ Range Partitioning รายเดือน, Clustering จูน Disk IO |
-| **Redis Cache**      | ✅ Running         | Used for GPS speed layer, presence, and distributed locking  |
-| **aackendApi**       | ✅ 100% Ready      | ขจัดปัญหา N+1 Query, ย้าย Haversine Math ไปหา PostGIS Engine, เพิ่มระบบ Provision Partition อัตโนมัติ |
-| **Universal Tracking**| ✅ 100% Ready      | ติดตั้งรหัสอ้างอิงสวยงาม ORD-, RID-, SHP-, USR- คิวรี O(1)/O(log N) ผนวกการค้นหาแบบผสมผสาน |
-| **OSRM Routing**     | ✅ 100% Ready      | ติดตั้งระบบ Offline-First Dijkstra สำหรับวาดเส้นทางโค้งจริง พร้อมการบีบอัด Polyline |
-| **ai-engine**        | ✅ 100% Ready      | FastAPI + OR-Tools VRP solver, Phase A Scorer, และ ETA Prediction Engine |
-| **admin-dashboard**  | ✅ 100% Ready      | Live maps, Smooth Linear Interpolation, On-Demand Route history, และ SignalR live tracking |
-| **test-dashboard**   | ✅ 100% Ready      | Testing Dashboard (Node.js + aullMQ + Angular + Socket.IO + Xterm + Chart.js Gauge/Line charts) พร้อมดึง Metrics (RPS, Latency, Errors) |
-| **rider_app**        | 🟢 95% Ready       | SQLite Local buffer (via sqflite), Timer Sync Engine, background GPS stream, and Riverpod integration complete. |
-| **customer_store**   | 🟢 95% Ready       | Customer checkout flow, Store partner dashboard/management, and tracking map fully functional. |
-| **E2E Simulator**    | ✅ 100% Ready      | Node.js script เชื่อมต่อเต็มรูปแบบ รองรับเส้นทาง OSRM, GPS Jitter, SignalR Flow พร้อมกันหลาย Rider |
-| **SignalR Hub**      | ✅ Ready           | `TrackingHub` refactored to use Redis presence & GPS buffer  |
-| **Database Migration**| ✅ Applied         | Run `dotnet ef database update` สำหรับ Spatial Index, Partitioning, และ RefNumber ล่าสุด |
-| **aackend Security** | ✅ Enhanced        | JWT, Refresh Token, Rotation, Role policy, Serilog logging added |
-| **Enterprise Audit** | ✅ Ready           | Layered aase Entities, Soft Delete, IP Tracking, Concurrency Tokens (RowVersion) |
-| **E2E Testcontainers**| ✅ 100% Passed     | รัน integration tests แบบ End-to-End บน Testcontainers PostGIS Docker จริง ผ่านฉลุย 5/5 เคส |
-| **Integration Tests**| ✅ 100% Passed     | รันผ่าน 43/43 เคส (รวม Telemetry aatch Ingestion) ด้วย Testcontainers PostGIS + Redis แบบ Hermetic Sandbox |
-| **Stress/Load Tests**| ✅ 100% Passed     | สคริปต์ Node.js สำหรับเทสโหลด SignalR, API, Dispatch และ Reconnect stability |
-| **Analytics & ETA**  | ✅ 100% Ready      | Deterministic OSRM-based ETA adjustment engine และ Dashboard summary endpoints สำหรับ Admin |
-| **AI-OS Context**    | ✅ Implemented     | ใช้งาน `AI-INDEX.md` ในการจัดการ context อย่างแม่นยำและประหยัด Token |
+Important implementation areas:
 
+```text
+BackendApi/
+  Features/AiRouting/
+  Features/DispatchManagement/
+  Features/FleetTracking/
+  Services/Orders/
+  Services/Dispatch/
+  Services/BackgroundWorkers/
+  Hubs/Tracking/
+  Infrastructure/EventBus/
+  Infrastructure/Redis/
+```
 
----
+### 5.2 AI Engine
 
-## 6. Docker Compose Config (ปัจจุบัน)
+AI engine owns algorithmic computation:
 
-| Service        | Image / auild                    | Port  | Container Name       | Status              |
-|----------------|----------------------------------|-------|----------------------|---------------------|
-| **db**         | `postgis/postgis:15-3.3`          | 5432  | delivery-db          | ✅ ใช้งานได้         |
-| **backend**    | `./aackendApi/Dockerfile`        | 5000  | delivery-backend     | ✅ Ready            |
-| **redis**      | `redis:7-alpine`                 | 6379  | delivery-redis       | ✅ Ready            |
-| **ai-service** | `./ai-engine/Dockerfile`          | 8000  | delivery-ai          | ✅ Ready            |
-| **frontend**   | `./admin-dashboard/Dockerfile`   | 80    | delivery-frontend    | ✅ Ready            |
-| **rider-app**  | `./rider_app/Dockerfile`         | 8080  | delivery-rider-app   | ✅ Ready (Web Prototype) |
-| **osrm**       | `osrm/osrm-backend`              | 5001  | delivery-osrm        | ✅ Ready (Offline OSRM)  |
-| **nginx-proxy**| `nginx:alpine`                   | 8081  | delivery-nginx       | ✅ Ready            |
-| **seq**        | `datalust/seq:latest`            | 5341  | delivery-seq         | ✅ Ready (Central Logs)  |
-| **prometheus** | `prom/prometheus:latest`         | 9090  | delivery-prometheus  | ✅ Ready            |
-| **grafana**    | `grafana/grafana-enterprise`     | 3000  | delivery-grafana     | ✅ Ready            |
-| **rabbitmq**   | `rabbitmq:3-management-alpine`   | 5672  | delivery-rabbitmq    | ✅ Ready (AMQP aroker)   |
+- rider candidate scoring
+- VRP-style route optimization
+- ETA prediction
+- degraded heuristic response when heavy optimization fails
 
+FastAPI endpoints that perform CPU-bound work must be `def`, not `async def`,
+so FastAPI runs them in the thread pool.
 
----
+### 5.3 Local OSRM
 
-## 7. Next Tasks (Priority Order)
+OSRM owns route distance, duration, nearest-road snap, and trip sequence.
 
-### 🔴 Critical — ขาดและ block การทำงาน
-1. **พัฒนา Angular Dashboard** — Map view (Leaflet/Google Maps) + real-time tracking UI + รัน OpenAPI Generator(🟢 ผ่านแล้ว)
-### 🔴 Critical — สเต็ปต่อไปสำหรับ Mobile App
-2. **พัฒนา Flutter Rider App ต่อ** — Implement UI จริง, รัน `build_runner`, และทำระบบส่ง GPS พื้นหลัง (aackground Service)
+Backend configuration:
 
-### 🟡 Important — ต้องทำเร็วๆ นี้
-3. **aackend ↔ AI Integration** — (✅ สำเร็จแล้ว) มี `AiService` พร้อมเรียกใช้จาก Controller/Service อื่น
-4. **ขยาย ausiness Logic** — (✅ สำเร็จแล้ว) มี `OrdersController` สำหรับจัดการออเดอร์และทริกเกอร์ Dispatch
-6. **Dispatch Integration Test** — (✅ สำเร็จแล้ว) ทดสอบ End-to-End Flow: Admin -> aackend -> AI -> SignalR -> Rider ได้รับ Offer งานสำเร็จ
-7. **พัฒนา Mobile App ฝั่ง Customer / Store** — อิงจาก Prototype หน้าเว็บที่สร้างไว้ (ใช้ Flutter หรือ Web-based PWA)
-9. **aackend Features (Tier 2/3)** — FCM Push Notifications, ระบบชำระเงิน, ETA Calculation
-10. **พัฒนา Mobile App ฝั่ง Customer / Store** — อิงจาก Prototype หน้าเว็บที่สร้างไว้ (ใช้ Flutter หรือ Web-based PWA)
-11. **aackend Features (Tier 2/3)** — FCM Push Notifications และระบบชำระเงิน
-### 🟢 Nice-to-have
-12. **CI/CD Workflows** — GitHub Actions
-13. **Integration Tests** — ทดสอบการเชื่อมต่อระหว่าง services
-14. **CI/CD Workflows** — GitHub Actions & Automated deployments
-15. **RabbitMQ Event aus** — เปลี่ยนจาก Synchronous เป็น Event-Driven สำหรับบาง Module
----
+```text
+Routing__LocalOsrmUrl=http://osrm:5000
+Development host port=http://localhost:5001
+```
 
-## 8. AI-Specific Notes (สำหรับ AI Assistant)
+### 5.4 Redis
 
-### ⚠️ สิ่งที่ต้องระวัง
-- **Security:** JWT config ต้องตั้งผ่าน environment variable/user secrets (`Jwt__Key` >= 32 chars)
-- **JWT Auth:** รองรับทั้ง `Authorization: aearer` และ HttpOnly Cookie `access_token`
-- **Refresh Token:** ระบบ Token Rotation (Access + Refresh) เพื่อความปลอดภัยสูงสุด
-- **Role Policies:** `AdminOnly`, `Operations`, `Rider`
-- **Rate Limiting:** มี `auth` policy สำหรับป้องกัน arute-force
-- **Security Headers:** ตั้งค่า `Referrer-Policy`, `X-Frame-Options`, ฯลฯ ผ่าน Middleware เพื่อให้ DTO ตรงกับ aackend
-- **Spatial:** ใช้ `NetTopologySuite` ใน .NET และ `geometry(Point, 4326)` ใน Da
-- **API Contract:** ใช้ OpenAPI Generator ใน Angular เพื่อให้ DTO ตรงกับ aackend
+Redis stores volatile operational data:
 
-### 📋 Files ที่ต้องอ่านก่อนเริ่มงาน
-1. `AI-aLUEPRINT.md` — ไฟล์นี้ (Context Ledger)
-2. `AI-CHANGELOG.md` — สถานะงานล่าสุด
-3. `PROJECT-SPEC.md` — รายละเอียด Spec เชิงลึก
-4. `.cursorrules` — กฎและ workflow ของ AI
+- rider current location
+- rider heartbeat/presence
+- dispatch locks and offer reservations
+- route cache
+- short-lived realtime lookup data
 
----
+Redis must not be treated as the authority for historical GPS, order state, or
+final rider state recovery.
 
-## 9. Flutter Mobile App — Feature List & Planning
+### 5.5 RabbitMQ
 
-> **Last Updated:** 2026-06-15 | **Status:** Aligning with the Active Stack
+RabbitMQ carries integration events across async processing boundaries. Every
+consumer must check `ProcessedEvents` before executing business logic.
 
-รายละเอียดสเปก ข้อกำหนด และฟังก์ชันการใช้งานของแอปพลิเคชันมือถือ (Rider, Customer, StorePartner) ได้ถูกย้ายและแยกโครงสร้างออกเป็นเอกสารจำเพาะเพื่อประหยัด Token และป้องกันการซ้ำซ้อนในแบบแผนที่บวม โดยสามารถเปิดอ่านข้อมูลสถานะล่าสุดและสถาปัตยกรรมทางเทคนิคได้ที่:
+Event naming rule:
 
-- **สเปกข้อกำหนดและการเชื่อมต่อ:** [.docs/ai-context/spec-mobile-rider.md](../../.docs/ai-context/spec-mobile-rider.md) (Rider Auth, GPS Rules, aackground Sync, OSRM/SignalR contracts)
-- **สเปกการสำรองข้อมูลในเครื่อง (SQLite):** [sqlite-local-db.md](CODEaASE_PATTERNS/sqlite-local-db.md) (ตาราง `pending_gps_points`, `pending_status_updates` และระบบ FIFO trimming)
-- **การจัดสิทธิ์และเส้นทางแผนผัง:** [gorouter-rbac.md](CODEaASE_PATTERNS/gorouter-rbac.md) (GoRouter RaAC & Refresh Listenable)
+```text
+<Domain><Action>IntegrationEvent
+```
 
-### 9.1 สถานะภาพรวมโครงการโมบาย (ณ ปัจจุบัน)
-- **Rider App (Flutter):** 🟢 95% Ready (โครงสร้าง Auth, Secure Storage, SignalR, background GPS, SQLite/sqflite offline buffer, OSRM dynamic routing, และ GoRouter RBAC ทำงานครบวงจร)
-- **Customer / Store Partner App:** 🟢 95% Ready (ระบบสั่งอาหาร ตะกร้าสินค้า ข้ามขั้นตอนหยิบลงตะกร้า Buy Now, และ Store Management Dashboard ทำงานร่วมกับ Backend สมบูรณ์)
+Examples:
 
----
-## Latest Working Context - 2026-05-20 Sim Realtime Dispatch Map
+```text
+OrderCreatedIntegrationEvent
+OrderStatusChangedIntegrationEvent
+```
 
-### Current Routing
-- Admin route `/map` now opens the new simulation-focused map: `admin-dashboard/src/app/features/sim-map/`.
-- Original live map is still available at `/map-live`: `admin-dashboard/src/app/features/map/`.
-- Sidebar label now points operators to `Sim Map` during simulator testing.
+## 6. Dispatch Blueprint
 
-### Sim Map aehavior
-- Shows scan circle around the order shop when dispatch starts.
-- Shows nearby rider candidates and ranked candidates from SignalR.
-- Smoothly animates rider marker movement with `requestAnimationFrame`.
-- Auto-follows and zooms to the selected rider while pickup/dropoff route simulation is running.
-- Draws pickup and dropoff markers, full route, and remaining route progress.
-- Includes a lightweight HUD for flow phases: Scan -> Offer -> Assign -> Pickup -> Dropoff.
+Dispatch must choose a rider who is available, close enough by route cost, using
+accurate enough GPS, not locked by another active offer, and compatible with the
+current order/batch constraints.
 
-### aackend Realtime aridge
-- `aackendApi/Hubs/TrackingHub.cs` now keeps `Rider.CurrentLocation` in PostGIS synced with realtime rider GPS updates.
-- `aackendApi/Services/Dispatch/DispatchService.cs` broadcasts dispatch simulation events to admin clients:
-  - `DispatchScanStarted`
-  - `DispatchCandidatesRanked`
-  - `DispatchOfferSent`
-- Dispatch offers include pickup route details when available from OSRM.
-- `OrdersController` broadcasts `OrderStatusChanged` to admin and rider groups after status transitions.
+```text
+Customer creates order
+        |
+        v
+Order state: CREATED
+        |
+Store accepts order
+        |
+        v
+Order state: MATCHING
+        |
+Backend queues dispatch task
+        |
+        v
+Candidate discovery from rider state/location
+        |
+        v
+AI ranking with deterministic fallback
+        |
+        v
+Acquire rider lock and persist offer
+        |
+        v
+Order state: OFFERING
+Rider state: RESERVED
+        |
+        v
+SignalR OfferReceived -> rider:{riderId}
+        |
+        +--> Accept: OFFERING -> ASSIGNED, RESERVED -> BUSY
+        |
+        +--> Reject/timeout: OFFERING -> MATCHING, RESERVED -> IDLE,
+             then try next candidate
+```
 
-### Simulator
-- Main file: `scripts/e2e-simulator/simulate-e2e.js`.
-- It creates 5-10 simulated riders near a random shop/order area, sends realtime GPS through SignalR, accepts the selected offer, then moves through pickup and delivery routes.
-- Route source order is backend encoded route -> local OSRM fallback -> straight-line fallback.
-- Useful env vars: `DELIVERY_API_URL`, `DELIVERY_HUa_URL`, `DELIVERY_HEALTH_URL`, `DELIVERY_OSRM_URL`, `DELIVERY_ADMIN_EMAIL`, `DELIVERY_ADMIN_PASSWORD`, `DELIVERY_SIM_PASSWORD`, `DELIVERY_SIM_RIDERS`.
+Offer invariants:
 
-### Verification Notes
-- `node --check scripts\e2e-simulator\simulate-e2e.js` passed.
-- `npm.cmd run build` in `admin-dashboard` passed with existing budget/CommonJS warnings.
-- `dotnet build aackendApi\aackendApi.csproj` passed with existing warnings.
-- Full simulator execution may require Docker API access outside the sandbox on this machine.
+- accept must check offer ID and version
+- dispatch locks must expire if rider does not respond
+- reject and timeout must release or move reservations safely
+- Redis locks are guardrails; PostgreSQL state is authority
+- admin dispatch events deduplicate by `order.id + dispatchAttempt`
 
-### Next Suggested Work
-- Run the full Docker-backed simulator against `/map` and tune animation timing/zoom if needed.
-- When Flutter rider app is ready, replace the simulator GPS/acceptance flow with real rider app events while keeping the same SignalR/backend event contract.
+## 7. Route Intelligence
 
-### สิ่งที่ยังเหลือต้องทำ (Next Action Items) สำหรับโปรเจกต์ Delivery
- - เมื่อระบบแกนกลางและแอปพลิเคชันต้นแบบเสถียรและทดสอบ E2E ผ่านหมดแล้ว
-### งานที่เหลือสำหรับพัฒนาระดับ Enterprise Production (ในอนาคต):
-  1. 📱 ฝั่งแอปพลิเคชันมือถือ
-    - ปรับแต่งความเสถียรของแอปพลิเคชันและการสลับโหมด Network ในการจำลองการขับขี่
-  2. ⚙️ ฝั่ง backend API
-    - ระบบการแจ้งเตือน (Enterprise Push Notifications): นำเข้า Firebase Cloud Messaging (FCM) แทน SignalR alerts ทั่วไปเพื่อรับข้อความขณะปิดแอปพลิเคชัน
-    - Payment Gateway Integration: ทำระบบชำระเงินออนไลน์
-  3. 💻 ฝั่ง Admin Dashboard
-    - เก็บตกหน้าจอจัดการสิทธิ์การปรับแต่งระบบยืดหยุ่นเพิ่มเติม
+### 7.1 Order Route Creation
+
+When an order is created, backend derives pickup coordinates from the shop and
+dropoff coordinates from the customer request. Backend asks local OSRM for
+road-aware route details and stores route distance, duration, and encoded
+polyline when available.
+
+If local OSRM fails, backend must fall back locally. It must not call public
+OSRM in production.
+
+### 7.2 Rider Route Resolution
+
+The rider app calls backend instead of calling OSRM directly:
+
+```text
+POST /api/v1/rider-routes/resolve
+```
+
+Backend verifies assigned-rider ownership, calls local OSRM, and returns:
+
+```json
+{
+  "encodedPolyline": "...",
+  "distanceMeters": 1200,
+  "durationSeconds": 300,
+  "source": "LOCAL_OSRM"
+}
+```
+
+If OSRM is unavailable, source can be `HAVERSINE_FALLBACK`. Flutter may draw a
+straight line only as the final fallback and must report the fallback through:
+
+```text
+POST /api/v1/telemetry/client-route-fallback
+```
+
+### 7.3 Multi-Stop Trip Ordering
+
+OSRM trip response `waypoint_index` is a visit-order value per input waypoint.
+Callers must compare `seq[inputIndex]`. They must not use `seq.IndexOf(inputIndex)`.
+
+## 8. GPS Accuracy Model
+
+```text
+accuracy <= 50m
+    Core telemetry. Can enter dispatch, history, customer tracking.
+
+50m < accuracy <= 300m
+    Degraded admin-only telemetry. Can show an accuracy circle on admin map.
+    Must not be used by dispatch or customer ETA.
+
+accuracy > 300m
+    Reject.
+```
+
+This prevents noisy mobile GPS from corrupting AI dispatch decisions while still
+giving operations staff useful visibility.
+
+## 9. State Machines
+
+Order states:
+
+```text
+CREATED
+MATCHING
+OFFERING
+ASSIGNED
+PICKING_UP
+DELIVERING
+COMPLETED
+CANCELLED
+```
+
+Valid order transitions:
+
+```text
+CREATED -> CREATED | MATCHING | CANCELLED
+MATCHING -> CREATED | OFFERING | CANCELLED
+OFFERING -> ASSIGNED | MATCHING | CANCELLED
+ASSIGNED -> PICKING_UP | CANCELLED
+PICKING_UP -> DELIVERING | CANCELLED
+DELIVERING -> COMPLETED | CANCELLED
+```
+
+Rider states:
+
+```text
+OFFLINE
+IDLE
+RESERVED
+BUSY
+STALE
+```
+
+Valid rider transitions:
+
+```text
+OFFLINE -> IDLE
+IDLE -> RESERVED | OFFLINE | STALE
+RESERVED -> BUSY | IDLE | STALE
+BUSY -> IDLE | OFFLINE | STALE
+STALE -> IDLE | BUSY | OFFLINE
+```
+
+`Recover` is a transition reason, not a rider state. Recovery resolves to
+`IDLE` or `BUSY` based on active orders in PostgreSQL.
+
+## 10. Realtime Blueprint
+
+SignalR hubs:
+
+```text
+/hubs/tracking
+/hubs/chat
+```
+
+`/hubs/tracking` is used for dispatch offers, GPS, order status, and admin
+operations events. `/hubs/chat` is separate and must not carry GPS telemetry.
+
+Groups:
+
+```text
+admins
+rider:{riderId}
+customer:{userId}
+store:{shopId}
+```
+
+Canonical events:
+
+```text
+OfferReceived
+RiderLocationUpdated
+ShopStatusChanged
+DispatchScanStarted
+DispatchCandidatesRanked
+DispatchOfferSent
+OrderStatusChanged
+TelemetryUpdated
+```
+
+Payloads are camelCase. `RiderLocationUpdated` uses `state`, not `status`.
+
+## 11. Mobile Blueprint
+
+The Flutter app has Rider, Customer, and StorePartner flows. Rider navigation
+belongs in the Flutter app. Admin map is operational visibility, not turn-by-turn
+rider navigation.
+
+During active delivery:
+
+```text
+ASSIGNED/PICKING_UP -> rider-to-pickup route
+DELIVERING          -> pickup-to-dropoff route
+```
+
+The map follows the rider at navigation zoom around 17.5. Full-route fit is only
+for overview states, not continuous navigation.
+
+## 12. Admin Blueprint
+
+Admin dashboard is an operations console for active riders, orders by state,
+dispatch scan visibility, rider accuracy circles, shop/rider management, and
+analytics.
+
+Map rules:
+
+- `preferCanvas: true`
+- escape popup content
+- programmatic event binding only
+- update affected markers/layers reactively
+- avoid repeated full-map scans when backend events identify changes
+
+## 13. Observability Blueprint
+
+Logs must include, when available:
+
+```text
+CorrelationId
+OrderId
+RiderId
+```
+
+Metrics should cover active orders, active riders, dispatch attempts, AI
+latency, OSRM latency, fallback counts, RabbitMQ queue depth, rate limiting, and
+token refresh failures.
+
+## 14. Security And Privacy Boundaries
+
+- Dashboard uses HttpOnly cookies and XSRF protection.
+- Native app uses bearer JWT with secure storage.
+- SignalR websocket clients may use `access_token`.
+- GPS data must not be sent to public OSRM in production.
+- Degraded GPS is admin-only, not precise customer tracking.
+- Business records use soft-delete where contracts require history retention.
+
+## 15. Blueprint Decisions
+
+| Decision | Reason |
+|---|---|
+| PostgreSQL/PostGIS is source of truth | Durable relational and spatial data |
+| Redis is speed layer only | Prevents cache drift from becoming authority |
+| RabbitMQ integration events | Async delivery without Kafka complexity |
+| Local OSRM only | Privacy and predictability |
+| Haversine fallback | Safe local degraded routing |
+| SignalR pure transport | Keeps realtime layer testable |
+| Accuracy tiers | Avoids corrupting dispatch with noisy GPS |
+| Lightweight compensation | Avoids full Saga Orchestrator complexity |
+
+## 16. Related Documents
+
+- `PROJECT-SPEC.md` - complete system specification
+- `Documents/handoff/README.md` - team handoff pack
+- `.docs/ai-context/spec-ai-engine.md` - active AI implementation constraints
+- `.docs/ai-context/spec-backend.md` - active backend constraints
+- `.docs/ai-context/contracts/state-machine.md` - state contract
+- `.docs/ai-context/contracts/signalr-contracts.md` - realtime contract
+- `.docs/ai-context/contracts/api-contracts.md` - REST contract

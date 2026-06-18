@@ -38,13 +38,16 @@
 
 ## 4. Historical Archives
 
-`PROJECT-SPEC.md`, `AI-BLUEPRINT.md`, `.docs/AI-CHANGELOG/`, `OSRM-SETUP.md`
-และ historical migration notes ใช้เพื่อ trace/recovery เท่านั้น เมื่อข้อมูลขัดกันให้ยึด:
+`.docs/AI-CHANGELOG/`, older setup notes, and historical migration notes ใช้เพื่อ trace/recovery เท่านั้น เมื่อข้อมูลขัดกันให้ยึด:
 
 1. กฎความปลอดภัยและข้อห้ามใน `AGENTS.md`
 2. Contract ที่ active ใน index นี้
 3. Implementation และ automated tests ปัจจุบัน
 4. Historical archive
+
+`Documents/development/PROJECT-SPEC.md` และ `Documents/development/AI-BLUEPRINT.md`
+เป็น human-readable reference สำหรับส่งต่อทีม โดยสรุปจาก active specs และ codebase ปัจจุบัน
+ส่วน `.docs/ai-context/` ยังเป็น canonical source สำหรับงาน implementation แบบเจาะจุด
 
 หาก implementation อ่อนกว่ากฎด้านความปลอดภัย ความถูกต้อง หรือ data integrity
 ห้ามลดกฎตาม implementation ให้รายงานหรือแก้ implementation ใน task ที่ได้รับอนุญาตแทน

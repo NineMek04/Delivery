@@ -40,9 +40,9 @@
 *   👉 [Core Codebase Patterns & Architecture Technical Manual Directory](development/CODEBASE_PATTERNS/README.md)  
     *(คู่มืออธิบายรูปแบบโครงสร้างโค้ดแยกย่อย: Base Controllers, Base Services, Middlewares/Headers, Validation & GIS index, Mapster, FastAPI Threading, Auto migrations, ThreadPool starvation, Idempotency, Concurrency locks, Frontend memory leaks และ trace logging)*
 *   👉 [Project Specification Master Sheet (PROJECT-SPEC.md)](development/PROJECT-SPEC.md)  
-    *(เอกสาร historical ของโปรเจกต์เดิม ใช้ trace/recovery เท่านั้น หากขัดกับ handoff pack หรือ `.docs/ai-context` ให้ถือว่า stale)*
+    *(สเปกระบบรวมทุกส่วนสำหรับทีมส่งต่อ อ่านเพื่อเข้าใจ requirements, contracts, runtime, testing และ operations ทั้งระบบ)*
 *   👉 [AI Architecture Blueprint (AI-BLUEPRINT.md)](development/AI-BLUEPRINT.md)  
-    *(เอกสาร historical ของ AI/VRP รุ่นก่อน ใช้ trace/recovery เท่านั้น หากขัดกับ handoff pack หรือ `.docs/ai-context` ให้ถือว่า stale)*
+    *(พิมพ์เขียว AI-assisted dispatch, routing, telemetry และ realtime delivery coordination โดยไม่ปนกับ full system spec)*
 *   👉 [Project context reference (project-context.md)](development/project-context.md)  
     *(รายละเอียดบริบทของโครงการในการจับคู่ออเดอร์แบบเรียลไทม์)*
 

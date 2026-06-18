@@ -102,7 +102,7 @@ services:
 
 ## 5. การสเกลแบบ Multi-instance กับความปลอดภัยในการรัน Migration (Auto-Migration Deadlock Risk)
 
-เมื่อทำการขยาย Backend API เป็นหลาย Pods/Instances (เช่น สเกลเป็น 5 Pods บน Kubernetes หรือ Swarm) เพื่อรองรับโหลดที่เพิ่มมากขึ้น:
+เมื่อทำการขยาย Backend API เป็นหลาย Instances (เช่น สเกลเป็น 5 containers/VM processes) เพื่อรองรับโหลดที่เพิ่มมากขึ้น:
 
 > [!WARNING]
 > ### ⚠️ จุดระวัง: ดาบสองคมของ Auto-Migration (Tech Lead's Warning)
@@ -116,5 +116,5 @@ services:
 > 1. **ปิดการทำงานของ Auto-Migration บน Startup ของ App:** ควบคุมการรัน `app.MigrateDatabaseAsync()` ด้วยค่าสภาพแวดล้อม เช่น `RUN_MIGRATIONS_ON_STARTUP=false` บน Production
 > 2. **แยกการรัน Migration ไปอยู่นอกตัวแอปหลัก:**
 >    - รันผ่าน **CI/CD Pipeline (Single Runner Job)** ก่อนเริ่มกระบวนการ Deploy ตัวแอปใหม่
->    - ใช้ **Kubernetes Init Container** ที่ผูกอยู่กับ Database Migration CLI (เช่นใช้ dotnet ef bundle หรือคอนเทนเนอร์ตัวเดียวที่ตั้งค่ารัน Migration) รันให้เสร็จเรียบร้อยก่อนแอปพลิเคชันเวอร์ชันใหม่ใน Pods อื่นจะเริ่มบูต
+>    - ใช้ **one-shot migration runner** ที่ผูกอยู่กับ Database Migration CLI (เช่นใช้ `dotnet ef bundle` หรือคอนเทนเนอร์ตัวเดียวที่ตั้งค่ารัน Migration) รันให้เสร็จเรียบร้อยก่อนแอปพลิเคชันเวอร์ชันใหม่ใน instances อื่นจะเริ่มบูต
 

@@ -1,5 +1,7 @@
 using System.Data;
 using System.Reflection;
+using System.Security.Claims;
+using BackendApi.Core.Models.Entities;
 using BackendApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -99,6 +101,14 @@ public sealed class DBHandlerCore
         if (entity is null)
         {
             return null;
+        }
+
+        if (softDelete && entity is ISoftDeletableEntity softDeletableEntity)
+        {
+            ApplySoftDeleteValues(softDeletableEntity);
+            ApplyAuditValues(entity, isCreate: false);
+            DbContext.Set<TEntity>().Update(entity);
+            return entity;
         }
 
         if (softDelete && TrySetPropertyValue(entity, "DelFlag", "Y"))
@@ -225,6 +235,40 @@ public sealed class DBHandlerCore
 
         return user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? user.FindFirst("sub")?.Value;
+    }
+
+    private string? GetCurrentUserName()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        return user.Identity?.Name
+            ?? user.FindFirst(ClaimTypes.Name)?.Value
+            ?? user.FindFirst("name")?.Value
+            ?? user.FindFirst("preferred_username")?.Value;
+    }
+
+    private string? GetCurrentIpAddress()
+    {
+        return _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+    }
+
+    private void ApplySoftDeleteValues(ISoftDeletableEntity entity)
+    {
+        entity.IsDeleted = true;
+        entity.DeletedAt = DateTime.UtcNow;
+        entity.DeletedByName = GetCurrentUserName();
+        entity.DeletedFromIp = GetCurrentIpAddress();
+
+        var userId = GetCurrentUserId();
+        if (Guid.TryParse(userId, out var parsedUserId))
+        {
+            entity.DeletedByUserId = parsedUserId;
+        }
     }
 
     private static bool TrySetPropertyValue<TEntity>(TEntity entity, string propertyName, object? value)

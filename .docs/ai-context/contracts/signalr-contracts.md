@@ -1,6 +1,11 @@
 # SignalR Contracts
 
-**Hub:** `/hubs/tracking` | **Implementation:** `BackendApi/Hubs/TrackingHub*.cs`
+**Hub:** `/hubs/tracking` | **Implementation:** `BackendApi/Hubs/Tracking/TrackingHub*.cs`
+
+**Chat hub:** `/hubs/chat` | **Implementation:** `BackendApi/Hubs/Chat/ChatHub.cs`
+
+`/hubs/chat` is a separate realtime channel. It must not be used for rider GPS,
+dispatch offers, or telemetry state; those remain owned by `/hubs/tracking`.
 
 ## 1. Transport Rule
 

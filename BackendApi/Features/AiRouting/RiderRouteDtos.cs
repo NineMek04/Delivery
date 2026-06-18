@@ -22,6 +22,7 @@ public sealed class RiderRouteRequest
 public sealed class RiderRouteResponse
 {
     public string EncodedPolyline { get; set; } = string.Empty;
+    public List<double[]> Coordinates { get; set; } = new();
     public double DistanceMeters { get; set; }
     public double DurationSeconds { get; set; }
     public string Source { get; set; } = "LOCAL_OSRM";

@@ -105,6 +105,7 @@ public sealed class RiderRouteService
         return new RiderRouteResponse
         {
             EncodedPolyline = route.Polyline,
+            Coordinates = route.Coordinates,
             DistanceMeters = route.DistanceMeters,
             DurationSeconds = route.DurationSeconds,
             Source = source

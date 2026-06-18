@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../api_helpers.dart';
 import '../delivery_api_client.dart';
@@ -44,22 +45,30 @@ class RiderRouteApiService {
 class RiderResolvedRoute {
   const RiderResolvedRoute({
     required this.encodedPolyline,
+    required this.coordinates,
     required this.distanceMeters,
     required this.durationSeconds,
     required this.source,
   });
 
   final String encodedPolyline;
+  final List<LatLng> coordinates;
   final double distanceMeters;
   final double durationSeconds;
   final String source;
 
   factory RiderResolvedRoute.fromJson(Map<String, dynamic> json) {
+    final rawCoordinates =
+        readField<List>(json, 'coordinates') ??
+        readField<List>(json, 'Coordinates') ??
+        const [];
+
     return RiderResolvedRoute(
       encodedPolyline:
           readField<String>(json, 'encodedPolyline') ??
           readField<String>(json, 'EncodedPolyline') ??
           '',
+      coordinates: _readCoordinates(rawCoordinates),
       distanceMeters:
           (readField<num>(json, 'distanceMeters') ??
                   readField<num>(json, 'DistanceMeters') ??
@@ -75,5 +84,30 @@ class RiderResolvedRoute {
           readField<String>(json, 'Source') ??
           'HAVERSINE_FALLBACK',
     );
+  }
+
+  static List<LatLng> _readCoordinates(List rawCoordinates) {
+    final points = <LatLng>[];
+    for (final raw in rawCoordinates) {
+      if (raw is List && raw.length >= 2) {
+        final lng = _toDouble(raw[0]);
+        final lat = _toDouble(raw[1]);
+        if (lat != null &&
+            lng != null &&
+            lat >= -90 &&
+            lat <= 90 &&
+            lng >= -180 &&
+            lng <= 180) {
+          points.add(LatLng(lat, lng));
+        }
+      }
+    }
+    return points;
+  }
+
+  static double? _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 }

@@ -4,44 +4,54 @@ import 'package:latlong2/latlong.dart';
 List<LatLng> decodePolyline(String encoded) {
   if (encoded.isEmpty) return [];
 
+  final decoded = _decodePolyline(encoded, precision: 1e5);
+  if (decoded.length >= 2) return decoded;
+
+  // Some route providers return polyline6. Keep this fallback so the map does
+  // not silently lose routes if backend geometry settings change.
+  return _decodePolyline(encoded, precision: 1e6);
+}
+
+List<LatLng> _decodePolyline(String encoded, {required double precision}) {
   try {
     final points = <LatLng>[];
     var index = 0;
     var lat = 0;
     var lng = 0;
 
-    while (index < encoded.length) {
+    int readValue() {
       var shift = 0;
       var result = 0;
       int b;
+
       do {
-        if (index >= encoded.length || shift > 30) return const [];
+        if (index >= encoded.length) {
+          throw const FormatException('Invalid polyline');
+        }
+
         b = encoded.codeUnitAt(index++) - 63;
         result |= (b & 0x1f) << shift;
         shift += 5;
       } while (b >= 0x20);
-      final dlat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-      lat += dlat;
 
-      shift = 0;
-      result = 0;
-      do {
-        if (index >= encoded.length || shift > 30) return const [];
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      final dlng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
-      lng += dlng;
+      return (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+    }
 
-      final point = LatLng(lat / 1e5, lng / 1e5);
-      if (point.latitude < -90 ||
-          point.latitude > 90 ||
-          point.longitude < -180 ||
-          point.longitude > 180) {
+    while (index < encoded.length) {
+      lat += readValue();
+      lng += readValue();
+
+      final decodedLat = lat / precision;
+      final decodedLng = lng / precision;
+
+      if (decodedLat < -90 ||
+          decodedLat > 90 ||
+          decodedLng < -180 ||
+          decodedLng > 180) {
         return const [];
       }
-      points.add(point);
+
+      points.add(LatLng(decodedLat, decodedLng));
     }
 
     return points;

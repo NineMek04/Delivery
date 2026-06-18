@@ -44,7 +44,7 @@ namespace BackendApi.Services.Ai
             _localOsrmUrl = config["Routing:LocalOsrmUrl"] ?? "http://localhost:5001";
         }
 
-        public async Task<(string Polyline, double DistanceMeters, double DurationSeconds)> GetRouteDetailsAsync(
+        public async Task<(string Polyline, double DistanceMeters, double DurationSeconds, List<double[]> Coordinates)> GetRouteDetailsAsync(
             double startLat, double startLng, double endLat, double endLng)
         {
             using var timer = OperationalMetrics.OsrmRequestDuration.WithLabels("route").NewTimer();
@@ -66,11 +66,36 @@ namespace BackendApi.Services.Ai
                     OperationalMetrics.RoutingRequestsTotal.WithLabels("osrm").Inc();
                     using var doc = JsonDocument.Parse(cached.ToString());
                     var root = doc.RootElement;
-                    return (
-                        root.GetProperty("polyline").GetString() ?? string.Empty,
-                        root.GetProperty("distance").GetDouble(),
-                        root.GetProperty("duration").GetDouble()
-                    );
+                    var cachedCoordinates = new List<double[]>();
+                    if (root.TryGetProperty("coordinates", out var coordinatesElement) &&
+                        coordinatesElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var point in coordinatesElement.EnumerateArray())
+                        {
+                            if (point.ValueKind == JsonValueKind.Array && point.GetArrayLength() >= 2)
+                            {
+                                cachedCoordinates.Add(new[]
+                                {
+                                    point[0].GetDouble(),
+                                    point[1].GetDouble()
+                                });
+                            }
+                        }
+                    }
+
+                    if (cachedCoordinates.Count >= 2)
+                    {
+                        return (
+                            root.GetProperty("polyline").GetString() ?? string.Empty,
+                            root.GetProperty("distance").GetDouble(),
+                            root.GetProperty("duration").GetDouble(),
+                            cachedCoordinates
+                        );
+                    }
+
+                    _logger.LogInformation(
+                        "Route cache entry has no coordinates; refreshing from Local OSRM: {Key}",
+                        cacheKey);
                 }
             }
             catch (Exception ex)
@@ -118,11 +143,13 @@ namespace BackendApi.Services.Ai
                             var geometry = firstRoute.GetProperty("geometry");
                             var coords = geometry.GetProperty("coordinates");
                             var list = new List<double[]>();
+                            var coordinates = new List<double[]>();
                             foreach (var point in coords.EnumerateArray())
                             {
                                 // OSRM คืนค่าเป็น [lng, lat] เสมอ ให้สลับเป็น [lat, lng] เพื่อป้อนเข้า PolylineEncoder
                                 var lng = point[0].GetDouble();
                                 var lat = point[1].GetDouble();
+                                coordinates.Add(new[] { lng, lat });
                                 list.Add(new double[] { lat, lng });
                             }
 
@@ -134,7 +161,7 @@ namespace BackendApi.Services.Ai
                             // บันทึกผลลัพธ์ลง Redis Cache (เก็บไว้ 24 ชั่วโมง)
                             try
                             {
-                                var cacheData = new { polyline, distance, duration };
+                                var cacheData = new { polyline, distance, duration, coordinates };
                                 await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(cacheData), TimeSpan.FromHours(24));
                                 _logger.LogInformation("Route details successfully saved to Redis Cache: {Key}", cacheKey);
                             }
@@ -143,7 +170,7 @@ namespace BackendApi.Services.Ai
                                 _logger.LogWarning(ex, "Failed to write route cache to Redis.");
                             }
 
-                            return (polyline, distance, duration);
+                            return (polyline, distance, duration, coordinates);
                         }
                     }
 
@@ -165,7 +192,7 @@ namespace BackendApi.Services.Ai
         /// Returns an empty polyline, straight-line distance (meters), and estimated duration
         /// based on average urban speed (25 km/h). No GPS data leaves the local network.
         /// </summary>
-        private static (string Polyline, double DistanceMeters, double DurationSeconds) HaversineRouteFallback(
+        private static (string Polyline, double DistanceMeters, double DurationSeconds, List<double[]> Coordinates) HaversineRouteFallback(
             double startLat, double startLng, double endLat, double endLng)
         {
             const double R = 6_371_000; // Earth radius in metres
@@ -179,7 +206,7 @@ namespace BackendApi.Services.Ai
             // Assume 25 km/h urban average; add 20% buffer
             var durationSeconds = (distanceMeters / 1000.0 / 25.0) * 3600.0 * 1.2;
 
-            return (string.Empty, distanceMeters, durationSeconds);
+            return (string.Empty, distanceMeters, durationSeconds, new List<double[]>());
         }
 
         /// <summary>

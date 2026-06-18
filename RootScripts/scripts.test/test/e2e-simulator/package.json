@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "gps:playback": "node dev-gps-playback.js",
+    "test": "echo \"Use npm run gps:playback for development GPS playback\" && exit 0"
   },
   "keywords": [],
   "author": "",

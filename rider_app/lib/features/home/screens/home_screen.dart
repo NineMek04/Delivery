@@ -55,15 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ErrorDialog.showSuccess(context, 'รับงานแล้ว');
             Future<void>.delayed(Duration.zero, () {
               if (mounted) {
-                final activeOrder = ref.read(deliveryNotifierProvider).activeOrder;
-                if (activeOrder != null) {
-                  context.pushNamed(
-                    'routeTracking',
-                    pathParameters: {'orderId': activeOrder.id},
-                  );
-                } else {
-                  context.goNamed('tracking');
-                }
+                context.goNamed('tracking');
               }
             });
           }
@@ -362,10 +354,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              context.pushNamed(
-                                'routeTracking',
-                                pathParameters: {'orderId': delivery.activeOrder!.id},
-                              );
+                              context.goNamed('tracking');
                             },
                           ),
                         ),
@@ -391,15 +380,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: () {
-                          final activeOrder = delivery.activeOrder;
-                          if (activeOrder != null) {
-                            context.pushNamed(
-                              'routeTracking',
-                              pathParameters: {'orderId': activeOrder.id},
-                            );
-                          } else {
-                            context.goNamed('tracking');
-                          }
+                          context.goNamed('tracking');
                         },
                         icon: const Icon(Icons.map),
                         label: const Text('เปิดแผนที่'),

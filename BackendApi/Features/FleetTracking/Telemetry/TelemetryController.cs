@@ -81,7 +81,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             }
 
             int currentQueueSize = _publisher.PendingQueueCount;
-            bool rateLimited = await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize);
+            bool rateLimited = await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize, "rest");
             int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
 
             // Level 2 Fallback: Command mobile interval via custom HTTP response header
@@ -144,7 +144,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
             }
 
             int currentQueueSize = _publisher.PendingQueueCount;
-            bool rateLimited = await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize);
+            bool rateLimited = await _rateLimiter.ShouldRateLimitAsync(riderId, currentQueueSize, "batch");
             int recommendedInterval = _rateLimiter.GetRecommendedInterval(currentQueueSize);
 
             // Level 2 Fallback: Command mobile interval via custom HTTP response header

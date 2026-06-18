@@ -13,7 +13,6 @@ import '../features/home/providers/home_provider.dart';
 import '../features/delivery/screens/active_delivery_screen.dart';
 import '../features/delivery/screens/delivery_confirmation_screen.dart';
 import '../features/delivery/screens/delivery_history_screen.dart';
-import '../features/delivery/screens/route_tracking_screen.dart';
 import '../features/tracking/screens/map_tracking_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/store/screens/store_home_screen.dart';
@@ -167,11 +166,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/delivery/tracking/:orderId',
-            name: 'routeTracking',
-            builder: (context, state) {
-              final orderId = state.pathParameters['orderId']!;
-              return RouteTrackingScreen(orderId: orderId);
-            },
+            redirect: (context, state) => '/tracking',
           ),
           GoRoute(
             path: '/profile',

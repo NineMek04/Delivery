@@ -10,6 +10,7 @@ import 'gps_buffer_service.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_constants.dart';
 import '../session/rider_session_service.dart';
+import '../signalr/signalr_service.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -292,6 +293,9 @@ class LocationService extends Notifier<LocationState> {
 
     // ส่งตำแหน่งเริ่มต้นทันที
     final bufferService = ref.read(gpsBufferServiceProvider);
+    unawaited(ref
+        .read(signalRServiceProvider.notifier)
+        .updateLocation(currentLat, currentLng, 10.0));
     bufferService.bufferLocation(currentLat, currentLng, 10.0, heading: 0.0);
 
     // Simulate a small loop at the active GPS interval for map visibility.
@@ -319,6 +323,9 @@ class LocationService extends Notifier<LocationState> {
       );
 
       bufferService.bufferLocation(nextLat, nextLng, 10.0, heading: currentHeading);
+      unawaited(ref
+          .read(signalRServiceProvider.notifier)
+          .updateLocation(nextLat, nextLng, 10.0));
     });
   }
 
@@ -381,6 +388,10 @@ class LocationService extends Notifier<LocationState> {
       lastUpdated: DateTime.now(),
       error: null,
     );
+
+    unawaited(ref
+        .read(signalRServiceProvider.notifier)
+        .updateLocation(emaLat, emaLng, emaAccuracy));
 
     // ส่งพิกัดไปยัง Local DB Buffer สำหรับ Offline Buffering และ Batch Ingestion
     ref.read(gpsBufferServiceProvider).bufferLocation(emaLat, emaLng, emaAccuracy, heading: heading);

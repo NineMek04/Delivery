@@ -20,9 +20,11 @@ import '../../../core/session/rider_session_service.dart';
 import '../../../models/dispatch_offer.dart';
 import '../../../models/order.dart';
 import '../../../shared/utils/polyline_util.dart';
+import '../../../shared/utils/order_status_helper.dart';
 import '../../../shared/widgets/connection_status_bar.dart';
 import '../../../shared/widgets/error_dialog.dart';
 import '../../delivery/providers/delivery_provider.dart';
+import '../widgets/navigation_map_overlays.dart';
 
 class LatLngTween extends Tween<LatLng> {
   LatLngTween({super.begin, super.end});
@@ -70,6 +72,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
   StreamSubscription<RiderLocationUpdateEvent>? _riderLocationSub;
 
   bool _simMirrorEnabled = false;
+  bool _soundEnabled = true;
   SimFlowPhase _simPhase = SimFlowPhase.idle;
   String _simOrderId = 'WAITING';
   int _simCandidateCount = 0;
@@ -402,6 +405,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
 
   List<LatLng> _getTailRoute(List<LatLng> fullRoute, LatLng? currentPos) {
     if (currentPos == null || fullRoute.isEmpty) return fullRoute;
+    if (fullRoute.length <= 2) return fullRoute;
     
     int closestIdx = 0;
     double minDistanceSq = double.infinity;
@@ -419,7 +423,21 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
       }
     }
 
+    if (closestIdx >= fullRoute.length - 1) {
+      return fullRoute.sublist(fullRoute.length - 2);
+    }
+
     return fullRoute.sublist(closestIdx);
+  }
+
+  double _routeDistanceMeters(List<LatLng> points) {
+    if (points.length < 2) return 0;
+    const distance = Distance();
+    var total = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      total += distance.as(LengthUnit.Meter, points[i], points[i + 1]);
+    }
+    return total;
   }
 
   _ResolvedRoute _resolveRoute(
@@ -562,7 +580,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
             );
         final decoded = decodePolyline(route.encodedPolyline);
 
-        if (route.source == 'LOCAL_OSRM' && decoded.length >= 2) {
+        if (decoded.length >= 2) {
           if (!mounted) return;
           setState(() {
             _localRoutePolylines[key] = route.encodedPolyline;
@@ -583,6 +601,40 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
           fallbackReason: 'LOCAL_OSRM_UNAVAILABLE',
         ),
       );
+    });
+  }
+
+  Future<void> _advanceActiveOrder(OrderDto order) async {
+    final nextStatus = OrderStatusHelper.nextRiderStatus(order.status);
+    if (nextStatus == null) return;
+
+    await ref
+        .read(deliveryNotifierProvider.notifier)
+        .updateOrderStatus(order.id, nextStatus);
+    if (!mounted) return;
+
+    final error = ref.read(deliveryNotifierProvider).error;
+    if (error != null && !error.startsWith('Offline:')) {
+      await ErrorDialog.show(
+        context,
+        title: 'อัปเดตสถานะไม่สำเร็จ',
+        message: error,
+      );
+      return;
+    }
+
+    setState(() {
+      _localRoutePolylines.removeWhere(
+        (key, _) => key.startsWith('${order.id}|'),
+      );
+      _requestedLocalRoutes.removeWhere(
+        (key) => key.startsWith('${order.id}|'),
+      );
+      _liveSnappedPolyline = null;
+      _routeDistance = null;
+      _routeDuration = null;
+      _lastViewportSignature = null;
+      _lastFollowSignature = null;
     });
   }
 
@@ -624,14 +676,15 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     LatLng riderPos,
     OrderDto? activeOrder,
     LatLng? pickup,
-    LatLng? dropoff,
-  ) {
+    LatLng? dropoff, {
+    bool forceDropoff = false,
+  }) {
     LatLng? target = pickup;
     String targetName = "จุดรับอาหาร (ร้านค้า)";
     bool isPickup = true;
 
     if (activeOrder != null) {
-      if (activeOrder.status.toUpperCase() == "DELIVERING") {
+      if (activeOrder.status.toUpperCase() == "DELIVERING" || forceDropoff) {
         target = dropoff;
         targetName = "จุดส่งอาหาร (บ้านลูกค้า)";
         isPickup = false;
@@ -757,13 +810,32 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     final orderStatus = order?.status.toUpperCase();
     final isHeadingToPickup =
         orderStatus == 'ASSIGNED' || orderStatus == 'PICKING_UP';
-    final routePhase = isHeadingToPickup ? 'PICKUP' : 'DELIVERY';
+    final pickupDistanceMeters = riderPoint != null && pickup != null
+        ? Geolocator.distanceBetween(
+            riderPoint.latitude,
+            riderPoint.longitude,
+            pickup.latitude,
+            pickup.longitude,
+          )
+        : null;
+    final hasReachedPickup = isHeadingToPickup &&
+        pickupDistanceMeters != null &&
+        pickupDistanceMeters <= 50 &&
+        dropoff != null;
+    final isNavigatingToDropoff = orderStatus == 'DELIVERING' || hasReachedPickup;
+    final routePhase = isNavigatingToDropoff ? 'DELIVERY' : 'PICKUP';
     final pickupRoute = delivery.pickupRouteOrderId == order?.id
         ? delivery.pickupEncodedPolyline
         : null;
     final localRoutePolyline = order == null
         ? null
         : _localRoutePolylines[_routeKey(order.id, routePhase)];
+    final nextStatus = order == null
+        ? null
+        : OrderStatusHelper.nextRiderStatus(order.status);
+    final nextActionLabel = order == null || nextStatus == null
+        ? null
+        : OrderStatusHelper.nextActionLabel(order.status);
 
     // === Route Resolution (Fix #4: ใช้ snappedPolyline จาก SignalR เป็นลำดับแรก) ===
     // _liveSnappedPolyline คือเส้นทาง OSRM ที่ Backend คำนวณจากตำแหน่ง snapped ปัจจุบัน → ปลายทาง
@@ -778,11 +850,11 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
         resolvedRoute = _ResolvedRoute(points: livePoints);
         useLiveRoute = true;
       } else {
-        resolvedRoute = _resolveStaticRoute(order, isHeadingToPickup, localRoutePolyline, pickupRoute, riderPoint, pickup, dropoff);
+        resolvedRoute = _resolveStaticRoute(order, !isNavigatingToDropoff, localRoutePolyline, pickupRoute, riderPoint, pickup, dropoff);
         useLiveRoute = false;
       }
     } else if (order != null) {
-      resolvedRoute = _resolveStaticRoute(order, isHeadingToPickup, localRoutePolyline, pickupRoute, riderPoint, pickup, dropoff);
+      resolvedRoute = _resolveStaticRoute(order, !isNavigatingToDropoff, localRoutePolyline, pickupRoute, riderPoint, pickup, dropoff);
       useLiveRoute = false;
     } else {
       resolvedRoute = _ResolvedRoute(
@@ -808,12 +880,17 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     }
 
     // Fix #4: ข้าม _getTailRoute เมื่อมี liveRoute (เส้นทางเริ่มจากจุดปัจจุบันอยู่แล้ว)
-    final routePoints = useLiveRoute
-        ? resolvedRoute.points
-        : _getTailRoute(
-            resolvedRoute.points,
-            riderPoint ?? _simRiderPoint,
-          );
+    final routePoints = resolvedRoute.fallbackReason != null
+        ? const <LatLng>[]
+        : useLiveRoute
+            ? resolvedRoute.points
+            : _getTailRoute(
+                resolvedRoute.points,
+                riderPoint ?? _simRiderPoint,
+              );
+    final routePolylineDistance =
+        routePoints.length >= 2 ? _routeDistanceMeters(routePoints) : null;
+    final displayRouteDistance = routePolylineDistance ?? _routeDistance;
 
     final center = riderPoint ?? _simRiderPoint ?? pickup ?? dropoff ?? _defaultCenter;
     final viewportPoints = <LatLng>{
@@ -899,7 +976,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
                     if (routePoints.isNotEmpty)
                       _buildAnimatedPolylineLayer(
                         routePoints,
-                        isPickup: isHeadingToPickup,
+                        isPickup: !isNavigatingToDropoff,
                       ),
                     if (riderPoint != null &&
                         tracking.isTracking &&
@@ -960,7 +1037,65 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
                     top: 16,
                     left: 16,
                     right: 16,
-                    child: _buildNavigationPanel(context, riderPoint ?? _simRiderPoint!, order, pickup, dropoff),
+                    child: _buildNavigationPanel(
+                      context,
+                      riderPoint ?? _simRiderPoint!,
+                      order,
+                      pickup,
+                      dropoff,
+                      forceDropoff: isNavigatingToDropoff,
+                    ),
+                  ),
+                if (order != null && riderPoint != null)
+                  Positioned(
+                    right: 16,
+                    top: 132,
+                    child: NavigationFloatingControls(
+                      soundEnabled: _soundEnabled,
+                      onCenter: () => _centerOn(riderPoint),
+                      onOverview: () {
+                        _lastViewportSignature = null;
+                        _fitMapToRoute(
+                          viewportPoints,
+                          'manual|${order.id}|${routePoints.length}',
+                        );
+                      },
+                      onToggleSound: () {
+                        setState(() => _soundEnabled = !_soundEnabled);
+                      },
+                      onReport: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Route issue report queued')),
+                        );
+                      },
+                    ),
+                  ),
+                if (order != null && riderPoint != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: NavigationBottomEtaPanel(
+                      title: isNavigatingToDropoff ? 'To dropoff' : 'To pickup',
+                      etaText: _formatDuration(_routeDuration),
+                      distanceText: _formatDistance(displayRouteDistance),
+                      statusText: order.status,
+                      actionLabel: nextActionLabel,
+                      actionBusy: delivery.isUpdating,
+                      onAction: nextStatus == null
+                          ? null
+                          : () {
+                              unawaited(_advanceActiveOrder(order));
+                            },
+                      onClose: () => Navigator.of(context).maybePop(),
+                      onOverview: () {
+                        _lastViewportSignature = null;
+                        _fitMapToRoute(
+                          viewportPoints,
+                          'bottom|${order.id}|${routePoints.length}',
+                        );
+                      },
+                    ),
                   ),
               ],
             ),
@@ -1024,7 +1159,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
                           ),
                         ),
                         Text(
-                          '${_formatDuration(_routeDuration)} (${_formatDistance(_routeDistance)})',
+                          '${_formatDuration(_routeDuration)} (${_formatDistance(displayRouteDistance)})',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),

@@ -1,16 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
-
 import '../../../core/api/api_helpers.dart';
 import '../../../core/api/services/order_api_service.dart';
-import '../../../core/api/services/rider_route_api_service.dart';
 import '../../../core/auth/auth_service.dart';
-import '../../../core/location/location_service.dart';
 import '../../../core/session/rider_session_service.dart';
 import '../../../core/signalr/signalr_service.dart';
 import '../../../features/delivery/providers/delivery_provider.dart';
-import '../../../features/delivery/screens/route_tracking_screen.dart';
-import '../../../features/tracking/services/simulated_journey_service.dart';
 import '../../../models/auth_response.dart';
 import '../../../models/dispatch_offer.dart';
 
@@ -109,38 +103,6 @@ class HomeNotifier extends Notifier<HomeState> {
     delivery.rememberAcceptedOffer(offer);
     await delivery.loadOrders();
     dismissOffer();
-    
-    // Trigger simulated journey in the background
-    _startBackgroundSimulatedJourney(offer);
-  }
-
-  Future<void> _startBackgroundSimulatedJourney(DispatchOffer offer) async {
-    final currentPos = ref.read(locationServiceProvider);
-    final currentLatLng = LatLng(currentPos.latitude ?? 17.4138, currentPos.longitude ?? 102.7872);
-    final pickup = LatLng(offer.order.pickupLat ?? 17.4138, offer.order.pickupLng ?? 102.7872);
-
-    List<LatLng> pickupRoute = [];
-    final simService = ref.read(simulatedJourneyProvider);
-
-    try {
-      final route = await ref.read(riderRouteApiServiceProvider).resolve(
-        orderId: offer.order.id,
-        routePhase: 'PICKUP',
-        currentLat: currentLatLng.latitude,
-        currentLng: currentLatLng.longitude,
-      );
-      pickupRoute = simService.decodePolyline(route.encodedPolyline);
-    } catch (_) {
-      pickupRoute = [currentLatLng, pickup];
-    }
-
-    if (pickupRoute.isNotEmpty) {
-      simService.startJourney(
-        routeCoords: pickupRoute,
-        destination: pickup,
-        locationStateController: ref.read(locationStateProvider.notifier),
-      );
-    }
   }
 
   Future<void> rejectOffer() async {

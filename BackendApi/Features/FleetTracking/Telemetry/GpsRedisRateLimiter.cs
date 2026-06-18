@@ -40,10 +40,11 @@ namespace BackendApi.Features.FleetTracking.Telemetry
         /// Returns true if it should be rate limited (blocked), or false if it is allowed.
         /// If Redis is unavailable, returns false (bypass) to maintain GPS update availability.
         /// </summary>
-        public async Task<bool> ShouldRateLimitAsync(string riderId, int pendingQueueCount)
+        public async Task<bool> ShouldRateLimitAsync(string riderId, int pendingQueueCount, string channel = "realtime")
         {
             var db = _redis.GetDatabase();
-            var key = $"rider_last_gps_limit:{riderId}";
+            var safeChannel = string.IsNullOrWhiteSpace(channel) ? "realtime" : channel.Trim().ToLowerInvariant();
+            var key = $"rider_last_gps_limit:{safeChannel}:{riderId}";
 
             int intervalSeconds = GetRecommendedInterval(pendingQueueCount);
 
@@ -63,7 +64,7 @@ namespace BackendApi.Features.FleetTracking.Telemetry
 
             if (rateLimited)
             {
-                _logger.LogDebug("GPS Rate Limit hit for Rider {RiderId}. Throttling to {Interval}s.", riderId, intervalSeconds);
+                _logger.LogDebug("GPS Rate Limit hit for Rider {RiderId} on {Channel}. Throttling to {Interval}s.", riderId, safeChannel, intervalSeconds);
                 BackendApi.Security.Services.SecurityMetrics.RateLimitRejectionsTotal.WithLabels("gps").Inc();
             }
 

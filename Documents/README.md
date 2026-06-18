@@ -43,6 +43,8 @@
     *(สเปกระบบรวมทุกส่วนสำหรับทีมส่งต่อ อ่านเพื่อเข้าใจ requirements, contracts, runtime, testing และ operations ทั้งระบบ)*
 *   👉 [AI Architecture Blueprint (AI-BLUEPRINT.md)](development/AI-BLUEPRINT.md)  
     *(พิมพ์เขียว AI-assisted dispatch, routing, telemetry และ realtime delivery coordination โดยไม่ปนกับ full system spec)*
+*   👉 [Mobile Map Navigation Plan](development/MOBILE-MAP-NAVIGATION-PLAN.md)
+    *(แผนจัดการวาดแผนที่และ navigation UI ฝั่ง Flutter mobile app ให้ใกล้เคียง Google Maps navigation โดยยังยึด backend/local OSRM contract)*
 *   👉 [Project context reference (project-context.md)](development/project-context.md)  
     *(รายละเอียดบริบทของโครงการในการจับคู่ออเดอร์แบบเรียลไทม์)*
 

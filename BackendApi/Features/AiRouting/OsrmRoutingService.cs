@@ -37,7 +37,8 @@ namespace BackendApi.Services.Ai
         {
             _httpClient = httpClient;
             // ตั้งค่า Strict Timeout 1.5 วินาที
-            _httpClient.Timeout = TimeSpan.FromMilliseconds(1500);
+            var timeoutMs = config.GetValue<int?>("Routing:OsrmTimeoutMs") ?? 5000;
+            _httpClient.Timeout = TimeSpan.FromMilliseconds(Math.Clamp(timeoutMs, 1000, 15000));
             _redis = redis;
             _logger = logger;
             _localOsrmUrl = config["Routing:LocalOsrmUrl"] ?? "http://localhost:5001";

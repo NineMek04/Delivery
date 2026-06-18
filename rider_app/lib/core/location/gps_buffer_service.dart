@@ -32,7 +32,8 @@ class GpsBufferService {
   final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
   Timer? _syncTimer;
-  int _syncIntervalSeconds = 2;
+  Timer? _retryTimer;
+  int _syncIntervalSeconds = 4;
   bool _isSyncing = false;
   bool _isSyncingStatus = false;
 
@@ -57,6 +58,8 @@ class GpsBufferService {
       return;
     }
     _syncTimer?.cancel();
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _logger.i('🛰️ Starting GPS sync timer (every $_syncIntervalSeconds seconds)');
     _syncTimer = Timer.periodic(Duration(seconds: _syncIntervalSeconds), (_) {
       syncBufferedPoints();
@@ -68,17 +71,31 @@ class GpsBufferService {
   void stopSyncTimer() {
     _syncTimer?.cancel();
     _syncTimer = null;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _logger.i('🛑 Stopped GPS sync timer');
   }
 
   /// Adjusts sync frequency based on backend backpressure header.
   void updateSyncInterval(int intervalSeconds) {
-    if (intervalSeconds < 2) intervalSeconds = 2;
+    if (intervalSeconds < 4) intervalSeconds = 4;
     if (_syncIntervalSeconds != intervalSeconds) {
       _logger.i('🔄 Adjusting sync interval: $_syncIntervalSeconds → $intervalSeconds seconds');
       _syncIntervalSeconds = intervalSeconds;
       if (_syncTimer != null) startSyncTimer();
     }
+  }
+
+  void _scheduleRetryAfterBackoff() {
+    if (_retryTimer?.isActive == true) return;
+    final delaySeconds = _syncIntervalSeconds < 4 ? 4 : _syncIntervalSeconds;
+    final delay = Duration(seconds: delaySeconds) +
+        Duration(milliseconds: Random().nextInt(1000));
+    _logger.d('GPS batch retry scheduled in ${delay.inMilliseconds}ms');
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      syncBufferedPoints();
+    });
   }
 
   /// Buffers a GPS coordinate with adaptive sampling.
@@ -187,17 +204,19 @@ class GpsBufferService {
 
         // Chain next batch if more remain, respecting the rate limit interval
         if (await _db.getPendingGpsPointCount() > 0) {
-          final delaySeconds = _syncIntervalSeconds < 2 ? 2 : _syncIntervalSeconds;
+          final delaySeconds = _syncIntervalSeconds < 4 ? 4 : _syncIntervalSeconds;
           final delay = Duration(seconds: delaySeconds) + Duration(milliseconds: Random().nextInt(1000));
           Future.delayed(delay, syncBufferedPoints);
         }
       } else if (response.statusCode == 429) {
+        _scheduleRetryAfterBackoff();
         _logger.w('⚠️ Batch throttled (429) — keeping points');
       } else {
         _logger.w('⚠️ Batch upload returned ${response.statusCode} — keeping points');
       }
     } on DioException catch (e) {
-      if (e.response?.statusCode == 429) {
+      final isRateLimited = e.response?.statusCode == 429;
+      if (isRateLimited) {
         _logger.w('⚠️ Batch throttled via exception (429)');
       } else {
         _logger.w('🔌 Network error during GPS batch upload: ${e.message}');
@@ -206,6 +225,9 @@ class GpsBufferService {
       if (pingHeader != null) {
         final newInterval = int.tryParse(pingHeader);
         if (newInterval != null) updateSyncInterval(newInterval);
+      }
+      if (isRateLimited) {
+        _scheduleRetryAfterBackoff();
       }
     } catch (e) {
       _logger.e('❌ Unexpected error during GPS batch sync', error: e);

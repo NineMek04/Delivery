@@ -6,8 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../app/app_theme.dart';
 import '../../shared/utils/order_status_helper.dart';
+import '../../shared/utils/polyline_util.dart';
 import '../../core/api/services/rider_route_api_service.dart';
-import 'services/simulated_journey_service.dart';
 import 'providers/tracking_provider.dart';
 
 class LatLngTween extends Tween<LatLng> {
@@ -248,14 +248,13 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
     _lastRoutePhase = routePhase;
 
     try {
-      final simService = ref.read(simulatedJourneyProvider);
       final route = await ref.read(riderRouteApiServiceProvider).resolve(
         orderId: orderId,
         routePhase: routePhase,
         currentLat: riderLat,
         currentLng: riderLng,
       );
-      final pts = simService.decodePolyline(route.encodedPolyline);
+      final pts = decodePolyline(route.encodedPolyline);
       
       if (mounted) {
         setState(() {
@@ -300,7 +299,7 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
     // Apply real-time snapped polyline if received from SignalR
     if (state.snappedPolyline != null && state.snappedPolyline != _lastSnappedPolyline) {
       _lastSnappedPolyline = state.snappedPolyline;
-      final pts = ref.read(simulatedJourneyProvider).decodePolyline(state.snappedPolyline!);
+      final pts = decodePolyline(state.snappedPolyline!);
       if (pts.length >= 2) {
         _routePoints = pts;
         _isRouteResolved = true;

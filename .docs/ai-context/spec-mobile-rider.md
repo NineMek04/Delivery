@@ -33,6 +33,10 @@
 - Flutter web Mock GPS is a compile-time development mode. The base image
   defaults `ENABLE_MOCK_GPS=false`; `docker-compose.override.yml` enables it
   for local dispatch testing only. Production builds must keep it disabled.
+- Mobile rider screens must never mutate their own GPS position for simulation.
+  Development route playback must be executed from scripts under
+  `RootScripts/scripts.test/test/` and sent through the real SignalR
+  `UpdateLocation` path.
 
 - `LocationService` ส่งจุดเข้า `GpsBufferService`
 - SQLite เก็บ pending GPS และ `pending_status_updates`
@@ -50,12 +54,15 @@
   Rider-to-pickup during `ASSIGNED`/`PICKING_UP`, then the persisted
   pickup-to-dropoff route during `DELIVERING`. Missing or invalid polylines
   are re-resolved through the authenticated Backend rider-route endpoint,
-  which uses local OSRM and its Redis route cache. A straight line is the
-  final fallback only while OSRM is unavailable; the client reports that
-  fallback once per order/phase/reason without interrupting navigation.
+  which uses local OSRM and its Redis route cache. Rider navigation screens
+  must not draw a straight-line route as a navigation path. If local OSRM is
+  unavailable, the client shows route-unavailable state and reports fallback
+  telemetry once per order/phase/reason.
 - During an active order, the map follows the rider at navigation zoom 17.5;
   route fitting is reserved for non-navigation/initial overview states.
-- การเคลื่อนที่จำลองของไรเดอร์ใช้จุดพิกัดจริงของ OSRM ที่สตรีมเข้ามา แทนการวาดเส้นพิกัดกระจัด (Straight Line) และทำการวัดระยะทางถนนจริงที่เหลืออยู่โดยหาผลรวมความยาวของเซกเมนต์ OSRM เส้นทางทั้งหมด
+- การทดสอบการเคลื่อนที่ของไรเดอร์ใน development ให้ใช้ script ยิง GPS
+  ผ่าน SignalR จากพิกัด OSRM route เท่านั้น ห้ามให้ mobile app จำลองหรือ
+  interpolate พิกัดเองในหน้าจอ production
 - การวาดเส้นทางบนแผนที่จะคำนวณและดึงพิกัดที่ผ่านไปแล้วออก (`_getTailRoute`) เพื่อแสดงเฉพาะเส้นทางส่วนที่ยังวิ่งไม่ถึงไปยังปลายทางแบบเรียลไทม์
 - Flutter web map tiles use the Rider Nginx same-origin `/map-tiles/` proxy;
   Nginx stores successful tiles in a persistent 30-day disk cache. Native

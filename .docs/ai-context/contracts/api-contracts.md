@@ -153,8 +153,24 @@ Rider route resolution request:
 ```
 
 The Backend verifies assigned-rider ownership and calls local OSRM. Response
-fields are `encodedPolyline`, `distanceMeters`, `durationSeconds`, and
-`source` (`LOCAL_OSRM` or `HAVERSINE_FALLBACK`).
+fields are:
+
+```json
+{
+  "encodedPolyline": "Google polyline, precision 1e5",
+  "coordinates": [[102.78732, 17.41401]],
+  "distanceMeters": 1314.5,
+  "durationSeconds": 300,
+  "source": "LOCAL_OSRM"
+}
+```
+
+`coordinates` uses OSRM/GeoJSON order `[lng, lat]` and is emitted as a
+decode/debug fallback for mobile clients. Rider clients must decode
+`encodedPolyline` first, fall back to `coordinates` when decode fails, and
+treat empty/invalid route geometry as route-unavailable instead of repeatedly
+calling resolve from every GPS tick. `source` is `LOCAL_OSRM` or
+`HAVERSINE_FALLBACK`.
 
 ## 6. AI Proxy
 

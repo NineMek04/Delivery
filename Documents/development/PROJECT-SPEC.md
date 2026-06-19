@@ -364,10 +364,17 @@ Response fields:
 
 ```text
 encodedPolyline
+coordinates = [[lng, lat], ...]
 distanceMeters
 durationSeconds
 source = LOCAL_OSRM | HAVERSINE_FALLBACK
 ```
+
+Rider clients decode `encodedPolyline` first. If decoding fails, they draw from
+`coordinates` after converting each pair to `[lat, lng]`. GPS ticks update the
+rider marker and route tail only; route resolve is cached by `orderId|phase`
+and retried through a cooldown guard instead of being called every location
+change.
 
 ## 13. GPS And Telemetry Specification
 

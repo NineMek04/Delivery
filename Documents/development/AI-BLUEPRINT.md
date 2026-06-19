@@ -250,14 +250,18 @@ Backend verifies assigned-rider ownership, calls local OSRM, and returns:
 ```json
 {
   "encodedPolyline": "...",
+  "coordinates": [[102.78732, 17.41401], [102.78748, 17.41412]],
   "distanceMeters": 1200,
   "durationSeconds": 300,
   "source": "LOCAL_OSRM"
 }
 ```
 
-If OSRM is unavailable, source can be `HAVERSINE_FALLBACK`. Flutter may draw a
-straight line only as the final fallback and must report the fallback through:
+`coordinates` follows OSRM/GeoJSON order `[lng, lat]`. Flutter decodes
+`encodedPolyline` first and falls back to `coordinates` if the decoder rejects
+the encoded geometry. If OSRM is unavailable, source can be
+`HAVERSINE_FALLBACK`; rider navigation must show route-unavailable/degraded
+state and report the fallback through:
 
 ```text
 POST /api/v1/telemetry/client-route-fallback

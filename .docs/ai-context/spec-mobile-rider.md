@@ -58,6 +58,16 @@
   must not draw a straight-line route as a navigation path. If local OSRM is
   unavailable, the client shows route-unavailable state and reports fallback
   telemetry once per order/phase/reason.
+- Rider route resolution returns hybrid geometry. Flutter decodes
+  `encodedPolyline` first, falls back to backend `coordinates` (`[lng,lat]`)
+  if decode fails, and caches the resolved route by `orderId|phase`.
+- GPS updates move the rider marker and trim the displayed tail route only;
+  they must not trigger a new route resolve on every location tick. Re-resolve
+  only on order/phase change, missing geometry, invalid geometry, or explicit
+  cooldown-based retry.
+- SignalR rider-location filters must not compare auth `userId` to
+  `event.riderId`; only compare `event.riderId` with the active order
+  `assignedRiderId` when that assigned rider id is available.
 - During an active order, the map follows the rider at navigation zoom 17.5;
   route fitting is reserved for non-navigation/initial overview states.
 - การทดสอบการเคลื่อนที่ของไรเดอร์ใน development ให้ใช้ script ยิง GPS

@@ -83,6 +83,23 @@ POST /api/v1/telemetry/client-events
 POST /api/v1/rider-routes/resolve
 ```
 
+`POST /api/v1/rider-routes/resolve` verifies assigned-rider ownership and
+returns hybrid route geometry for the rider app:
+
+```json
+{
+  "encodedPolyline": "Google polyline precision 1e5",
+  "coordinates": [[102.78732, 17.41401]],
+  "distanceMeters": 1314.5,
+  "durationSeconds": 300,
+  "source": "LOCAL_OSRM"
+}
+```
+
+`coordinates` uses OSRM/GeoJSON order `[lng, lat]` and exists as a mobile
+decode/debug fallback. Backend route cache should preserve both encoded
+polyline and coordinates.
+
 ## Order Flow
 
 1. Customer creates an order.

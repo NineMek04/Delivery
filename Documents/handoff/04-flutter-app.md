@@ -55,9 +55,15 @@ After accepting an order:
 
 1. `ASSIGNED`/`PICKING_UP`: show rider-to-pickup route.
 2. `DELIVERING`: show pickup-to-dropoff or route re-resolved from backend.
-3. If backend/local OSRM cannot return a polyline, draw a straight line only as final fallback.
-4. Report fallback once per order/phase/reason through `POST /api/v1/telemetry/client-route-fallback`.
-5. Navigation mode follows rider around zoom 17.5; do not keep auto-fitting the full route while riding.
+3. Decode `encodedPolyline` first; if decode fails, draw backend `coordinates`
+   (`[lng,lat]` converted to `LatLng(lat,lng)`).
+4. Cache resolved route geometry by `orderId|phase`. GPS ticks move the rider
+   marker and trim the route tail only; do not call route resolve on every GPS
+   location change.
+5. If backend/local OSRM cannot return any valid road geometry, enter
+   route-unavailable/degraded state and report fallback once per
+   order/phase/reason through `POST /api/v1/telemetry/client-route-fallback`.
+6. Navigation mode follows rider around zoom 17.5; do not keep auto-fitting the full route while riding.
 
 ## StorePartner Flow
 
@@ -70,4 +76,3 @@ After accepting an order:
 - Customer orders are filtered by authenticated customer.
 - Tracking uses authorized rider/order data.
 - Clear order history must remain soft-delete by contract.
-

@@ -149,7 +149,7 @@ Fields:
 ```dart
 enum NavigationRoutePhase { pickup, delivery }
 enum NavigationCameraMode { overview, follow, manual }
-enum NavigationRouteSource { liveSnapped, backendResolved, orderPolyline, straightFallback }
+enum NavigationRouteSource { backendResolved, orderPolyline, geometryFallback, unavailable }
 
 class NavigationRouteViewState {
   final NavigationRoutePhase phase;
@@ -174,7 +174,7 @@ rider_app/lib/features/tracking/services/navigation_route_view_service.dart
 
 Responsibilities:
 
-- decode polyline
+- decode polyline and fall back to backend coordinates when decode fails
 - choose route source priority
 - cut route tail from current rider location
 - estimate remaining distance
@@ -184,10 +184,10 @@ Responsibilities:
 Route source priority:
 
 ```text
-1. live snapped polyline from SignalR
-2. backend-resolved route from /rider-routes/resolve
+1. backend-resolved route from /rider-routes/resolve encodedPolyline
+2. backend-resolved route coordinates [[lng, lat], ...]
 3. order/offer encoded polyline
-4. straight-line fallback
+4. route-unavailable/degraded state
 ```
 
 ## 7. Route Resolution Flow
@@ -202,16 +202,18 @@ Delivery provider stores active order + pickup route
 Map screen enters NavigationRoutePhase.pickup
         |
         v
-Try live snapped route from SignalR
+Use cached route for orderId|phase
         |
-        +--> exists: draw live route tail
+        +--> exists: draw road route tail from rider position
         |
         +--> missing/invalid:
               call POST /api/v1/rider-routes/resolve
                     |
-                    +--> LOCAL_OSRM: draw backend route
+                    +--> LOCAL_OSRM encoded polyline decodes: draw backend route
                     |
-                    +--> HAVERSINE_FALLBACK: draw degraded line and report telemetry
+                    +--> encoded decode fails but coordinates exist: draw coordinates route
+                    |
+                    +--> HAVERSINE_FALLBACK/no geometry: route-unavailable and report telemetry
 ```
 
 When order changes to `DELIVERING`:
@@ -317,9 +319,12 @@ Phase 2 backend enhancement:
 ## 11. State And Performance Rules
 
 - Do not rebuild the entire `FlutterMap` for every GPS tick if only marker moves.
-- Keep route resolution idempotent by `orderId + phase + rounded current location`.
-- Cache resolved route polylines per order/phase/current grid.
-- Throttle backend route re-resolve to meaningful location movement or phase change.
+- Keep route resolution idempotent by `orderId + phase`.
+- Cache resolved route geometry per order/phase.
+- GPS ticks move the marker and trim route tail only; do not call backend route
+  resolve on every location change.
+- Retry invalid/missing route geometry only through a cooldown guard or phase
+  change.
 - Do not register duplicate SignalR listeners on reconnect.
 - Dispose `MapController`, animation controllers, and subscriptions.
 - Avoid nested async calls inside `build`; route fetch must be triggered by state change guards.
@@ -504,4 +509,3 @@ Automated candidates:
 - fallback route is visually distinct and telemetry is reported
 - no duplicate subscriptions or map controller leaks
 - customer tracking remains overview-focused and does not inherit rider controls
-

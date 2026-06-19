@@ -32,15 +32,18 @@ Backend verifies assigned-rider ownership, calls local OSRM, and returns:
 ```json
 {
   "encodedPolyline": "...",
+  "coordinates": [[102.78732, 17.41401], [102.78748, 17.41412]],
   "distanceMeters": 1200,
   "durationSeconds": 300,
   "source": "LOCAL_OSRM"
 }
 ```
 
-If OSRM is unavailable, source can be `HAVERSINE_FALLBACK`; Flutter reports fallback telemetry and draws a straight line as last resort.
+`coordinates` uses OSRM/GeoJSON order `[lng, lat]`. Flutter should decode the
+encoded polyline first, then fall back to coordinates if decoding fails. If
+OSRM is unavailable, source can be `HAVERSINE_FALLBACK`; Flutter reports
+fallback telemetry and enters route-unavailable/degraded navigation state.
 
 ## Batch Dispatch Route Ordering
 
 For OSRM trip sequence, `waypoint_index` is a visit-order value per input waypoint. Callers must compare `seq[inputIndex]`, not `IndexOf(inputIndex)`.
-

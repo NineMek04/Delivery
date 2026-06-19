@@ -32,6 +32,15 @@ history, customer tracking, or AI/dispatch calculations.
 - route client: `BackendApi/Features/AiRouting/OsrmRoutingService.cs`
 - Rider clients re-resolve missing/invalid active-order routes through
   `POST /api/v1/rider-routes/resolve`; clients must not call OSRM directly.
+- `POST /api/v1/rider-routes/resolve` returns hybrid route geometry:
+  `encodedPolyline` plus `coordinates`.
+- `coordinates` uses OSRM/GeoJSON order `[lng, lat]`; Flutter/Leaflet clients
+  must convert to `LatLng(lat, lng)` / `[lat,lng]` before drawing.
+- Rider clients must prefer decoded `encodedPolyline`, fall back to
+  `coordinates` if decoding fails, and only enter route-unavailable fallback
+  when both geometries are missing or invalid.
+- Redis route cache stores both `polyline` and `coordinates`; legacy cache
+  entries without coordinates should be refreshed from local OSRM.
 - persisted order fields: `EncodedPolyline`, `RouteDistanceMeters`,
   `RouteDurationSeconds`
 - client decode แล้วส่ง Leaflet เป็น `[lat,lng]`

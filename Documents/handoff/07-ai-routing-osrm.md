@@ -1,12 +1,21 @@
-# 07 AI Routing And OSRM
+# 07 Optimization Routing And OSRM
 
-## AI Engine
+## Optimization Engine
 
-AI engine handles rider ranking, route optimization, and ETA prediction. FastAPI endpoints that run CPU-bound logic must use normal `def`, not `async def`, so FastAPI can run them in the thread pool.
+The optimization engine handles weighted heuristic rider ranking, OR-Tools
+route optimization, and ETA estimation. It is not a trained ML model. FastAPI
+endpoints that run CPU-bound logic must use normal `def`, not `async def`, so
+FastAPI can run them in the thread pool.
 
-## Backend AI Boundary
+## Backend Optimization Boundary
 
-Backend calls AI through `IAiService` and must keep deterministic fallback behavior. Public interface signatures are protected by `CRITICAL-CODE-PROTECTION.md`.
+Backend calls the route optimizer through `IAiService` and must keep
+deterministic fallback behavior. Public interface signatures are protected by
+`CRITICAL-CODE-PROTECTION.md`.
+
+Current VRP matrix source is local OSRM `/table` in
+`route-optimizer/app/core/vrp_solver.py`. Haversine remains the deterministic
+fallback if local OSRM is unavailable, incomplete, or invalid.
 
 ## Local OSRM
 

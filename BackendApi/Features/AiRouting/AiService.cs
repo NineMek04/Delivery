@@ -35,7 +35,7 @@ public class AiService : IAiService
 
     public async Task<DispatchRankResponseDto?> RankDispatchCandidatesAsync(DispatchRankRequestDto request, CancellationToken cancellationToken = default)
     {
-        using var timer = OperationalMetrics.AiRequestDuration.WithLabels("dispatch_rank").NewTimer();
+        using var timer = OperationalMetrics.RouteOptimizerRequestDuration.WithLabels("dispatch_rank").NewTimer();
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/v1/dispatch/rank", request, _snakeCaseOptions, cancellationToken);
@@ -52,14 +52,14 @@ public class AiService : IAiService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while calling AI Engine for dispatch ranking. Falling back to rule-based Haversine ranking.");
+            _logger.LogError(ex, "Error occurred while calling optimization service for dispatch ranking. Falling back to rule-based Haversine ranking.");
             return GenerateFallbackResponse(request);
         }
     }
 
     public async Task<RoutingResponseDto?> OptimizeRouteAsync(RoutingRequestDto request, CancellationToken cancellationToken = default)
     {
-        using var timer = OperationalMetrics.AiRequestDuration.WithLabels("optimize_route").NewTimer();
+        using var timer = OperationalMetrics.RouteOptimizerRequestDuration.WithLabels("optimize_route").NewTimer();
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/optimize-route", request, _snakeCaseOptions, cancellationToken);
@@ -76,14 +76,14 @@ public class AiService : IAiService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while calling AI Engine for route optimization. Falling back to Nearest-Neighbor TSP heuristic.");
+            _logger.LogError(ex, "Error occurred while calling optimization service for route optimization. Falling back to Nearest-Neighbor TSP heuristic.");
             return GenerateFallbackRoutingResponse(request);
         }
     }
 
     public async Task<PredictEtaResponseDto?> PredictEtaAsync(PredictEtaRequestDto request, CancellationToken cancellationToken = default)
     {
-        using var timer = OperationalMetrics.AiRequestDuration.WithLabels("predict_eta").NewTimer();
+        using var timer = OperationalMetrics.RouteOptimizerRequestDuration.WithLabels("predict_eta").NewTimer();
         try
         {
             var response = await _httpClient.PostAsJsonAsync("/api/v1/predict-eta", request, _snakeCaseOptions, cancellationToken);
@@ -100,7 +100,7 @@ public class AiService : IAiService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while calling AI Engine for ETA prediction. Falling back to rule-based speed/traffic ETA estimation.");
+            _logger.LogError(ex, "Error occurred while calling optimization service for ETA estimation. Falling back to rule-based speed/traffic ETA estimation.");
             return GenerateFallbackEtaResponse(request);
         }
     }
@@ -118,7 +118,7 @@ public class AiService : IAiService
         foreach (var c in request.Candidates)
         {
             var distance = CalculateHaversineDistance(c.Lat, c.Lng, pickupLat, pickupLng);
-            var score = distance * 5.0; // Lower = Better (align with AI Engine)
+            var score = distance * 5.0; // Lower = better; aligns with weighted heuristic ranking.
             var eta = (int)Math.Max(1.0, Math.Ceiling(distance * 3.0));
 
             ranked.Add(new RankedCandidateDto
@@ -187,7 +187,8 @@ public class AiService : IAiService
             Status = "SUCCESS",
             Message = "Fallback Nearest-Neighbor Route Optimization",
             OptimizedRoute = route,
-            TotalDistanceMeters = totalDistance
+            TotalDistanceMeters = totalDistance,
+            MatrixSource = "HAVERSINE_FALLBACK"
         };
     }
 

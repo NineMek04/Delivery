@@ -29,7 +29,10 @@ $RedisPassword = $env:REDIS_PASSWORD
 $JwtSecret = $env:JWT_SECRET
 $RabbitmqUser = $env:RABBITMQ_USER
 $RabbitmqPassword = $env:RABBITMQ_PASSWORD
-$AiServiceApiKey = $env:AI_SERVICE_API_KEY
+$RouteOptimizerApiKey = $env:ROUTE_OPTIMIZER_API_KEY
+if ([string]::IsNullOrWhiteSpace($RouteOptimizerApiKey)) {
+    $RouteOptimizerApiKey = $env:AI_SERVICE_API_KEY
+}
 $SeedAdminPassword = $env:SEED_ADMIN_PASSWORD
 
 if (Test-Path $envFile) {
@@ -44,7 +47,8 @@ if (Test-Path $envFile) {
             if ($key -eq "JWT_SECRET") { $JwtSecret = $value }
             if ($key -eq "RABBITMQ_USER") { $RabbitmqUser = $value }
             if ($key -eq "RABBITMQ_PASSWORD") { $RabbitmqPassword = $value }
-            if ($key -eq "AI_SERVICE_API_KEY") { $AiServiceApiKey = $value }
+            if ($key -eq "ROUTE_OPTIMIZER_API_KEY") { $RouteOptimizerApiKey = $value }
+            if ($key -eq "AI_SERVICE_API_KEY" -and [string]::IsNullOrWhiteSpace($RouteOptimizerApiKey)) { $RouteOptimizerApiKey = $value }
             if ($key -eq "SEED_ADMIN_PASSWORD") { $SeedAdminPassword = $value }
             
             [System.Environment]::SetEnvironmentVariable($key, $value, [System.EnvironmentVariableTarget]::Process)
@@ -58,7 +62,7 @@ $requiredValues = @{
     JWT_SECRET = $JwtSecret
     RABBITMQ_USER = $RabbitmqUser
     RABBITMQ_PASSWORD = $RabbitmqPassword
-    AI_SERVICE_API_KEY = $AiServiceApiKey
+    ROUTE_OPTIMIZER_API_KEY = $RouteOptimizerApiKey
     SEED_ADMIN_PASSWORD = $SeedAdminPassword
 }
 foreach ($entry in $requiredValues.GetEnumerator()) {
@@ -71,8 +75,11 @@ $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ASPNETCORE_URLS = "http://0.0.0.0:5000"
 $env:ConnectionStrings__DefaultConnection = "Host=localhost;Database=delivery_db;Username=postgres;Password=$PostgresPassword;Maximum Pool Size=1024;"
 $env:ConnectionStrings__Redis = "localhost:6379,password=$RedisPassword"
+$env:ROUTE_OPTIMIZER_URL = "http://localhost:8000"
 $env:AI_SERVICE_URL = "http://localhost:8000"
-$env:AI_SERVICE_API_KEY = $AiServiceApiKey
+$env:ROUTE_OPTIMIZER_API_KEY = $RouteOptimizerApiKey
+$env:AI_SERVICE_API_KEY = $RouteOptimizerApiKey
+$env:ROUTE_OPTIMIZER_OSRM_URL = "http://localhost:5001"
 $env:Routing__LocalOsrmUrl = "http://localhost:5001"
 $env:MessageBroker__Host = "localhost"
 $env:MessageBroker__Port = "5672"
@@ -87,7 +94,7 @@ $env:DATABASE_URL = "postgresql://postgres:$PostgresPassword@localhost:5432/deli
 
 # === 2. Stop Conflicting Docker Containers & Start Backing Services ===
 Write-Host "`n[Docker] Stopping any conflicting application containers..." -ForegroundColor Yellow
-docker compose stop backend frontend rider-app ai-service
+docker compose stop backend frontend rider-app route-optimizer
 
 Write-Host "`n[Docker] Checking and starting backing services..." -ForegroundColor Yellow
 docker compose up -d db redis rabbitmq osrm seq prometheus grafana
@@ -103,11 +110,11 @@ Write-Host "`n[Backend] Launching C# .NET Backend API in a separate terminal..."
 $backendCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [Backend] Running on localhost:5000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; dotnet run;"
 Start-Process powershell -WindowStyle Normal -WorkingDirectory $backendPath -ArgumentList "-NoExit", "-Command", $backendCmd
 
-# === 4. Start Python FastAPI AI Routing Engine (Local Host Mode) ===
-$aiPath = Join-Path $WorkspaceRoot "ai-engine"
-Write-Host "`n[AI Engine] Launching FastAPI AI Engine in a separate terminal..." -ForegroundColor Yellow
-$aiCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [AI Engine] Running on localhost:8000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; if (Test-Path 'venv') { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000;"
-Start-Process powershell -WindowStyle Normal -WorkingDirectory $aiPath -ArgumentList "-NoExit", "-Command", $aiCmd
+# === 4. Start Python FastAPI Route Optimizer (Local Host Mode) ===
+$routeOptimizerPath = Join-Path $WorkspaceRoot "route-optimizer"
+Write-Host "`n[Route Optimizer] Launching FastAPI Route Optimizer in a separate terminal..." -ForegroundColor Yellow
+$routeOptimizerCmd = "Write-Host '===========================================' -ForegroundColor Green; Write-Host '   [Route Optimizer] Running on localhost:8000' -ForegroundColor Green; Write-Host '===========================================' -ForegroundColor Green; if (Test-Path 'venv') { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000;"
+Start-Process powershell -WindowStyle Normal -WorkingDirectory $routeOptimizerPath -ArgumentList "-NoExit", "-Command", $routeOptimizerCmd
 
 # === 5. Start Angular Admin Dashboard (client, store, dashboard) ===
 $frontendPath = Join-Path $WorkspaceRoot "admin-dashboard"
@@ -150,7 +157,7 @@ if ($flutterInPath) {
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host "[OK] All processes launched in separate windows!" -ForegroundColor Green
 Write-Host "  - .NET Backend API: http://localhost:5000" -ForegroundColor Gray
-Write-Host "  - AI FastAPI Engine: http://localhost:8000" -ForegroundColor Gray
+Write-Host "  - Route Optimizer FastAPI: http://localhost:8000" -ForegroundColor Gray
 Write-Host "  - Angular Portals (Admin/Customer/Store): http://localhost:4200" -ForegroundColor Gray
 if ($flutterInPath) {
     Write-Host "  - Flutter Rider Web App: http://localhost:8083" -ForegroundColor Gray

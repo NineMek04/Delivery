@@ -140,4 +140,7 @@ public class RoutingResponseDto
 
     [JsonPropertyName("total_distance_meters")]
     public double? TotalDistanceMeters { get; set; }
+
+    [JsonPropertyName("matrix_source")]
+    public string? MatrixSource { get; set; }
 }

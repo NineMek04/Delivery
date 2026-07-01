@@ -1,15 +1,36 @@
-import math
-from typing import List, Dict, Any
+import os
+from typing import List, Dict, Any, Tuple
+import requests
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from app.models.routing_models import Location
 from app.core.geo_utils import haversine_distance
 
+OSRM_MATRIX_SOURCE = "LOCAL_OSRM_TABLE"
+HAVERSINE_MATRIX_SOURCE = "HAVERSINE_FALLBACK"
+
+
 def compute_distance_matrix(locations: List[Location]) -> List[List[int]]:
     """
-    Compute a simple Haversine distance matrix.
-    In production, this should be replaced by a routing engine like OSRM or Google Maps.
+    Compute the VRP cost matrix.
+
+    Primary source: local OSRM /table road-network distance matrix.
+    Fallback source: local deterministic Haversine matrix when OSRM is
+    unavailable, incomplete, or returns invalid values.
     """
+    matrix, _ = compute_distance_matrix_with_source(locations)
+    return matrix
+
+
+def compute_distance_matrix_with_source(locations: List[Location]) -> Tuple[List[List[int]], str]:
+    osrm_matrix = _try_compute_osrm_distance_matrix(locations)
+    if osrm_matrix is not None:
+        return osrm_matrix, OSRM_MATRIX_SOURCE
+
+    return _compute_haversine_distance_matrix(locations), HAVERSINE_MATRIX_SOURCE
+
+
+def _compute_haversine_distance_matrix(locations: List[Location]) -> List[List[int]]:
     matrix = []
     for from_node in locations:
         row = []
@@ -20,9 +41,66 @@ def compute_distance_matrix(locations: List[Location]) -> List[List[int]]:
         matrix.append(row)
     return matrix
 
+
+def _try_compute_osrm_distance_matrix(locations: List[Location]) -> List[List[int]] | None:
+    if len(locations) == 0:
+        return []
+
+    if os.getenv("ROUTE_OPTIMIZER_DISABLE_OSRM_TABLE", "false").lower() == "true":
+        return None
+
+    base_url = (
+        os.getenv("ROUTE_OPTIMIZER_OSRM_URL")
+        or os.getenv("OSRM_URL")
+        or "http://osrm:5000"
+    ).rstrip("/")
+    try:
+        timeout_seconds = float(os.getenv("ROUTE_OPTIMIZER_OSRM_TIMEOUT_SECONDS", "2.0"))
+    except ValueError:
+        timeout_seconds = 2.0
+
+    coordinates = ";".join(f"{location.lng},{location.lat}" for location in locations)
+    url = f"{base_url}/table/v1/driving/{coordinates}"
+    params = {"annotations": "distance,duration"}
+
+    try:
+        response = requests.get(url, params=params, timeout=timeout_seconds)
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    if payload.get("code") != "Ok":
+        return None
+
+    distances = payload.get("distances")
+    if not _is_valid_osrm_matrix(distances, len(locations)):
+        return None
+
+    return [
+        [0 if row_index == col_index else max(0, int(round(value))) for col_index, value in enumerate(row)]
+        for row_index, row in enumerate(distances)
+    ]
+
+
+def _is_valid_osrm_matrix(matrix: Any, size: int) -> bool:
+    if not isinstance(matrix, list) or len(matrix) != size:
+        return False
+
+    for row in matrix:
+        if not isinstance(row, list) or len(row) != size:
+            return False
+        for value in row:
+            if not isinstance(value, (int, float)) or value < 0:
+                return False
+
+    return True
+
+
 def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_deliveries: List[List[int]] = None) -> Dict[str, Any]:
     """
     Solves the Vehicle Routing Problem using Google OR-Tools.
+    OR-Tools is mathematical optimization, not a trained AI/ML model.
     """
     if len(locations) < 2:
         return {"status": "FAILED", "message": "ต้องมีจุดพิกัดอย่างน้อย 2 จุดขึ้นไป"}
@@ -38,7 +116,7 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_
                 return {"status": "FAILED", "message": "Invalid index in pickups_deliveries parameters"}
 
     # 1. Create Distance Matrix
-    distance_matrix = compute_distance_matrix(locations)
+    distance_matrix, matrix_source = compute_distance_matrix_with_source(locations)
 
     # 2. Setup Data Model
     data = {
@@ -128,6 +206,7 @@ def solve_vrp(locations: List[Location], num_vehicles: int, depot: int, pickups_
 
         return {
             "status": "SUCCESS",
+            "matrix_source": matrix_source,
             "total_distance_meters": total_distance,
             "optimized_route": route_sequence
         }

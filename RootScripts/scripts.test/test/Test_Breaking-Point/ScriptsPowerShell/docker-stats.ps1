@@ -3,7 +3,7 @@ param (
     [int]$IntervalSeconds = 5
 )
 
-$containers = "delivery-backend delivery-db delivery-redis delivery-rabbitmq delivery-ai delivery-nginx"
+$containers = "delivery-backend delivery-db delivery-redis delivery-rabbitmq delivery-route-optimizer delivery-nginx"
 
 Write-Host "Starting Docker Resource Monitoring. Output: $OutputFile. Interval: $IntervalSeconds seconds."
 Write-Host "Press Ctrl+C to stop."

@@ -39,9 +39,14 @@ Customer creates order
 ```
 
 - Store rejection/cancellation ต้องผ่าน service และ state machine
-- Dispatch ใช้ PostGIS/Redis candidate discovery, AI ranking และ local OSRM
-- AI/OSRM failure ต้องมี deterministic fallback ตาม critical registry
+- Dispatch ใช้ PostGIS/Redis candidate discovery, weighted heuristic ranking และ local OSRM
+- Route optimizer/OSRM failure ต้องมี deterministic fallback ตาม critical registry
 - ทุก state change สำคัญต้อง persist ใน PostgreSQL ก่อน broadcast
+
+Current naming rule: dispatch ranking is weighted heuristic ranking, not a
+trained AI/ML model. Route sequencing uses mathematical optimization and local
+OSRM where available, with deterministic fallback required for ranking,
+optimization, and OSRM failures.
 
 ## 4. GPS Flow
 

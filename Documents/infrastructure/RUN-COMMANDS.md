@@ -25,7 +25,7 @@ powershell -ExecutionPolicy Bypass -File .\RootScripts\scripts\start-all-apps.ps
 หยุด Container สำหรับแอปพลิเคชันที่อาจซ้ำซ้อน และสั่งรันบริการพื้นฐานทั้งหมด:
 ```powershell
 # หยุดคอนเทนเนอร์หลักที่อาจทำงานทับซ้อนกับการรันแบบ Local
-docker compose stop backend frontend rider-app ai-service
+docker compose stop backend frontend rider-app route-optimizer
 
 # รันบริการ Backing Services ในโหมด Background
 docker compose up -d db redis rabbitmq osrm seq prometheus grafana
@@ -58,12 +58,12 @@ cd c:\Users\ASUS\Desktop\Project\Delivery; powershell -ExecutionPolicy Bypass -F
 
 ---
 
-### 🤖 2.2 AI Routing Engine (Python FastAPI + OR-Tools)
+### 2.2 Optimization Engine (Python FastAPI + OR-Tools)
 *รันบนพอร์ต: `http://localhost:8000`*
 
 **แบบ Multi-line (คัดลอกทั้งหมดวางใน PowerShell):**
 ```powershell
-cd c:\Users\ASUS\Desktop\Project\Delivery\ai-engine
+cd c:\Users\ASUS\Desktop\Project\Delivery\route-optimizer
 $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"
 if (Test-Path "venv") { .\venv\Scripts\activate }
 uvicorn main:app --reload --port 8000
@@ -71,7 +71,7 @@ uvicorn main:app --reload --port 8000
 
 **แบบบรรทัดเดียว (Single Line Copy-Paste):**
 ```powershell
-cd c:\Users\ASUS\Desktop\Project\Delivery\ai-engine; $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"; if (Test-Path "venv") { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000
+cd c:\Users\ASUS\Desktop\Project\Delivery\route-optimizer; $env:DATABASE_URL="postgresql://postgres:$env:POSTGRES_PASSWORD@localhost:5432/delivery_db"; $env:ROUTE_OPTIMIZER_OSRM_URL="http://localhost:5001"; if (Test-Path "venv") { .\venv\Scripts\activate }; uvicorn main:app --reload --port 8000
 ```
 
 ---
@@ -148,16 +148,16 @@ dotnet test RootScripts/scripts.test/test/BackendApi.IntegrationTests
 dotnet test RootScripts/scripts.test/test/BackendApi.UnitTests
 ```
 
-### 🐍 5.2 Python AI Engine Tests (PyTest)
+### 5.2 Python Optimization Engine Tests (PyTest)
 ```powershell
 cd c:\Users\ASUS\Desktop\Project\Delivery
-if (Test-Path "ai-engine\venv") { .\ai-engine\venv\Scripts\activate }
+if (Test-Path "route-optimizer\venv") { .\route-optimizer\venv\Scripts\activate }
 
-# รัน PyTest ทั้งหมดในโฟลเดอร์ AI Engine Tests
-pytest RootScripts/scripts.test/test/ai-engine.tests
+# รัน PyTest ทั้งหมดในโฟลเดอร์ Optimization Engine Tests
+pytest RootScripts/scripts.test/test/route-optimizer.tests
 
 # รันเฉพาะไฟล์ที่ต้องการ (เช่น test_eta_velocity.py)
-python -m pytest RootScripts/scripts.test/test/ai-engine.tests/test_eta_velocity.py
+python -m pytest RootScripts/scripts.test/test/route-optimizer.tests/test_eta_velocity.py
 ```
 
 ### 🤖 5.3 E2E Simulator (บอทจำลองไรเดอร์วิ่งส่งงาน)

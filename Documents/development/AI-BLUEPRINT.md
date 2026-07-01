@@ -1,17 +1,18 @@
-# AI Blueprint - Smart Delivery Routing System
+# Optimization Blueprint - Smart Delivery Routing System
 
-**Document role:** Architecture blueprint for AI-assisted dispatch, routing,
-telemetry, and realtime delivery coordination.
+**Document role:** Architecture blueprint for intelligent dispatch, weighted
+heuristic ranking, routing optimization, telemetry, and realtime delivery
+coordination.
 
-**Audience:** Backend, AI, mobile, frontend, QA, and DevOps teams that need to
-understand how the intelligent routing system is designed.
+**Audience:** Backend, optimization/ranking, mobile, frontend, QA, and DevOps
+teams that need to understand how the intelligent routing system is designed.
 
 **Last updated:** 2026-06-18
 
 ## 1. Blueprint Scope
 
-This file explains the design of the AI and dispatch architecture. It is not a
-full project specification and it is not a changelog. For complete API,
+This file explains the design of the dispatch, ranking, and route optimization
+architecture. It is not a full project specification and it is not a changelog. For complete API,
 frontend, mobile, and infrastructure requirements, use `PROJECT-SPEC.md`.
 
 Canonical implementation contracts still live under `.docs/ai-context/`.
@@ -20,16 +21,18 @@ contracts and the current codebase.
 
 ## 2. System Intent
 
-The system is an AI-assisted delivery platform that connects customers,
-stores, riders, and operations staff in realtime. The core intelligence problem
-is not only "find a nearby rider"; it is:
+The system is an intelligent delivery platform that connects customers, stores,
+riders, and operations staff in realtime. The current implementation uses
+weighted heuristic ranking and mathematical optimization; it does not train or
+evaluate a machine-learning model. The core intelligence problem is not only
+"find a nearby rider"; it is:
 
 - rank riders using location, availability, current workload, and route cost
 - avoid assigning inaccurate GPS points into dispatch decisions
 - keep rider/order state consistent across REST, SignalR, Redis, PostgreSQL,
   and RabbitMQ
 - calculate road-aware routes through local OSRM
-- fall back safely when AI or OSRM is degraded
+- fall back safely when ranking/optimization or OSRM is degraded
 - keep the admin map and rider app reactive without flooding the browser or
   backend
 
@@ -56,9 +59,9 @@ with explicit degraded source metadata.
 
 ### 3.4 Deterministic Fallback
 
-AI is an optimizer, not the only path to delivery. Any AI ranking, ETA, or route
-operation must have deterministic fallback behavior so orders do not become
-stuck when AI is unavailable.
+Ranking/optimization is a helper, not the only path to delivery. Any rider
+ranking, ETA, or route operation must have deterministic fallback behavior so
+orders do not become stuck when the optimization service is unavailable.
 
 ### 3.5 Bounded Complexity
 
@@ -88,8 +91,9 @@ BackendApi (.NET 8)
         |       Integration events, async telemetry persistence,
         |       background worker handoff, DLQ
         |
-        +--> AI Engine (FastAPI)
-        |       Candidate ranking, route optimization, ETA prediction
+        +--> Route Optimizer (FastAPI, service name: route-optimizer)
+        |       Weighted heuristic candidate ranking, OR-Tools route
+        |       optimization, ETA estimation
         |
         +--> Local OSRM
                 Road routes, nearest-road snap, trip sequence
@@ -122,13 +126,13 @@ BackendApi/
   Infrastructure/Redis/
 ```
 
-### 5.2 AI Engine
+### 5.2 Optimization Engine
 
-AI engine owns algorithmic computation:
+Optimization engine owns algorithmic computation:
 
-- rider candidate scoring
-- VRP-style route optimization
-- ETA prediction
+- rider candidate weighted heuristic scoring
+- VRP-style mathematical route optimization
+- ETA estimation
 - degraded heuristic response when heavy optimization fails
 
 FastAPI endpoints that perform CPU-bound work must be `def`, not `async def`,
@@ -199,7 +203,7 @@ Backend queues dispatch task
 Candidate discovery from rider state/location
         |
         v
-AI ranking with deterministic fallback
+Weighted heuristic ranking with deterministic fallback
         |
         v
 Acquire rider lock and persist offer
@@ -286,7 +290,7 @@ accuracy > 300m
     Reject.
 ```
 
-This prevents noisy mobile GPS from corrupting AI dispatch decisions while still
+This prevents noisy mobile GPS from corrupting route optimizer dispatch decisions while still
 giving operations staff useful visibility.
 
 ## 9. State Machines
@@ -444,7 +448,7 @@ token refresh failures.
 
 - `PROJECT-SPEC.md` - complete system specification
 - `Documents/handoff/README.md` - team handoff pack
-- `.docs/ai-context/spec-ai-engine.md` - active AI implementation constraints
+- `.docs/ai-context/spec-ai-engine.md` - active route optimizer implementation constraints
 - `.docs/ai-context/spec-backend.md` - active backend constraints
 - `.docs/ai-context/contracts/state-machine.md` - state contract
 - `.docs/ai-context/contracts/signalr-contracts.md` - realtime contract

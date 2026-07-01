@@ -30,7 +30,7 @@ public class OrdersController : DeliveryControllerBase
     }
 
     /// <summary>
-    /// สร้างออเดอร์ใหม่ และสั่งให้ AI เริ่มหา Rider อัตโนมัติ (Dispatch)
+    /// สร้างออเดอร์ใหม่ และสั่งให้ระบบจัดอันดับไรเดอร์เริ่มหา Rider อัตโนมัติ (Dispatch)
     /// </summary>
     [HttpPost]
     [Authorize(Roles = $"{AuthConstants.CustomerRole},{AuthConstants.AdminRole},{AuthConstants.DispatcherRole}")]

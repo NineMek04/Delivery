@@ -68,7 +68,7 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  ai-service:
+  route-optimizer:
     # ...
     deploy:
       resources:

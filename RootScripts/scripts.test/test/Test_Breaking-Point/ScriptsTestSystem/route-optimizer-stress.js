@@ -1,20 +1,23 @@
 /**
- * ai-engine-stress.js — AI Engine Saturation Stress Test
+ * route-optimizer-stress.js — Route Optimizer Saturation Stress Test
  *
  * Benchmarks FastAPI + Google OR-Tools VRP and Rider Ranking under concurrent CPU load.
  *
  * Usage:
- *   node ai-engine-stress.js [--concurrency 15]
+ *   node route-optimizer-stress.js [--concurrency 15]
  *
  * Environment:
- *   AI_URL — AI Service URL (default: http://localhost:8000)
- *   AI_KEY — AI API Key (default: DeliverySmartRoutingSystem_AiEngine_ApiKey_2026)
+ *   ROUTE_OPTIMIZER_URL — Route optimizer URL (default: http://localhost:8000)
+ *   ROUTE_OPTIMIZER_API_KEY — Route optimizer API key
  */
 
 const axios = require("axios");
 
-const AI_URL = process.env.AI_URL || "http://localhost:8000";
-const AI_KEY = process.env.AI_KEY || "DeliverySmartRoutingSystem_AiEngine_ApiKey_2026";
+const ROUTE_OPTIMIZER_URL = process.env.ROUTE_OPTIMIZER_URL || process.env.AI_URL || "http://localhost:8000";
+const ROUTE_OPTIMIZER_API_KEY =
+  process.env.ROUTE_OPTIMIZER_API_KEY ||
+  process.env.AI_KEY ||
+  "DeliverySmartRoutingSystem_AiEngine_ApiKey_2026";
 
 const args = process.argv.slice(2);
 function getArg(name, defaultValue) {
@@ -25,7 +28,7 @@ function getArg(name, defaultValue) {
 const CONCURRENCY = parseInt(getArg("concurrency", "15"), 10); // Concurrent requests per wave
 
 const headers = {
-  "X-API-Key": AI_KEY,
+  "X-API-Key": ROUTE_OPTIMIZER_API_KEY,
   "Content-Type": "application/json",
 };
 
@@ -120,14 +123,14 @@ async function runBenchmark(name, rankPayload, optPayload) {
   // 1. Rank Endpoint Benchmarking
   console.log(`  [Rank] Firing ${CONCURRENCY} concurrent requests...`);
   const rankPromises = Array.from({ length: CONCURRENCY }).map(() => 
-    sendRequest(`${AI_URL}/api/v1/dispatch/rank`, rankPayload)
+    sendRequest(`${ROUTE_OPTIMIZER_URL}/api/v1/dispatch/rank`, rankPayload)
   );
   const rankResults = await Promise.all(rankPromises);
 
   // 2. Optimize Endpoint Benchmarking
   console.log(`  [Optimize] Firing ${CONCURRENCY} concurrent requests...`);
   const optPromises = Array.from({ length: CONCURRENCY }).map(() => 
-    sendRequest(`${AI_URL}/api/optimize-route`, optPayload)
+    sendRequest(`${ROUTE_OPTIMIZER_URL}/api/optimize-route`, optPayload)
   );
   const optResults = await Promise.all(optPromises);
 
@@ -165,8 +168,8 @@ async function runBenchmark(name, rankPayload, optPayload) {
 
 async function main() {
   console.log("=================================================");
-  console.log("  AI Engine Saturation Stress Test");
-  console.log(`  Target AI Service: ${AI_URL}`);
+  console.log("  Route Optimizer Saturation Stress Test");
+  console.log(`  Target Route Optimizer: ${ROUTE_OPTIMIZER_URL}`);
   console.log(`  Concurrency level: ${CONCURRENCY}`);
   console.log("=================================================");
 
@@ -200,9 +203,9 @@ async function main() {
   
   const totalFailed = simpleStats.rank.failed + simpleStats.optimize.failed + medStats.rank.failed + medStats.optimize.failed + worstStats.rank.failed + worstStats.optimize.failed;
   if (totalFailed > 0) {
-    console.warn("\n⚠️  [WARNING] Some requests failed or timed out during the AI stress benchmark!");
+    console.warn("\n⚠️  [WARNING] Some requests failed or timed out during the route optimizer stress benchmark!");
   } else {
-    console.log("\n✅ [SUCCESS] All AI benchmark waves completed successfully with zero failures.");
+    console.log("\n✅ [SUCCESS] All route optimizer benchmark waves completed successfully with zero failures.");
   }
 }
 

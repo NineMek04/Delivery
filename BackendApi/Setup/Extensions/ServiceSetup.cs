@@ -212,18 +212,22 @@ public static class ServiceSetup
             options.MaximumParallelInvocationsPerClient = 1;
         });
 
-        // --- AI Service HttpClient ---
+        // --- Optimization Service HttpClient ---
         services.AddHttpClient<IAiService, AiService>(client =>
         {
-            var aiServiceUrl = configuration["AI_SERVICE_URL"]
+            var routeOptimizerUrl = configuration["ROUTE_OPTIMIZER_URL"]
+                ?? configuration["Services:RouteOptimizer:BaseUrl"]
+                ?? configuration["AI_SERVICE_URL"]
                 ?? configuration["Services:AiService:BaseUrl"];
 
-            if (!string.IsNullOrWhiteSpace(aiServiceUrl))
+            if (!string.IsNullOrWhiteSpace(routeOptimizerUrl))
             {
-                client.BaseAddress = new Uri(aiServiceUrl);
+                client.BaseAddress = new Uri(routeOptimizerUrl);
             }
 
-            var apiKey = configuration["AI_SERVICE_API_KEY"] ?? configuration["AiServiceApiKey"];
+            var apiKey = configuration["ROUTE_OPTIMIZER_API_KEY"]
+                ?? configuration["AI_SERVICE_API_KEY"]
+                ?? configuration["AiServiceApiKey"];
             if (!string.IsNullOrWhiteSpace(apiKey))
             {
                 client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
@@ -259,7 +263,7 @@ public static class ServiceSetup
             {
                 Title = "Delivery Backend API",
                 Version = "v1",
-                Description = "AI-Optimized Smart Delivery Routing System — Backend API"
+                Description = "Smart Delivery Routing and Optimization System — Backend API"
             });
             options.OperationFilter<StandardApiResponsesOperationFilter>();
 

@@ -68,7 +68,7 @@
 - GPS/status mutation ต้อง buffer ใน SQLite เมื่อ offline และ replay ตามลำดับ
 - ส่ง GPS หลัง SignalR connected เท่านั้น; fallback batch ใช้ telemetry REST endpoint
 
-## 6. AI Rules
+## 6. Route Optimizer Rules
 
 - คง OR-Tools และ `PATH_CHEAPEST_ARC`; solver มี time limit
 - Distance matrix/heuristic fallback ใช้ `haversine_distance` ใน `geo_utils.py`

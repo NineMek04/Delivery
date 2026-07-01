@@ -6,7 +6,7 @@
 //
 // ตัวอย่าง Entity ที่ควรอยู่ที่นี่:
 //   - OrderController      (จัดการออเดอร์ + เปลี่ยนสถานะ + แจ้งเตือน)
-//   - DispatchController   (จัดส่ง + เรียก AI Optimize เส้นทาง)
+//   - DispatchController   (จัดส่ง + เรียก route optimizer)
 //   - TrackingController   (Real-time tracking + SignalR)
 //
 // ตัวอย่างการสร้าง:

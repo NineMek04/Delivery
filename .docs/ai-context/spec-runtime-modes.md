@@ -11,6 +11,6 @@
 - Real RabbitMQ retry policy
 
 ## FAILURE SIMULATION MODE
-- Random AI timeout injection
+- Random route optimizer timeout injection
 - RabbitMQ delayed ACK
 - GPS jitter enabled

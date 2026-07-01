@@ -21,7 +21,9 @@ Use this file for:
 - non-functional requirements
 - testing and operations requirements
 
-For AI/dispatch architecture details, read `AI-BLUEPRINT.md`.
+For dispatch ranking and route optimization architecture details, read
+`AI-BLUEPRINT.md` (historical filename; current content avoids claiming a
+trained ML model).
 
 Canonical low-level contracts still live in `.docs/ai-context/`; this document
 is the consolidated human-readable project spec.
@@ -42,7 +44,7 @@ The system supports realtime delivery operations across four roles:
 The system must create and manage orders, require store acceptance before
 dispatch, rank rider candidates, enforce state machines, track riders in
 realtime, store GPS history durably, route through local OSRM, provide degraded
-fallback when AI/OSRM fails, keep dashboards reactive, expose standard JSON
+fallback when route optimizer/OSRM fails, keep dashboards reactive, expose standard JSON
 errors, and provide logs/metrics for operations.
 
 ## 4. Technology Stack
@@ -55,7 +57,7 @@ errors, and provide logs/metrics for operations.
 | Cache/locks | Redis |
 | Event bus | RabbitMQ |
 | Realtime | SignalR |
-| AI Engine | Python FastAPI |
+| Route Optimizer | Python FastAPI (`route-optimizer` service name) |
 | Routing | Local OSRM |
 | Admin | Angular 19, RxJS, Leaflet |
 | Mobile/Web App | Flutter, Riverpod, GoRouter, Dio, SignalR client |
@@ -85,7 +87,7 @@ db
 pgbouncer
 backend
 redis
-ai-service
+route-optimizer
 frontend
 rider-app
 osrm
@@ -142,7 +144,7 @@ admin-dashboard/
 rider_app/
   lib/
 
-ai-engine/
+route-optimizer/
 
 RootScripts/scripts.test/test/
 
@@ -327,8 +329,8 @@ Payloads are camelCase. Rider location payload uses `state`, not `status`.
 
 ## 11. Dispatch Specification
 
-Dispatch starts after store acceptance. It ranks candidates through AI and
-fallback logic, locks riders while offering, sends offers through SignalR,
+Dispatch starts after store acceptance. It ranks candidates through weighted
+heuristic ranking and fallback logic, locks riders while offering, sends offers through SignalR,
 checks offer versions, transitions order/rider state consistently, and retries
 next candidate on timeout or rejection.
 
@@ -342,10 +344,10 @@ MATCHING -> OFFERING -> ASSIGNED
 
 Redis locks are guardrails. PostgreSQL is the authority.
 
-## 12. AI And Routing Specification
+## 12. Route Optimization And Routing Specification
 
-AI engine provides rider ranking, route optimization, ETA prediction, and
-deterministic fallback.
+Route optimizer provides weighted heuristic rider ranking, OR-Tools route
+optimization, ETA prediction, and deterministic fallback.
 
 Backend OSRM rules:
 
@@ -531,7 +533,7 @@ RiderId
 ```
 
 Metrics and dashboards must cover order volume, active riders, dispatch
-latency, AI latency, OSRM latency/fallback rate, RabbitMQ queue depth and DLQ,
+latency, route optimizer latency, OSRM latency/fallback rate, RabbitMQ queue depth and DLQ,
 Redis/PostgreSQL health, token refresh failures, rate limiting, and container
 CPU/memory.
 
@@ -593,7 +595,7 @@ Operational targets:
 
 Reliability:
 
-- deterministic fallback for AI and routing
+- deterministic fallback for route optimization and routing
 - idempotent RabbitMQ consumers
 - bounded retry and DLQ
 - PostgreSQL fallback for Redis-derived state recovery
@@ -616,7 +618,7 @@ A release candidate should satisfy:
 
 - backend build passes
 - backend unit/integration tests pass
-- AI tests pass
+- route optimizer tests pass
 - admin build passes
 - Flutter app builds for target platform
 - order create -> store accept -> dispatch -> rider accept -> pickup ->
@@ -629,7 +631,7 @@ A release candidate should satisfy:
 
 ## 25. Related Documents
 
-- `AI-BLUEPRINT.md` - AI/dispatch architecture blueprint
+- `AI-BLUEPRINT.md` - route optimization and dispatch architecture blueprint
 - `Documents/handoff/README.md` - subsystem handoff pack
 - `.docs/ai-context/contracts/api-contracts.md`
 - `.docs/ai-context/contracts/signalr-contracts.md`

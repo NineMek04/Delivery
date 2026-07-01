@@ -390,7 +390,7 @@ public class QABugRegressionTests
         hubContextMock.SetupGet(h => h.Clients).Returns(clientsMock.Object);
         serviceProviderMock.Setup(s => s.GetService(typeof(IHubContext<TrackingHub>))).Returns(hubContextMock.Object);
 
-        var myConfiguration = new Dictionary<string, string>
+        var myConfiguration = new Dictionary<string, string?>
         {
             {"Dispatch:HeartbeatTimeoutSeconds", "20"},
             {"Dispatch:StaleToOfflineSeconds", "120"}

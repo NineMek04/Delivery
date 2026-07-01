@@ -8,7 +8,7 @@
 
 ### 0. เอกสารส่งต่อทีมล่าสุด (Recommended Handoff Pack)
 *   👉 [Delivery System Handoff](handoff/README.md)
-    *(ชุดเอกสารอ่านต่อทีม แยกตาม Backend, Realtime, Flutter, Admin, DevOps, AI/OSRM พร้อม audit ว่าเอกสารเดิมตรงหรือไม่ตรงกับ codebase)*
+    *(ชุดเอกสารอ่านต่อทีม แยกตาม Backend, Realtime, Flutter, Admin, DevOps, Route Optimizer/OSRM พร้อม audit ว่าเอกสารเดิมตรงหรือไม่ตรงกับ codebase)*
 
 ### ⚙️ 1. คู่มือการตั้งค่าติดตั้งบริการ (Service Setup Guides)
 *   👉 [PostgreSQL & PgBouncer Database Manual](setup/DATABASE-SETUP.md)  
@@ -41,8 +41,8 @@
     *(คู่มืออธิบายรูปแบบโครงสร้างโค้ดแยกย่อย: Base Controllers, Base Services, Middlewares/Headers, Validation & GIS index, Mapster, FastAPI Threading, Auto migrations, ThreadPool starvation, Idempotency, Concurrency locks, Frontend memory leaks และ trace logging)*
 *   👉 [Project Specification Master Sheet (PROJECT-SPEC.md)](development/PROJECT-SPEC.md)  
     *(สเปกระบบรวมทุกส่วนสำหรับทีมส่งต่อ อ่านเพื่อเข้าใจ requirements, contracts, runtime, testing และ operations ทั้งระบบ)*
-*   👉 [AI Architecture Blueprint (AI-BLUEPRINT.md)](development/AI-BLUEPRINT.md)  
-    *(พิมพ์เขียว AI-assisted dispatch, routing, telemetry และ realtime delivery coordination โดยไม่ปนกับ full system spec)*
+*   👉 [Route Optimization Blueprint (AI-BLUEPRINT.md)](development/AI-BLUEPRINT.md)
+    *(พิมพ์เขียวระบบจัดสรรงานอัจฉริยะ, route optimization, telemetry และ realtime delivery coordination โดยไม่ปนกับ full system spec)*
 *   👉 [Mobile Map Navigation Plan](development/MOBILE-MAP-NAVIGATION-PLAN.md)
     *(แผนจัดการวาดแผนที่และ navigation UI ฝั่ง Flutter mobile app ให้ใกล้เคียง Google Maps navigation โดยยังยึด backend/local OSRM contract)*
 *   👉 [Project context reference (project-context.md)](development/project-context.md)  
@@ -53,7 +53,7 @@
 ## 🏛️ เอกสารสัญญาการเชื่อมต่อระบบย่อยเดิม (Contracts Spec)
 เอกสารเหล่านี้ยังถูกเก็บรักษาไว้อย่างมั่นคงภายในโฟลเดอร์ต้นทาง และใช้ลิงก์อ้างอิงในการทำงานโดยไม่ต้องย้ายตำแหน่งไฟล์:
 *   [Backend API Specification](../.docs/ai-context/spec-backend.md)
-*   [AI Routing Engine Specification](../.docs/ai-context/spec-ai-engine.md)
+*   [Route Optimizer Specification](../.docs/ai-context/spec-ai-engine.md)
 *   [Admin Angular Dashboard Specification](../.docs/ai-context/spec-frontend.md)
 *   [Rider Flutter Mobile Specification](../.docs/ai-context/spec-mobile-rider.md)
 *   [Infrastructure, Telemetry & SLO Specification](../.docs/ai-context/spec-infra-devops.md)

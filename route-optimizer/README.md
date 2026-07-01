@@ -1,14 +1,14 @@
-﻿# AI Routing Engine (Python FastAPI)
+﻿# Route Optimizer (Python FastAPI)
 
 > [!NOTE]
-> เอกสารฉบับนี้เป็นคู่มือการพัฒนาสำหรับทีม **AI / Data Engineer (Python)** อธิบายโครงสร้าง อัลกอริทึมการแก้ปัญหา VRP (Vehicle Routing Problem) และการวิเคราะห์คำนวณตำแหน่งระยะทาง
+> เอกสารฉบับนี้เป็นคู่มือการพัฒนาสำหรับทีม **Optimization / Data Engineer (Python)** อธิบายโครงสร้าง อัลกอริทึมการแก้ปัญหา VRP (Vehicle Routing Problem) และการวิเคราะห์คำนวณตำแหน่งระยะทาง
 
 ---
 
 ## 1. บทบาทและหน้าที่หลักของระบบ (System Role)
-AI Routing Engine ทำหน้าที่เป็นผู้ช่วยอัจฉริยะประมวลผลอัลกอริทึม (Computation Engine) ให้กับระบบหลังบ้าน:
+Delivery Routing Optimization Engine ทำหน้าที่เป็น computation engine ให้กับระบบหลังบ้าน:
 1.  **VRP Optimization:** จัดลำดับและจับคู่การรับส่งของ Rider หลายจุดแวะ (Multi-Drop Routes) ด้วยข้อจำกัดด้านความจุและเวลา
-2.  **Rider Scoring & Ranking:** จัดลำดับความเหมาะสมของพนักงานขับรถรอบตัวร้านค้า โดยประเมินจากระยะทางจริง ทิศทางการวิ่ง และระยะเวลาเดินทาง (ETA)
+2.  **Rider Scoring & Ranking:** จัดลำดับความเหมาะสมของพนักงานขับรถรอบตัวร้านค้าแบบ weighted heuristic โดยประเมินจากระยะทาง ทิศทางการวิ่ง workload และระยะเวลาเดินทาง (ETA)
 3.  **Graceful Degraded Routing:** ทำหน้าที่เป็นตัวสำรองคำนวณระยะพิกัดเชิงคณิตศาสตร์ (Haversine) ในกรณีที่ OSRM ล่ม
 
 ---
@@ -23,7 +23,7 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 ### วิธีการรันโปรเจกต์ภายในเครื่อง (Local Run)
 1.  สร้างและเปิดใช้งาน Virtual Environment:
     ```bash
-    cd c:\Users\ASUS\Desktop\Project\Delivery\ai-engine
+    cd c:\Users\ASUS\Desktop\Project\Delivery\route-optimizer
     python -m venv venv
     
     # Windows PowerShell:
@@ -54,10 +54,9 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
     - **Model DoS Prevention:** กำหนดขีดจำกัดเวลาคำนวณสูงสุด (`search_parameters.time_limit.seconds = 5`) เพื่อป้องกันสภาวะสมการประมวลผลไม่รู้จบมาถล่ม CPU ของเซิร์ฟเวอร์ (OWASP LLM04)
 
 ### 3.2 การหา Matrix ระยะทาง (Distance Matrix Calculation)
-*   **OSRM Integration:** ในโหมดเสถียรปกติ ระบบจะส่งรายชื่อชุดพิกัดละติจูด/ลองจิจูดไปยัง local OSRM Service (`http://osrm:5000/table/v1/driving/...`) เพื่อคำนวณหา Dijkstra Distance Matrix ระหว่างทุกหมุดพิกัดบนโครงข่ายถนนจริงจังหวัดอุดรธานี
-*   **Redis Cache:** มีการบันทึกค่า Matrix ระยะทางที่เพิ่งคำนวณลง Redis เพื่อประหยัด CPU ในคำร้องขอรอบถัดไป
-*   **Haversine Fallback (ระบบป้องกันล่ม):**  
-    หาก OSRM ล่มหรือมีปัญหาล่าช้า ระบบจะสลับมาใช้สูตรคำนวณทรงกลมโลก [haversine_distance](app/core/geo_utils.py#L8) เพื่อหาพิกัดระยะทางตรง (Straight-line distance in meters) และหารด้วยค่าความเร็วเฉลี่ยคงที่ (Rule-based average velocity) เป็นค่าประมาณการ ETA แทนทันที
+*   **Current implementation:** `vrp_solver.py` เรียก local OSRM `/table/v1/driving/...` เพื่อคำนวณ distance matrix ตามโครงข่ายถนนจริง แล้วส่งให้ OR-Tools ประมวลผล
+*   **Fallback:** หาก local OSRM ไม่พร้อม, matrix ไม่ครบ, หรือค่า invalid ระบบจะกลับไปใช้ Haversine straight-line matrix ผ่าน [haversine_distance](app/core/geo_utils.py#L8)
+*   **Comparison work:** เปรียบเทียบผลลัพธ์ OSRM matrix กับ Haversine fallback ทั้งด้านระยะทางรวม เวลาเดินทาง และ runtime ของ solver
 
 ---
 
@@ -70,7 +69,7 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 *   **Input ([DispatchRankRequest](app/models/dispatch_models.py)):**
     - `order`: ข้อมูลจุดรับ (Pickup) และจุดส่ง (Dropoff)
     - `candidates`: รายชื่อคนขับว่างงาน (`id`, `lat`, `lng`, `bearing`, `status`)
-*   **Output:** ลำดับและรายชื่อคนขับว่าง เรียงตามคะแนนความเหมาะสมสูงสุดลงไป (Scoring Score คำนวณจากระยะทางทาบถนน, ทิศทางหัวรถ `is_same_direction`, และพฤติกรรมปฏิเสธงานสะสม)
+*   **Output:** ลำดับและรายชื่อคนขับว่าง เรียงตามคะแนนความเหมาะสมสูงสุดลงไป (คะแนนปัจจุบันเป็น weighted heuristic จาก Haversine distance, workload, direction และ speed ไม่ใช่ ML model)
 
 ### 4.2 `/api/optimize-route` (VRP Route Optimization)
 *   **เป้าหมาย:** จัดคิวเส้นทางหยิบและส่งสินค้าหลายจุดสำหรับ Rider (Multi-Drop sequence)
@@ -84,7 +83,7 @@ AI Routing Engine ทำหน้าที่เป็นผู้ช่วย�
 
 ---
 
-## 🔗 เอกสารอ้างอิง Spec เชิงลึก (Original Contracts)
-*   [AI Routing Engine Core Specification](../.docs/ai-context/spec-ai-engine.md)
+## ?? เอกสารอ้างอิง Spec เชิงลึก (Original Contracts)
+*   [Route Optimizer Core Specification](../.docs/ai-context/spec-ai-engine.md)
 *   [API Endpoints JSON Payloads Specification](../.docs/ai-context/contracts/api-contracts.md)
 *   [GeoJSON Coordinate Standard Rules](../.docs/ai-context/contracts/geojson-contracts.md)

@@ -62,7 +62,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Host=pgbouncer;Database=delivery_db;Username=postgres;Password=${POSTGRES_PASSWORD};Maximum Pool Size=100;Timeout=5;CommandTimeout=5;
       - ConnectionStrings__Redis=redis:6379,password=${REDIS_PASSWORD}
-      - AI_SERVICE_URL=http://ai-service:8000
+      - ROUTE_OPTIMIZER_URL=http://route-optimizer:8000
+      - AI_SERVICE_URL=http://route-optimizer:8000
       - VAULT_ADDR=http://vault:8200
       - VAULT_ROLE_ID_FILE=/vault/approle/backend_role_id
       - VAULT_SECRET_ID_FILE=/vault/approle/backend_secret_id
@@ -95,6 +96,8 @@ services:
         condition: service_healthy
       vault-bootstrap:
         condition: service_healthy
+      route-optimizer:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 30s
@@ -122,22 +125,26 @@ services:
       retries: 5
 
   # 4. ระบบปัญญาประดิษฐ์จัดเส้นทาง (Python FastAPI)
-  ai-service:
+  route-optimizer:
     build:
-      context: ./ai-engine
+      context: ./route-optimizer
       dockerfile: Dockerfile
-    container_name: delivery-ai
+    container_name: delivery-route-optimizer
     environment:
       - DATABASE_URL=postgresql://postgres@db:5432/delivery_db
+      - ROUTE_OPTIMIZER_OSRM_URL=http://osrm:5000
+      - ROUTE_OPTIMIZER_OSRM_TIMEOUT_SECONDS=2.0
       - VAULT_ADDR=http://vault:8200
-      - VAULT_ROLE_ID_FILE=/vault/approle/ai_role_id
-      - VAULT_SECRET_ID_FILE=/vault/approle/ai_secret_id
+      - VAULT_ROLE_ID_FILE=/vault/approle/route_optimizer_role_id
+      - VAULT_SECRET_ID_FILE=/vault/approle/route_optimizer_secret_id
       - VAULT_REQUIRED=true
     depends_on:
       db:
         condition: service_healthy
       vault-bootstrap:
         condition: service_healthy
+      osrm:
+        condition: service_started
     # Ports removed to isolate the container from public access (OWASP LLM10 / LLM07 API Isolation)
     restart: unless-stopped
     healthcheck:
@@ -292,6 +299,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ROUTE_OPTIMIZER_API_KEY=${ROUTE_OPTIMIZER_API_KEY:-}
       - AI_SERVICE_API_KEY=${AI_SERVICE_API_KEY}
     entrypoint: ["sh", "/vault-bootstrap.sh"]
     restart: unless-stopped
@@ -299,7 +307,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "test -s /vault/approle/ready && test \"$$(cat /vault/approle/backend_role_id)\" = \"$$(vault read -field=role_id auth/approle/role/backend-role/role-id 2>/dev/null)\" && test \"$$(cat /vault/approle/ai_role_id)\" = \"$$(vault read -field=role_id auth/approle/role/ai-role/role-id 2>/dev/null)\""
+          "test -s /vault/approle/ready && test \"$$(cat /vault/approle/backend_role_id)\" = \"$$(vault read -field=role_id auth/approle/role/backend-role/role-id 2>/dev/null)\" && test \"$$(cat /vault/approle/route_optimizer_role_id)\" = \"$$(vault read -field=role_id auth/approle/role/route-optimizer-role/role-id 2>/dev/null)\""
         ]
       interval: 5s
       timeout: 3s

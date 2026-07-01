@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BackendApi.Controllers.Ai;
 
 /// <summary>
-/// API สำหรับการประมวลผลและการใช้บริการ AI Engine (VRP / ETA / Scoring)
+/// API สำหรับการประมวลผลเส้นทาง การจัดอันดับไรเดอร์ และ ETA (VRP / ETA / Scoring)
 /// </summary>
 [Authorize(Policy = BackendApi.Security.Models.AuthConstants.OperationsPolicy)]
 [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(BackendApi.Setup.Extensions.SecurityConfiguration.AuthRateLimitPolicy)]

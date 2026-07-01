@@ -37,7 +37,11 @@ $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ASPNETCORE_URLS = "http://0.0.0.0:5000"
 $env:ConnectionStrings__DefaultConnection = "Host=localhost;Database=delivery_db;Username=postgres;Password=$env:POSTGRES_PASSWORD;Maximum Pool Size=1024;"
 $env:ConnectionStrings__Redis = "localhost:6379,password=$env:REDIS_PASSWORD"
+$env:ROUTE_OPTIMIZER_URL = "http://localhost:8000"
 $env:AI_SERVICE_URL = "http://localhost:8000"
+if ([string]::IsNullOrWhiteSpace($env:ROUTE_OPTIMIZER_API_KEY)) {
+    $env:ROUTE_OPTIMIZER_API_KEY = $env:AI_SERVICE_API_KEY
+}
 $env:Routing__LocalOsrmUrl = "http://localhost:5001"
 $env:MessageBroker__Host = "localhost"
 $env:MessageBroker__Port = "5672"

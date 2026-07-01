@@ -1,7 +1,7 @@
 """
-Test: OSRM + Rider Velocity → ETA Calculation
-ทดสอบ AI Engine predict-eta endpoint ที่ปรับปรุงแล้ว
-Run from root: python -m pytest RootScripts/scripts.test/test/ai-engine.tests/test_eta_velocity.py
+Test: OSRM + Rider Velocity -> ETA Calculation
+ทดสอบ Route Optimizer predict-eta endpoint ที่ปรับปรุงแล้ว
+Run from root: python -m pytest RootScripts/scripts.test/test/route-optimizer.tests/test_eta_velocity.py
 """
 import sys
 import json

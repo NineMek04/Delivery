@@ -59,7 +59,7 @@ namespace BackendApi.UnitTests.Telemetry
             // Arrange
             string riderId = "rider_123";
             int pendingQueueCount = 500; // expected interval = 3s
-            string expectedKey = $"rider_last_gps_limit:{riderId}";
+            string expectedKey = $"rider_last_gps_limit:realtime:{riderId}";
 
             // StringSetAsync returns true when the set succeeds (key was not present)
             _dbMock.Setup(d => d.StringSetAsync(
@@ -88,7 +88,7 @@ namespace BackendApi.UnitTests.Telemetry
             // Arrange
             string riderId = "rider_456";
             int pendingQueueCount = 6000; // expected interval = 10s
-            string expectedKey = $"rider_last_gps_limit:{riderId}";
+            string expectedKey = $"rider_last_gps_limit:realtime:{riderId}";
 
             // StringSetAsync returns false when key already exists (NX condition not met)
             _dbMock.Setup(d => d.StringSetAsync(

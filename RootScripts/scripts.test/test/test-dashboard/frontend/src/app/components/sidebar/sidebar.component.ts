@@ -22,7 +22,7 @@ import { CommonModule } from '@angular/common';
             <span class="item-icon">🛡️</span> Backend Integration (.NET)
           </li>
           <li class="menu-item" (click)="onSelectSuite('python')" [class.active]="activeSuite === 'python'">
-            <span class="item-icon">🧠</span> AI Engine (Python)
+            <span class="item-icon">🧠</span> Route Optimizer (Python)
           </li>
           <li class="menu-item" (click)="onSelectSuite('load')" [class.active]="activeSuite === 'load'">
             <span class="item-icon">⚡</span> Load Testing (Node.js)

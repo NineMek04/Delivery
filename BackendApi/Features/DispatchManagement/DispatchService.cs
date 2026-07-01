@@ -21,13 +21,13 @@ namespace BackendApi.Services.Dispatch;
 /// Flow 30 วินาที:
 /// 1. Order ใหม่ → เปลี่ยนเป็น MATCHING
 /// 2. ดึง Nearby Idle Riders จาก Redis GEORADIUS
-/// 3. ส่ง Candidates ให้ AI Score (async, ไม่ block SignalR)
+/// 3. ส่ง Candidates ให้ระบบจัดอันดับตามความเหมาะสม (async, ไม่ block SignalR)
 /// 4. จอง Rider อันดับ 1 (Redis SETNX)
 /// 5. ยิง Offer ผ่าน SignalR + OfferId + Version
 /// 6. Accept → ASSIGNED / Timeout → Re-dispatch
 /// 
 /// Delegates:
-///   - AI Ranking        → DispatchCandidateRanker
+///   - Heuristic Ranking → DispatchCandidateRanker
 ///   - Rider SignalR/FCM → DispatchRiderNotifier
 ///   - Admin SignalR     → DispatchAdminNotifier
 ///   - Rider Actions     → DispatchOfferHandler (Accept/Reject/Timeout)
@@ -316,7 +316,7 @@ public class DispatchService
             return;
         }
 
-        // 3. ส่ง Candidates ไป AI Engine สำหรับ Scoring (Phase A)
+        // 3. ส่ง Candidates ไป Optimization service สำหรับ weighted heuristic scoring (Phase A)
         var rankedCandidates = await _ranker.RankCandidatesAsync(firstOrder, candidates, ridersDict);
 
         await _adminNotifier.NotifyCandidatesRankedAsync(firstOrder, rankedCandidates);

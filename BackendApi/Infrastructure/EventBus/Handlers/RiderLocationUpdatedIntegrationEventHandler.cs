@@ -27,7 +27,7 @@ public class RiderLocationUpdatedIntegrationEventHandler : IIntegrationEventHand
             @event.Timestamp
         );
 
-        // Place any cross-boundary business logic here, e.g., real-time feed update for AI ranker caching
+        // Place any cross-boundary business logic here, e.g., real-time feed update for route optimizer caching
 
         return Task.CompletedTask;
     }

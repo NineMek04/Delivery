@@ -9,7 +9,7 @@ db
 pgbouncer
 backend
 redis
-ai-service
+route-optimizer
 frontend
 rider-app
 osrm
@@ -74,8 +74,7 @@ backend:80/metrics
 Grafana dashboards should cover:
 
 - Business Health: active orders, order states, active riders
-- AI/OSRM: latency, fallback count, route failure count
+- Route optimizer/OSRM: latency, fallback count, route failure count
 - System Health: RabbitMQ queue depth, Redis, Postgres, container CPU/memory, rate limiting, token refresh failures
 
 Logs must carry correlation ID and include order/rider identifiers when available.
-

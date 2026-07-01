@@ -1,11 +1,11 @@
-# ⚖️ Data Consistency, State Authorities & Tracing Specs
+﻿# ⚖️ Data Consistency, State Authorities & Tracing Specs
 
 ## 1. ขอบเขตสิทธิ์การสลับสถานะ (State Transition Authority Rules)
 เพื่อตัดปัญหา Multiple Writers Problem (เลเยอร์โค้ดแย่งกันเขียนสถานะออเดอร์มั่ว) ระบบจะล็อกสิทธิ์ให้เฉพาะชิ้นส่วนซอฟต์แวร์เหล่านี้เท่านั้นที่มีสิทธิ์ Mutation ข้อมูลสถานะ:
 
 - **`CREATED`**: อนุมัติสิทธิ์ขาดให้ `OrderService` เท่านั้น (REST API Endpoint ขาเข้า)
 - **`MATCHING`**: อนุมัติสิทธิ์ขาดให้ `DispatchEngineBackgroundWorker` (รันคิวจัดหาคนขับ)
-- **`OFFERING`**: อนุมัติสิทธิ์ขาดให้ `Python FastAPI AI Engine` (หลังประมวลผล 2-Stage Scoring ประเมินค่าความมั่นใจเสร็จ)
+- **`OFFERING`**: อนุมัติสิทธิ์ขาดให้ `Python FastAPI Route Optimizer` (หลังประมวลผล 2-Stage Scoring ประเมินค่าความมั่นใจเสร็จ)
 - **`ASSIGNED`**: อนุมัติสิทธิ์ขาดให้ `Rider Accept Flow` ควบคุมผ่านกลไก **Redis Distributed Lock (RAM)** ป้องกันคนขับสองคนรัวกดแย่งงานชิ้นเดียวกัน
 - **`PICKING_UP` / `DELIVERING`**: อนุมัติสิทธิ์ขาดให้ `Rider Action Hub` (รับสัญญาณดิบข้ามท่อ WebSocket มาจาก Flutter App)
 - **`COMPLETED` / `CANCELLED`**: อนุมัติสิทธิ์ขาดให้ `Delivery Confirmation Worker` (ประมวลผลอีเวนต์หลังพ้นระยะประชิดพิกัดภูมิศาสตร์)

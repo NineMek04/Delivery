@@ -3,8 +3,9 @@ from .geo_utils import haversine_distance, calculate_bearing, is_same_direction
 
 def rank_candidates(order: Dict[str, Any], candidates: List[Dict[str, Any]], max_radius_km: float = 10.0) -> List[Dict[str, Any]]:
     """
-    Phase A: Fast Heuristic Scoring
+    Phase A: Weighted heuristic ranking.
     Scores and ranks candidates based on distance, workload, and direction.
+    This is deterministic rule-based ranking, not a trained ML model.
     """
     pickup_lat = order.get("pickup", [0, 0])[0]
     pickup_lng = order.get("pickup", [0, 0])[1]

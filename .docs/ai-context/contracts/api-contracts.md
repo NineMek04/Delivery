@@ -172,7 +172,7 @@ treat empty/invalid route geometry as route-unavailable instead of repeatedly
 calling resolve from every GPS tick. `source` is `LOCAL_OSRM` or
 `HAVERSINE_FALLBACK`.
 
-## 6. AI Proxy
+## 6. Route Optimizer Proxy
 
 ```text
 POST /ai/optimize-route

@@ -89,7 +89,7 @@ export class OverallOverviewComponent implements OnChanges, AfterViewInit, OnDes
     }).slice(0, 3);
   }
 
-  // 2. AI Engine (Python) UI Mapping
+  // 2. Route Optimizer (Python) UI Mapping
   private calculatePythonCoordsForUi() {
     if (this.pythonCases.length > 0) {
       this.pythonCoordsForUi = [
@@ -130,7 +130,7 @@ export class OverallOverviewComponent implements OnChanges, AfterViewInit, OnDes
   private calculateSimulatorStepsForUi() {
     const defaultSteps = [
       { label: 'Sign-up Flow', status: 'pass', meta: '230ms' },
-      { label: 'AI Match Generation', status: 'pass', meta: '1.2s' },
+      { label: 'Rider Ranking', status: 'pass', meta: '1.2s' },
       { label: 'GPS Telemetry Update', status: 'active', meta: 'Awaiting payload...' },
       { label: 'Order Completion', status: 'pending', meta: 'Pending' }
     ];
@@ -158,7 +158,7 @@ export class OverallOverviewComponent implements OnChanges, AfterViewInit, OnDes
 
     const matchPassed = (!createShop || createShop.status === 'PASS') && (!createOrder || createOrder.status === 'PASS');
     steps.push({
-      label: 'AI Match Generation',
+      label: 'Rider Ranking',
       status: matchPassed ? 'pass' : (createShop?.status === 'FAIL' || createOrder?.status === 'FAIL' ? 'fail' : 'pending'),
       meta: matchPassed ? '1.2s' : 'Pending'
     });

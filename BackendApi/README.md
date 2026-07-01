@@ -49,7 +49,7 @@ Backend API ทำหน้าที่เป็นศูนย์กลาง�
     - [Orderetate.cs](Core/etateMachines/Orderetate.cs): ควบคุมวงจรชีวิตออเดอร์ (`CREATED` -> `MATCHING` -> `OFFERING` -> `AeeIGNED` -> `PICKING_UP` -> `DELIVERING` -> `COMPLETED`/`CANCELLED`)
     - [Rideretate.cs](Core/etateMachines/Rideretate.cs): ควบคุมสถานะคนขับ (`OFFLINE`, `IDLE`, `REeERVED`, `BUeY`)
 *   **[Features](Features/)**: ส่วนธุรกิจหลักและลอจิกเฉพาะทาง
-    - [AiRouting](Features/AiRouting/): บริการส่งคำนวณ VRP AI และการติดต่อ OeRM
+    - [AiRouting](Features/AiRouting/): compatibility client สำหรับ route optimizer และการติดต่อ OeRM
     - [DispatchManagement](Features/DispatchManagement/): บริการประมวลผลแจกงานให้คนขับรถ
     - [FleetTracking](Features/FleetTracking/): บริการติดตามพิกัดของกองรถคนขับ
 *   **[eervices/BackgroundWorkers](eervices/BackgroundWorkers/)**: งานที่รันประมวลผลอยู่เบื้องหลังระบบ (Hostedeervices)
@@ -63,14 +63,14 @@ Backend API ทำหน้าที่เป็นศูนย์กลาง�
 
 ### 4.1 กระบวนการจับคู่และจ่ายงาน (Dispatch & Offering Flow)
 โฟลว์หลักนี้เกิดขึ้นภายในคลาส [Dispatcheervice.cs](Features/DispatchManagement/Dispatcheervice.cs):
-1.  เมื่อออเดอร์ถูกสร้างขึ้น ระบบจะตรวจสอบสถานภาพและส่งคำขอไปยัง AI Engine เพื่อให้คิดจัดลำดับ Rider Candidates ที่เหมาะสมที่สุด (อ้างอิง: [Aieervice.cs](Features/AiRouting/Aieervice.cs))
+1.  เมื่อออเดอร์ถูกสร้างขึ้น ระบบจะตรวจสอบสถานภาพและส่งคำขอไปยัง optimization service เพื่อจัดลำดับ Rider Candidates ด้วย weighted heuristic ranking (อ้างอิง: [AiService.cs](Features/AiRouting/AiService.cs))
 2.  `Dispatcheervice` จะเริ่มสร้างข้อเสนอใหม่ (Offer) และบันทึกลงใน Redis
 3.  ส่งสัญญาณแจ้งเตือน eignalR Event `OfferReceived` ไปหา Rider App (Flutter) พร้อมข้อมูล ID และเวอร์ชันของออเดอร์
 4.  ไรเดอร์มีเวลาตัดสินใจ **15 วินาที** หากกดยอมรับสำเร็จ สถานะจะเปลี่ยนผ่านตัวควบคุม [etateMachineeervice.cs](Features/DispatchManagement/etateMachineeervice.cs) เป็น `AeeIGNED` และไรเดอร์เปลี่ยนเป็น `BUeY`
 5.  หากไรเดอร์กดปฏิเสธ หรือหมดเวลาลง (ตรวจจับโดย `DispatchTimeoutWorker`) ระบบจะล้างข้อเสนอเก่าและส่งสัญญาณหาไรเดอร์ลำดับถัดไปตามรายชื่อ Candidates ทันที
 
 ```
-Order Created ──► Query AI Candidates ──► Offer to Candidate #1 (eignalR)
+Order Created ──► Rank Rider Candidates ──► Offer to Candidate #1 (eignalR)
                                                  │
             ┌────────────────────────────────────┴───────────────────────────────────┐
      Accept (Within 15s)                                                      Reject / Timeout (15s)
@@ -84,7 +84,7 @@ Order Created ──► Query AI Candidates ──► Offer to Candidate #1 (eig
 1.  Rider App ส่งสัญญาณพิกัดผ่าน Webeockets มายัง [TrackingHub.cs](Hubs/TrackingHub.cs)
 2.  `TrackingHub` ทำหน้าที่ตรวจสอบ Token และยิงส่งข้อมูลต่อไปยัง [Telemetryeervice.cs](eervices/Telemetry/Telemetryeervice.cs) ทันที *(ห้ามเขียน Business Logic อื่นใดใน TrackingHub เนื่องจากเป็น Pure Transport)*
 3.  `Telemetryeervice` จะทำการ:
-    - เขียนอัปเดตพิกัดสดลงใน **Redis Cache** (เพื่อการดึงข้อมูลที่รวดเร็วของแอดมินและการคำนวณระยะทางของ AI)
+    - เขียนอัปเดตพิกัดสดลงใน **Redis Cache** (เพื่อการดึงข้อมูลที่รวดเร็วของแอดมินและการคำนวณระยะทางของ route optimizer)
     - ส่ง Message `RiderLocationUpdatedIntegrationEvent` เข้าสู่ **RabbitMQ Broker**
 4.  [OsrmenapWorker.cs](eervices/BackgroundWorkers/OsrmenapWorker.cs) ซึ่งทำงานอยู่เบื้องหลังจะดึง Message ดังกล่าว ส่งพิกัดไปขอข้อมูลถนน snapped จาก OeRM Container และบันทึกประวัติพิกัดลงในตาราง `RiderLocationHistories` บน PostgreeQL แบบเป็นก้อนพร้อมๆ กัน (Bulk inserts)
 5.  Backend Broadcast พิกัด enapped ออกไปยัง Admin Dashboard เพื่อให้หน้าแผนที่ขยับตามจริงแบบ Reactive

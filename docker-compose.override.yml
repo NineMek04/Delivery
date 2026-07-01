@@ -20,7 +20,7 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 
-  ai-service:
+  route-optimizer:
     ports:
       - "127.0.0.1:8009:8000"
 

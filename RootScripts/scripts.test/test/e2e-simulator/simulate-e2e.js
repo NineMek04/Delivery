@@ -4,7 +4,7 @@
  * - creates one randomized shop/order in Udon Thani
  * - creates 5-10 simulated riders around the shop
  * - broadcasts realtime GPS through SignalR
- * - waits for the backend AI dispatch offer
+ * - waits for the backend dispatch offer
  * - accepts the offer as the selected rider
  * - moves rider to pickup and dropoff along real OSRM road polylines when available
  */
@@ -526,8 +526,8 @@ async function checkHealth() {
 function setTimeoutGuard(seconds) {
   setTimeout(() => {
     if (!offerAccepted) {
-      logTest("AI Dispatch Timer", "FAIL", `No dispatch offer after ${seconds}s.`, `seconds=${seconds}`);
-      log('Timeout', `No dispatch offer after ${seconds}s. Check backend, Redis presence, AI service, and rider states.`);
+      logTest("Dispatch Timer", "FAIL", `No dispatch offer after ${seconds}s.`, `seconds=${seconds}`);
+      log('Timeout', `No dispatch offer after ${seconds}s. Check backend, Redis presence, route optimizer service, and rider states.`);
       finishProcess(1);
     }
   }, seconds * 1000);
@@ -569,7 +569,7 @@ async function main() {
   await axios.post(`${API}/orders/${orderId}/accept-by-store`, {}, {
     headers: { Authorization: `Bearer ${storePartnerToken}` }
   });
-  log('Order', `Order ${orderId} accepted by store. AI dispatch scan should now start.`);
+  log('Order', `Order ${orderId} accepted by store. Dispatch ranking should now start.`);
   
   if (process.env.DELIVERY_SIM_SCENARIO === 'BATCH') {
     const dropoff2 = randomPointAround({ lat: shop.lat, lng: shop.lng }, randomFloat(1.3, 4.0));

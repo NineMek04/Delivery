@@ -20,9 +20,9 @@ public static class OperationalMetrics
         "delivery_gps_updates_per_second",
         "Current GPS update throughput observed by the telemetry aggregator.");
 
-    public static readonly Histogram AiRequestDuration = Metrics.CreateHistogram(
-        "delivery_ai_request_duration_seconds",
-        "Backend-observed AI Engine request duration.",
+    public static readonly Histogram RouteOptimizerRequestDuration = Metrics.CreateHistogram(
+        "delivery_route_optimizer_request_duration_seconds",
+        "Backend-observed route optimizer service request duration.",
         new HistogramConfiguration
         {
             LabelNames = ["operation"],
@@ -75,7 +75,7 @@ public static class OperationalMetrics
 
     public static readonly Histogram RouteDeviationSeconds = Metrics.CreateHistogram(
         "delivery_route_deviation_seconds",
-        "Difference between expected delivery time (AI ETA) and actual delivery time (Actual - Expected).",
+        "Difference between expected ETA and actual delivery time (Actual - Expected).",
         new HistogramConfiguration
         {
             Buckets = new double[] { -900, -600, -300, -120, -60, 0, 60, 120, 300, 600, 900 }

@@ -1,11 +1,11 @@
-# AI Engine (FastAPI + OR-Tools)
+# Optimization Engine (FastAPI + OR-Tools)
 
 **Version:** 1.0.0 | **Updated:** 2026-06-14
 
 ## 1. Structure
 
 ```text
-ai-engine/
+route-optimizer/
   main.py
   app/
     api/v1/api.py
@@ -14,7 +14,7 @@ ai-engine/
     models/{routing_models,dispatch_models}.py
 ```
 
-Tests อยู่ใน `RootScripts/scripts.test/test/ai-engine.tests/`
+Tests อยู่ใน `RootScripts/scripts.test/test/route-optimizer.tests/`
 
 ## 2. Protected Endpoints
 
@@ -23,7 +23,7 @@ Tests อยู่ใน `RootScripts/scripts.test/test/ai-engine.tests/`
 - `POST /api/v1/predict-eta`
 - `GET /health`
 
-สาม endpoint แรกต้องใช้ AI service API key. CPU-bound handlers เป็น synchronous `def`.
+สาม endpoint แรกต้องใช้ route optimizer API key. CPU-bound handlers เป็น synchronous `def`.
 
 ## 3. Optimize Contract
 
@@ -62,7 +62,7 @@ Request มี `context`, `order {id,pickup,dropoff,sla_limit_minutes}` แล�
 Response key คือ `ranked_candidates`; member ใช้ `distance_to_pickup_km`,
 `eta_minutes`, `score`, `breakdown`.
 
-## 5. Solver And Fallback
+## 5. Solver, Ranking, And Fallback
 
 - OR-Tools `PATH_CHEAPEST_ARC`
 - Haversine matrix ใน `compute_distance_matrix`
@@ -71,7 +71,18 @@ Response key คือ `ranked_candidates`; member ใช้ `distance_to_pickup
 - ห้ามเพิ่ม external routing API, GPU dependency หรือ ML model โดยพลการ
 - `solve_vrp`, `rank_candidates` และ geo utility signatures เป็น critical contract
 
+Naming rule: this component is named `route-optimizer`. Legacy configuration
+keys such as `AI_SERVICE_URL` may remain as compatibility aliases only. The
+implemented algorithms are not trained machine-learning models. `scoring.py`
+is weighted heuristic/rule-based ranking. `vrp_solver.py` uses OR-Tools
+mathematical optimization over a local OSRM `/table` matrix with Haversine
+fallback.
+
+Route matrix rule: `compute_distance_matrix` must call local OSRM `/table`
+first for road-network distance values. If OSRM is unavailable, incomplete, or
+invalid, fallback to deterministic Haversine matrix. Public OSRM is forbidden.
+
 ## 6. Runtime
 
 Docker ใช้ Python 3.11 และ port ภายใน 8000. Compose dev expose
-`127.0.0.1:8009`; production ไม่ expose AI service สู่ public network.
+`127.0.0.1:8009`; production ไม่ expose route optimizer service สู่ public network.

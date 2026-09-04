@@ -13,7 +13,7 @@
   1. สั่งรันคอนเทนเนอร์ฐานระบบ `docker-compose up -d` (db, redis, rabbitmq, osrm, seq, prometheus, grafana)
   2. รอให้ฐานข้อมูลสตาร์ตพร้อมรับสิทธิ์เชื่อมต่อ
   3. เปิดหน้าต่าง PowerShell ย่อยรัน .NET Core Backend API
-  4. เปิดหน้าต่างย่อยรัน FastAPI AI Engine
+  4. เปิดหน้าต่างย่อยรัน FastAPI Route Optimizer
   5. เปิดหน้าต่างย่อยรัน Angular Admin Dashboard
 - **วิธีการเรียกใช้งาน:**
   ```powershell

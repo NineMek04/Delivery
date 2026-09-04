@@ -156,7 +156,7 @@ const TEST_METADATA_MAP: Record<string, { requestPayload: string; responseTrace:
     responseTrace: "HTTP/1.1 200 OK\n\n// Assert DB: Password hash updated\n// Assert DB: Previous refresh tokens deleted"
   },
 
-  // --- Python AI Engine Tests ---
+  // --- Python Route Optimizer Tests ---
   "test_api_dispatch": {
     requestPayload: "POST /api/v1/dispatch/rank HTTP/1.1\n\n{\n  \"order_location\": {\"lat\": 17.41, \"lng\": 102.78},\n  \"riders\": [ {\"id\": \"A\", \"distance\": 5}, {\"id\": \"B\", \"distance\": 2} ]\n}",
     responseTrace: "HTTP/1.1 200 OK\n\n{\n  \"ranked_riders\": [ \"B\", \"A\" ]\n}\n// Assert: Closest rider ranked first"

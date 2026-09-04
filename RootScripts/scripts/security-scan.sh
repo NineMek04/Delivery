@@ -60,9 +60,9 @@ fi
 
 echo ""
 echo "========================================"
-echo "3. Scanning Python AI-Engine Dependencies..."
+echo "3. Scanning Python Route Optimizer Dependencies..."
 echo "========================================"
-AI_DIR="$SCRIPT_DIR/../ai-engine"
+AI_DIR="$SCRIPT_DIR/../../route-optimizer"
 if [ -d "$AI_DIR" ]; then
     cd "$AI_DIR"
     if command -v pip-audit &> /dev/null; then
@@ -77,7 +77,7 @@ if [ -d "$AI_DIR" ]; then
     fi
     cd "$SCRIPT_DIR"
 else
-    echo "ai-engine directory not found. Skipping."
+    echo "route-optimizer directory not found. Skipping."
 fi
 
 echo ""

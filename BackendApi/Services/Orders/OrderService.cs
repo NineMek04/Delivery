@@ -165,7 +165,7 @@ public class OrderService : IOrderService
             return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("ไม่สามารถคำนวณเส้นทางจัดส่งบนถนนจริงได้ เนื่องจากระบบ Dijkstra/OSRM และโครงข่ายอินเทอร์เน็ตล้มเหลว"));
         }
 
-        // ขอ ETA Prediction จาก AI Engine
+        // ขอ ETA estimation จาก optimization service
         var expectedDeliveryTime = requestedDeliveryTime;
         try
         {
@@ -195,7 +195,7 @@ public class OrderService : IOrderService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get AI ETA Prediction, falling back to client expected time");
+            _logger.LogWarning(ex, "Failed to get ETA estimation from optimization service, falling back to client expected time");
         }
 
         var order = new Order

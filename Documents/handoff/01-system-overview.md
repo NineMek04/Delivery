@@ -25,7 +25,7 @@ Nginx / Docker network
         |       +--> Local OSRM route service
         |
         +--> Angular Admin Dashboard
-        +--> AI Engine (FastAPI)
+        +--> Route Optimizer (FastAPI, route-optimizer service name)
         +--> Observability: Seq, Prometheus, Grafana, Alertmanager, exporters
 ```
 
@@ -46,7 +46,6 @@ Nginx / Docker network
 ## Critical Rules
 
 - Do not add forbidden stack: Kafka, Kubernetes, full CQRS, Event Store, Saga Orchestrator, gRPC mesh, Redis Cluster, Elasticsearch.
-- Do not remove fallback paths from AI/OSRM-critical code.
+- Do not remove fallback paths from route optimizer/OSRM-critical code.
 - Do not move test folders outside `RootScripts/scripts.test/test/`, except Angular `*.spec.ts` beside components.
 - Do not physically delete critical business history where contract says soft-delete.
-

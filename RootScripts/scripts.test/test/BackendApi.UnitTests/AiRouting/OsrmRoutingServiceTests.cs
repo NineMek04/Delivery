@@ -21,8 +21,14 @@ namespace BackendApi.UnitTests.AiRouting
     ///  - Bug #4: Invariant-culture cache key generation
     ///  - General resilience: Redis cache hit/miss, sequential fallback on HTTP failure
     /// </summary>
+    [Collection("OSRM circuit breaker")]
     public class OsrmRoutingServiceTests
     {
+        public OsrmRoutingServiceTests()
+        {
+            OsrmCircuitBreakerTestHelper.Reset();
+        }
+
         // ── Helpers ────────────────────────────────────────────────────────
 
         /// <summary>
@@ -49,7 +55,7 @@ namespace BackendApi.UnitTests.AiRouting
         {
             var mux = redisMux ?? BuildRedisMux(redisDb);
             var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string>
+                .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     { "Routing:LocalOsrmUrl", "http://localhost:5001" }
                 })
@@ -318,7 +324,12 @@ namespace BackendApi.UnitTests.AiRouting
             {
                 polyline = "abc123",
                 distance = 1500.0,
-                duration = 180.0
+                duration = 180.0,
+                coordinates = new[]
+                {
+                    new[] { 100.5, 13.7 },
+                    new[] { 100.6, 13.8 }
+                }
             });
 
             var db = new Mock<IDatabase>();
@@ -336,7 +347,7 @@ namespace BackendApi.UnitTests.AiRouting
             var svc = BuildService(httpClient, db.Object);
 
             // Act
-            var (polyline, distance, duration) = await svc.GetRouteDetailsAsync(13.7, 100.5, 13.8, 100.6);
+            var (polyline, distance, duration, _) = await svc.GetRouteDetailsAsync(13.7, 100.5, 13.8, 100.6);
 
             // Assert
             Assert.Equal("abc123", polyline);
@@ -376,7 +387,7 @@ namespace BackendApi.UnitTests.AiRouting
             }), db.Object);
 
             // Act — must not throw even though Redis write fails
-            var (polyline, distance, duration) = await svc.GetRouteDetailsAsync(lat1, lng1, lat2, lng2);
+            var (polyline, distance, duration, _) = await svc.GetRouteDetailsAsync(lat1, lng1, lat2, lng2);
 
             // Assert
             Assert.Equal(2000.0, distance);

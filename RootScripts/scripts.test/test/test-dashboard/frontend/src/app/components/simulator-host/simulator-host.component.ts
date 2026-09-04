@@ -86,7 +86,7 @@ interface SimulatedRider {
               </div>
               <div class="infra-item">
                 <span class="dot green"></span>
-                <span class="label">VRP AI Optimizer load:</span>
+                <span class="label">Route optimizer load:</span>
                 <span class="val">0.02s latency</span>
               </div>
             </div>

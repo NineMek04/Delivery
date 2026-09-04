@@ -77,9 +77,9 @@ if (Test-Path $angularDir) {
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "3. Scanning Python AI-Engine Dependencies..." -ForegroundColor Cyan
+Write-Host "3. Scanning Python Route Optimizer Dependencies..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
-$aiDir = Join-Path $PSScriptRoot "../ai-engine"
+$aiDir = Join-Path $PSScriptRoot "../../route-optimizer"
 if (Test-Path $aiDir) {
     Push-Location $aiDir
     try {
@@ -104,7 +104,7 @@ if (Test-Path $aiDir) {
         Pop-Location
     }
 } else {
-    Write-Host "ai-engine directory not found. Skipping." -ForegroundColor Yellow
+    Write-Host "route-optimizer directory not found. Skipping." -ForegroundColor Yellow
 }
 
 Write-Host ""

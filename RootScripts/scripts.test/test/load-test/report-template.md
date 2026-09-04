@@ -54,7 +54,7 @@ Brief summary of the test results. Did the system meet the expected SLAs? Were t
 - ...
 
 ## 5. Dispatch Queue Pressure Test
-*Target: `POST /api/v1/orders` + Background OSRM + AI Engine*
+*Target: `POST /api/v1/orders` + Background OSRM + Route Optimizer*
 
 | Metric | Result | Goal |
 |---|---|---|

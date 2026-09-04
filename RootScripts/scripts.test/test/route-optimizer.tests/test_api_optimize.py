@@ -12,11 +12,12 @@ def test_health_endpoint_returns_versioned_status():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["service"] == "ai-engine"
+    assert body["service"] == "route-optimizer"
     assert body["version"]
 
 
-def test_optimize_route_endpoint_returns_successful_route():
+def test_optimize_route_endpoint_returns_successful_route(monkeypatch):
+    monkeypatch.setenv("ROUTE_OPTIMIZER_DISABLE_OSRM_TABLE", "true")
     response = client.post(
         "/api/optimize-route",
         json={
@@ -33,6 +34,7 @@ def test_optimize_route_endpoint_returns_successful_route():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "SUCCESS"
+    assert body["matrix_source"] == "HAVERSINE_FALLBACK"
     assert body["optimized_route"][0]["location_id"] == "rider"
 
 

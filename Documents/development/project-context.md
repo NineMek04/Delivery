@@ -1,6 +1,6 @@
-# ข้อมูลโครงการ (Project Meta Data)
+﻿# ข้อมูลโครงการ (Project Meta Data)
 * **ชื่อปริญญานิพนธ์ (TH):** ระบบจำลองและเพิ่มประสิทธิภาพเส้นทางการขนส่งแบบเรียลไทม์
-* **ชื่อปริญญานิพนธ์ (EN):** AI-Optimized Smart Delivery Routing System
+* **ชื่อปริญญานิพนธ์ (EN):** Intelligent Delivery Routing and Optimization System
 * **ผู้จัดทำ:** นายทนงศักดิ์ ผุยบัวค้อ และ นายธีภัทร บุญมามี
 * **สาขาวิชา:** วิศวกรรมคอมพิวเตอร์และการสื่อสาร (Computer and Communication Engineering)
 * **สถาบัน:** มหาวิทยาลัยราชภัฏอุดรธานี (Udon Thani Rajabhat University)
@@ -22,18 +22,18 @@
 ## บทที่ 1: บทนำ (Introduction)
 
 ### 1.1 หลักการและเหตุผล
-ธุรกิจ Delivery Platform มีการเติบโตอย่างรวดเร็ว แต่ปัญหาหลักที่พบคือการจัดสรรออเดอร์ซ้อน (Batched Orders) หรือการส่งของหลายจุด (Multi-drop) ที่ขาดประสิทธิภาพ โครงงานนี้จึงมีแนวคิดพัฒนาระบบโดยใช้วิธีประหยัดงบประมาณสูงสุด (Zero-Budget Prototype) โดยประยุกต์ใช้สมาร์ทโฟนที่มีอยู่แล้ว (Bring Your Own Device) ให้ทำหน้าที่เป็นเซนเซอร์ติดตามตำแหน่ง ผสานกับซอฟต์แวร์สถาปัตยกรรมระดับองค์กร (Enterprise Architecture) และ AI ในการแก้ไขสมการการเดินทาง
+ธุรกิจ Delivery Platform มีการเติบโตอย่างรวดเร็ว แต่ปัญหาหลักที่พบคือการจัดสรรออเดอร์ซ้อน (Batched Orders) หรือการส่งของหลายจุด (Multi-drop) ที่ขาดประสิทธิภาพ โครงงานนี้จึงมีแนวคิดพัฒนาระบบโดยใช้วิธีประหยัดงบประมาณสูงสุด (Zero-Budget Prototype) โดยประยุกต์ใช้สมาร์ทโฟนที่มีอยู่แล้ว (Bring Your Own Device) ให้ทำหน้าที่เป็นเซนเซอร์ติดตามตำแหน่ง ผสานกับซอฟต์แวร์สถาปัตยกรรมระดับองค์กร (Enterprise Architecture) และระบบเพิ่มประสิทธิภาพเส้นทางในการแก้ไขสมการการเดินทาง
 
 ### 1.2 บล็อกไดอะแกรมของระบบ
 ระบบทำงานร่วมกันหลายส่วนย่อย (Microservices) ประกอบด้วย 4 ส่วนหลัก:
 1.  **แอปพลิเคชันฝั่งพนักงานขับรถ (Rider App):** พัฒนาด้วย Flutter รับค่าพิกัด GPS และส่งผ่าน WebSockets
 2.  **ระบบประมวลผลหลัก (Main Backend):** พัฒนาด้วย .NET 8 เป็นศูนย์กลางการสื่อสารและจัดการ Business Logic
-3.  **ระบบปัญญาประดิษฐ์จัดเส้นทาง (AI & Routing Engine):** พัฒนาด้วย Python FastAPI หาเส้นทางที่สั้นที่สุด
+3.  **ระบบเพิ่มประสิทธิภาพเส้นทาง (Route Optimizer):** พัฒนาด้วย Python FastAPI หาเส้นทางที่สั้นที่สุด
 4.  **ระบบจัดการฐานข้อมูลและแดชบอร์ด:** ใช้ PostgreSQL ร่วมกับ PostGIS เก็บข้อมูลเชิงพื้นที่ และ Angular สำหรับหน้าเว็บ
 
 ### 1.3 วัตถุประสงค์ของโครงงาน
 * เพื่อศึกษาและพัฒนาระบบสถาปัตยกรรมไมโครเซอร์วิส (Microservices) สำหรับการขนส่งอัจฉริยะ
-* เพื่อประยุกต์ใช้อัลกอริทึมปัญญาประดิษฐ์ (AI) ในการแก้ปัญหาการจัดเส้นทาง (Vehicle Routing Problem)
+* เพื่อประยุกต์ใช้อัลกอริทึมเพิ่มประสิทธิภาพเชิงคณิตศาสตร์ในการแก้ปัญหาการจัดเส้นทาง (Vehicle Routing Problem)
 * เพื่อพัฒนาระบบสื่อสารแบบเรียลไทม์ระหว่างอุปกรณ์เคลื่อนที่และเว็บแอปพลิเคชัน
 * เพื่อลดต้นทุนในการสร้างต้นแบบ (Prototype)
 
@@ -51,9 +51,9 @@
 * **Angular:** ใช้สถาปัตยกรรม Component-based เปลี่ยนแปลงข้อมูลเฉพาะจุดได้ดี
 * **Flutter:** ใช้สถาปัตยกรรม BLoC Pattern แยกส่วนระหว่าง UI และ Business Logic (State Management)
 
-### 2.4 เทคโนโลยี Backend & AI
+### 2.4 เทคโนโลยี Backend & Route Optimization
 * **.NET Core & SignalR:** ใช้จัดการช่องทางการสื่อสารมหาศาลและ WebSockets แบบเรียลไทม์ (Broadcasting)
-* **Python FastAPI:** รองรับการทำงานแบบ Asynchronous เหมาะสมในการใช้งานร่วมกับไลบรารี AI อย่าง Google OR-Tools
+* **Python FastAPI:** รองรับการทำงานร่วมกับไลบรารี optimization อย่าง Google OR-Tools
 
 ### 2.5 ระบบฐานข้อมูลเชิงพื้นที่ (Spatial Database)
 * **PostgreSQL & PostGIS:** ใช้โครงสร้างดัชนีแบบ R-Tree Indexing และ GiST ช่วยค้นหาข้อมูลเชิงพื้นที่ (เช่น การหารัศมีใกล้เคียง) ได้รวดเร็วระดับเสี้ยววินาที
@@ -73,7 +73,7 @@
 **กระบวนการทำงานหลัก (System Flow):**
 1.  **Tracking Flow:** Rider App ส่งพิกัด GPS ผ่าน Bi-directional WebSockets ไปที่ SignalR Hub (.NET) เพื่อบันทึกลง PostGIS และ Broadcast ไปที่ Dashboard แอดมินแบบเรียลไทม์
 2.  **Optimization Flow:** เมื่อมีคำสั่งซื้อ แอดมินจะสั่งคำนวณเส้นทาง ข้อมูลพิกัดจะถูกส่งผ่าน Internal REST POST ไปที่ FastAPI (Python)
-3.  **Response Flow:** AI (Google OR-Tools + OSRM) จะคำนวณลำดับจุดแวะพักที่สั้นที่สุด แล้วส่งกลับมาให้ .NET บันทึก
+3.  **Response Flow:** Route Optimizer (Google OR-Tools + OSRM) จะคำนวณลำดับจุดแวะพักที่สั้นที่สุด แล้วส่งกลับมาให้ .NET บันทึก
 4.  **Dispatch Flow:** SignalR Hub กระจายข้อมูลเส้นทางกลับไปหา Rider App ของพนักงานเพื่อนำทางทันที
 
 ---
@@ -91,7 +91,7 @@
 | **Message Broker (สื่อสารข้ามระบบ)** | ไม่ได้ระบุ | **RabbitMQ** สำหรับ Integration Events แบบ Asynchronous |
 | **In-Memory Cache & Telemetry** | ไม่ได้ระบุ | **Redis** สำหรับทำ Realtime Speed Layer และแคช GPS ความถี่สูง |
 | **Routing Engine (Road Network)** | อ้างถึงแค่ OR-Tools | **OSRM** (Offline Dijkstra) คำนวณระยะทางบนถนนจริงคู่กับ OR-Tools |
-| **Resilience & Fault Tolerance** | ไม่ได้ระบุ | แบ็กเอนด์ใช้ **Polly** (Circuit Breaker & Retry) ป้องกัน AI Service ล่ม |
+| **Resilience & Fault Tolerance** | ไม่ได้ระบุ | แบ็กเอนด์ใช้ **Polly** (Circuit Breaker & Retry) ป้องกัน Route Optimizer service ล่ม |
 | **Observability (Logging & Metrics)**| ไม่ได้ระบุ | **Seq** (Centralized Log), **Prometheus** (Metrics), **Grafana** (Dashboard) |
 | **API Gateway / Proxy** | ไม่ได้ระบุ | **Nginx** ทำหน้าที่ Reverse Proxy หน้าบ้าน |
 | **โครงสร้างสถาปัตยกรรมโดยรวม** | ระบุว่ามี 4 ส่วนหลัก | สถาปัตยกรรมจริงสเกลระดับ **12 Microservices / Containers** |
@@ -106,7 +106,7 @@
 
 **📍 บทที่ 2: ทฤษฎีและเทคโนโลยีที่เกี่ยวข้อง (จุดที่ต้องแก้เยอะที่สุด)**
 - **2.3 เทคโนโลยี Frontend:** **ลบคำว่า BLoC Pattern ออก** แล้วเปลี่ยนเป็น **"Riverpod Pattern & Declarative Routing (GoRouter)"**
-- **2.4 เทคโนโลยี Backend & AI:** 
+- **2.4 เทคโนโลยี Backend & Route Optimization:**
   - **[เพิ่มเนื้อหา] Redis:** รองรับพิกัด GPS ความถี่สูง (Telemetry Events) เพื่อลดภาระ Database
   - **[เพิ่มเนื้อหา] RabbitMQ:** ใช้ส่งข้อความข้ามระบบแบบรับประกันการส่ง
   - **[เพิ่มเนื้อหา] OSRM:** เอนจินคำนวณระยะทางถนนจริงก่อนส่งให้ OR-Tools ประมวลผล
@@ -119,7 +119,7 @@
 **📍 บทที่ 3: วิธีดำเนินการวิจัย**
 - **3.2 หลักการออกแบบระบบ (Event-Driven Data Flow):** ระบบขับเคลื่อนด้วยเหตุการณ์ (Event-Driven) อ้างอิงจากกฎในระบบ แบ่งเป็น 3 กระแสข้อมูล:
   1. **Telemetry Events Flow:** Rider App ส่งพิกัดความถี่สูงเข้า **SignalR** -> พักข้อมูลชั่วคราวที่ **Redis** -> Broadcast ให้ Dashboard ทันทีโดยไม่รบกวนฐานข้อมูลหลัก
-  2. **Integration Events Flow:** Backend สร้าง Event (เช่น `OrderCreated`) -> ส่งลง **RabbitMQ** -> AI Engine รับไปประมวลผล (โดยมีการป้องกันทำลอจิกซ้ำด้วยตาราง `ProcessedEvents` ใน Postgres)
+  2. **Integration Events Flow:** Backend สร้าง Event (เช่น `OrderCreated`) -> ส่งลง **RabbitMQ** -> Route Optimizer รับไปประมวลผล (โดยมีการป้องกันทำลอจิกซ้ำด้วยตาราง `ProcessedEvents` ใน Postgres)
   3. **Domain Events Flow:** อีเวนต์ที่เกิดขึ้นและใช้สื่อสารกันเอง **ภายใน** .NET Backend เท่านั้น (Internal Context)
 
 ### 3. AI Prompt สำหรับสร้าง Data Flow Diagram (Gemini Canvas)
@@ -134,7 +134,7 @@
 1. Rider App (Flutter)
 2. Admin Dashboard (Angular)
 3. Main Backend (.NET 8 SignalR)
-4. AI & Routing Engine (Python FastAPI)
+4. Route Optimizer (Python FastAPI)
 5. Message Broker (RabbitMQ)
 6. Speed Layer Cache (Redis)
 7. Spatial Database (PostgreSQL + PostGIS)
@@ -142,8 +142,8 @@
 
 เส้นทางการไหลของข้อมูล (Edges/Flows):
 1. Telemetry Flow (สีฟ้า): Rider App ยิงพิกัด GPS -> เข้า Backend (SignalR Hub) -> เก็บสถานะลง Redis -> Broadcast ต่อไปแสดงผลที่ Admin Dashboard ทันที
-2. Integration Flow (สีส้ม): Backend -> สร้าง OrderCreatedIntegrationEvent -> ส่งเข้า RabbitMQ -> AI Engine อ่าน Event จาก RabbitMQ เพื่อเริ่มทำงาน 
-3. Sync/Optimize Flow (สีเขียว): AI Engine ส่งพิกัดไปถามระยะทางจาก OSRM -> OSRM คืนค่า Matrix กลับมา -> AI Engine คำนวณ Route เสร็จ -> ส่งเส้นทางบันทึกลง Database (PostgreSQL) และแจ้งกลับไปหา Backend
+2. Integration Flow (สีส้ม): Backend -> สร้าง OrderCreatedIntegrationEvent -> ส่งเข้า RabbitMQ -> Route Optimizer อ่าน Event จาก RabbitMQ เพื่อเริ่มทำงาน
+3. Sync/Optimize Flow (สีเขียว): Route Optimizer ส่งพิกัดไปถามระยะทางจาก OSRM -> OSRM คืนค่า Matrix กลับมา -> Route Optimizer คำนวณ Route เสร็จ -> ส่งเส้นทางบันทึกลง Database (PostgreSQL) และแจ้งกลับไปหา Backend
 
 ขอให้แสดงแผนภาพออกมาในรูปแบบที่สวยงาม มองเห็นแยกโซน (Client-side, Middleware/Broker, Backend Services, Databases) ได้อย่างชัดเจน
 ```

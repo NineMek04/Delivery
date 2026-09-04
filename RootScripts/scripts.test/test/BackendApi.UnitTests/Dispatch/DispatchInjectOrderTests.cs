@@ -35,7 +35,7 @@ namespace BackendApi.UnitTests.Dispatch
         private static (DispatchService svc, ApplicationDbContext db,
             Mock<StateMachineService> sm, Mock<RedisLockService> lk)
             BuildSut(
-                Dictionary<string, string>? extraConfig = null,
+                Dictionary<string, string?>? extraConfig = null,
                 Action<Mock<StateMachineService>>? smSetup = null,
                 Action<Mock<RedisLockService>>? lkSetup = null)
         {
@@ -72,7 +72,7 @@ namespace BackendApi.UnitTests.Dispatch
             smSetup?.Invoke(sm);
             lkSetup?.Invoke(lk);
 
-            var cfg = new Dictionary<string, string>
+            var cfg = new Dictionary<string, string?>
             {
                 { "Dispatch:MaxActiveOrdersPerRider", "3" },
                 { "Dispatch:OfferTimeoutSeconds",     "30" },

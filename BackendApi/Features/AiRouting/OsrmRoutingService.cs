@@ -37,11 +37,13 @@ namespace BackendApi.Services.Ai
         {
             _httpClient = httpClient;
             // ตั้งค่า Strict Timeout 1.5 วินาที
-            var timeoutMs = config.GetValue<int?>("Routing:OsrmTimeoutMs") ?? 5000;
+            var timeoutMs = int.TryParse(config?["Routing:OsrmTimeoutMs"], out var configuredTimeoutMs)
+                ? configuredTimeoutMs
+                : 5000;
             _httpClient.Timeout = TimeSpan.FromMilliseconds(Math.Clamp(timeoutMs, 1000, 15000));
             _redis = redis;
             _logger = logger;
-            _localOsrmUrl = config["Routing:LocalOsrmUrl"] ?? "http://localhost:5001";
+            _localOsrmUrl = config?["Routing:LocalOsrmUrl"] ?? "http://localhost:5001";
         }
 
         public async Task<(string Polyline, double DistanceMeters, double DurationSeconds, List<double[]> Coordinates)> GetRouteDetailsAsync(
@@ -317,7 +319,9 @@ namespace BackendApi.Services.Ai
 
             var resilientPolicy = Policy.WrapAsync(retryPolicy, _circuitBreakerPolicy);
 
-            return await resilientPolicy.ExecuteAsync(async () =>
+            try
+            {
+                return await resilientPolicy.ExecuteAsync(async () =>
             {
                 var coordinatesStr = string.Join(";", points.Select(p => 
                     $"{p.Lng.ToString(System.Globalization.CultureInfo.InvariantCulture)},{p.Lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
@@ -365,7 +369,15 @@ namespace BackendApi.Services.Ai
                 var fallback = new List<int>();
                 for (int i = 0; i < points.Count; i++) fallback.Add(i);
                 return fallback;
-            });
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Local OSRM unavailable for trip sequence. Falling back to sequential order.");
+                var fallback = new List<int>();
+                for (int i = 0; i < points.Count; i++) fallback.Add(i);
+                return fallback;
+            }
         }
     }
 }

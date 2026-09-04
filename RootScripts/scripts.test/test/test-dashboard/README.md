@@ -5,7 +5,7 @@ Internal test dashboard runs as local dev processes, while test execution still 
 ## Architecture
 
 - Local: Angular dashboard, Node API, BullMQ worker
-- Docker: Redis, PostgreSQL/PostGIS, OSRM, Backend API, AI Engine
+- Docker: Redis, PostgreSQL/PostGIS, OSRM, Backend API, Route Optimizer
 - Ephemeral Docker: pytest, dotnet test, load/stress runners
 
 ### End-to-End Execution Flow

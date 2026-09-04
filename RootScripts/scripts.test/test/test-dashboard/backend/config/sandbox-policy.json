@@ -16,10 +16,10 @@
       "timeoutSeconds": 300
     },
     "python": {
-      "name": "AI Engine Validation (Python)",
+      "name": "Route Optimizer Validation (Python)",
       "dockerImage": "python:3.10-slim",
-      "hostCommand": "pytest RootScripts/scripts.test/test/ai-engine.tests",
-      "dockerCommand": "sh -c \"pip install -r ai-engine/requirements.txt pytest pytest-json-report httpx && AI_ENGINE_URL=http://ai-service:8000 pytest RootScripts/scripts.test/test/ai-engine.tests --json-report --json-report-file=/tmp/results.json\"",
+      "hostCommand": "pytest RootScripts/scripts.test/test/route-optimizer.tests",
+      "dockerCommand": "sh -c \"pip install -r route-optimizer/requirements.txt pytest pytest-json-report httpx && ROUTE_OPTIMIZER_URL=http://route-optimizer:8000 pytest RootScripts/scripts.test/test/route-optimizer.tests --json-report --json-report-file=/tmp/results.json\"",
       "timeoutSeconds": 180
     },
     "load": {

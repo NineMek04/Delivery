@@ -24,9 +24,9 @@ graph TD
     BackendAPI -->|2. Ingestion Cache / Lock| Redis["Redis Cache & Buffer (Port 6379)"]
     BackendAPI -->|3. Publish Integration Events| RabbitMQ["RabbitMQ Broker (Port 5672)"]
 
-    %% AI & Navigation Engine
-    BackendAPI -->|4. VRP Rank Request| AIEngine["AI Route Optimizer (FastAPI) (Port 8000)"]
-    AIEngine -->|5. Road Snapping / Dijkstra| OSRM["OSRM Engine (Port 5000)"]
+    %% Route Optimization & Navigation Engine
+    BackendAPI -->|4. Ranking / VRP Request| RouteOptimizer["Route Optimizer (FastAPI) (Port 8000)"]
+    RouteOptimizer -->|5. OSRM table matrix| OSRM["OSRM Engine (Port 5000)"]
     BackendAPI -->|6. Resolve Route API| OSRM
 
     %% Observability Stack
@@ -45,7 +45,7 @@ graph TD
 | **backend** | `5000` | `80` | Core API พัฒนาด้วย .NET 8 ควบคุมโมเดลธุรกิจ, สิทธิ์ JWT และ SignalR Hub |
 | **frontend** | `4201` | `80` | Angular 19 Admin Web สำหรับเฝ้าสถานการณ์ จัดการไรเดอร์และออเดอร์ |
 | **rider-app** | `8083` | `80` | Flutter Web Client สำหรับจำลองพฤติกรรมและการทำงานของคนขับรถ |
-| **ai-service** | `8009` | `8000` | FastAPI Engine คำนวณ VRP (Vehicle Routing Problem) ร่วมกับ Google OR-Tools |
+| **route-optimizer** | `8009` | `8000` | FastAPI Engine คำนวณ VRP (Vehicle Routing Problem) ร่วมกับ Google OR-Tools |
 | **osrm** | `5001` | `5000` | บริการคำนวณระยะทางและ Snap เส้นพิกัดเข้าถนนจริงเมืองอุดรธานี |
 | **db** | `5432` | `5432` | ฐานข้อมูลถาวรเชิงพื้นที่ PostgreSQL 15 + PostGIS (SRID 4326) |
 | **redis** | `6379` | `6379` | แคชความเร็วสูงระดับ RAM สำหรับเก็บพิกัดสดของไรเดอร์และ Distributed Lock |
@@ -67,17 +67,17 @@ sequenceDiagram
     actor Customer as ลูกค้า
     participant Admin as แอดมิน (Angular)
     participant API as Backend API (.NET 8)
-    participant AI as AI Engine (FastAPI)
+    participant RouteOpt as Route Optimizer (FastAPI)
     participant OSRM as OSRM Server
     actor Rider as ไรเดอร์ (Flutter)
 
     Customer->>API: 1. สร้างออเดอร์ใหม่ (POST /api/v1/orders)
     Note over API: บันทึกลง PostgreSQL (State = CREATED)
-    API->>AI: 2. ร้องขอการคำนวณรอบจัดส่ง (VRP Optimizer)
-    AI->>OSRM: 3. ขอคำนวณ Distance Matrix ตามถนนจริง
-    OSRM-->>AI: ส่งคืน Matrix ระยะทางและเวลาเดินทาง
-    Note over AI: ประมวลผล OR-Tools จัดอันดับไรเดอร์ที่เหมาะสมที่สุด
-    AI-->>API: ส่งคืนรายชื่ออันดับไรเดอร์ (Rider Candidates)
+    API->>RouteOpt: 2. ร้องขอการคำนวณรอบจัดส่ง (VRP Optimizer)
+    RouteOpt->>OSRM: 3. ขอ OSRM /table Distance Matrix ตามถนนจริง
+    OSRM-->>RouteOpt: ส่งคืน Matrix ระยะทางตามโครงข่ายถนน
+    Note over RouteOpt: ประมวลผล OR-Tools และ weighted heuristic ranking
+    RouteOpt-->>API: ส่งคืนรายชื่ออันดับไรเดอร์ (Rider Candidates)
     
     loop Dispatch Offering (ทำงานเบื้องหลัง)
         API->>Rider: 4. ยิงข้อเสนอผ่าน SignalR (OfferReceived)

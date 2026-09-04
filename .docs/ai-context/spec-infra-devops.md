@@ -6,7 +6,7 @@
 
 Active services:
 
-`db`, `pgbouncer`, `backend`, `redis`, `ai-service`, `frontend`, `rider-app`,
+`db`, `pgbouncer`, `backend`, `redis`, `route-optimizer`, `frontend`, `rider-app`,
 `osrm`, `nginx-proxy`, `seq`, `prometheus`, `grafana`, `alertmanager`,
 `rabbitmq`, `vault`, `vault-bootstrap`, `cadvisor`, `node-exporter`,
 `postgres-exporter`, `redis-exporter`
@@ -24,7 +24,7 @@ argument defaults to `false` and production must not enable it.
 | PostgreSQL | 5432 | 5432 |
 | PgBouncer | 6432 | 5432 |
 | Redis | 6379 | 6379 |
-| AI | 8009 | 8000 |
+| Route Optimizer | 8009 | 8000 |
 | Admin | 4201 | 80 |
 | Flutter web | 8083 | 80 |
 | OSRM | 5001 | 5000 |
@@ -53,7 +53,7 @@ argument defaults to `false` and production must not enable it.
 
 - OSRM uses MLD and local `udon-thani.osrm`
 - production ห้าม public OSRM fallback
-- Backend/AI secrets มาจาก Vault AppRole เมื่อ `VAULT_REQUIRED=true`
+- Backend/route optimizer secrets มาจาก Vault AppRole เมื่อ `VAULT_REQUIRED=true`
 - ห้าม commit `.env`, tokens, passwords หรือ AppRole secret IDs
 
 ## 4. RabbitMQ
@@ -80,5 +80,5 @@ argument defaults to `false` and production must not enable it.
 - Max telemetry payload: 16 KB
 - RabbitMQ processing lag target: < 3s
 - Redis dispatch lock TTL: contract-specific และห้ามเกิน business timeout
-- Dashboard ต้องมี Business Health, AI/OSRM latency และ System Health panels
+- Dashboard ต้องมี Business Health, route optimizer/OSRM latency และ System Health panels
 - GPS history ต้อง query PostgreSQL history endpoint ไม่อ่าน Redis

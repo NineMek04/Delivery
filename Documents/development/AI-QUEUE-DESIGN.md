@@ -15,7 +15,7 @@ sequenceDiagram
     participant Gateway as Backend API (.NET 8)
     participant Redis as Redis Queue Cache
     participant MQ as RabbitMQ (vrp_job_queue)
-    participant Worker as Python AI Worker (Celery/ARQ)
+    participant Worker as Python Route Optimizer Worker (Celery/ARQ)
     participant Client as SignalR / Client UI
 
     Dispatcher->>Gateway: POST /api/optimize-route (Sync Trigger)

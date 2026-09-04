@@ -50,7 +50,7 @@ history, customer tracking, or AI/dispatch calculations.
 - persisted proximity/filter ใช้ PostGIS spatial operator/function และ GiST index
 - ห้ามใช้ degree approximation เป็น production radius query เมื่อ ST_DWithin/
   geography conversion ใช้ได้
-- Haversine อนุญาตเฉพาะ in-memory heuristic, AI matrix หรือ degraded fallback
+- Haversine อนุญาตเฉพาะ in-memory heuristic, route optimizer matrix หรือ degraded fallback
 - geometry columns ของ Riders, Orders, Shops, CustomerAddresses ต้องคง GiST index
 - non-geometry foreign keys ใช้ B-tree ห้ามกำหนด GiST
 

@@ -552,7 +552,7 @@ export class AppComponent implements OnInit, OnDestroy {
         };
       case 'python': 
         return {
-          files: 'RootScripts/scripts.test/test/ai-engine.tests/',
+          files: 'RootScripts/scripts.test/test/route-optimizer.tests/',
           check: 'โมเดลคำนวณระยะทางของ Google OR-Tools, การจัดกลุ่มเส้นทาง (VRP), และการจำกัดน้ำหนักและเงื่อนไขของออเดอร์ก่อนจะเสนอให้ Rider'
         };
       case 'load': 
@@ -563,7 +563,7 @@ export class AppComponent implements OnInit, OnDestroy {
       case 'simulator': 
         return {
           files: 'RootScripts/scripts.test/test/e2e-simulator/simulate-e2e.js และ test-flutter-compat.js',
-          check: 'ครอบคลุมวงจรชีวิต 1 ออเดอร์เต็มรูปแบบ ตั้งแต่ Admin สร้างออเดอร์ > AI ค้นหา Rider ที่ใกล้ที่สุด > Rider กดรับงาน > Rider เดินทางไปรับ-ส่งของตาม OSRM > รวมถึงมิติ Flutter Compatibility ที่เช็คว่าแอปมือถือสามารถยิงอัปเดตสถานะเข้า SignalR Hub ของเราและตอบกลับได้ถูกต้องหรือไม่'
+          check: 'ครอบคลุมวงจรชีวิต 1 ออเดอร์เต็มรูปแบบ ตั้งแต่ Admin สร้างออเดอร์ > Route Optimizer ค้นหา Rider ที่ใกล้ที่สุด > Rider กดรับงาน > Rider เดินทางไปรับ-ส่งของตาม OSRM > รวมถึงมิติ Flutter Compatibility ที่เช็คว่าแอปมือถือสามารถยิงอัปเดตสถานะเข้า SignalR Hub ของเราและตอบกลับได้ถูกต้องหรือไม่'
         };
       case 'interactive':
         return {

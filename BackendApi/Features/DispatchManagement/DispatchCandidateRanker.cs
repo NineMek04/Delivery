@@ -8,8 +8,8 @@ using BackendApi.Infrastructure.Redis;
 namespace BackendApi.Services.Dispatch;
 
 /// <summary>
-/// Candidate Ranker — สื่อสารกับ AI Engine เพื่อจัดอันดับ Rider ที่เหมาะสมที่สุด
-/// Fallback: ถ้า AI ล่ม ใช้ Haversine distance-based ranking
+/// Candidate Ranker — สื่อสารกับ Optimization service เพื่อจัดอันดับ Rider ที่เหมาะสมที่สุด
+/// Fallback: ถ้า service ล่ม ใช้ Haversine distance-based ranking
 /// </summary>
 public class DispatchCandidateRanker
 {
@@ -28,14 +28,14 @@ public class DispatchCandidateRanker
     }
 
     /// <summary>
-    /// ส่งรายชื่อ Candidates ไปให้ AI Engine เพื่อให้คะแนนและจัดอันดับ (Phase A Heuristic)
+    /// ส่งรายชื่อ Candidates ไปให้ Optimization service เพื่อให้คะแนนและจัดอันดับ (Phase A weighted heuristic)
     /// </summary>
     public async Task<List<RankedCandidate>> RankCandidatesAsync(
         Order order, List<(string RiderId, double DistanceKm, double Lat, double Lng)> candidates, Dictionary<string, Rider> ridersDict)
     {
         try
         {
-            // Limit to top 150 closest candidates to prevent AI engine candidate overload (max 200 candidates limit)
+            // Limit to top 150 closest candidates to prevent ranking service overload (max 200 candidates limit)
             if (candidates.Count > 150)
             {
                 candidates = candidates.OrderBy(c => c.DistanceKm).Take(150).ToList();
@@ -88,11 +88,11 @@ public class DispatchCandidateRanker
                 return rankedList;
             }
             
-            _logger.LogWarning("AI Engine returned null or empty. Falling back to distance-based ranking.");
+            _logger.LogWarning("Optimization service returned null or empty. Falling back to distance-based ranking.");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[Fallback Rule-Based Dispatch] AI Engine is DOWN or timed out. Falling back to straight-line Haversine / Redis distance-based nearest selection for Order {OrderId}.", order.Id);
+            _logger.LogWarning(ex, "[Fallback Rule-Based Dispatch] Optimization service is down or timed out. Falling back to straight-line Haversine / Redis distance-based nearest selection for Order {OrderId}.", order.Id);
         }
 
         return candidates.OrderBy(c => c.DistanceKm)
@@ -102,7 +102,7 @@ public class DispatchCandidateRanker
 }
 
 /// <summary>
-/// ผลลัพธ์ Ranked Candidate ที่ได้จาก AI Engine หรือ Fallback
+/// ผลลัพธ์ Ranked Candidate ที่ได้จาก Optimization service หรือ Fallback
 /// </summary>
 public record RankedCandidate(string RiderId, double DistanceKm, double Score, int EtaMinutes);
 

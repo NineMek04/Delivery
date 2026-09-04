@@ -113,12 +113,12 @@ Content-Type: application/problem+json
 export const INITIAL_PYTHON_CASES: TestCase[] = [
   {
     name: 'test_vrp_optimizer_routing',
-    location: 'ai_engine.tests.test_vrp',
+    location: 'route_optimizer.tests.test_vrp',
     inputs: 'Locations: 2, Vehicles: 1',
     status: 'PASS',
     durationMs: 820,
     requestPayload: `POST /api/v1/dispatch/rank HTTP/1.1
-Host: ai.smartdelivery.local
+Host: route-optimizer.smartdelivery.local
 Content-Type: application/json
 
 {
@@ -152,12 +152,12 @@ Content-Type: application/json
   },
   {
     name: 'test_vrp_capacity_constraints',
-    location: 'ai_engine.tests.test_vrp',
+    location: 'route_optimizer.tests.test_vrp',
     inputs: 'VehicleCapacity: 50, Demands: [10, 20, 30]',
     status: 'PASS',
     durationMs: 340,
     requestPayload: `POST /api/v1/dispatch/rank HTTP/1.1
-Host: ai.smartdelivery.local
+Host: route-optimizer.smartdelivery.local
 Content-Type: application/json
 
 {
@@ -194,12 +194,12 @@ Content-Type: application/json
   },
   {
     name: 'test_time_window_compatibility',
-    location: 'ai_engine.tests.test_time_window',
+    location: 'route_optimizer.tests.test_time_window',
     inputs: 'PickupWindow: 690-720, Arrival: 702',
     status: 'PASS',
     durationMs: 150,
     requestPayload: `POST /api/v1/dispatch/check-time-window HTTP/1.1
-Host: ai.smartdelivery.local
+Host: route-optimizer.smartdelivery.local
 Content-Type: application/json
 
 {

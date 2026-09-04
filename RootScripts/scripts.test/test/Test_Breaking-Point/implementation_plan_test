@@ -13,7 +13,7 @@
 
 ### A. Docker Resource Monitoring (CSV Export)
 สคริปต์ดึง `docker stats --no-stream` ทุกๆ 5 วินาที สำหรับ container ต่อไปนี้:
-`backend`, `postgres`, `redis`, `rabbitmq`, `ai-engine`, `nginx`
+`backend`, `postgres`, `redis`, `rabbitmq`, `route-optimizer`, `nginx`
 ผลลัพธ์จะถูกบันทึกลงไฟล์ `docker_stats_run_X.csv` 
 
 ### B. Prometheus Metric Snapshot & Additional Telemetry
@@ -24,7 +24,7 @@
 - **.NET GC & Memory Leak Detection**: `dotnet_gc_heap_size`, `dotnet_gc_collection_count`, `dotnet_gc_pause_time`, `process_working_set_bytes` (เปรียบเทียบ Working Set และ Heap ก่อน/หลังโหลดเพื่อหา Memory Leak หรือ Retention) พร้อมกับทำ **Forced GC Analysis** โดยการสั่ง `GC.Collect()` หลังจบแต่ละ Stage แล้ววัด Heap ก่อน-หลัง หาก Heap ไม่ลดลงแปลว่ามี Retention/Leak ซ่อนอยู่
 - **.NET ThreadPool Saturation**: `dotnet_threadpool_queue_length`, `dotnet_threadpool_thread_count`, `dotnet_threadpool_completed_items` (เพื่อจับคอขวดระดับ Runtime ก่อนถึง Database)
 - **PostgreSQL Connection Pool (Npgsql)**: Pool Busy, Pool Waiting, Pool Timeout (ป้องกัน API พังจาก Pool หมดก่อน CPU เต็ม)
-- **AI Queue Metrics & Visibility**: แยกเป็น `Inference Execution Time`, `Queue Time`, `Total Time`, `Solver CPU Time`, `Solver Wall Time` พร้อมจับตาดู AI Active Workers, AI Timeout Count, AI Rejected Requests (เพื่อแยกชัดเจนว่าตันที่คิวสะสม หรือตันที่ CPU จริง)
+- **Route Optimizer Queue Metrics & Visibility**: แยกเป็น `Solver Execution Time`, `Queue Time`, `Total Time`, `Solver CPU Time`, `Solver Wall Time` พร้อมจับตาดู Route Optimizer Active Workers, Timeout Count, Rejected Requests (เพื่อแยกชัดเจนว่าตันที่คิวสะสม หรือตันที่ CPU จริง)
 - **SignalR Connection Recovery**: Connected Clients, Reconnect Attempts, Reconnect Success, Disconnected Clients, และ **Pending Outbound Messages** (หาก Hub ส่งข้อความออกไม่ทัน คิวนี้จะโตขึ้นก่อนระบบล้ม)
 - **RabbitMQ End-to-End Latency & Lag**: Publish Rate, Consume Rate, Consumer Lag (publish_rate - consume_rate) และการนำ Timestamp มาหา Event Processing Latency (P50, P95, P99)
 
@@ -61,7 +61,7 @@
 - **Recovery Service Level Objectives (SLOs)**:
   - **RabbitMQ Recovery Time**: < 30 วินาที (และ Backlog Drain Time < 60 วินาที)
   - **Redis Recovery Time**: < 60 วินาที
-  - **AI Engine Recovery Time**: < 120 วินาที
+  - **Route Optimizer Recovery Time**: < 120 วินาที
 
 ---
 
@@ -105,7 +105,7 @@
 - **Metrics:** Npgsql `Pool Waiting`, `Pool Timeout`
 - **เกณฑ์ผ่าน:** ระบบต้องตัดและคืน Error (เช่น HTTP 503 หรือ Timeout Exception) รวดเร็ว **ห้าม Hang เด็ดขาด**
 
-### Stage 3: AI Engine Saturation Stress
+### Stage 3: Route Optimizer Saturation Stress
 - **เป้าหมาย:** ทดสอบ CPU Bottleneck ของ OR-Tools (VRP) 
 - **รูปแบบ:** แยกเคสทดสอบชัดเจน:
   - `Simple routing` (ไรเดอร์ 5, ออเดอร์ 1)
@@ -124,14 +124,14 @@
   - 1,000 Riders ส่ง GPS ทุก 1 วินาที (SignalR)
   - 500 RPS สาดเข้า API (HTTP)
   - 50-100 Dispatch Requests/sec (RabbitMQ Event Processing)
-  - 100 AI Requests/sec (AI Engine)
+  - 100 route optimization/ranking requests/sec (Route Optimizer)
   - แทรก Race Condition Simulation เป็นระยะ
 - **Queue Backpressure Validation:** บังคับให้ Publisher Rate > Consumer Rate เป็นเวลา 3-5 นาที (เพื่อจำลอง Queue โต) จากนั้นสังเกตว่า Consumer สามารถตามเคลียร์ของจน Queue กลับมาเป็น 0 ได้ตามปกติหรือไม่
 - **Chaos Injection (ทดสอบพังระบบชั่วคราว):**
   - **นาทีที่ 10**: `docker restart delivery-rabbitmq` (วัด Reconnect Logic & Message Recovery)
   - **นาทีที่ 15**: `docker network disconnect <network> delivery-rabbitmq` (จำลอง Network Partition/Loss วัด Reconnect Time, Message Loss, Duplicate Processing)
   - **นาทีที่ 20**: `docker restart delivery-redis` (วัด Cache Fallback & SignalR Backplane Resilience)
-  - **นาทีที่ 25**: `docker kill delivery-ai-engine` (วัด Circuit Breaker & Queue accumulation จนกว่า Docker จะ restart ขึ้นมาใหม่)
+  - **นาทีที่ 25**: `docker kill delivery-route-optimizer` (วัด Circuit Breaker & Queue accumulation จนกว่า Docker จะ restart ขึ้นมาใหม่)
   - **นาทีที่ 30**: **Failure Cascade Test** (Restart `delivery-rabbitmq` + `delivery-redis` **พร้อมกัน 1 ครั้ง**) เพื่อทดสอบว่าถ้าระบบ Infrastructure ล่มพร้อมกันหลายจุด ระบบใหญ่จะสามารถกอบกู้ตัวเองกลับมาได้หรือไม่
 - **ระยะเวลา:** 30 นาที ถึง 1 ชั่วโมง
 - **Capacity Degradation Detection:** ตรวจวัด p95 Latency ทุกๆ 15 นาที (0, 15, 30, 45, 60 นาที) เพื่อหา **Latency Drift %** ตรวจสอบว่าระบบมีอาการหน่วงสะสมหรือไม่
@@ -157,7 +157,7 @@ Phase 9 Final Capacity Report
 
 Max Stable Riders: XXXX
 Max Stable API RPS: XXXX
-Max Stable AI Requests/sec: XXXX
+Max Stable Route Optimizer Requests/sec: XXXX
 Max Stable Dispatch Events/sec: XXXX
 
 Peak PostgreSQL Connections: XXXX
@@ -167,20 +167,20 @@ Peak RabbitMQ Throughput: XXXX
 Peak Backend CPU: XXXX
 Peak Backend RAM: XXXX
 
-Peak AI CPU: XXXX
-Peak AI RAM: XXXX
+Peak Route Optimizer CPU: XXXX
+Peak Route Optimizer RAM: XXXX
 
 Peak Redis Memory: XXXX
 
 First Bottleneck: XXXX
 Second Bottleneck: XXXX
 
-Cold Start Latency (AI Engine): XXXX ms
-Warm Latency (AI Engine): XXXX ms
+Cold Start Latency (Route Optimizer): XXXX ms
+Warm Latency (Route Optimizer): XXXX ms
 
 Recovery Time After RabbitMQ Failure: XXXX (< 30s) / Backlog Drain Time: XXXX
 Recovery Time After Redis Failure: XXXX (< 60s) / Backlog Drain Time: XXXX
-Recovery Time After AI Failure: XXXX (< 120s) / Backlog Drain Time: XXXX
+Recovery Time After Route Optimizer Failure: XXXX (< 120s) / Backlog Drain Time: XXXX
 
 Recovery Success Rate (MQ Consumers): XXXX
 Recovery Success Rate (SignalR): XXXX

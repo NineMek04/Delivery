@@ -1,5 +1,5 @@
 # ============================================
-# AI Engine — Python FastAPI + OR-Tools
+# Optimization Engine — Python FastAPI + OR-Tools
 # ============================================
 
 FROM python:3.11-slim

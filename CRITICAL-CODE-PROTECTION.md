@@ -10,21 +10,21 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 
 | # | File | Protected contract |
 |---:|---|---|
-| 1 | `ai-engine/app/core/vrp_solver.py` | `solve_vrp`, `compute_distance_matrix`, pickup/delivery precedence, timeout |
-| 2 | `ai-engine/app/core/scoring.py` | `rank_candidates` |
-| 3 | `ai-engine/app/core/geo_utils.py` | `haversine_distance`, `calculate_bearing`, `is_same_direction` |
-| 4 | `ai-engine/app/api/v1/endpoints/optimize.py` | synchronous `optimize_route` |
-| 5 | `ai-engine/app/api/v1/endpoints/dispatch.py` | synchronous `rank_dispatch_candidates` |
-| 6 | `ai-engine/app/api/v1/endpoints/predict.py` | synchronous `predict_eta` |
-| 7 | `ai-engine/app/api/v1/api.py` | dispatch and prediction router registrations |
-| 8 | `ai-engine/main.py` | v1/optimize router registration and `/health` |
+| 1 | `route-optimizer/app/core/vrp_solver.py` | `solve_vrp`, `compute_distance_matrix`, pickup/delivery precedence, timeout |
+| 2 | `route-optimizer/app/core/scoring.py` | `rank_candidates` |
+| 3 | `route-optimizer/app/core/geo_utils.py` | `haversine_distance`, `calculate_bearing`, `is_same_direction` |
+| 4 | `route-optimizer/app/api/v1/endpoints/optimize.py` | synchronous `optimize_route` |
+| 5 | `route-optimizer/app/api/v1/endpoints/dispatch.py` | synchronous `rank_dispatch_candidates` |
+| 6 | `route-optimizer/app/api/v1/endpoints/predict.py` | synchronous `predict_eta` |
+| 7 | `route-optimizer/app/api/v1/api.py` | dispatch and prediction router registrations |
+| 8 | `route-optimizer/main.py` | v1/optimize router registration and `/health` |
 | 9 | `BackendApi/Features/AiRouting/IAiService.cs` | all three async methods and signatures |
 | 10 | `BackendApi/Features/AiRouting/AiService.cs` | rank/optimize/predict calls and all fallbacks |
-| 11 | `BackendApi/Controllers/Business/AiController.cs` | backend AI proxy actions |
+| 11 | `BackendApi/Controllers/Business/AiController.cs` | backend route optimizer proxy actions |
 | 12 | `BackendApi/Features/AiRouting/OsrmRoutingService.cs` | route, snap, trip sequence and degraded fallback |
 | 13 | `BackendApi/Features/DispatchManagement/DispatchService.cs` | dispatch orchestration and rider offer flow |
 | 14 | `BackendApi/Hubs/Tracking/TrackingHub.cs` and partials | connection/auth/transport methods; Hub must stay transport-only |
-| 15 | `BackendApi/Setup/Extensions/ServiceSetup.cs` | AI/OSRM HttpClient and required DI registrations |
+| 15 | `BackendApi/Setup/Extensions/ServiceSetup.cs` | route optimizer/OSRM HttpClient and required DI registrations |
 | 16 | `BackendApi/Setup/Extensions/ApplicationSetup.cs` | `/hubs/tracking` mapping and middleware order |
 
 ## Tier 2: Feature Critical
@@ -58,7 +58,7 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 | 36 | `docker-compose.yml` and `docker-compose.override.yml` | topology, loopback exposure, health dependencies |
 | 37 | `BackendApi/Program.cs` | bootstrap |
 | 38 | `nginx-proxy/nginx.conf` | API, SignalR and frontend proxy routes |
-| 39 | `ai-engine/app/models/` | strict Pydantic request contracts |
+| 39 | `route-optimizer/app/models/` | strict Pydantic request contracts |
 | 40 | `BackendApi/Data/ApplicationDbContext.cs` | PostGIS, indexes, filters, `xmin`, ProcessedEvents |
 | 41 | `BackendApi/Migrations/20260614152246_ConsolidatedBaseline20260614.cs` | consolidated fresh-database baseline |
 | 42 | `BackendApi/ServiceMigration/PostgresAdvancedConfigurator.cs` and `MigrationBaselineCompatibility.cs` | idempotent PostgreSQL-specific schema evolution/compatibility bridge |
@@ -67,19 +67,19 @@ Line number ไม่ถือเป็น contract เพราะเปลี�
 
 | Endpoint | Registration/handler |
 |---|---|
-| `POST /api/optimize-route` | `ai-engine/main.py` + `endpoints/optimize.py` |
+| `POST /api/optimize-route` | `route-optimizer/main.py` + `endpoints/optimize.py` |
 | `POST /api/v1/dispatch/rank` | `app/api/v1/api.py` + `endpoints/dispatch.py` |
 | `POST /api/v1/predict-eta` | `app/api/v1/api.py` + `endpoints/predict.py` |
-| `GET /health` | `ai-engine/main.py` |
+| `GET /health` | `route-optimizer/main.py` |
 | `POST /api/v1/ai/optimize-route` | `AiController` through `DeliveryControllerBase` |
 | `POST /api/v1/ai/dispatch/rank` | `AiController` through `DeliveryControllerBase` |
 | `WS /hubs/tracking` | `ApplicationSetup.cs` + `TrackingHub` |
 
 ## Mandatory Verification
 
-- AI routers and all protected endpoints still register
+- Route optimizer routers and all protected endpoints still register
 - `IAiService` still has rank, optimize and predict methods
-- AI/OSRM fallback paths still execute under dependency failure
+- Route optimizer/OSRM fallback paths still execute under dependency failure
 - all existing Order/Rider transitions remain
 - TrackingHub contains no business orchestration
 - RabbitMQ consumers retain ProcessedEvents idempotency

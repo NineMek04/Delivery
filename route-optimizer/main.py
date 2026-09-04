@@ -27,15 +27,23 @@ def load_vault_config():
         client = hvac.Client(url=vault_addr)
         client.auth.approle.login(role_id=role_id, secret_id=secret_id)
         
-        secret_version_response = client.secrets.kv.v2.read_secret_version(
-            mount_point='secret',
-            path='delivery/ai'
-        )
+        try:
+            secret_version_response = client.secrets.kv.v2.read_secret_version(
+                mount_point='secret',
+                path='delivery/route-optimizer'
+            )
+        except Exception:
+            secret_version_response = client.secrets.kv.v2.read_secret_version(
+                mount_point='secret',
+                path='delivery/ai'
+            )
         
         secrets = secret_version_response['data']['data']
         
-        if "AiServiceApiKey" in secrets:
-            os.environ["AI_SERVICE_API_KEY"] = secrets["AiServiceApiKey"]
+        route_optimizer_key = secrets.get("RouteOptimizerApiKey") or secrets.get("AiServiceApiKey")
+        if route_optimizer_key:
+            os.environ["ROUTE_OPTIMIZER_API_KEY"] = route_optimizer_key
+            os.environ["AI_SERVICE_API_KEY"] = route_optimizer_key
             
         if "PostgresPassword" in secrets:
             db_url = os.getenv("DATABASE_URL", "")
@@ -58,8 +66,8 @@ load_vault_config()
 
 # Initialize FastAPI App
 app = FastAPI(
-    title="AI Delivery Routing Optimization API",
-    description="AI-Optimized Route Calculation Service (VRP Solver) and Real-time Dispatch Scorer",
+    title="Delivery Routing Optimization API",
+    description="Deterministic route optimization, weighted heuristic rider ranking, and ETA estimation service.",
     version="0.2.1",
 )
 
@@ -75,7 +83,7 @@ def health_check():
     """Health check endpoint for Docker / load balancer"""
     return {
         "status": "ok", 
-        "service": "ai-engine",
+        "service": "route-optimizer",
         "version": app.version
     }
 

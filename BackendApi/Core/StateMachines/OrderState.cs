@@ -9,7 +9,7 @@ public enum OrderState
     /// <summary>ออเดอร์ถูกสร้าง รอเข้าสู่กระบวนการหาคนขับ</summary>
     CREATED,
 
-    /// <summary>กำลังค้นหา Rider ที่เหมาะสม (ถาม AI Engine)</summary>
+    /// <summary>กำลังค้นหา Rider ที่เหมาะสม (weighted heuristic ranking)</summary>
     MATCHING,
 
     /// <summary>ยิง Offer ไปหา Rider แล้ว รอการตอบรับ (จองตัวชั่วคราว)</summary>

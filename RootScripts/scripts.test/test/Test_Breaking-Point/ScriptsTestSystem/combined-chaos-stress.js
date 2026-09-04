@@ -4,16 +4,15 @@
  * Simulates:
  *   1. SignalR GPS stream for N riders (UpdateLocation + Heartbeat every 2s)
  *   2. HTTP API requests to Backend (RPS: 100-500)
- *   3. AI routing/ranking requests directly (concurrency: 10-50)
+ *   3. Route optimizer routing/ranking requests via Backend proxy (concurrency: 10-50)
  *   4. Backpressure (simulated via pause/resume queues)
  *   5. Chaos Injection (Docker container restarts & network partitions)
  *
  * Usage:
- *   node combined-chaos-stress.js [--riders 500] [--api-rps 100] [--duration 1800] [--ai-rps 10]
+ *   node combined-chaos-stress.js [--riders 500] [--api-rps 100] [--duration 1800] [--route-rps 10]
  *
  * Environment:
  *   API_URL — Backend URL (default: http://localhost:5000)
- *   AI_URL  — AI Service URL (default: http://localhost:8000)
  */
 
 const signalR = require("@microsoft/signalr");
@@ -21,9 +20,6 @@ const axios = require("axios");
 const { exec, execSync } = require("child_process");
 
 const API_URL = process.env.API_URL || "http://localhost:5000";
-const AI_URL = process.env.AI_URL || "http://localhost:8000";
-const AI_KEY = process.env.AI_KEY || "DeliverySmartRoutingSystem_AiEngine_ApiKey_2026";
-
 // Parse CLI arguments
 const args = process.argv.slice(2);
 function getArg(name, defaultValue) {
@@ -33,7 +29,7 @@ function getArg(name, defaultValue) {
 
 const NUM_RIDERS = parseInt(getArg("riders", "500"), 10);
 const API_RPS = parseInt(getArg("api-rps", "100"), 10);
-const AI_RPS = parseInt(getArg("ai-rps", "10"), 10);
+const ROUTE_OPTIMIZER_RPS = parseInt(getArg("route-rps", getArg("ai-rps", "10")), 10);
 const DURATION_SEC = parseInt(getArg("duration", "1800"), 10);
 
 const stats = {
@@ -49,9 +45,9 @@ const stats = {
   apiError500: 0,
   apiOtherError: 0,
   
-  aiRequests: 0,
-  aiSuccess: 0,
-  aiError: 0,
+  routeOptimizerRequests: 0,
+  routeOptimizerSuccess: 0,
+  routeOptimizerError: 0,
   
   latencies: [],
   startTime: null,
@@ -216,18 +212,18 @@ function startHttpLoad() {
   activeIntervals.push(httpInterval);
 }
 
-// AI load simulator
-function startAiLoad() {
-  const aiHeaders = {
+// Route optimizer load simulator
+function startRouteOptimizerLoad() {
+  const routeOptimizerHeaders = {
     "Authorization": `Bearer ${adminToken}`,
     "Content-Type": "application/json",
   };
 
-  const aiInterval = setInterval(async () => {
-    const batchSize = Math.max(1, Math.floor(AI_RPS / 2));
+  const routeOptimizerInterval = setInterval(async () => {
+    const batchSize = Math.max(1, Math.floor(ROUTE_OPTIMIZER_RPS / 2));
     
     for (let i = 0; i < batchSize; i++) {
-      stats.aiRequests++;
+      stats.routeOptimizerRequests++;
       const isOptimize = Math.random() > 0.5;
       const start = Date.now();
 
@@ -243,7 +239,7 @@ function startAiLoad() {
           num_vehicles: 1,
           depot: 0,
           pickups_deliveries: [[1, 2]]
-        }, { headers: aiHeaders, timeout: 5000 });
+        }, { headers: routeOptimizerHeaders, timeout: 5000 });
       } else {
         // Rank
         promise = axios.post(`${API_URL}/api/v1/ai/dispatch/rank`, {
@@ -256,19 +252,19 @@ function startAiLoad() {
             speed_kmh: 20.0,
             current_tasks: []
           }))
-        }, { headers: aiHeaders, timeout: 5000 });
+        }, { headers: routeOptimizerHeaders, timeout: 5000 });
       }
 
       promise.then(() => {
-        stats.aiSuccess++;
+        stats.routeOptimizerSuccess++;
         stats.latencies.push(Date.now() - start);
       }).catch(() => {
-        stats.aiError++;
+        stats.routeOptimizerError++;
       });
     }
   }, 500);
 
-  activeIntervals.push(aiInterval);
+  activeIntervals.push(routeOptimizerInterval);
 }
 
 // Chaos scheduler
@@ -305,9 +301,9 @@ function scheduleChaos() {
     runChaosCommand("Restart Redis", "docker restart delivery-redis");
   }, 20 * 60 * 1000);
 
-  // Minute 25 (1500s): Kill AI Engine
+  // Minute 25 (1500s): Kill Route Optimizer
   setTimeout(() => {
-    runChaosCommand("Kill AI Engine", "docker kill delivery-ai");
+    runChaosCommand("Kill Route Optimizer", "docker kill delivery-route-optimizer");
   }, 25 * 60 * 1000);
 
   // Minute 30 (1800s): Restart RabbitMQ + Redis concurrently
@@ -323,10 +319,10 @@ async function main() {
   console.log("=================================================");
   console.log("  Stage 5: Ultimate Combined Stress & Chaos Test");
   console.log(`  Target Backend:     ${API_URL}`);
-  console.log(`  Target AI Service:  ${AI_URL}`);
+  console.log("  Target Route Optimizer: via Backend proxy");
   console.log(`  Rider connections:  ${NUM_RIDERS}`);
   console.log(`  HTTP API RPS:       ${API_RPS}`);
-  console.log(`  AI Engine RPS:      ${AI_RPS}`);
+  console.log(`  Route Optimizer RPS:${ROUTE_OPTIMIZER_RPS}`);
   console.log(`  Duration:           ${DURATION_SEC}s (${(DURATION_SEC / 60).toFixed(0)} mins)`);
   console.log("=================================================\n");
 
@@ -384,9 +380,9 @@ async function main() {
   await Promise.allSettled(connectPromises);
   console.log(`  - Active Rider Connections: ${stats.activeSignalR}/${NUM_RIDERS}`);
 
-  console.log("\n[Phase 4] Starting Background HTTP API & AI Engine Load...");
+  console.log("\n[Phase 4] Starting Background HTTP API & Route Optimizer Load...");
   startHttpLoad();
-  startAiLoad();
+  startRouteOptimizerLoad();
 
   console.log("\n[Phase 5] Scheduling Chaos Injection Timeline...");
   scheduleChaos();
@@ -403,7 +399,7 @@ async function main() {
       `[${elapsed}s] ` +
       `Riders: ${stats.activeSignalR}/${NUM_RIDERS} (Disconnects: ${stats.signalRDisconnects}, GPSErr: ${stats.gpsErrors}) | ` +
       `API Req: ${stats.apiRequests} (OK: ${stats.apiSuccess}, 400: ${stats.apiError400}, 500: ${stats.apiError500}) | ` +
-      `AI Req: ${stats.aiRequests} (OK: ${stats.aiSuccess}, Err: ${stats.aiError}) | ` +
+      `Route Req: ${stats.routeOptimizerRequests} (OK: ${stats.routeOptimizerSuccess}, Err: ${stats.routeOptimizerError}) | ` +
       `Avg Latency: ${avgLatency}ms`
     );
   }, 10000);
@@ -430,9 +426,9 @@ async function main() {
     console.log(`  - 400 Bad:          ${stats.apiError400}`);
     console.log(`  - 500 Server Err:   ${stats.apiError500}`);
     console.log(`  - Other Errors:     ${stats.apiOtherError}`);
-    console.log(`  AI Requests Sent:   ${stats.aiRequests}`);
-    console.log(`  - Success:          ${stats.aiSuccess}`);
-    console.log(`  - Failures:         ${stats.aiError}`);
+    console.log(`  Route Requests Sent:${stats.routeOptimizerRequests}`);
+    console.log(`  - Success:          ${stats.routeOptimizerSuccess}`);
+    console.log(`  - Failures:         ${stats.routeOptimizerError}`);
     
     if (stats.latencies.length > 0) {
       console.log(`  Avg Latency:        ${(stats.latencies.reduce((a, b) => a + b, 0) / stats.latencies.length).toFixed(0)}ms`);

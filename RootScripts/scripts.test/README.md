@@ -28,7 +28,7 @@
 1.  **Single Test Hub Rule (กฎศูนย์ทดสอบหนึ่งเดียว):**  
     ชุดการทดสอบทั้งหมด (ยกเว้น Angular) จะต้องจัดเก็บอยู่ภายใต้ไดเรกทอรี [RootScripts/scripts.test/test/](test/) เท่านั้น ห้ามกระจายโฟลเดอร์ทดสอบปะปนกับ Source Code ฝั่งโปรดักชัน
 2.  **No Test Files in Core Directories (ห้ามไฟล์ทดสอบปนเปื้อน):**  
-    ห้ามสร้างโฟลเดอร์ชื่อ `tests/` หรือ `__tests__/` ปนอยู่ใน Subsystem แกนหลัก เช่น ห้ามสร้างใน `ai-engine/tests` แต่ให้ย้ายมาอยู่ที่ `RootScripts/scripts.test/test/ai-engine.tests/` แทน
+    ห้ามสร้างโฟลเดอร์ชื่อ `tests/` หรือ `__tests__/` ปนอยู่ใน Subsystem แกนหลัก เช่น ห้ามสร้างใน `route-optimizer/tests` แต่ให้ย้ายมาอยู่ที่ `RootScripts/scripts.test/test/route-optimizer.tests/` แทน
 3.  **Angular Spec Files Exception (ข้อยกเว้น Angular):**  
     สำหรับหน้า Angular Dashboard อนุญาตให้วางไฟล์ทดสอบระดับยูนิต (`*.spec.ts`) ควบคู่กับตัว Component นั้นๆ ได้ตามมาตรฐานของ Angular CLI เพื่อไม่ให้กระทบต่อ Pipeline การคอมไพล์หลัก
 4.  **Load & Stress Test Log Rule (กฎบันทึกผลการ Stress Test):**  
@@ -56,13 +56,13 @@ dotnet test test/BackendApi.UnitTests/BackendApi.UnitTests.csproj
 dotnet test test/BackendApi.IntegrationTests/BackendApi.IntegrationTests.csproj --logger "console;verbosity=detailed"
 ```
 
-### 3.2 การรัน AI Engine Tests (Python FastAPI)
+### 3.2 การรัน Route Optimizer Tests (Python FastAPI)
 *   ทดสอบลอจิก VRP Solver และความเสถียรของ OR-Tools
-*   *Prerequisites:* ต้องลงและเปิดใช้งาน Virtual Environment ในโฟลเดอร์ AI และมี pytest ติดตั้งอยู่
+*   *Prerequisites:* ต้องลงและเปิดใช้งาน Virtual Environment ในโฟลเดอร์ route-optimizer และมี pytest ติดตั้งอยู่
 
 ```powershell
-# รันเทสฝั่ง AI Routing
-pytest test/ai-engine.tests
+# รันเทสฝั่ง Route Optimizer
+pytest test/route-optimizer.tests
 ```
 
 ### 3.3 การรัน Mobile Unit/Widget Tests (Flutter)
@@ -95,7 +95,7 @@ node simulate-e2e.js
     ```powershell
     npm run test:api
     ```
-*   **Dispatch Queue Stress:** สร้างออเดอร์รัวๆ พร้อมกันเพื่อดูคิวประมวลผล VRP AI:
+*   **Dispatch Queue Stress:** สร้างออเดอร์รัวๆ พร้อมกันเพื่อดูคิวประมวลผล route optimizer:
     ```powershell
     npm run test:dispatch
     ```
@@ -110,7 +110,7 @@ node simulate-e2e.js
 
 ระหว่างทำ Stress Test ทีม QA จะต้องเปิดบอร์ด Grafana สังเกตและวิเคราะห์:
 1.  **OOMKilled Detection (แรมคอนเทนเนอร์ระเบิด):**  
-    ตรวจสอบตัวชี้วัด `container_oom_events_total` ใน Prometheus หากมีค่าเพิ่มขึ้นกว่า 0 แสดงว่า OS ได้สั่งเชือดคอนเทนเนอร์ตัวที่ใช้แรมเกินขีดจำกัดความปลอดภัยของ Docker แล้ว (คอขวดมักอยู่ที่ AI Engine หรือ backend API)
+    ตรวจสอบตัวชี้วัด `container_oom_events_total` ใน Prometheus หากมีค่าเพิ่มขึ้นกว่า 0 แสดงว่า OS ได้สั่งเชือดคอนเทนเนอร์ตัวที่ใช้แรมเกินขีดจำกัดความปลอดภัยของ Docker แล้ว (คอขวดมักอยู่ที่ route optimizer หรือ backend API)
 2.  **DB Connections Overflow (คิวเชื่อมฐานข้อมูลตัน):**  
     เช็คจาก `DatabaseConnectionsHigh` เมื่อ Connections พุ่งชน 85% ของ PgBouncer จะทำให้คำขอบนแอปพลิเคชันค้าง
 3.  **Telemetry Data Drop Rate:**  

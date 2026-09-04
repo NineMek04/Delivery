@@ -16,7 +16,7 @@ BackendApi/
   Core/                     shared contracts, filters, state machines, helpers
   Services/                 cross-feature application services/workers
   Features/
-    AiRouting/              AI + OSRM clients and fallback
+    AiRouting/              route optimizer compatibility client, OSRM client and fallback
     DispatchManagement/     dispatch and state orchestration
     FleetTracking/          telemetry ingestion/tracking
   Infrastructure/
@@ -81,9 +81,9 @@ exception, validation และ CSRF middleware ต้องเขียน JSON
 GPS current state เก็บใน Redis เพื่อ realtime, history persist ผ่าน telemetry/RabbitMQ
 pipeline และ PostgreSQL ห้ามอ้าง `GpsSyncBuffer` รุ่นเก่า
 
-## 7. Routing And AI
+## 7. Routing And Route Optimization
 
-- `IAiService`: rank, optimize, predict ETA พร้อม deterministic fallback
+- `IAiService`: legacy backend interface name for route optimizer calls; rank, optimize, predict ETA พร้อม deterministic fallback
 - `OsrmRoutingService`: local OSRM เท่านั้น; ห้าม public OSRM production fallback
 - Haversine/raw geometry fallback ต้องคงไว้ตาม critical registry
 - OSRM trip `waypoint_index` คือ visit-order value ต่อ input waypoint;
@@ -93,7 +93,7 @@ pipeline และ PostgreSQL ห้ามอ้าง `GpsSyncBuffer` รุ่
 
 - PostGIS Point: `X=lng`, `Y=lat`, SRID 4326
 - Database proximity/filter ใช้ spatial SQL/index
-- Haversine ใช้ได้สำหรับ in-memory AI heuristic หรือ degraded fallback
+- Haversine ใช้ได้สำหรับ in-memory weighted heuristic หรือ degraded fallback
 - `RiderLocationHistories` partition/index maintenance เป็น infrastructure concern
 
 ## 9. Security And Observability

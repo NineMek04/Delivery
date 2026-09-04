@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Delivery Backend API",
-    "description": "AI-Optimized Smart Delivery Routing System — Backend API",
+    "description": "Smart Delivery Routing and Optimization System — Backend API",
     "version": "v1"
   },
   "servers": [
@@ -4544,7 +4544,7 @@
         "tags": [
           "Orders"
         ],
-        "summary": "สร้างออเดอร์ใหม่ และสั่งให้ AI เริ่มหา Rider อัตโนมัติ (Dispatch)",
+        "summary": "สร้างออเดอร์ใหม่ และสั่งให้ระบบจัดอันดับไรเดอร์เริ่มหา Rider อัตโนมัติ (Dispatch)",
         "requestBody": {
           "content": {
             "application/json": {

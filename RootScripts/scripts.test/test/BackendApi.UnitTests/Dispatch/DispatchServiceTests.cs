@@ -65,7 +65,7 @@ namespace BackendApi.UnitTests.Dispatch
             _loggerMock = new Mock<ILogger<DispatchService>>();
             _rankerLoggerMock = new Mock<ILogger<DispatchCandidateRanker>>();
 
-            var myConfiguration = new Dictionary<string, string>
+            var myConfiguration = new Dictionary<string, string?>
             {
                 {"Dispatch:SearchRadiusKm", "10"},
                 {"Dispatch:OfferTimeoutSeconds", "30"}
@@ -203,9 +203,9 @@ namespace BackendApi.UnitTests.Dispatch
                 { "rider_far", new Rider { Id = "rider_far", Name = "Far Rider" } }
             };
 
-            // Mock AI Service to fail
+            // Mock route optimizer service to fail
             _aiServiceMock.Setup(a => a.RankDispatchCandidatesAsync(It.IsAny<DispatchRankRequestDto>(), It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new System.Net.Http.HttpRequestException("AI Engine Down!"));
+                .ThrowsAsync(new System.Net.Http.HttpRequestException("Route Optimizer Down!"));
 
             _presenceServiceMock.Setup(p => p.GetRiderSpeedAsync(It.IsAny<string>())).ReturnsAsync(25.0);
 

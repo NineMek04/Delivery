@@ -10,7 +10,7 @@
 4. [04 Flutter App](04-flutter-app.md) - Rider, Customer, StorePartner flows และ route map
 5. [05 Admin Dashboard](05-admin-dashboard.md) - Angular dashboard, map, auth, realtime UI
 6. [06 Infrastructure And DevOps](06-infrastructure-devops.md) - Docker Compose, ports, observability, OSRM, Nginx
-7. [07 AI Routing And OSRM](07-ai-routing-osrm.md) - AI engine, local OSRM, fallback, route drawing
+7. [07 Optimization Routing And OSRM](07-ai-routing-osrm.md) - route optimizer, local OSRM, fallback, route drawing
 8. [08 Documentation Alignment Audit](08-documentation-alignment-audit.md) - จุดที่เอกสารไม่ตรงโค้ดและ decision ว่าควรเก็บฝั่งไหน
 
 ## Source Of Truth
@@ -23,4 +23,3 @@ Priority order when documents conflict:
 4. Historical documents under `Documents/development/PROJECT-SPEC.md`, `AI-BLUEPRINT.md`, and old setup guides
 
 Do not move `.docs` files. Update them in place when an active contract is wrong.
-

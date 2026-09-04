@@ -21,8 +21,14 @@ using DeliveryOrder = BackendApi.Models.Entities.Order;
 
 namespace BackendApi.UnitTests.AiRouting;
 
+[Collection("OSRM circuit breaker")]
 public sealed class RiderRouteServiceTests
 {
+    public RiderRouteServiceTests()
+    {
+        OsrmCircuitBreakerTestHelper.Reset();
+    }
+
     [Fact]
     public async Task ResolveAsync_AssignedPickupRoute_UsesLocalOsrm()
     {

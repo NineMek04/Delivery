@@ -42,8 +42,8 @@ const EMAIL = getArg('email', process.env.DELIVERY_RIDER_EMAIL);
 const PASSWORD = getArg('password', process.env.DELIVERY_RIDER_PASSWORD);
 const ORDER_ID = getArg('order-id', process.env.DELIVERY_ORDER_ID);
 const PHASE = getArg('phase', process.env.DELIVERY_ROUTE_PHASE || 'PICKUP').toUpperCase();
-const INTERVAL_MS = Number(getArg('interval', process.env.DELIVERY_GPS_INTERVAL_MS || '1500'));
-const STEP_METERS = Number(getArg('step-meters', process.env.DELIVERY_GPS_STEP_METERS || '12'));
+const INTERVAL_MS = Number(getArg('interval', process.env.DELIVERY_GPS_INTERVAL_MS || '5000'));
+const STEP_METERS = Number(getArg('step-meters', process.env.DELIVERY_GPS_STEP_METERS || '50'));
 const ACCURACY = Number(getArg('accuracy', process.env.DELIVERY_GPS_ACCURACY || '5'));
 const FROM_LAT = getArg('from-lat', process.env.DELIVERY_FROM_LAT);
 const FROM_LNG = getArg('from-lng', process.env.DELIVERY_FROM_LNG);
@@ -202,6 +202,24 @@ async function connect(token) {
     .withAutomaticReconnect([0, 2000, 5000, 10000])
     .configureLogging(signalR.LogLevel.Warning)
     .build();
+
+  const onLocationUpdated = (data) => {
+    console.log('[Telemetry Step 1] RiderLocationUpdated (Raw Coordinate Broadcast):', JSON.stringify(data));
+  };
+  connection.on('RiderLocationUpdated', onLocationUpdated);
+  connection.on('riderlocationupdated', onLocationUpdated);
+
+  const onLocationSnapped = (data) => {
+    console.log('[Telemetry Step 2] RiderLocationSnapped (OSRM Snapped Polyline Broadcast):', JSON.stringify(data));
+  };
+  connection.on('RiderLocationSnapped', onLocationSnapped);
+  connection.on('riderlocationsnapped', onLocationSnapped);
+
+  // Register dummy handlers to suppress warnings for other unhandled events
+  connection.on('RiderStatusUpdated', () => {});
+  connection.on('riderstatusupdated', () => {});
+  connection.on('TelemetryUpdated', () => {});
+  connection.on('telemetryupdated', () => {});
 
   await connection.start();
   return connection;

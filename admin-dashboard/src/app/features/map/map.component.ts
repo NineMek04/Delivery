@@ -804,7 +804,8 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
               Number.isFinite(point.lng) &&
               !(point.lat === 0 && point.lng === 0))
             .map((point: { lat: number; lng: number }) =>
-              L.latLng(point.lat, point.lng));
+              L.latLng(point.lat, point.lng))
+            .reverse();
 
           if (coords.length === 0) {
             Swal.fire({

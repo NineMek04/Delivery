@@ -14,8 +14,10 @@ import '../../../core/api/services/client_route_telemetry_service.dart';
 import '../../../core/api/services/rider_route_api_service.dart';
 import '../../../core/signalr/signalr_service.dart';
 import '../../../core/location/location_service.dart';
+import '../../../core/location/gps_buffer_service.dart';
 import '../../../core/location/tile_cache_service.dart';
 import '../../../core/session/rider_session_service.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../models/dispatch_offer.dart';
 import '../../../models/order.dart';
 import '../../../shared/utils/polyline_util.dart';
@@ -83,6 +85,9 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
   List<LatLng> _simDeliveryRoute = const [];
   final List<_SimTimelineItem> _timeline = [];
 
+  late final ValueNotifier<LatLng> _animatedPositionNotifier;
+  late final ValueNotifier<double> _animatedHeadingNotifier;
+
   // เก็บค่าล่าสุดสำหรับอนิเมชัน LERP ในแผนที่
   LatLng? _lastAnimatedPoint;
   double? _lastAnimatedHeading;
@@ -116,6 +121,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
   @override
   void initState() {
     super.initState();
+    _animatedPositionNotifier = ValueNotifier(_animatedPosition);
+    _animatedHeadingNotifier = ValueNotifier(_animatedHeading);
     _positionAnimController = AnimationController(
       vsync: this,
       duration: _animationDuration,
@@ -138,9 +145,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     final end = _animTargetPosition!;
     final lat = begin.latitude + (end.latitude - begin.latitude) * t;
     final lng = begin.longitude + (end.longitude - begin.longitude) * t;
-    setState(() {
-      _animatedPosition = LatLng(lat, lng);
-    });
+    _animatedPosition = LatLng(lat, lng);
+    _animatedPositionNotifier.value = _animatedPosition;
   }
 
   void _onHeadingAnimTick() {
@@ -151,9 +157,24 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     double diff = (end - begin) % 360;
     if (diff > 180) diff -= 360;
     if (diff < -180) diff += 360;
-    setState(() {
-      _animatedHeading = begin + diff * t;
-    });
+    _animatedHeading = begin + diff * t;
+    _animatedHeadingNotifier.value = _animatedHeading;
+  }
+
+  double _calculateBearing(LatLng start, LatLng end) {
+    final lat1 = start.latitude * math.pi / 180;
+    final lon1 = start.longitude * math.pi / 180;
+    final lat2 = end.latitude * math.pi / 180;
+    final lon2 = end.longitude * math.pi / 180;
+
+    final dLon = lon2 - lon1;
+
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+
+    final radians = math.atan2(y, x);
+    return (radians * 180 / math.pi + 360) % 360;
   }
 
   /// เรียกเมื่อพิกัดไรเดอร์เปลี่ยน — คำนวณ animation duration และเริ่ม animation
@@ -171,14 +192,26 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     _lastUpdateReceivedTime = now;
 
     // บันทึกจุดเริ่มต้นของ animation
-    _lastAnimatedPoint = _animatedPosition;
+    final startPoint = _animatedPosition;
+    _lastAnimatedPoint = startPoint;
     _animTargetPosition = newPoint;
     _positionAnimController.duration = _animationDuration;
     _positionAnimController.forward(from: 0.0);
 
-    if (heading != null) {
+    double? calculatedHeading = heading;
+    if (calculatedHeading == null && startPoint != _defaultCenter) {
+      final dist = Geolocator.distanceBetween(
+        startPoint.latitude, startPoint.longitude,
+        newPoint.latitude, newPoint.longitude
+      );
+      if (dist > 1.0) {
+        calculatedHeading = _calculateBearing(startPoint, newPoint);
+      }
+    }
+
+    if (calculatedHeading != null) {
       _lastAnimatedHeading = _animatedHeading;
-      _animTargetHeading = heading;
+      _animTargetHeading = calculatedHeading;
       _headingAnimController.forward(from: 0.0);
     }
   }
@@ -202,6 +235,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     _offerSub?.cancel();
     _statusSub?.cancel();
     _riderLocationSub?.cancel();
+    _animatedPositionNotifier.dispose();
+    _animatedHeadingNotifier.dispose();
     _positionAnimController.dispose();
     _headingAnimController.dispose();
     _mapController.dispose();
@@ -303,6 +338,15 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     _riderLocationSub = signalRService.onRiderLocationUpdated.listen((event) {
       if (!mounted) return;
 
+      final currentRiderId = ref.read(authServiceProvider.notifier).userId;
+      if (event.riderId == currentRiderId) {
+        ref.read(locationServiceProvider.notifier).updateStatePosition(
+          event.latitude,
+          event.longitude,
+          0.0,
+        );
+      }
+
       final assignedRiderId = ref.read(deliveryNotifierProvider).activeOrder?.assignedRiderId;
       if (assignedRiderId != null && event.riderId != assignedRiderId) {
         debugPrint(
@@ -312,8 +356,9 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
         return;
       }
 
-      // อัปเดตข้อมูล sim mirror เฉพาะเมื่อเปิดอยู่
-      if (_simMirrorEnabled) {
+      // อัปเดตข้อมูลพิกัดจำลองของไรเดอร์เสมอหากไม่มีพิกัดจริง (สำหรับ E2E simulation)
+      // หรือหากเปิดใช้งาน Sim Mirror อยู่
+      if (_simMirrorEnabled || assignedRiderId != null) {
         setState(() {
           _simRiderPoint = LatLng(event.latitude, event.longitude);
           _simRiderLabel = _shortRider(event.riderId);
@@ -604,6 +649,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     final nextStatus = OrderStatusHelper.nextRiderStatus(order.status);
     if (nextStatus == null) return;
 
+    final isCompleting = nextStatus.toUpperCase() == 'COMPLETED';
+
     await ref
         .read(deliveryNotifierProvider.notifier)
         .updateOrderStatus(order.id, nextStatus);
@@ -634,6 +681,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
       _lastViewportSignature = null;
       _lastFollowSignature = null;
     });
+
+    // ลบการทำงาน In-App Wander เนื่องจากระบบย้ายไปรันนอกเครื่องใน Terminal เรียบร้อยแล้ว
   }
 
   void _followRider(LatLng point, String signature) {
@@ -784,12 +833,22 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     // เมื่อพิกัดเปลี่ยน → เรียก AnimationController (ย้ายมาจาก build ไป listener)
     final activeRiderPoint = riderPoint ?? _simRiderPoint;
     if (activeRiderPoint != null && (activeRiderPoint.latitude != _prevLat || activeRiderPoint.longitude != _prevLng)) {
+      final isFirstPoint = _prevLat == null && _prevLng == null;
       _prevLat = activeRiderPoint.latitude;
       _prevLng = activeRiderPoint.longitude;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _onRiderPositionChanged(activeRiderPoint, tracking.heading);
-      });
+      if (isFirstPoint) {
+        _animatedPosition = activeRiderPoint;
+        _animatedPositionNotifier.value = _animatedPosition;
+        if (tracking.heading != null) {
+          _animatedHeading = tracking.heading!;
+          _animatedHeadingNotifier.value = _animatedHeading;
+        }
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _onRiderPositionChanged(activeRiderPoint, tracking.heading);
+        });
+      }
     }
 
     final order = delivery.activeOrder;
@@ -816,11 +875,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
             pickup.longitude,
           )
         : null;
-    final hasReachedPickup = isHeadingToPickup &&
-        pickupDistanceMeters != null &&
-        pickupDistanceMeters <= 50 &&
-        dropoff != null;
-    final isNavigatingToDropoff = orderStatus == 'DELIVERING' || hasReachedPickup;
+    final isNavigatingToDropoff = orderStatus == 'DELIVERING';
     final routePhase = isNavigatingToDropoff ? 'DELIVERY' : 'PICKUP';
     final pickupRoute = delivery.pickupRouteOrderId == order?.id
         ? delivery.pickupEncodedPolyline
@@ -916,8 +971,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
       );
     }
 
-    // ใช้ _animatedPosition จาก AnimationController แทน (ไม่ต้อง TweenAnimationBuilder)
-    final animatedRiderPoint = riderPoint != null ? _animatedPosition : (_simRiderPoint ?? center);
+    // ใช้ _animatedPosition จาก AnimationController เสมอ หากมีพิกัดจริงหรือพิกัดจำลอง
+    final animatedRiderPoint = (riderPoint != null || _simRiderPoint != null) ? _animatedPosition : center;
 
     return Scaffold(
       appBar: AppBar(
@@ -980,56 +1035,70 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
                         routePoints,
                         isPickup: !isNavigatingToDropoff,
                       ),
-                    if (riderPoint != null &&
-                        tracking.isTracking &&
-                        tracking.accuracy != null)
-                      CircleLayer(
-                        circles: [
-                          CircleMarker(
-                            point: animatedRiderPoint,
-                            radius: math.max(5.0, tracking.accuracy!),
-                            useRadiusInMeter: true,
-                            color: const Color(0xFF1A73E8).withOpacity(0.16),
-                            borderColor: const Color(0xFF1A73E8).withOpacity(0.36),
-                            borderStrokeWidth: 1.5,
-                          ),
-                        ],
+                    if (riderPoint != null && tracking.isTracking && tracking.accuracy != null)
+                      ValueListenableBuilder<LatLng>(
+                        valueListenable: _animatedPositionNotifier,
+                        builder: (context, pos, _) {
+                          final accuracy = tracking.accuracy ?? 10.0;
+                          return CircleLayer(
+                            circles: [
+                              CircleMarker(
+                                point: pos,
+                                radius: math.max(5.0, accuracy),
+                                useRadiusInMeter: true,
+                                color: const Color(0xFF1A73E8).withOpacity(0.16),
+                                borderColor: const Color(0xFF1A73E8).withOpacity(0.36),
+                                borderStrokeWidth: 1.5,
+                              ),
+                            ],
+                          );
+                        },
                       ),
-                    MarkerLayer(
-                      markers: [
-                        if (_simMirrorEnabled && _simRiderPoint != null)
-                          Marker(
-                            point: animatedRiderPoint,
-                            width: 44,
-                            height: 44,
-                            child: const Icon(
-                              Icons.two_wheeler,
-                              color: Colors.purple,
-                              size: 34,
-                            ),
-                          ),
-                        if (riderPoint != null)
-                          Marker(
-                            point: animatedRiderPoint,
-                            width: 96,
-                            height: 96,
-                            child: RiderLocationMarker(heading: _animatedHeading),
-                          ),
-                        if (pickup != null)
-                          Marker(
-                            point: pickup,
-                            width: 40,
-                            height: 40,
-                            child: const Icon(Icons.store, color: Colors.orange, size: 32),
-                          ),
-                        if (dropoff != null)
-                          Marker(
-                            point: dropoff,
-                            width: 40,
-                            height: 40,
-                            child: const Icon(Icons.home, color: Colors.green, size: 32),
-                          ),
-                      ],
+                    ValueListenableBuilder<LatLng>(
+                      valueListenable: _animatedPositionNotifier,
+                      builder: (context, pos, _) {
+                        return ValueListenableBuilder<double>(
+                          valueListenable: _animatedHeadingNotifier,
+                          builder: (context, heading, _) {
+                            return MarkerLayer(
+                              markers: [
+                                if (_simMirrorEnabled && _simRiderPoint != null && riderPoint != null)
+                                  Marker(
+                                    point: _simRiderPoint!,
+                                    width: 44,
+                                    height: 44,
+                                    child: const Icon(
+                                      Icons.two_wheeler,
+                                      color: Colors.purple,
+                                      size: 34,
+                                    ),
+                                  ),
+                                if (riderPoint != null || _simRiderPoint != null)
+                                  Marker(
+                                    point: pos,
+                                    width: 96,
+                                    height: 96,
+                                    child: RiderLocationMarker(heading: heading),
+                                  ),
+                                if (pickup != null)
+                                  Marker(
+                                    point: pickup,
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(Icons.store, color: Colors.orange, size: 32),
+                                  ),
+                                if (dropoff != null)
+                                  Marker(
+                                    point: dropoff,
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(Icons.home, color: Colors.green, size: 32),
+                                  ),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -1100,125 +1169,6 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
                     ),
                   ),
               ],
-            ),
-          ),
-          Card(
-            margin: const EdgeInsets.all(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _simMirrorEnabled ? 'SIM MIRROR: ON' : 'SIM MIRROR: OFF',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _toggleSimMirror,
-                        icon: Icon(
-                          _simMirrorEnabled ? Icons.pause_circle : Icons.play_circle,
-                        ),
-                        label: Text(_simMirrorEnabled ? 'Stop' : 'Start'),
-                      ),
-                    ],
-                  ),
-                  if (_simMirrorEnabled) ...[
-                    Text(
-                      'Phase: ${_simPhase.label} | Order: $_simOrderId | Rider: $_simRiderLabel | Scan: $_simCandidateCount',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 80,
-                      child: ListView.builder(
-                        itemCount: _timeline.length,
-                        itemBuilder: (context, index) {
-                          final item = _timeline[index];
-                          return Text(
-                            '${item.time}  ${item.title}: ${item.detail}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          );
-                        },
-                      ),
-                    ),
-                    const Divider(height: 20),
-                  ],
-                  if (displayRouteDuration != null || displayRouteDistance != null) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'ประมาณการส่งสินค้า (AI ETA)',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueAccent,
-                          ),
-                        ),
-                        Text(
-                          '${_formatDuration(displayRouteDuration)} (${_formatDistance(displayRouteDistance)})',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 16),
-                  ],
-                  Text(
-                    tracking.isTracking ? 'GPS Tracking Active' : 'Offline',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (tracking.error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      tracking.error!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  ],
-                  if (riderPoint != null)
-                    Text(
-                      tracking.accuracy != null
-                          ? 'Position: ${riderPoint.latitude.toStringAsFixed(5)}, ${riderPoint.longitude.toStringAsFixed(5)} | +/-${tracking.accuracy!.toStringAsFixed(0)}m'
-                          : 'Position: ${riderPoint.latitude.toStringAsFixed(5)}, ${riderPoint.longitude.toStringAsFixed(5)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        if (tracking.isTracking) {
-                          await ref
-                              .read(locationServiceProvider.notifier)
-                              .stopTracking();
-                        } else {
-                          await ref
-                              .read(locationServiceProvider.notifier)
-                              .startTracking();
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ErrorDialog.show(
-                          context,
-                          title: 'GPS',
-                          message: e.toString(),
-                        );
-                      }
-                    },
-                    icon: Icon(
-                      tracking.isTracking ? Icons.gps_off : Icons.gps_fixed,
-                    ),
-                    label: Text(
-                      tracking.isTracking ? 'Stop GPS Tracking' : 'Start GPS Tracking',
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],

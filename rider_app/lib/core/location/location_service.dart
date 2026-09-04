@@ -33,6 +33,11 @@ class LocationService extends Notifier<LocationState> {
   Timer? _mockTimer;
   int _mockIntervalSeconds = Environment.gpsUpdateIntervalSeconds;
 
+  // ฟิลด์ระดับคลาสสำหรับตัวจำลอง Mock GPS เพื่อป้องกันไม่ให้พิกัดดีดกลับจุดเริ่มต้น
+  double _mockLat = 17.4138;
+  double _mockLng = 102.7872;
+  double _mockAngle = 0.0;
+
   @override
   LocationState build() {
     ref.onDispose(() {
@@ -277,16 +282,17 @@ class LocationService extends Notifier<LocationState> {
 
     _logger.i('🤖 Starting Mock GPS Stream for Web (Demo Mode)');
     
-    // พิกัดศูนย์กลางอุดรธานี
-    double currentLat = 17.4138;
-    double currentLng = 102.7872;
-    double angle = 0.0;
+    // หากมีตำแหน่งล่าสุดใน state หรือคลาสตัวแปรอยู่แล้ว ให้ยึดตามนั้น ไม่ต้องดีดกลับไปจุดเริ่มต้นศาลากลาง
+    if (state.latitude != null && state.longitude != null) {
+      _mockLat = state.latitude!;
+      _mockLng = state.longitude!;
+    }
 
     state = LocationState(
-      latitude: currentLat,
-      longitude: currentLng,
+      latitude: _mockLat,
+      longitude: _mockLng,
       accuracy: 10.0,
-      heading: 0.0,
+      heading: state.heading ?? 0.0,
       isTracking: true,
       lastUpdated: DateTime.now(),
     );
@@ -295,8 +301,8 @@ class LocationService extends Notifier<LocationState> {
     final bufferService = ref.read(gpsBufferServiceProvider);
     unawaited(ref
         .read(signalRServiceProvider.notifier)
-        .updateLocation(currentLat, currentLng, 10.0));
-    bufferService.bufferLocation(currentLat, currentLng, 10.0, heading: 0.0);
+        .updateLocation(_mockLat, _mockLng, 10.0));
+    bufferService.bufferLocation(_mockLat, _mockLng, 10.0, heading: state.heading ?? 0.0);
 
     // Simulate a small loop at the active GPS interval for map visibility.
     _mockTimer = Timer.periodic(Duration(seconds: _mockIntervalSeconds), (timer) {
@@ -304,29 +310,52 @@ class LocationService extends Notifier<LocationState> {
         timer.cancel();
         return;
       }
+      if (state.isAutoDrive) {
+        return;
+      }
       
       // ขยับเล็กน้อย 0.0003 (~30 เมตร)
-      angle += 0.1;
-      final latOffset = 0.0003 * math.sin(angle);
-      final lngOffset = 0.0003 * math.cos(angle);
+      _mockAngle += 0.1;
+      final latOffset = 0.0003 * math.sin(_mockAngle);
+      final lngOffset = 0.0003 * math.cos(_mockAngle);
       
-      final nextLat = currentLat + latOffset;
-      final nextLng = currentLng + lngOffset;
+      _mockLat = _mockLat + latOffset;
+      _mockLng = _mockLng + lngOffset;
 
-      final currentHeading = (angle * 180 / math.pi) % 360;
+      final currentHeading = (_mockAngle * 180 / math.pi) % 360;
       state = state.copyWith(
-        latitude: nextLat,
-        longitude: nextLng,
+        latitude: _mockLat,
+        longitude: _mockLng,
         accuracy: 10.0,
         heading: currentHeading,
         lastUpdated: DateTime.now(),
       );
 
-      bufferService.bufferLocation(nextLat, nextLng, 10.0, heading: currentHeading);
+      bufferService.bufferLocation(_mockLat, _mockLng, 10.0, heading: currentHeading);
       unawaited(ref
           .read(signalRServiceProvider.notifier)
-          .updateLocation(nextLat, nextLng, 10.0));
+          .updateLocation(_mockLat, _mockLng, 10.0));
     });
+  }
+
+  void setAutoDriveEnabled(bool enabled) {
+    state = state.copyWith(isAutoDrive: enabled);
+    _logger.i('🚗 In-App Drive Simulation state in LocationService changed to: $enabled');
+  }
+
+  void updateStatePosition(double lat, double lng, double heading) {
+    _mockLat = lat;
+    _mockLng = lng;
+    _mockAngle = (heading * math.pi / 180);
+
+    state = state.copyWith(
+      latitude: lat,
+      longitude: lng,
+      accuracy: 10.0,
+      heading: heading,
+      lastUpdated: DateTime.now(),
+    );
+    _logger.i('📍 Manually updated geolocator state position to: $lat, $lng');
   }
 
   /// หยุด GPS tracking.
@@ -342,6 +371,9 @@ class LocationService extends Notifier<LocationState> {
 
   /// Handler สำหรับ position update.
   void _onPositionUpdate(Position position) {
+    if (state.isAutoDrive) {
+      return;
+    }
     if (position.isMocked) {
       _logger.e('Mock GPS position detected during update!');
       state = state.copyWith(
@@ -419,6 +451,7 @@ class LocationState {
   final double? accuracy;
   final double? heading;
   final bool isTracking;
+  final bool isAutoDrive;
   final DateTime? lastUpdated;
   final String? error;
 
@@ -428,6 +461,7 @@ class LocationState {
     this.accuracy,
     this.heading,
     this.isTracking = false,
+    this.isAutoDrive = false,
     this.lastUpdated,
     this.error,
   });
@@ -438,6 +472,7 @@ class LocationState {
     double? accuracy,
     double? heading,
     bool? isTracking,
+    bool? isAutoDrive,
     DateTime? lastUpdated,
     String? error,
   }) {
@@ -447,6 +482,7 @@ class LocationState {
       accuracy: accuracy ?? this.accuracy,
       heading: heading ?? this.heading,
       isTracking: isTracking ?? this.isTracking,
+      isAutoDrive: isAutoDrive ?? this.isAutoDrive,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       error: error,
     );

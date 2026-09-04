@@ -1,0 +1,50 @@
+# Docker Compose Override for Real Road Test Environment
+# Usage: docker compose -f docker-compose.yml -f road-test/docker/docker-compose.test.yml up -d
+
+services:
+  # 1. Reverse Proxy รับทราฟฟิกจาก Internet Tunnel (ngrok / cloudflared / tailscale)
+  nginx-proxy:
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+  # 2. .NET 8 Backend API
+  backend:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Authentication__RequireSecureCookie=false
+      - RateLimiting__Global__PermitLimit=100000
+      - RateLimiting__Auth__PermitLimit=100000
+    ports:
+      - "5000:80"
+
+  # 3. Angular Web Dashboard สำหรับติดตามไรเดอร์บนแผนที่สด
+  frontend:
+    ports:
+      - "4201:80"
+
+  # 4. PostgreSQL + PostGIS Database
+  db:
+    ports:
+      - "5432:5432"
+
+  # 5. Redis Real-time Speed Layer
+  redis:
+    ports:
+      - "6379:6379"
+
+  # 6. RabbitMQ Event Bus
+  rabbitmq:
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # 7. OSRM Road Matching
+  osrm:
+    ports:
+      - "5001:5000"
+
+  # ปิดการรัน Mock Rider Web App เพื่อให้ใช้เฉพาะ Real Android Phone
+  rider-app:
+    profiles:
+      - mock-only

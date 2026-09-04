@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "gps:playback": "node dev-gps-playback.js",
-    "test": "echo \"Use npm run gps:playback for development GPS playback\" && exit 0"
+    "gps:playback": "node auto-e2e-simulator.js",
+    "gps:manual": "node dev-gps-playback.js",
+    "test": "echo \"Use npm run gps:playback for automated E2E GPS simulation\" && exit 0"
   },
   "keywords": [],
   "author": "",

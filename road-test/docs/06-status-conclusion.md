@@ -24,11 +24,13 @@
 - [x] **Phase 2: Road Test Workspace Structure** — สร้างโฟลเดอร์ `road-test/` (README, docker, config, scripts, docs)
 - [x] **Phase 3: Docker Test Compose** — สร้าง `road-test/docker/docker-compose.test.yml` สำหรับรัน Environment สะอาด (ปิด Mock GPS)
 - [x] **Phase 4: Test Environment Template** — สร้าง `road-test/config/.env.test.example`
-- [x] **Test Utility Scripts:**
-  - `start-test.sh` (สั่งรันคอนเทนเนอร์)
-  - `stop-test.sh` (สั่งปิดคอนเทนเนอร์)
-  - `health-check.sh` (สคริปต์ตรวจความพร้อม Backend, Nginx, OSRM)
-  - `reset-test-data.sh` (สคริปต์ล้างข้อมูลพิกัดเทส)
+- [x] **Phase 5 & 6: Test Server Active & Validated** — รัน Docker Test Server สำเร็จ Backend, PostGIS, Redis, OSRM, Nginx ทุกตัว Healthy 100%
+- [x] **Phase 7: Public Network Tunnel Deployed** — สร้าง Cloudflare Tunnel สู่พอร์ต 80 เรียบร้อยแล้ว
+- [x] **Test Utility Scripts (Cross-Platform Bash & PowerShell):**
+  - `start-test.sh` / `start-test.ps1` (สั่งรันคอนเทนเนอร์)
+  - `stop-test.sh` / `stop-test.ps1` (สั่งปิดคอนเทนเนอร์)
+  - `health-check.sh` / `health-check.ps1` (สคริปต์ตรวจความพร้อม Backend, Nginx, OSRM)
+  - `reset-test-data.sh` / `reset-test-data.ps1` (สคริปต์ล้างข้อมูลพิกัดเทส)
 - [x] **Test Runbook Documentation:**
   - `01-server-setup.md` (การตั้งค่าเซิร์ฟเวอร์และ Tunnel)
   - `02-android-setup.md` (การ Build APK และตั้งค่า Permission)
@@ -43,25 +45,53 @@
 
 ---
 
-## 3. Pending Items (งานที่ยังไม่ได้ทำ / ต้องดำเนินการในขั้นตอนถัดไป ⏳)
+## 3. Team Action Guide: Step 3 & Step 4 (คู่มือปฏิบัติการสำหรับทีม)
 
-| ลำดับ | รายการงานที่ต้องทำ (Task Title) | Phase อ้างอิง | สถานะ | สิ่งที่ต้องเตรียม / วิธีการทดสอบ |
-|:---:|---|:---:|:---:|---|
-| **1** | **Start & Validate Test Server** | Phase 5 & 6 | ⏳ รอทดสอบ | ก๊อปปี้ `.env` แล้วสั่งรัน `docker compose` พร้อมรัน `health-check.sh` |
-| **2** | **Deploy Public Network Tunnel** | Phase 7 | ⏳ รอเปิด Tunnel | รัน `cloudflared tunnel --url http://localhost:80` เพื่อให้ได้ Public HTTPS Endpoint |
-| **3** | **Build & Install Rider APK** | Phase 8 | ⏳ รอคอมไพล์ | กำหนด Base URL เป็น Tunnel URL แล้วรัน `flutter build apk --release` ติดตั้งลงเครื่องจริง |
-| **4** | **Stationary Test (Test A)** | Phase 9 | ⏳ รอออกภาคสนาม | เปิดแอปในที่โล่งแจ้ง เช็คพิกัดเข้า Redis และ PostGIS |
-| **5** | **Walking Test (Test B)** | Phase 10 | ⏳ รอออกภาคสนาม | เดิน 100–500m ตรวจสอบ Real-time Breadcrumb Track บน Admin Web Map |
-| **6** | **Offline Buffer & Sync (Test C)** | Phase 13 & 14 | ⏳ รอออกภาคสนาม | ปิด 4G/5G เดินต่อ แล้วเปิดเน็ต ตรวจสอบการส่ง Batch เข้า Backend อัตโนมัติ |
-| **7** | **Driving & Background Test (Test D)** | Phase 11, 12, 15 | ⏳ รอออกภาคสนาม | ขี่รถ 10–60 km/h พร้อมทดสอบล็อกหน้าจอโทรศัพท์ (Background Foreground Service) |
+### 📲 STEP 3: Build & Install Rider APK บนโทรศัพท์ Android จริง (Phase 8)
+
+#### 1. คำสั่ง Build Release APK พร้อมกำหนด Tunnel URL
+เปิด Terminal / Command Line แล้วเข้าไปที่โฟลเดอร์ `rider_app/`:
+```bash
+cd rider_app
+flutter build apk --release --dart-define=API_BASE_URL=https://soldier-competitive-transport-oregon.trycloudflare.com
+```
+*(หมายเหตุ: หาก Tunnel URL มีการรีสตาร์ท ให้เปลี่ยนค่า `API_BASE_URL` เป็น URL ล่าสุด)*
+
+#### 2. ตำแหน่งไฟล์ผลลัพธ์ (APK Artifact)
+ไฟล์ APK ที่พร้อมติดตั้งจะอยู่ที่:
+```text
+rider_app/build/app/outputs/flutter-apk/app-release.apk
+```
+
+#### 3. การติดตั้งลงบนโทรศัพท์ Android
+* **วิธีที่ 1 (ผ่านสาย USB / ADB):**
+  ```bash
+  adb install -r rider_app/build/app/outputs/flutter-apk/app-release.apk
+  ```
+* **วิธีที่ 2 (ไร้สาย):** ส่งไฟล์ `app-release.apk` เข้าโทรศัพท์ผ่าน Google Drive, LINE, หรือ Chat แล้วกดติดตั้งบนเครื่อง
+
+#### 4. การตั้งค่าสิทธิ์ที่จำเป็นบนมือถือ (Mandatory Permissions)
+* **Location Permission (สิทธิ์ตำแหน่ง):** ให้เลือก **"Allow all the time" (อนุญาตตลอดเวลา)** เพื่อให้ส่งพิกัดได้แม้พับหน้าจอ
+* **Battery Optimization (การจัดการพลังงาน):** ตั้งเป็น **"Unrestricted" (ไม่จำกัด)** เพื่อป้องกันไม่ให้ Android OS ปิดแอปขณะทำงานในพื้นหลัง
+
+---
+
+### 🗺️ STEP 4: แผนการทดสอบภาคสนามตามลำดับ (Field Testing Runbook)
+
+| ลำดับการทดสอบ | ขั้นตอนการปฏิบัติ | เกณฑ์การผ่าน (Expected Result) | เอกสารอ้างอิง |
+|---|---|---|---|
+| **Test A: Stationary Test** (ทดสอบอยู่นิ่งกลางแจ้ง) | 1. วางมือถือในที่โล่งแจ้งเปิด 4G/5G<br>2. ล็อกอินเข้าแอปแล้วกด **"พร้อมรับงาน"** | พิกัดส่งเข้า Backend, บันทึกลง Redis สด และลงประวัติ `RiderLocationHistories` | [03-gps-test.md](03-gps-test.md) |
+| **Test B: Walking Test** (ทดสอบการเดิน) | 1. ถือโทรศัพท์เดิน 100 – 500 เมตร<br>2. เปิดหน้า Admin Web Map (`http://localhost:4201`) ดูหมุดสด | Marker เคลื่อนที่ตามตำแหน่งจริงผ่าน SignalR แบบ Real-time เส้นทางต่อเนื่อง | [03-gps-test.md](03-gps-test.md) |
+| **Test C: Offline Buffer Test** (ทดสอบเน็ตหลุด) | 1. ปิดเน็ตมือถือ (4G/5G OFF)<br>2. เคลื่อนที่ต่อ 200–300 เมตร<br>3. เปิดเน็ตมือถือกลับมา (4G/5G ON) | ขณะเน็ตหลุด พิกัดเก็บลง SQLite ในเครื่อง พอเน็ตกลับมา แอปยิง Batch อัปโหลดเข้า PostGIS ครบ 100% | [04-offline-test.md](04-offline-test.md) |
+| **Test D: Driving & Screen-Lock** (ทดสอบขับรถ + ล็อกหน้าจอ) | 1. ขับขี่ยานพาหนะความเร็ว 10–60 km/h<br>2. **กดล็อกหน้าจอโทรศัพท์ (Lock Screen)** วิ่งต่อ 1–2 กม.<br>3. ปลดล็อกและเช็คประวัติ | Foreground Service ทำงานต่อเนื่อง, GPS ไม่หลุด, เส้นทางบนแผนที่ครบถ้วนสมบูรณ์ | [05-road-test.md](05-road-test.md) |
 
 ---
 
 ## 4. Definition of Done Checklist (เกณฑ์การผ่านงานขั้นสุดท้าย)
 
-- [ ] **Docker:** ทุก Service (Backend, DB, Redis, OSRM, Nginx) ทำงานปกติไม่มี Error ใน Log
-- [ ] **Network:** มือถือบน 4G/5G เรียกเข้า Public Tunnel URL และเชื่อมต่อ SignalR ได้สำเร็จ
-- [ ] **Real GPS:** มือถืออ่านพิกัดจริงจากดาวเทียม ความแม่นยำ (Accuracy) < 15 เมตร
-- [ ] **Storage & Ingestion:** พิกัดถูกบันทึกลง Redis สด และลงประวัติ PostGIS ครบถ้วน
-- [ ] **Offline Resilience:** ช่วงเน็ตหลุด พิกัดเก็บลง SQLite และอัปโหลดกู้คืนครบ 100% เมื่อเน็ตกลับมา
-- [ ] **Background Execution:** ปิดหน้าจอแล้ว Foreground Service ไม่ถูก OS ฆ่า และยังคงส่งพิกัดต่อเนื่อง
+- [x] **Docker Server:** ทุก Service (Backend, DB, Redis, OSRM, Nginx) ทำงานปกติไม่มี Error ใน Log
+- [x] **Network Tunnel:** เปิด Cloudflare Tunnel สู่สาธารณะสำเร็จ
+- [ ] **Rider APK:** Build และติดตั้งบนเครื่อง Android จริงเรียบร้อย
+- [ ] **Real GPS Ingestion:** มือถือบน 4G/5G ส่งพิกัดจริงเข้า Redis และ PostGIS ได้
+- [ ] **Offline Resilience:** ช่วงเน็ตหลุด พิกัดเก็บลง SQLite และส่งแบบ Batch ไม่สูญหาย
+- [ ] **Background Execution:** ปิดหน้าจอแล้ว Foreground Service ส่งพิกัดต่อเนื่อง

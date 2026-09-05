@@ -26,7 +26,8 @@ road-test/
     ├── 02-android-setup.md    # คู่มือ Build และติดตั้ง APK บนมือถือ
     ├── 03-gps-test.md         # ขั้นตอนทดสอบพิกัด GPS จริงเบื้องต้น (Stationary & Walking)
     ├── 04-offline-test.md     # ขั้นตอนทดสอบ Offline Buffer & Reconnection
-    └── 05-road-test.md        # ขั้นตอนทดสอบวิ่งบนถนนจริง (Driving & Background)
+    ├── 05-road-test.md        # ขั้นตอนทดสอบวิ่งบนถนนจริง (Driving & Background)
+    └── 06-status-conclusion.md # สรุปสถานะความพร้อมและ Checklist สิ่งที่ทำแล้ว/ยังไม่ได้ทำ
 ```
 
 ---

@@ -12,7 +12,12 @@ if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
     exit 0
 fi
 
-echo "Flushing Redis rider location keys..."
-docker exec -it delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" KEYS "rider:*:location" | xargs -r docker exec -it delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" DEL
+echo "Flushing Redis rider location & telemetry keys..."
+docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" DEL riders:locations || true
+docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" --scan --pattern "riders:gps:*" | xargs -r docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" DEL || true
+docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" --scan --pattern "riders:heartbeat:*" | xargs -r docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" DEL || true
+docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" --scan --pattern "riders:speed_buffer:*" | xargs -r docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" DEL || true
+docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" --scan --pattern "riders:status:*" | xargs -r docker exec delivery-redis redis-cli -a "${REDIS_PASSWORD:-password}" DEL || true
 
 echo "Data reset complete."
+

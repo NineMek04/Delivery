@@ -11,8 +11,8 @@
 2. ล็อกอินเข้าสู่ Rider App และกด **"เริ่มงาน / เข้าสู่สถานะพร้อมรับงาน"**
 3. ตรวจสอบการส่งพิกัด:
    * แอปแสดงค่า Latitude, Longitude, Accuracy ที่ถูกต้อง
-   * ตรวจสอบว่าพิกัดถูกบันทึกลงใน Redis (`rider:{id}:location`)
-   * ตรวจสอบว่าบันทึกลงในตาราง `GpsHistories` บน PostgreSQL
+   * ตรวจสอบว่าพิกัดถูกบันทึกลงใน Redis (`riders:locations` และ `riders:gps:{id}`)
+   * ตรวจสอบว่าบันทึกลงในตาราง `RiderLocationHistories` บน PostgreSQL/PostGIS
 
 ---
 

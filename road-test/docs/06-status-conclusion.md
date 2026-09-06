@@ -31,6 +31,7 @@
   - `stop-test.sh` / `stop-test.ps1` (สั่งปิดคอนเทนเนอร์)
   - `health-check.sh` / `health-check.ps1` (สคริปต์ตรวจความพร้อม Backend, Nginx, OSRM)
   - `reset-test-data.sh` / `reset-test-data.ps1` (สคริปต์ล้างข้อมูลพิกัดเทส)
+  - `build-apk.sh` / `build-apk.ps1` (สคริปต์คอมไพล์ Release APK พร้อมผูก Tunnel URL)
 - [x] **Test Runbook Documentation:**
   - `01-server-setup.md` (การตั้งค่าเซิร์ฟเวอร์และ Tunnel)
   - `02-android-setup.md` (การ Build APK และตั้งค่า Permission)
@@ -90,8 +91,7 @@ rider_app/build/app/outputs/flutter-apk/app-release.apk
 ## 4. Definition of Done Checklist (เกณฑ์การผ่านงานขั้นสุดท้าย)
 
 - [x] **Docker Server:** ทุก Service (Backend, DB, Redis, OSRM, Nginx) ทำงานปกติไม่มี Error ใน Log
-- [x] **Network Tunnel:** เปิด Cloudflare Tunnel สู่สาธารณะสำเร็จ
-- [ ] **Rider APK:** Build และติดตั้งบนเครื่อง Android จริงเรียบร้อย
+- [x] **Rider APK:** Build Release APK สำเร็จเรียบร้อย (พร้อมติดตั้งบนมือถือจริง)
 - [ ] **Real GPS Ingestion:** มือถือบน 4G/5G ส่งพิกัดจริงเข้า Redis และ PostGIS ได้
 - [ ] **Offline Resilience:** ช่วงเน็ตหลุด พิกัดเก็บลง SQLite และส่งแบบ Batch ไม่สูญหาย
 - [ ] **Background Execution:** ปิดหน้าจอแล้ว Foreground Service ส่งพิกัดต่อเนื่อง

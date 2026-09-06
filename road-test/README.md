@@ -20,7 +20,8 @@ road-test/
 │   ├── start-test.sh          # สคริปต์เริ่มการทำงานของ Test Server
 │   ├── stop-test.sh           # สคริปต์หยุดการทำงาน
 │   ├── health-check.sh        # สคริปต์ตรวจความพร้อมของ Service ทั้งหมด
-│   └── reset-test-data.sh     # สคริปต์เคลียร์ข้อมูลพิกัดทดสอบ
+│   ├── reset-test-data.sh     # สคริปต์เคลียร์ข้อมูลพิกัดทดสอบ
+│   └── build-apk.sh / .ps1    # สคริปต์ Build Release APK พร้อมผูก Tunnel URL
 └── docs/
     ├── 01-server-setup.md     # คู่มือเตรียม Server & Network Tunnel
     ├── 02-android-setup.md    # คู่มือ Build และติดตั้ง APK บนมือถือ

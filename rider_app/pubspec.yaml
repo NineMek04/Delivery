@@ -47,7 +47,7 @@ dependencies:
   image_picker: ^1.1.2
   signature: ^5.4.1
   audioplayers: ^6.1.0
-  vibration: ^1.9.0
+  vibration: ^3.2.1
 
 dev_dependencies:
   flutter_test:

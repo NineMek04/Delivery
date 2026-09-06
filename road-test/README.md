@@ -23,6 +23,7 @@ road-test/
 │   ├── reset-test-data.sh     # สคริปต์เคลียร์ข้อมูลพิกัดทดสอบ
 │   └── build-apk.sh / .ps1    # สคริปต์ Build Release APK พร้อมผูก Tunnel URL
 └── docs/
+    ├── 00-quick-start-field-test.md # ⭐ คู่มือสรุปเริ่มทดสอบภาคสนามฉบับสมบูรณ์ (สำหรับผู้คุมระบบ & ไรเดอร์)
     ├── 01-server-setup.md     # คู่มือเตรียม Server & Network Tunnel
     ├── 02-android-setup.md    # คู่มือ Build และติดตั้ง APK บนมือถือ
     ├── 03-gps-test.md         # ขั้นตอนทดสอบพิกัด GPS จริงเบื้องต้น (Stationary & Walking)

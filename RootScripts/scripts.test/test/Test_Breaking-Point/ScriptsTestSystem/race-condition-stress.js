@@ -112,6 +112,9 @@ async function main() {
     process.exit(1);
   }
   const shopId = partnerUser.user?.shopId;
+  if (shopId) {
+    execSync(`docker exec -i delivery-db psql -U postgres -d delivery_db -c "UPDATE \\"Shops\\" SET \\"IsOpen\\" = true, \\"Location\\" = ST_SetSRID(ST_MakePoint(100.5018, 13.7563), 4326) WHERE \\"Id\\" = '${shopId}';"`);
+  }
 
   const riderEmail = `race_rider_${timestamp}@test.com`;
   const riderUser = await registerUser(riderEmail, "Rider", "Race Test Rider");

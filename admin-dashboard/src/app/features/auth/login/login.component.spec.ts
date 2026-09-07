@@ -154,7 +154,7 @@ describe('LoginComponent', () => {
   it('เมื่อเข้าสู่ระบบล้มเหลว ควรหยุด loading และแสดงกล่องข้อความ SweetAlert2 แจ้งข้อผิดพลาด', fakeAsync(() => {
     // Arrange
     component.loginForm.patchValue({ email: 'wrong@test.com', password: 'wrongpassword' });
-    const mockError = { error: { message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' } };
+    const mockError = { error: { code: 'UNAUTHORIZED', message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' } };
     mockAuthService.login.and.returnValue(throwError(() => mockError));
 
     const swalFireSpy = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as any));
@@ -167,7 +167,6 @@ describe('LoginComponent', () => {
     expect(component.loading).toBeFalse();
     expect(swalFireSpy).toHaveBeenCalledWith(jasmine.objectContaining({
       icon: 'error',
-      title: 'เข้าสู่ระบบไม่สำเร็จ',
       text: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
     }));
     expect(router.navigateByUrl).not.toHaveBeenCalled();

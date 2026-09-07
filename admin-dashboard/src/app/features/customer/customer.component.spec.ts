@@ -28,7 +28,20 @@ describe('CustomerComponent', () => {
     mockAuthService.getUserData.and.returnValue({ Email: 'cust@test.com', FullName: 'Customer Test' });
     mockAuthService.getToken.and.returnValue('mock-token');
 
-    mockSignalRService = jasmine.createSpyObj('TrackingSignalRService', ['start', 'stop']);
+    mockSignalRService = jasmine.createSpyObj('TrackingSignalRService', ['start', 'stop', 'startConnection', 'stopConnection', 'on', 'off', 'listenForOrderStatus', 'listenForRiderLocation']);
+    mockSignalRService.startConnection.and.returnValue(of(true));
+    mockSignalRService.stopConnection.and.returnValue(of(true));
+    mockSignalRService.listenForOrderStatus.and.returnValue(of({}));
+    mockSignalRService.listenForRiderLocation.and.returnValue(of({}));
+    mockSignalRService.orderCreated$ = of({});
+    mockSignalRService.orderAcceptedByStore$ = of({});
+    mockSignalRService.offerReceived$ = of({});
+    mockSignalRService.orderAssigned$ = of({});
+    mockSignalRService.orderAssignedToRider$ = of({});
+    mockSignalRService.orderStatusChanged$ = of({});
+    mockSignalRService.orderStatusUpdated$ = of({});
+    mockSignalRService.riderLocationUpdated$ = of({});
+    mockSignalRService.riderLocations$ = of(new Map());
 
     await TestBed.configureTestingModule({
       imports: [

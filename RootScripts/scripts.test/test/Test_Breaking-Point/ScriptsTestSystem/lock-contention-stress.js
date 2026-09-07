@@ -138,10 +138,10 @@ async function main() {
   const shopId = partnerUser.user?.shopId;
   console.log(`  - Store Partner registered. ShopId: ${shopId}`);
 
-  // Force open the newly created shop in the database
+  // Force open and set Location on the newly created shop in the database
   try {
     const { execSync } = require("child_process");
-    execSync(`docker exec -i delivery-db psql -U postgres -d delivery_db -c "UPDATE \\"Shops\\" SET \\"IsOpen\\" = true WHERE \\"Id\\" = '${shopId}';"`);
+    execSync(`docker exec -i delivery-db psql -U postgres -d delivery_db -c "UPDATE \\"Shops\\" SET \\"IsOpen\\" = true, \\"Location\\" = ST_SetSRID(ST_MakePoint(100.5018, 13.7563), 4326) WHERE \\"Id\\" = '${shopId}';"`);
     console.log(`  - Shop ${shopId} set to Open in PostgreSQL.`);
   } catch (dbErr) {
     console.warn("  - Warning: Failed to set shop to open directly, trying fallback:", dbErr.message);
@@ -157,14 +157,18 @@ async function main() {
   const customerId = customerUser.user?.id;
   console.log(`  - Customer registered. Id: ${customerId}`);
 
-  const adminEmail = `lock_admin_${timestamp}@test.com`;
-  const adminUser = await registerUser(adminEmail, "Admin", "Lock Test Admin");
-  if (!adminUser) {
-    console.error("Critical: Admin registration failed. Aborting.");
+  let adminToken;
+  try {
+    const loginRes = await axios.post(`${API_URL}/api/v1/auth/login`, {
+      email: "admin@delivery.com",
+      password: process.env.SEED_ADMIN_PASSWORD || "Delivery_unique_bootstrap_password_2026"
+    });
+    adminToken = loginRes.data?.value?.accessToken;
+  } catch (err) {
+    console.error("Critical: Admin login failed:", err.response?.data || err.message);
     process.exit(1);
   }
-  const adminToken = adminUser.accessToken;
-  console.log(`  - Admin registered.`);
+  console.log(`  - Admin logged in.`);
 
   console.log("\n[Phase 2] Seeding orders...");
   const orderIds = [];

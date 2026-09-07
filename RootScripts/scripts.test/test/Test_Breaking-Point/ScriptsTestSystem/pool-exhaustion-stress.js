@@ -94,15 +94,19 @@ async function main() {
 
   const timestamp = Date.now();
   
-  console.log("[Phase 1] Provisioning Admin user...");
-  const adminEmail = `pool_admin_${timestamp}@test.com`;
-  const adminUser = await registerUser(adminEmail, "Admin", "Pool Test Admin");
-  if (!adminUser) {
-    console.error("Critical: Admin registration failed. Aborting.");
+  console.log("[Phase 1] Logging in Admin user...");
+  let adminToken;
+  try {
+    const loginRes = await axios.post(`${API_URL}/api/v1/auth/login`, {
+      email: "admin@delivery.com",
+      password: process.env.SEED_ADMIN_PASSWORD || "Delivery_unique_bootstrap_password_2026"
+    });
+    adminToken = loginRes.data?.value?.accessToken;
+  } catch (err) {
+    console.error("Critical: Admin login failed:", err.response?.data || err.message);
     process.exit(1);
   }
-  const adminToken = adminUser.accessToken;
-  console.log("  - Admin user registered.");
+  console.log("  - Admin logged in successfully.");
 
   console.log("\n[Phase 2] Executing Concurrent API requests...");
   console.log("  Sending concurrent requests to database-bound endpoint...");

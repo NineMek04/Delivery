@@ -20,6 +20,12 @@ if ([string]::IsNullOrWhiteSpace($TunnelUrl)) {
 # Trim trailing slash if present
 $TunnelUrl = $TunnelUrl.TrimEnd('/')
 
+if (-not ($TunnelUrl -match '^https?://')) {
+    Write-Host "`n[ERROR] Invalid Server Public URL: '$TunnelUrl'" -ForegroundColor Red
+    Write-Host "The URL must start with http:// or https:// (e.g. https://xxxx.trycloudflare.com)" -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Host "`nTarget Server Base URL: $TunnelUrl" -ForegroundColor Yellow
 
 # Auto-detect Flutter SDK path if not in current session PATH

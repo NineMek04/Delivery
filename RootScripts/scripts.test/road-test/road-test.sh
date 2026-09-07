@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Road Test Master Control Center for Linux/macOS Bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -64,7 +64,23 @@ run_workflow() {
 }
 
 ACTION="${1:-menu}"
-TUNNEL_URL="$2"
+shift 2>/dev/null || true
+
+TUNNEL_URL=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -TunnelUrl|--tunnel-url|--url|-u)
+            TUNNEL_URL="$2"
+            shift 2 2>/dev/null || shift 1
+            ;;
+        *)
+            if [ -z "$TUNNEL_URL" ]; then
+                TUNNEL_URL="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 case "$ACTION" in
     start)    run_start; exit 0 ;;

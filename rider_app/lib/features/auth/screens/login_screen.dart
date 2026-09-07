@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_service.dart';
+import '../../../core/config/environment.dart';
+import '../../../core/config/server_config_service.dart';
 import '../../../shared/widgets/error_dialog.dart';
 import '../providers/auth_provider.dart';
 
@@ -18,6 +21,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // On native devices, if no server URL has been configured at all, guide the user to Server Settings
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!kIsWeb && Environment.apiBaseUrl.isEmpty) {
+        context.push('/server-settings');
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -78,8 +92,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authForm = ref.watch(authNotifierProvider);
+    final activeServerUrl = ref.watch(serverUrlProvider);
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'ตั้งค่า Server URL',
+            onPressed: () => context.push('/server-settings'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -174,6 +200,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: const Text('สมัครสมาชิก'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 20),
+                  // ── Server URL Status Chip ──
+                  InkWell(
+                    onTap: () => context.push('/server-settings'),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: activeServerUrl.isNotEmpty
+                              ? Colors.green.withValues(alpha: 0.5)
+                              : Colors.orange.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.dns_rounded,
+                            size: 14,
+                            color: activeServerUrl.isNotEmpty ? Colors.greenAccent : Colors.orangeAccent,
+                          ),
+                          const SizedBox(width: 6),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            child: Text(
+                              activeServerUrl.isNotEmpty
+                                  ? (Uri.tryParse(activeServerUrl)?.host.isNotEmpty == true
+                                      ? Uri.parse(activeServerUrl).host
+                                      : activeServerUrl)
+                                  : '⚙️ ตั้งค่า Server URL',
+                              style: const TextStyle(fontSize: 12, color: Colors.white70),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),

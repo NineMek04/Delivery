@@ -22,30 +22,38 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$TUNNEL_URL" ]; then
-    read -p "Enter Server Public URL (e.g. https://xxxx.trycloudflare.com): " TUNNEL_URL
+    read -p "Enter Server Public URL (Optional, press Enter to configure in-app): " TUNNEL_URL
 fi
 
 # Trim trailing slash
 TUNNEL_URL="${TUNNEL_URL%/}"
 
-if [[ ! "$TUNNEL_URL" =~ ^https?:// ]]; then
+if [ -n "$TUNNEL_URL" ] && [[ ! "$TUNNEL_URL" =~ ^https?:// ]]; then
     echo -e "\033[0;31m\n[ERROR] Invalid Server Public URL: '$TUNNEL_URL'\033[0m"
     echo -e "\033[0;33mThe URL must start with http:// or https:// (e.g. https://xxxx.trycloudflare.com)\033[0m"
-    echo -e "\033[0;33mUsage: bash road-test.sh build 'https://xxxx.trycloudflare.com'\n\033[0m"
     exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RIDER_APP_DIR="$(cd "$SCRIPT_DIR/../../../../rider_app" && pwd)"
 
-echo -e "\n\033[0;33mTarget Server Base URL: $TUNNEL_URL\033[0m"
+if [ -n "$TUNNEL_URL" ]; then
+    echo -e "\n\033[0;33mTarget Server Base URL (Pre-configured): $TUNNEL_URL\033[0m"
+else
+    echo -e "\n\033[0;33mTarget Server Base URL: Configurable inside app via Server Settings\033[0m"
+fi
+
 cd "$RIDER_APP_DIR"
 
 echo -e "\n\033[0;36m--> Fetching Flutter dependencies...\033[0m"
 flutter pub get
 
 echo -e "\n\033[0;36m--> Compiling Android Release APK...\033[0m"
-flutter build apk --release --android-skip-build-dependency-validation --dart-define=API_BASE_URL="$TUNNEL_URL"
+if [ -n "$TUNNEL_URL" ]; then
+    flutter build apk --release --android-skip-build-dependency-validation --dart-define=API_BASE_URL="$TUNNEL_URL"
+else
+    flutter build apk --release --android-skip-build-dependency-validation
+fi
 
 echo -e "\n\033[0;32m=================================================="
 echo -e " ✅ APK Build Completed Successfully!"

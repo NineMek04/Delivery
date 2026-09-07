@@ -17,12 +17,33 @@ import 'package:flutter/foundation.dart';
 class Environment {
   Environment._();
 
-  /// Empty string → use same-origin nginx proxy (correct for Docker Web).
-  /// Override with --dart-define=API_BASE_URL=<url> for native device dev.
-  static const String apiBaseUrl = String.fromEnvironment(
+  /// Compile-time default URL set via --dart-define=API_BASE_URL=<url>
+  static const String _defaultApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '', // ← empty = same-origin (Docker/Web). NOT 10.0.2.2
   );
+
+  /// Runtime custom URL stored in local storage / SharedPreferences
+  static String? _customBaseUrl;
+
+  /// Returns active base URL (runtime custom override takes precedence over compile-time default).
+  static String get apiBaseUrl => _customBaseUrl ?? _defaultApiBaseUrl;
+
+  /// Checks whether a runtime custom URL is currently active.
+  static bool get hasCustomBaseUrl => _customBaseUrl != null && _customBaseUrl!.isNotEmpty;
+
+  /// Sets or clears the runtime custom base URL.
+  static void setCustomBaseUrl(String? url) {
+    if (url != null && url.trim().isNotEmpty) {
+      var trimmed = url.trim();
+      while (trimmed.endsWith('/')) {
+        trimmed = trimmed.substring(0, trimmed.length - 1);
+      }
+      _customBaseUrl = trimmed;
+    } else {
+      _customBaseUrl = null;
+    }
+  }
 
   static const String apiPrefix = '/api/v1';
 

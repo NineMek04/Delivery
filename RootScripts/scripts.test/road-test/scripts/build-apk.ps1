@@ -8,25 +8,20 @@ Write-Host " Building Rider App APK for Real Road Test...     " -ForegroundColor
 Write-Host "==================================================" -ForegroundColor Cyan
 
 if ([string]::IsNullOrWhiteSpace($TunnelUrl)) {
-    $TunnelUrl = Read-Host "Enter Server Public URL (e.g. https://xxxx.trycloudflare.com)"
+    $TunnelUrl = Read-Host "Enter Server Public URL (Optional, press Enter to configure in-app)"
 }
 
-if ([string]::IsNullOrWhiteSpace($TunnelUrl)) {
-    Write-Host "`n[ERROR] Server Public URL is required to build the APK." -ForegroundColor Red
-    Write-Host "Usage: powershell ./road-test/scripts/build-apk.ps1 -TunnelUrl 'https://xxxx.trycloudflare.com'`n" -ForegroundColor Yellow
-    exit 1
+if (-not [string]::IsNullOrWhiteSpace($TunnelUrl)) {
+    $TunnelUrl = $TunnelUrl.TrimEnd('/')
+    if (-not ($TunnelUrl -match '^https?://')) {
+        Write-Host "`n[ERROR] Invalid Server Public URL: '$TunnelUrl'" -ForegroundColor Red
+        Write-Host "The URL must start with http:// or https:// (e.g. https://xxxx.trycloudflare.com)" -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host "`nTarget Server Base URL (Pre-configured): $TunnelUrl" -ForegroundColor Yellow
+} else {
+    Write-Host "`nTarget Server Base URL: Configurable inside app via Server Settings" -ForegroundColor Yellow
 }
-
-# Trim trailing slash if present
-$TunnelUrl = $TunnelUrl.TrimEnd('/')
-
-if (-not ($TunnelUrl -match '^https?://')) {
-    Write-Host "`n[ERROR] Invalid Server Public URL: '$TunnelUrl'" -ForegroundColor Red
-    Write-Host "The URL must start with http:// or https:// (e.g. https://xxxx.trycloudflare.com)" -ForegroundColor Yellow
-    exit 1
-}
-
-Write-Host "`nTarget Server Base URL: $TunnelUrl" -ForegroundColor Yellow
 
 # Auto-detect Flutter SDK path if not in current session PATH
 if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
@@ -74,7 +69,11 @@ try {
     }
 
     Write-Host "`n--> Compiling Android Release APK..." -ForegroundColor Cyan
-    flutter build apk --release --android-skip-build-dependency-validation --dart-define=API_BASE_URL=$TunnelUrl
+    if (-not [string]::IsNullOrWhiteSpace($TunnelUrl)) {
+        flutter build apk --release --android-skip-build-dependency-validation --dart-define=API_BASE_URL=$TunnelUrl
+    } else {
+        flutter build apk --release --android-skip-build-dependency-validation
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "`n[ERROR] APK Build failed!" -ForegroundColor Red
         exit $LASTEXITCODE

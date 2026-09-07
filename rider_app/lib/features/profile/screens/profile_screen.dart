@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../shared/widgets/error_dialog.dart';
@@ -334,6 +335,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         label: 'การแจ้งเตือน',
                         iconColor: AppTheme.warningColor,
                         onTap: _showNotificationSettingsDialog,
+                      ),
+                      _Divider(),
+                      _ActionRow(
+                        icon: Icons.dns_outlined,
+                        label: 'ตั้งค่า Server URL',
+                        iconColor: AppTheme.primaryColor,
+                        onTap: () => context.push('/server-settings'),
                       ),
                     ],
                   ),

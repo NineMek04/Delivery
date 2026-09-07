@@ -82,6 +82,13 @@ class CustomerProfileScreen extends ConsumerWidget {
               subtitle: 'ศูนย์ช่วยเหลือและคำถามที่พบบ่อย',
               onTap: () {},
             ),
+            _buildOption(
+              context,
+              icon: Icons.dns_outlined,
+              title: 'ตั้งค่า Server URL',
+              subtitle: 'กำหนด Cloudflare Tunnel หรือ IP เซิร์ฟเวอร์',
+              onTap: () => context.push('/server-settings'),
+            ),
             
             const SizedBox(height: 32),
             SizedBox(

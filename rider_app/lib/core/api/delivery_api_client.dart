@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/environment.dart';
+import '../config/server_config_service.dart';
 import 'api_interceptors.dart';
 import 'web_url_resolver_stub.dart'
     if (dart.library.html) 'web_url_resolver_web.dart';
@@ -19,7 +20,7 @@ import 'web_url_resolver_stub.dart'
 String _resolveBaseUrl() {
   String url;
 
-  // Explicit base URL set via --dart-define (native dev).
+  // Explicit base URL set via --dart-define or runtime settings.
   if (Environment.apiBaseUrl.isNotEmpty) {
     url = Environment.apiUrl;
   } else if (kIsWeb) {
@@ -44,6 +45,9 @@ String _resolveBaseUrl() {
 
 /// Dio-based HTTP client for communicating with BackendApi.
 final deliveryApiClientProvider = Provider<Dio>((ref) {
+  // Recreate client whenever the server URL is updated in settings
+  ref.watch(serverUrlProvider);
+
   final baseUrl = _resolveBaseUrl();
 
   final dio = Dio(

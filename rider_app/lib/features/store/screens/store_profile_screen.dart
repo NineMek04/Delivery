@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:go_router/go_router.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/api/services/shop_api_service.dart';
 import '../../../core/auth/auth_service.dart';
@@ -165,6 +166,18 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
             title: const Text('แก้ไขข้อมูลร้าน'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showEditShopDialog(context, shop),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Server Settings ──────────────────────────────────────
+        _ProfileCard(
+          child: ListTile(
+            leading: const Icon(Icons.dns_outlined, color: AppTheme.primaryColor),
+            title: const Text('ตั้งค่า Server URL'),
+            subtitle: const Text('กำหนด Cloudflare Tunnel หรือ IP เซิร์ฟเวอร์', style: TextStyle(fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/server-settings'),
           ),
         ),
         const SizedBox(height: 24),

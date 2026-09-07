@@ -29,6 +29,7 @@ import '../features/profile/screens/customer_profile_screen.dart';
 import '../features/profile/screens/customer_addresses_screen.dart';
 import '../features/profile/screens/customer_address_map_screen.dart';
 import '../features/tracking/customer_tracking_screen.dart';
+import '../features/settings/screens/server_settings_screen.dart';
 import '../shared/widgets/error_dialog.dart';
 
 /// Provider to notify the UI about unauthorized route access attempts.
@@ -56,6 +57,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authNotifier = ref.read(authServiceProvider.notifier);
       final isLoginRoute = state.matchedLocation == '/login';
       final isRegisterRoute = state.matchedLocation == '/register';
+      final isServerSettingsRoute = state.matchedLocation == '/server-settings';
+
+      // Always permit accessing server settings regardless of login state or role
+      if (isServerSettingsRoute) {
+        return null;
+      }
+
       final isGuestRoute = isLoginRoute || isRegisterRoute;
       
       final isStoreRoute = state.matchedLocation.startsWith('/store');
@@ -130,6 +138,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/register',
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/server-settings',
+        name: 'serverSettings',
+        builder: (context, state) => const ServerSettingsScreen(),
       ),
 
       // ── Rider Routes ─────────────────────────────────────────────

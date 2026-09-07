@@ -28,6 +28,10 @@ services:
     ports:
       - "127.0.0.1:4201:80"
 
+  nginx-proxy:
+    ports:
+      - "80:80"
+
   rider-app:
     build:
       args:

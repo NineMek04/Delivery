@@ -12,7 +12,8 @@
     </div>
 
     <div class="map-controls">
-      <button type="button" (click)="recenter()">◎</button>
+      <button type="button" (click)="recenter()" title="Recenter Map">◎</button>
+      <button type="button" class="btn-map-theme" (click)="toggleMapTheme()" [title]="isDarkMode ? 'Switch to Light/Street View (Detailed Sois)' : 'Switch to Dark Mode'">{{ isDarkMode ? '🗺️' : '🌙' }}</button>
       <button type="button" class="btn-sim-follow" [class.active]="simAutoFollow" (click)="toggleSimAutoFollow()" title="Sim Auto-Follow Focus">🎬</button>
     </div>
 

@@ -14,6 +14,8 @@ import '../../../shared/widgets/connection_status_bar.dart';
 import '../../../shared/widgets/error_dialog.dart';
 import '../../../shared/widgets/loading_overlay.dart';
 import '../../../shared/widgets/offer_bottom_sheet.dart';
+import '../../../core/services/app_update_service.dart';
+import '../../../shared/widgets/app_update_dialog.dart';
 import '../providers/home_provider.dart';
 
 /// Home — dashboard, online toggle, incoming offers.
@@ -33,7 +35,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(homeNotifierProvider.notifier).loadDashboard();
       ref.read(deliveryNotifierProvider.notifier).loadOrders();
+      _checkForAppUpdate();
     });
+  }
+
+  void _checkForAppUpdate() async {
+    final updateService = AppUpdateService();
+    final updateInfo = await updateService.checkForUpdate();
+    if (updateInfo != null && mounted) {
+      AppUpdateDialog.show(context, updateInfo);
+    }
   }
 
   void _maybeShowOffer(HomeState home) {
@@ -323,7 +334,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           const SizedBox(width: 8),
                           _stat(context, 'ส่งสำเร็จ', '${home.completedOrderCount}', Icons.check_circle, Colors.green),
                           const SizedBox(width: 8),
-                          _stat(context, 'รายได้', '฿450', Icons.account_balance_wallet, Colors.orange),
+                          _stat(context, 'รายได้', '฿${home.totalEarnings.toStringAsFixed(0)}', Icons.account_balance_wallet, Colors.orange),
                         ],
                       ),
                       const SizedBox(height: 24),

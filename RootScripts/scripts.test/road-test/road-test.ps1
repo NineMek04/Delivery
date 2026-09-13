@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Road Test Master Control Center
 .DESCRIPTION
@@ -48,7 +48,12 @@ function Run-Health {
 function Run-Tunnel {
     Write-Host "`n[Action] Starting Cloudflare Tunnel via Docker..." -ForegroundColor Yellow
     Write-Host "NOTE: Keep this window running to maintain public connectivity.`n" -ForegroundColor DarkYellow
-    docker run --rm -it --network=host cloudflare/cloudflared:latest tunnel --url http://localhost:80
+    $net = docker network ls --filter name=delivery_default -q
+    if ($net) {
+        docker run --rm -it --network=delivery_default cloudflare/cloudflared:latest tunnel --url http://nginx-proxy:80
+    } else {
+        docker run --rm -it --network=host cloudflare/cloudflared:latest tunnel --url http://localhost:80
+    }
 }
 
 function Run-BuildApk {

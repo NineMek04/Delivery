@@ -110,7 +110,7 @@ class GpsBufferService {
       return;
     }
     try {
-      // Adaptive sampling — skip point if not moved enough
+      // Adaptive sampling — buffer if moved >= 3m or if heading changed >= 10 deg
       if (_lastBufferedLat != null && _lastBufferedLng != null) {
         final distance = Geolocator.distanceBetween(
           _lastBufferedLat!,
@@ -119,12 +119,12 @@ class GpsBufferService {
           longitude,
         );
 
-        bool shouldBuffer = distance >= 15.0;
+        bool shouldBuffer = distance >= 3.0;
 
         if (!shouldBuffer && heading != null && _lastBufferedHeading != null) {
           final diff = (heading - _lastBufferedHeading!).abs();
           final normalized = diff > 180 ? 360 - diff : diff;
-          if (normalized >= 15.0) shouldBuffer = true;
+          if (normalized >= 10.0) shouldBuffer = true;
         } else if (!shouldBuffer && heading != null) {
           shouldBuffer = true;
         }

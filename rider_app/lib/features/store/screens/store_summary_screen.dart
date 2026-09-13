@@ -1,144 +1,247 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
-import '../../../models/shop.dart';
+import '../../../core/config/environment.dart';
+import '../../../models/store_report.dart';
 import '../providers/store_providers.dart';
 
-/// Store Summary Screen — Page 2: Sales stats, top items, reviews.
-///
-/// Currently uses mock data (sales/reviews) since these are not yet
-/// implemented in the backend. Menu items come from real data.
+/// Store Summary Screen — Revenue & Orders analytics, Top items, Detail breakdown, and CSV Export.
 class StoreSummaryScreen extends ConsumerWidget {
   const StoreSummaryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final menuAsync = ref.watch(menuItemsProvider);
+    final period = ref.watch(storeReportPeriodProvider);
+    final reportAsync = ref.watch(storeReportSummaryProvider);
     final shopAsync = ref.watch(currentShopProvider);
 
+    final currencyFmt = NumberFormat('#,##0', 'th_TH');
+    final dateFmt = DateFormat('dd/MM/yyyy HH:mm', 'th_TH');
+
     return Scaffold(
-      appBar: AppBar(title: const Text('สรุปยอดขาย')),
+      appBar: AppBar(
+        title: const Text('สรุปยอดขายและบัญชี'),
+        actions: [
+          IconButton(
+            tooltip: 'รีเฟรชข้อมูล',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(storeReportSummaryProvider),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.read(menuItemsProvider.notifier).refresh(),
+        onRefresh: () async {
+          ref.invalidate(storeReportSummaryProvider);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── Summary Stats Cards ──────────────────────────────────
-            _SectionTitle(title: 'ภาพรวมวันนี้'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.shopping_bag,
-                    label: 'ออเดอร์วันนี้',
-                    value: '12',
-                    color: AppTheme.primaryColor,
-                  ),
+            // ── Period Filter (Day / Month / Year) ───────────────────
+            Center(
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'day', label: Text('วันนี้')),
+                  ButtonSegment(value: 'month', label: Text('เดือนนี้')),
+                  ButtonSegment(value: 'year', label: Text('ทั้งปี')),
+                ],
+                selected: {period},
+                onSelectionChanged: (Set<String> selected) {
+                  ref.read(storeReportPeriodProvider.notifier).state =
+                      selected.first;
+                },
+                style: SegmentedButton.styleFrom(
+                  selectedBackgroundColor: AppTheme.primaryColor,
+                  selectedForegroundColor: Colors.white,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.attach_money,
-                    label: 'ยอดขาย',
-                    value: '฿2,480',
-                    color: AppTheme.accentColor,
-                  ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.star,
-                    label: 'คะแนนเฉลี่ย',
-                    value: '4.7',
-                    color: const Color(0xFFF59E0B),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.people,
-                    label: 'ลูกค้าใหม่',
-                    value: '5',
-                    color: const Color(0xFF8B5CF6),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // ── Top Menu Items ──────────────────────────────────────
-            _SectionTitle(title: 'เมนูยอดนิยม'),
-            const SizedBox(height: 12),
-            menuAsync.when(
-              data: (items) {
-                if (items.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('ยังไม่มีเมนูสินค้า')),
-                  );
-                }
-                // Show top 5 items (mock ordering by name for now)
-                final topItems = items.take(5).toList();
-                return Column(
-                  children: topItems.asMap().entries.map((entry) {
-                    return _TopItemTile(
-                      rank: entry.key + 1,
-                      item: entry.value,
-                      orderCount: _mockOrderCount(entry.key),
+            // ── Data Content ─────────────────────────────────────────
+            reportAsync.when(
+              data: (report) {
+                final summary = report ??
+                    const StoreReportSummaryDto(
+                      period: 'day',
                     );
-                  }).toList(),
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Summary Cards ──────────────────────────────
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.attach_money,
+                            label: 'ยอดขายรวม',
+                            value: '฿${currencyFmt.format(summary.totalRevenue)}',
+                            color: AppTheme.accentColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.check_circle_outline,
+                            label: 'ออเดอร์สำเร็จ',
+                            value:
+                                '${summary.completedOrders} / ${summary.totalOrders}',
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.receipt_long,
+                            label: 'เฉลี่ยต่อบิล',
+                            value:
+                                '฿${currencyFmt.format(summary.averageOrderValue)}',
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.cancel_outlined,
+                            label: 'ยกเลิก',
+                            value: '${summary.cancelledOrders}',
+                            color: summary.cancelledOrders > 0
+                                ? AppTheme.errorColor
+                                : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── Export CSV Action ────────────────────────────
+                    shopAsync.when(
+                      data: (shop) {
+                        if (shop == null) return const SizedBox.shrink();
+                        return SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.primaryColor,
+                              side: const BorderSide(color: AppTheme.primaryColor),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.download),
+                            label: const Text(
+                              'ส่งออกเอกสารรายงาน (Export CSV)',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            onPressed: () async {
+                              final url = Uri.parse(
+                                '${Environment.apiUrl}/shops/${shop.id}/reports/export?period=$period&format=csv',
+                              );
+                              try {
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                } else {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('ดาวน์โหลด: $url'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Top Menu Items ──────────────────────────────
+                    const _SectionTitle(title: 'เมนูยอดนิยม'),
+                    const SizedBox(height: 12),
+                    if (summary.topItems.isEmpty)
+                      const _EmptyCard(text: 'ยังไม่มีสถิติเมนูสินค้าในช่วงเวลานี้')
+                    else
+                      ...summary.topItems.asMap().entries.map((entry) {
+                        final rank = entry.key + 1;
+                        final item = entry.value;
+                        return _TopItemTile(
+                          rank: rank,
+                          name: item.name,
+                          quantity: item.quantity,
+                          revenue: item.revenue,
+                        );
+                      }),
+                    const SizedBox(height: 24),
+
+                    // ── Detailed Orders List ─────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const _SectionTitle(title: 'รายละเอียดคำสั่งซื้อ'),
+                        Text(
+                          '${summary.orders.length} รายการ',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (summary.orders.isEmpty)
+                      const _EmptyCard(text: 'ไม่มีรายการคำสั่งซื้อในช่วงเวลานี้')
+                    else
+                      ...summary.orders.map((ord) => _OrderDetailCard(
+                            order: ord,
+                            dateFmt: dateFmt,
+                            currencyFmt: currencyFmt,
+                          )),
+                    const SizedBox(height: 32),
+                  ],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Center(child: Text('ไม่สามารถโหลดข้อมูลได้')),
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (err, _) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          size: 40, color: AppTheme.errorColor),
+                      const SizedBox(height: 12),
+                      Text('ไม่สามารถโหลดข้อมูลรายงานได้: $err'),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 24),
-
-            // ── Recent Reviews ──────────────────────────────────────
-            _SectionTitle(title: 'รีวิวล่าสุด'),
-            const SizedBox(height: 12),
-            ..._mockReviews.map((r) => _ReviewCard(review: r)),
-            const SizedBox(height: 24),
-
-            // ── Weekly Chart (placeholder) ──────────────────────────
-            _SectionTitle(title: 'ยอดขาย 7 วันย้อนหลัง'),
-            const SizedBox(height: 12),
-            _WeeklyChart(),
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
-
-  int _mockOrderCount(int index) {
-    return [45, 38, 27, 19, 12][index % 5];
-  }
 }
-
-// ── Mock Reviews ─────────────────────────────────────────────────
-class _MockReview {
-  final String name;
-  final double rating;
-  final String comment;
-  final String time;
-
-  const _MockReview(this.name, this.rating, this.comment, this.time);
-}
-
-const _mockReviews = [
-  _MockReview('สมชาย', 5.0, 'อร่อยมากครับ จัดส่งเร็ว 👍', '15 นาทีที่แล้ว'),
-  _MockReview('สมหญิง', 4.0, 'รสชาติดี แต่รอนานหน่อย', '1 ชั่วโมงที่แล้ว'),
-  _MockReview('วิชัย', 5.0, 'ประทับใจเลยครับ สั่งซ้ำแน่นอน!', '3 ชั่วโมงที่แล้ว'),
-];
 
 // ═══════════════════════════════════════════════════════════════════
 // Section Title
@@ -149,7 +252,38 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(title, style: Theme.of(context).textTheme.headlineSmall);
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Empty State Card
+// ═══════════════════════════════════════════════════════════════════
+class _EmptyCard extends StatelessWidget {
+  final String text;
+  const _EmptyCard({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+        ),
+      ),
+    );
   }
 }
 
@@ -192,12 +326,15 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             value,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
           ),
           const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            label,
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+          ),
         ],
       ),
     );
@@ -209,17 +346,21 @@ class _StatCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 class _TopItemTile extends StatelessWidget {
   final int rank;
-  final MenuItemDto item;
-  final int orderCount;
+  final String name;
+  final int quantity;
+  final double revenue;
 
   const _TopItemTile({
     required this.rank,
-    required this.item,
-    required this.orderCount,
+    required this.name,
+    required this.quantity,
+    required this.revenue,
   });
 
   @override
   Widget build(BuildContext context) {
+    final currencyFmt = NumberFormat('#,##0', 'th_TH');
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -237,21 +378,14 @@ class _TopItemTile extends StatelessWidget {
             ),
           ),
         ),
-        title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text('฿${item.price.toStringAsFixed(0)}'),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '$orderCount',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.accentColor,
-                  ),
-            ),
-            const Text('ออเดอร์', style: TextStyle(fontSize: 11)),
-          ],
+        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text('ขายได้ $quantity จาน'),
+        trailing: Text(
+          '฿${currencyFmt.format(revenue)}',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppTheme.accentColor,
+          ),
         ),
       ),
     );
@@ -259,121 +393,112 @@ class _TopItemTile extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Review Card
+// Order Detail Card
 // ═══════════════════════════════════════════════════════════════════
-class _ReviewCard extends StatelessWidget {
-  final _MockReview review;
+class _OrderDetailCard extends StatelessWidget {
+  final StoreOrderDetailDto order;
+  final DateFormat dateFmt;
+  final NumberFormat currencyFmt;
 
-  const _ReviewCard({required this.review});
+  const _OrderDetailCard({
+    required this.order,
+    required this.dateFmt,
+    required this.currencyFmt,
+  });
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'delivered':
+      case 'completed':
+        return AppTheme.accentColor;
+      case 'cancelled':
+        return AppTheme.errorColor;
+      default:
+        return AppTheme.primaryColor;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = _statusColor(order.status);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.surfaceCard,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+              Text(
+                '#${order.trackingNumber}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
                 child: Text(
-                  review.name[0],
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
+                  order.status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(review.name, style: Theme.of(context).textTheme.titleSmall),
-                    Text(review.time, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-                  ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                order.createdAt != null
+                    ? dateFmt.format(order.createdAt!.toLocal())
+                    : '-',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12,
                 ),
               ),
-              ...List.generate(
-                5,
-                (i) => Icon(
-                  i < review.rating ? Icons.star : Icons.star_border,
-                  size: 16,
-                  color: const Color(0xFFF59E0B),
+              Text(
+                '฿${currencyFmt.format(order.totalAmount)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(review.comment, style: Theme.of(context).textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Weekly Chart (Simple bar chart via CustomPaint)
-// ═══════════════════════════════════════════════════════════════════
-class _WeeklyChart extends StatelessWidget {
-  final List<double> data = const [1200, 1800, 1500, 2200, 1900, 2480, 1600];
-  final List<String> labels = const ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
-
-  @override
-  Widget build(BuildContext context) {
-    final maxVal = data.reduce((a, b) => a > b ? a : b);
-
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(data.length, (i) {
-          final height = (data[i] / maxVal) * 140;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    '${(data[i] / 1000).toStringAsFixed(1)}k',
-                    style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
+          if (order.riderName != null && order.riderName!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.motorcycle, size: 14, color: AppTheme.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  'ไรเดอร์: ${order.riderName}',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
                   ),
-                  const SizedBox(height: 4),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 500),
-                    height: height,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          AppTheme.primaryColor.withValues(alpha: 0.6),
-                          AppTheme.primaryColor,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(labels[i], style: const TextStyle(fontSize: 12)),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        }),
+          ],
+        ],
       ),
     );
   }

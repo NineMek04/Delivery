@@ -162,10 +162,32 @@ public static class ServiceSetup
                 var allowedOrigins = ResolveCorsOrigins(configuration);
 
                 policy
-                    .WithOrigins(allowedOrigins)
+                    .SetIsOriginAllowed(origin =>
+                    {
+                        if (string.IsNullOrWhiteSpace(origin)) return false;
+
+                        if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                            return true;
+
+                        if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                        {
+                            if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                                uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase))
+                                return true;
+
+                            if (uri.Host.EndsWith(".trycloudflare.com", StringComparison.OrdinalIgnoreCase))
+                                return true;
+
+                            if (IsPrivateNetwork(uri.Host))
+                                return true;
+                        }
+
+                        return false;
+                    })
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials();
+
             });
         });
 
@@ -329,7 +351,23 @@ public static class ServiceSetup
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    private static bool IsPrivateNetwork(string host)
+    {
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            var bytes = ip.GetAddressBytes();
+            if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                if (bytes[0] == 10) return true;
+                if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+                if (bytes[0] == 192 && bytes[1] == 168) return true;
+            }
+        }
+        return false;
+    }
 }
+
 
 
 

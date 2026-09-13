@@ -8,6 +8,7 @@ import '../../../core/api/services/menu_category_api_service.dart';
 import '../../../core/api/services/auth_api_service.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../models/shop.dart';
+import '../../../models/store_report.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // Shop Provider — loads the shop linked to the current StorePartner user
@@ -156,7 +157,7 @@ class MenuItemsNotifier extends AsyncNotifier<List<MenuItemDto>> {
     }
     final currentList = state.value ?? [];
     state = AsyncValue.data(
-      currentList.where((item) => item.id != id).toList()
+      currentList.where((item) => item.id != id).toList(),
     );
   }
 
@@ -175,7 +176,7 @@ class MenuItemsNotifier extends AsyncNotifier<List<MenuItemDto>> {
     }
     final currentList = state.value ?? [];
     state = AsyncValue.data(
-      currentList.where((item) => !ids.contains(item.id)).toList()
+      currentList.where((item) => !ids.contains(item.id)).toList(),
     );
     debugPrint('[MenuItemsNotifier] deleteItems successfully updated local state list');
   }
@@ -184,3 +185,25 @@ class MenuItemsNotifier extends AsyncNotifier<List<MenuItemDto>> {
     ref.invalidateSelf();
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Store Reports Provider — Sales & Order Summary (Day / Month / Year)
+// ═══════════════════════════════════════════════════════════════════
+
+final storeReportPeriodProvider = StateProvider<String>((ref) => 'day');
+
+final storeReportSummaryProvider =
+    FutureProvider<StoreReportSummaryDto?>((ref) async {
+  final shop = await ref.watch(currentShopProvider.future);
+  if (shop == null) return null;
+
+  final period = ref.watch(storeReportPeriodProvider);
+  final shopApi = ref.read(shopApiServiceProvider);
+
+  try {
+    return await shopApi.getReportSummary(shop.id, period: period);
+  } catch (e) {
+    debugPrint('[storeReportSummaryProvider] Failed to fetch report summary: $e');
+    return null;
+  }
+});

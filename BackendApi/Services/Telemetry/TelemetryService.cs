@@ -41,7 +41,7 @@ namespace BackendApi.Services.Telemetry
         private readonly ILogger<TelemetryService> _logger;
 
         private const string AdminGroup = "admins";
-        private const double CoreAccuracyThresholdMeters = 50.0;
+        private const double CoreAccuracyThresholdMeters = 150.0;
         private const double UiOnlyAccuracyThresholdMeters = 300.0;
 
         public TelemetryService(

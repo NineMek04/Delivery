@@ -1,4 +1,4 @@
-﻿using BackendApi.Core;
+using BackendApi.Core;
 using BackendApi.Core.Models;
 using BackendApi.Core.Models.Response;
 using BackendApi.Core.Models.Entities;
@@ -217,7 +217,7 @@ public class AuthController : DeliveryControllerBase
         }
 
         var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var requireSecure = config.GetValue("Authentication:RequireSecureCookie", false);
+        var requireSecure = config.GetValue("Authentication:RequireSecureCookie", false) && HttpContext.Request.IsHttps;
         var sameSite = SameSiteMode.Lax;
 
         Response.Cookies.Append(AuthConstants.AccessTokenCookieName, accessToken, new CookieOptions
@@ -254,7 +254,7 @@ public class AuthController : DeliveryControllerBase
     private void DeleteAuthCookies()
     {
         var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var requireSecure = config.GetValue("Authentication:RequireSecureCookie", false);
+        var requireSecure = config.GetValue("Authentication:RequireSecureCookie", false) && HttpContext.Request.IsHttps;
 
         Response.Cookies.Delete(AuthConstants.AccessTokenCookieName, new CookieOptions
         {

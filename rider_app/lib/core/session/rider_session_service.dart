@@ -86,11 +86,11 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       final hadActiveOrder = previous?.activeOrder != null;
 
       if (hasActiveOrder && !hadActiveOrder) {
-        // Rider status changed to BUSY
-        _updateGpsInterval(5); // 5s interval
+        // Rider has active orders — high frequency
+        _updateGpsInterval(3); // 3s interval
       } else if (!hasActiveOrder && hadActiveOrder) {
-        // Rider status changed to IDLE
-        _updateGpsInterval(30); // 30s interval
+        // Rider status changed to IDLE — continuous updates even without active orders
+        _updateGpsInterval(5); // 5s interval
       }
     });
 
@@ -193,7 +193,7 @@ class RiderSessionService extends Notifier<RiderSessionState> {
       await ref.read(localDatabaseServiceProvider).saveIsOnline(true);
 
       final hasActiveOrder = ref.read(deliveryNotifierProvider).activeOrder != null;
-      _updateGpsInterval(hasActiveOrder ? 5 : 30);
+      _updateGpsInterval(hasActiveOrder ? 3 : 5);
 
       _logger.i('Rider session online');
     } catch (e, stackTrace) {

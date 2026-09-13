@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/shop.dart';
+import '../../../models/store_report.dart';
 import '../api_helpers.dart';
 import '../delivery_api_client.dart';
 
@@ -38,4 +39,34 @@ class ShopApiService {
       throw wrapDioError(e).error ?? e;
     }
   }
+
+  /// Get sales and order summary report.
+  Future<StoreReportSummaryDto> getReportSummary(String shopId, {String period = 'day'}) async {
+    try {
+      final response = await _dio.get(
+        'shops/$shopId/reports/summary',
+        queryParameters: {'period': period},
+      );
+      final parsed = parseApiResponse(response.data, StoreReportSummaryDto.fromJson);
+      ensureSuccess(parsed);
+      return parsed.value!;
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
+
+  /// Download sales report CSV content.
+  Future<String> downloadReportExportCsv(String shopId, {String period = 'day'}) async {
+    try {
+      final response = await _dio.get(
+        'shops/$shopId/reports/export',
+        queryParameters: {'period': period, 'format': 'csv'},
+        options: Options(responseType: ResponseType.plain),
+      );
+      return response.data?.toString() ?? '';
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
 }
+

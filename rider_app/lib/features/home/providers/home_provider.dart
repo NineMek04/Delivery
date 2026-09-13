@@ -60,12 +60,17 @@ class HomeNotifier extends Notifier<HomeState> {
         final s = o.status.toUpperCase();
         return s == 'ASSIGNED' || s == 'PICKING_UP' || s == 'DELIVERING';
       }).length;
-      final completedCount = orders
+      final completedOrders = orders
           .where((o) => o.status.toUpperCase() == 'COMPLETED')
-          .length;
+          .toList();
+      final completedCount = completedOrders.length;
       final totalKm = orders.fold<double>(
         0,
         (sum, o) => sum + o.distanceKm,
+      );
+      final earnings = completedOrders.fold<double>(
+        0.0,
+        (sum, o) => sum + o.deliveryFee,
       );
 
       state = state.copyWith(
@@ -74,6 +79,7 @@ class HomeNotifier extends Notifier<HomeState> {
         assignedOrderCount: activeCount,
         completedOrderCount: completedCount,
         totalDistanceKm: totalKm,
+        totalEarnings: earnings,
       );
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
@@ -120,6 +126,7 @@ class HomeState {
   final int assignedOrderCount;
   final int completedOrderCount;
   final double totalDistanceKm;
+  final double totalEarnings;
   final bool isOnline;
   final bool isTransitioning;
   final String? sessionError;
@@ -133,6 +140,7 @@ class HomeState {
     this.assignedOrderCount = 0,
     this.completedOrderCount = 0,
     this.totalDistanceKm = 0.0,
+    this.totalEarnings = 0.0,
     this.isOnline = false,
     this.isTransitioning = false,
     this.sessionError,
@@ -147,6 +155,7 @@ class HomeState {
     int? assignedOrderCount,
     int? completedOrderCount,
     double? totalDistanceKm,
+    double? totalEarnings,
     bool? isOnline,
     bool? isTransitioning,
     String? sessionError,
@@ -161,6 +170,7 @@ class HomeState {
       assignedOrderCount: assignedOrderCount ?? this.assignedOrderCount,
       completedOrderCount: completedOrderCount ?? this.completedOrderCount,
       totalDistanceKm: totalDistanceKm ?? this.totalDistanceKm,
+      totalEarnings: totalEarnings ?? this.totalEarnings,
       isOnline: isOnline ?? this.isOnline,
       isTransitioning: isTransitioning ?? this.isTransitioning,
       sessionError: sessionError,

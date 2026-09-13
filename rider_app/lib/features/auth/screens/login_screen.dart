@@ -7,6 +7,8 @@ import '../../../core/auth/auth_service.dart';
 import '../../../core/config/environment.dart';
 import '../../../core/config/server_config_service.dart';
 import '../../../shared/widgets/error_dialog.dart';
+import '../../../core/services/app_update_service.dart';
+import '../../../shared/widgets/app_update_dialog.dart';
 import '../providers/auth_provider.dart';
 
 /// Login Screen — email/password form wired to [AuthNotifier].
@@ -29,8 +31,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!kIsWeb && Environment.apiBaseUrl.isEmpty) {
         context.push('/server-settings');
+      } else {
+        _checkForAppUpdate();
       }
     });
+  }
+
+  void _checkForAppUpdate() async {
+    final updateService = AppUpdateService();
+    final updateInfo = await updateService.checkForUpdate();
+    if (updateInfo != null && mounted) {
+      AppUpdateDialog.show(context, updateInfo);
+    }
   }
 
   @override

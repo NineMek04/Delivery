@@ -60,11 +60,16 @@ class MapTrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final MapController _mapController = MapController();
   static const _defaultCenter = LatLng(17.4138, 102.7872);
   static const double _navigationZoom = 17.5;
   static const int _maxTimelineItems = 8;
+
+  int _offRouteCount = 0;
 
   StreamSubscription<DispatchScanStartedEvent>? _scanSub;
   StreamSubscription<int>? _rankSub;
@@ -462,19 +467,37 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
     return total;
   }
 
+  double _distanceToPolyline(LatLng point, List<LatLng> polyline) {
+    if (polyline.isEmpty) return double.infinity;
+    double minDist = double.infinity;
+    for (int i = 0; i < polyline.length; i++) {
+      final d = Geolocator.distanceBetween(
+        point.latitude,
+        point.longitude,
+        polyline[i].latitude,
+        polyline[i].longitude,
+      );
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
   _ResolvedRoute _resolveRoute(
     String? encodedPolyline,
     List<LatLng?> fallbackPoints,
   ) {
     final decoded = encodedPolyline?.isNotEmpty == true
         ? decodePolyline(encodedPolyline!)
-        : const <LatLng>[];
-    if (decoded.length >= 2) {
+        : null;
+    if (decoded != null && decoded.length >= 2) {
       return _ResolvedRoute(points: decoded);
     }
 
+    final sanitizedFallback = fallbackPoints
+        .whereType<LatLng>()
+        .toList(growable: false);
     return _ResolvedRoute(
-      points: fallbackPoints.whereType<LatLng>().toList(growable: false),
+      points: sanitizedFallback,
       fallbackReason: encodedPolyline?.isNotEmpty == true
           ? 'INVALID_POLYLINE'
           : 'MISSING_POLYLINE',
@@ -483,8 +506,8 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
   }
 
   /// Builds a high-contrast road route similar to turn-by-turn navigation apps.
-  /// [isPickup] = true  → orange pickup leg
-  ///              false → purple delivery leg
+  /// [isPickup] = true  → orange pickup leg (#FF9800)
+  ///              false → vibrant blue delivery leg (#1E88E5)
   Widget _buildAnimatedPolylineLayer(List<LatLng> points, {required bool isPickup}) {
     final Color routeColor = isPickup
         ? const Color(0xFFFF9800)
@@ -821,6 +844,7 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final tracking = ref.watch(locationServiceProvider);
     final signalR = ref.watch(signalRServiceProvider);
     final delivery = ref.watch(deliveryNotifierProvider);
@@ -934,6 +958,25 @@ class _MapTrackingScreenState extends ConsumerState<MapTrackingScreen>
         riderPoint,
         resolvedRoute.points,
       );
+    }
+
+    // Off-route detection and recalculation (Point 6)
+    if (order != null && riderPoint != null && resolvedRoute.points.length >= 2) {
+      final offRouteDistance = _distanceToPolyline(riderPoint, resolvedRoute.points);
+      if (offRouteDistance > 50.0) {
+        _offRouteCount++;
+        if (_offRouteCount >= 2) {
+          _offRouteCount = 0;
+          final key = _routeKey(order.id, routePhase);
+          _localRoutePolylines.remove(key);
+          _localRouteCoordinates.remove(key);
+          _requestedLocalRoutes.remove(key);
+          _requestLocalOsrmRoute(order, routePhase, riderPoint, resolvedRoute.points);
+          debugPrint('[OFF_ROUTE] Rider deviated ${offRouteDistance.toStringAsFixed(1)}m. Recalculating route...');
+        }
+      } else {
+        _offRouteCount = 0;
+      }
     }
 
     final routePoints = _getTailRoute(

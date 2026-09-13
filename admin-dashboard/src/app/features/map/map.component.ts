@@ -193,22 +193,38 @@ export class MapComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+  public isDarkMode = true;
+  private currentTileLayer: L.TileLayer | null = null;
+
   private initMap(): void {
     this.map = L.map(this.mapElement.nativeElement, {
       center: this.THAILAND_CENTER,
       zoom: 14,
       minZoom: 6,
-      maxZoom: 18,
+      maxZoom: 19,
       maxBounds: this.THAILAND_BOUNDS,
       maxBoundsViscosity: 1.0,
       zoomControl: false,
       preferCanvas: true
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 18
+    this.setTileLayer(this.isDarkMode);
+  }
+
+  public toggleMapTheme(): void {
+    this.isDarkMode = !this.isDarkMode;
+    this.setTileLayer(this.isDarkMode);
+  }
+
+  private setTileLayer(darkMode: boolean): void {
+    if (this.currentTileLayer) {
+      this.currentTileLayer.remove();
+    }
+
+    this.currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+      className: darkMode ? 'osm-dark-tiles' : ''
     }).addTo(this.map);
   }
 

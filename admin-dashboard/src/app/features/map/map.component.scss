@@ -112,6 +112,15 @@ i {
       border-color: rgba(0, 255, 102, 0.35);
     }
 
+    &.btn-map-theme {
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
     &.btn-sim-follow {
       font-size: 15px;
       display: flex;
@@ -414,6 +423,10 @@ i {
 
 .path-animate {
   animation: path-animate 2s linear infinite;
+}
+
+:host ::ng-deep .osm-dark-tiles {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
 }
 
 

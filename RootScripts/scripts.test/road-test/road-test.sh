@@ -25,7 +25,11 @@ run_health() {
 run_tunnel() {
     echo -e "\n[Action] Starting Cloudflare Tunnel via Docker..."
     echo -e "NOTE: Keep this terminal running to maintain public connectivity.\n"
-    docker run --rm -it --network=host cloudflare/cloudflared:latest tunnel --url http://localhost:80
+    if docker network ls --filter name=delivery_default -q | grep -q .; then
+        docker run --rm -it --network=delivery_default cloudflare/cloudflared:latest tunnel --url http://nginx-proxy:80
+    else
+        docker run --rm -it --network=host cloudflare/cloudflared:latest tunnel --url http://localhost:80
+    fi
 }
 
 run_build_apk() {

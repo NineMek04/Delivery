@@ -220,8 +220,8 @@ class LocationService extends Notifier<LocationState> {
     } else if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: Environment.gpsDistanceFilter,
-        forceLocationManager: true,
+        distanceFilter: 2,
+        forceLocationManager: false,
         intervalDuration: Duration(seconds: intervalSeconds),
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationText: "แอปกำลังติดตามตำแหน่งของคุณเบื้องหลัง (สามารถกดยกเลิกการติดตามได้ในแอป)",
@@ -233,15 +233,15 @@ class LocationService extends Notifier<LocationState> {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
         activityType: ActivityType.automotiveNavigation,
-        distanceFilter: intervalSeconds > 10 ? 50 : Environment.gpsDistanceFilter,
-        pauseLocationUpdatesAutomatically: true,
+        distanceFilter: 2,
+        pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: true,
         allowBackgroundLocationUpdates: true,
       );
     } else {
-      return LocationSettings(
+      return const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: Environment.gpsDistanceFilter,
+        distanceFilter: 2,
       );
     }
   }
@@ -411,7 +411,16 @@ class LocationService extends Notifier<LocationState> {
       emaAccuracy = position.accuracy;
     }
 
-    final heading = _normalizeHeading(_readHeading(position));
+    double? heading = _normalizeHeading(_readHeading(position));
+    if ((heading == null || heading == 0.0) && state.latitude != null && state.longitude != null) {
+      final dist = Geolocator.distanceBetween(state.latitude!, state.longitude!, emaLat, emaLng);
+      if (dist >= 1.5) {
+        heading = _calculateBearing(state.latitude!, state.longitude!, emaLat, emaLng);
+      } else {
+        heading = state.heading;
+      }
+    }
+
     state = state.copyWith(
       latitude: emaLat,
       longitude: emaLng,
@@ -427,6 +436,18 @@ class LocationService extends Notifier<LocationState> {
 
     // ส่งพิกัดไปยัง Local DB Buffer สำหรับ Offline Buffering และ Batch Ingestion
     ref.read(gpsBufferServiceProvider).bufferLocation(emaLat, emaLng, emaAccuracy, heading: heading);
+  }
+
+  double _calculateBearing(double startLat, double startLng, double endLat, double endLng) {
+    final lat1 = startLat * math.pi / 180;
+    final lng1 = startLng * math.pi / 180;
+    final lat2 = endLat * math.pi / 180;
+    final lng2 = endLng * math.pi / 180;
+    final dLng = lng2 - lng1;
+    final y = math.sin(dLng) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+    final brng = math.atan2(y, x);
+    return (brng * 180 / math.pi + 360) % 360;
   }
 
   double? _normalizeHeading(double? heading) {

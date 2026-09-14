@@ -31,7 +31,10 @@ namespace BackendApi.ServiceMigration
                 // 4. Ensure operational B-tree indexes that must not inflate EF migrations
                 await EnsureOperationalIndexesAsync(context);
 
-                // 5. Setup Database Views (Future proofing)
+                // 5. Ensure recent schema patches for Orders
+                await EnsureRecentSchemaPatchesAsync(context);
+
+                // 6. Setup Database Views (Future proofing)
                 await SetupDatabaseViewsAsync(context);
 
                 Log.Information("✅ [ServiceMigration] Advanced PostgreSQL schema configuration completed successfully.");
@@ -213,6 +216,26 @@ namespace BackendApi.ServiceMigration
             ");
 
             Log.Information("✅ [ServiceMigration] Operational B-tree indexes guaranteed.");
+        }
+
+        /// <summary>
+        /// Ensures recent Order entity schema additions exist in database table idempotently.
+        /// </summary>
+        private static async Task EnsureRecentSchemaPatchesAsync(ApplicationDbContext context)
+        {
+            Log.Information("⚙️ [ServiceMigration] Ensuring recent Order columns exist...");
+
+            await ExecuteSqlRawAsync(context, @"
+                ALTER TABLE ""Orders"" 
+                ADD COLUMN IF NOT EXISTS ""NoteToShop"" text,
+                ADD COLUMN IF NOT EXISTS ""NoteToRider"" text,
+                ADD COLUMN IF NOT EXISTS ""DeliveryAddress"" text,
+                ADD COLUMN IF NOT EXISTS ""Rating"" integer,
+                ADD COLUMN IF NOT EXISTS ""ReviewComment"" text,
+                ADD COLUMN IF NOT EXISTS ""ReviewedAt"" timestamp with time zone;
+            ");
+
+            Log.Information("✅ [ServiceMigration] Order schema columns verified.");
         }
 
         /// <summary>

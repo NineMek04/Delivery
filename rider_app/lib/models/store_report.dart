@@ -26,6 +26,8 @@ class StoreTopItemDto {
           0,
       revenue: (readField<num>(json, 'Revenue') ??
               readField<num>(json, 'revenue') ??
+              readField<num>(json, 'TotalAmount') ??
+              readField<num>(json, 'totalAmount') ??
               0)
           .toDouble(),
     );
@@ -60,20 +62,28 @@ class StoreOrderDetailDto {
           '',
       trackingNumber: readField<String>(json, 'TrackingNumber') ??
           readField<String>(json, 'trackingNumber') ??
-          '',
+          (readField<num>(json, 'RefNumber') != null
+              ? '${readField<num>(json, 'RefNumber')}'
+              : (readField<num>(json, 'refNumber') != null
+                  ? '${readField<num>(json, 'refNumber')}'
+                  : '')),
       createdAt: rawDate != null ? DateTime.tryParse(rawDate) : null,
       status: readField<String>(json, 'Status') ??
           readField<String>(json, 'status') ??
           '',
       totalAmount: (readField<num>(json, 'TotalAmount') ??
               readField<num>(json, 'totalAmount') ??
+              readField<num>(json, 'OrderTotal') ??
+              readField<num>(json, 'orderTotal') ??
               0)
           .toDouble(),
       itemCount: readField<int>(json, 'ItemCount') ??
           readField<int>(json, 'itemCount') ??
           0,
       riderName: readField<String>(json, 'RiderName') ??
-          readField<String>(json, 'riderName'),
+          readField<String>(json, 'riderName') ??
+          readField<String>(json, 'CustomerName') ??
+          readField<String>(json, 'customerName'),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'app/app.dart';
 import 'core/config/environment.dart';
@@ -21,6 +22,11 @@ import 'core/config/server_config_service.dart';
 /// - Angular: `providers: [...]` ใน app.config.ts
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize intl date formatting safely
+  try {
+    await initializeDateFormatting('th_TH', null);
+  } catch (_) {}
 
   // Load persistent custom server URL from storage if configured
   final serverConfig = ServerConfigService();

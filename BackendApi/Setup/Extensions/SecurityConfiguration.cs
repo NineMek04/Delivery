@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Threading.RateLimiting;
 using System.Security.Claims;
 using BackendApi.Core.Models;
@@ -128,10 +128,11 @@ public static class SecurityConfiguration
             {
                 OnMessageReceived = context =>
                 {
-                    // 1. SignalR WebSocket: อ่าน token จาก query string
+                    // 1. SignalR WebSocket & File Export: อ่าน token จาก query string
                     var accessToken = context.Request.Query["access_token"];
                     var path = context.HttpContext.Request.Path;
-                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    if (!string.IsNullOrEmpty(accessToken) && 
+                        (path.StartsWithSegments("/hubs") || path.Value?.Contains("/reports/export") == true))
                     {
                         context.Token = accessToken;
                     }

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../core/config/environment.dart';
 import '../../../models/store_report.dart';
 import '../providers/store_providers.dart';
@@ -18,8 +19,8 @@ class StoreSummaryScreen extends ConsumerWidget {
     final reportAsync = ref.watch(storeReportSummaryProvider);
     final shopAsync = ref.watch(currentShopProvider);
 
-    final currencyFmt = NumberFormat('#,##0', 'th_TH');
-    final dateFmt = DateFormat('dd/MM/yyyy HH:mm', 'th_TH');
+    final currencyFmt = NumberFormat('#,##0');
+    final dateFmt = DateFormat('dd/MM/yyyy HH:mm');
 
     return Scaffold(
       appBar: AppBar(
@@ -142,8 +143,11 @@ class StoreSummaryScreen extends ConsumerWidget {
                               style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                             onPressed: () async {
+                              final authService = ref.read(authServiceProvider.notifier);
+                              final token = await authService.getAccessToken();
+                              final tokenQuery = token != null && token.isNotEmpty ? '&access_token=$token' : '';
                               final url = Uri.parse(
-                                '${Environment.apiUrl}/shops/${shop.id}/reports/export?period=$period&format=csv',
+                                '${Environment.apiUrl}/shops/${shop.id}/reports/export?period=$period&format=csv$tokenQuery',
                               );
                               try {
                                 if (await canLaunchUrl(url)) {
@@ -359,7 +363,7 @@ class _TopItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFmt = NumberFormat('#,##0', 'th_TH');
+    final currencyFmt = NumberFormat('#,##0');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

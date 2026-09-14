@@ -48,6 +48,8 @@ dependencies:
   signature: ^5.4.1
   audioplayers: ^6.1.0
   vibration: ^3.2.1
+  # Pin below 12.4.0: that release calls an iOS SDK selector unavailable in Xcode 16.4.
+  device_info_plus: 12.3.0
 
 dev_dependencies:
   flutter_test:
@@ -56,4 +58,6 @@ dev_dependencies:
   build_runner: ^2.4.8
 
 flutter:
+  config:
+    enable-swift-package-manager: false
   uses-material-design: true

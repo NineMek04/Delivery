@@ -148,14 +148,39 @@ export class ShopsComponent implements OnInit {
 
   loadMenuItems(shopId: string): void {
     this.selectedShopId = shopId;
+    const currentShop = this.shops.find(s => s.id === shopId);
+
     this.storeService.loadMenusFromApi(shopId).pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (menus) => {
-        this.menuItems = menus;
+        if ((!menus || menus.length === 0) && currentShop?.menuName) {
+          this.menuItems = [{
+            id: 'primary-' + currentShop.id,
+            name: currentShop.menuName,
+            price: currentShop.menuPrice,
+            description: 'เมนูหลักประจำร้าน',
+            imageUrl: '',
+            options: []
+          }];
+        } else {
+          this.menuItems = menus;
+        }
         this.isMenuModalOpen = true;
       },
       error: (err) => {
+        if (currentShop?.menuName) {
+          this.menuItems = [{
+            id: 'primary-' + currentShop.id,
+            name: currentShop.menuName,
+            price: currentShop.menuPrice,
+            description: 'เมนูหลักประจำร้าน',
+            imageUrl: '',
+            options: []
+          }];
+          this.isMenuModalOpen = true;
+          return;
+        }
         const serverMessage = err?.error?.message ?? err?.error?.Message ?? err?.message ?? 'กรุณาลองใหม่อีกครั้ง';
         Swal.fire({ 
           icon: 'error', 

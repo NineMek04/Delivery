@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BaseApiService, unwrapValue } from './base-api.service';
-import { Observable, map } from 'rxjs';
+import { Observable, map, catchError } from 'rxjs';
 
 export interface MenuItemOptionItemDto {
   id?: string;
@@ -34,11 +34,12 @@ export interface MenuItemDto {
 })
 export class MenuItemService extends BaseApiService<MenuItemDto> {
   protected get endpoint(): string {
-    return '/menu-items';
+    return '/menuitems';
   }
 
   getByShop(shopId: string): Observable<MenuItemDto[]> {
-    return this.getByEndpoint(`${this.endpoint}/shop/${shopId}`).pipe(
+    return this.getByEndpoint(`/menuitems/shop/${shopId}`).pipe(
+      catchError(() => this.getByEndpoint(`/menu-items/shop/${shopId}`)),
       map(res => {
         const value = unwrapValue<any>(res);
         return Array.isArray(value?.items) ? value.items : (Array.isArray(value) ? value : []);

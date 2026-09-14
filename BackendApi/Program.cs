@@ -36,13 +36,9 @@ try
     builder.Configuration.AddVaultConfiguration();
 
     // --- JWT Secret Fallback Mapping ---
-    var currentJwtKey = builder.Configuration["Jwt:Key"];
-    if (string.IsNullOrEmpty(currentJwtKey) || currentJwtKey.Contains("__SET_VIA_USER_SECRETS_OR_ENV__", StringComparison.OrdinalIgnoreCase))
+    if (string.IsNullOrEmpty(builder.Configuration["Jwt:Key"]))
     {
-        var jwtSecret = builder.Configuration["JWT_SECRET"] 
-            ?? builder.Configuration["Jwt__Key"] 
-            ?? Environment.GetEnvironmentVariable("JWT_SECRET") 
-            ?? Environment.GetEnvironmentVariable("Jwt__Key");
+        var jwtSecret = builder.Configuration["JWT_SECRET"] ?? Environment.GetEnvironmentVariable("JWT_SECRET");
         if (!string.IsNullOrEmpty(jwtSecret))
         {
             builder.Configuration["Jwt:Key"] = jwtSecret;

@@ -1,4 +1,4 @@
-﻿using BackendApi.Core;
+using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
 using BackendApi.Core.Models.Response;
@@ -25,6 +25,9 @@ namespace BackendApi.Controllers.Shops
     /// API จัดการข้อมูลหมวดหมู่สินค้าของร้านค้า (CRUD หมวดหมู่)
     /// </summary>
     [Authorize]
+    [Route("api/v1/menu-categories")]
+    [Route("api/v1/menucategories")]
+    [Route("api/v1/[controller]")]
     public class MenuCategoriesController : CrudControllerBase<MenuCategory, MenuCategoryDto>
     {
         public MenuCategoriesController()

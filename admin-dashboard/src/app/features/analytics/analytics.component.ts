@@ -35,6 +35,7 @@ import {
   OrderTrendDto,
 } from '../../core/services/analytics.service';
 import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
+import { ShopService, ShopDto } from '../../core/services/shop.service';
 
 // Fix Leaflet default icons issue
 const iconRetinaUrl = 'assets/marker-icon-2x.png';
@@ -85,9 +86,17 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   dateFrom: string = '';
   dateTo: string = '';
 
+  public isDarkMode = true;
   private map!: L.Map;
+  private currentTileLayer?: L.TileLayer;
   private heatmapCircles: L.Circle[] = [];
+  private shopMarkers: L.Marker[] = [];
+  private readonly shopService = inject(ShopService);
   private readonly THAILAND_CENTER: L.LatLngTuple = [17.4138, 102.7872]; // Center around Udon Thani OSRM coverage
+  private readonly THAILAND_BOUNDS: L.LatLngBoundsLiteral = [
+    [5.6, 97.3],
+    [20.5, 105.7],
+  ];
 
   // ── ApexCharts Line/Bar options ──────────────────────────
   public trendSeries: ApexAxisChartSeries = [];
@@ -142,6 +151,13 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
+    this.heatmapCircles.forEach((c) => c.remove());
+    this.heatmapCircles = [];
+    this.shopMarkers.forEach((m) => m.remove());
+    this.shopMarkers = [];
+    if (this.currentTileLayer) {
+      this.currentTileLayer.remove();
+    }
     if (this.map) {
       this.map.remove();
     }
@@ -155,19 +171,70 @@ export class AnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
       zoom: 12,
       minZoom: 6,
       maxZoom: 18,
+      maxBounds: this.THAILAND_BOUNDS,
+      maxBoundsViscosity: 1.0,
+      zoomControl: false,
       preferCanvas: true,
     });
 
-    // Dark sleek high-tech map style for presentation readiness
-    L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    this.setTileLayer(this.isDarkMode);
+    this.loadExistingShops();
+  }
+
+  public toggleMapTheme(): void {
+    this.isDarkMode = !this.isDarkMode;
+    this.setTileLayer(this.isDarkMode);
+  }
+
+  private setTileLayer(darkMode: boolean): void {
+    if (this.currentTileLayer) {
+      this.currentTileLayer.remove();
+    }
+
+    this.currentTileLayer = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 18,
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+        className: darkMode ? 'osm-dark-tiles' : '',
       },
     ).addTo(this.map);
+  }
+
+  public recenter(): void {
+    this.map?.setView(this.THAILAND_CENTER, 12);
+  }
+
+  private loadExistingShops(): void {
+    this.shopService.getAll(1, 100).subscribe({
+      next: (shops) => {
+        shops.forEach((shop) => this.addShopToMap(shop));
+      },
+      error: () => {}
+    });
+  }
+
+  private addShopToMap(shop: ShopDto): void {
+    if (!this.map || !shop.lat || !shop.lng) return;
+
+    const statusColor = shop.isOpen ? '#ea580c' : '#64748b';
+    const shopIcon = L.divIcon({
+      className: 'custom-shop-marker',
+      html: `<div style="background-color: ${statusColor}; width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 10px; color: white;">🏪</div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+
+    const marker = L.marker([shop.lat, shop.lng], { icon: shopIcon })
+      .bindTooltip(shop.name || 'Shop', {
+        permanent: false,
+        direction: 'top',
+        className: 'custom-shop-tooltip',
+      });
+
+    marker.addTo(this.map);
+    this.shopMarkers.push(marker);
   }
 
   loadAnalytics(): void {

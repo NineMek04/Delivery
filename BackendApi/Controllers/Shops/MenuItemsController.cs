@@ -1,4 +1,4 @@
-﻿using BackendApi.Core;
+using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Mappings;
 using BackendApi.Core.Models;
@@ -12,6 +12,7 @@ using BackendApi.Models.DTOs;
 using BackendApi.Security;
 using BackendApi.Security.Models;
 using BackendApi.Security.Services;
+using BackendApi.Services.Tracking;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,10 +24,16 @@ namespace BackendApi.Controllers.Shops
     /// API จัดการข้อมูลเมนูสินค้าของร้านค้า (CRUD และการจัดการตัวเลือก)
     /// </summary>
     [Authorize]
+    [Route("api/v1/menu-items")]
+    [Route("api/v1/menuitems")]
+    [Route("api/v1/[controller]")]
     public class MenuItemsController : CrudControllerBase<MenuItem, MenuItemDto>
     {
-        public MenuItemsController()
+        private readonly ITrackingSearchService? _searchService;
+
+        public MenuItemsController(ITrackingSearchService? searchService = null)
         {
+            _searchService = searchService;
         }
 
         /// <summary>
@@ -66,6 +73,7 @@ namespace BackendApi.Controllers.Shops
 
         /// <summary>
         /// ดึงรายการเมนูสินค้าทั้งหมดของร้านค้าหนึ่งร้าน (แบ่งหน้า)
+        /// รองรับทั้ง Shop UUID และ Shop Tracking Code (เช่น SHP-000008)
         /// </summary>
         [HttpGet("shop/{shopId}")]
         public async Task<ActionResult<PaginatedResult<MenuItemDto>>> GetByShop(
@@ -74,17 +82,56 @@ namespace BackendApi.Controllers.Shops
             [FromQuery] int pageSize = 20,
             CancellationToken cancellationToken = default)
         {
+            var targetShopId = shopId;
+            var parsedRef = _searchService?.ParseSearchQuery(shopId, TrackingPrefixes.Shop);
+            if (parsedRef.HasValue)
+            {
+                var resolvedShop = await DB.GetQuery<Shop>(asNoTracking: true)
+                    .FirstOrDefaultAsync(s => s.RefNumber == parsedRef.Value, cancellationToken);
+                if (resolvedShop != null)
+                {
+                    targetShopId = resolvedShop.Id;
+                }
+            }
+
             var query = DB.GetQuery<MenuItem>()
-                .Where(m => m.ShopId == shopId)
+                .Where(m => m.ShopId == targetShopId)
                 .Include(m => m.Options)
                     .ThenInclude(o => o.Items)
                 .OrderBy(m => m.Name);
 
             var result = await query.ToPaginatedListAsync(page, pageSize, cancellationToken);
+            var dtoList = result.Items.Adapt<List<MenuItemDto>>();
+
+            // Fallback: หากยังไม่มีข้อมูลในตาราง MenuItems ให้ใช้เมนูหลักประจำร้านจากตาราง Shop
+            if (dtoList.Count == 0)
+            {
+                var shop = await DB.GetQuery<Shop>(asNoTracking: true)
+                    .FirstOrDefaultAsync(s => s.Id == targetShopId, cancellationToken);
+                if (shop != null && !string.IsNullOrWhiteSpace(shop.MenuName))
+                {
+                    dtoList.Add(new MenuItemDto
+                    {
+                        Id = $"primary-{shop.Id}",
+                        ShopId = shop.Id,
+                        Name = shop.MenuName,
+                        Price = shop.MenuPrice,
+                        Description = "เมนูหลักประจำร้าน"
+                    });
+
+                    return Ok(new PaginatedResult<MenuItemDto>
+                    {
+                        Items = dtoList,
+                        TotalCount = 1,
+                        Page = 1,
+                        PageSize = pageSize
+                    });
+                }
+            }
 
             return Ok(new PaginatedResult<MenuItemDto>
             {
-                Items = result.Items.Adapt<List<MenuItemDto>>(),
+                Items = dtoList,
                 TotalCount = result.TotalCount,
                 Page = result.Page,
                 PageSize = result.PageSize

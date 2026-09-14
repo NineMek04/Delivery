@@ -36,7 +36,7 @@ namespace BackendApi.Controllers.App
         [HttpGet("version")]
         public IActionResult GetLatestVersion([FromQuery] string platform = "android")
         {
-            var latestVersion = _configuration.GetValue<string>("AppVersion:LatestVersion") ?? "1.0.1";
+            var latestVersion = _configuration.GetValue<string>("AppVersion:LatestVersion") ?? "1.0.2";
             var buildNumber = _configuration.GetValue<int?>("AppVersion:BuildNumber") ?? 2;
             var minSupported = _configuration.GetValue<string>("AppVersion:MinSupportedVersion") ?? "1.0.0";
             var forceUpdate = _configuration.GetValue<bool?>("AppVersion:ForceUpdate") ?? true;
@@ -90,7 +90,7 @@ namespace BackendApi.Controllers.App
                 });
             }
 
-            var fileName = $"rider-app-v{_configuration.GetValue<string>("AppVersion:LatestVersion") ?? "1.0.1"}.apk";
+            var fileName = $"rider-app-v{_configuration.GetValue<string>("AppVersion:LatestVersion") ?? "1.0.2"}.apk";
             return PhysicalFile(apkPath, "application/vnd.android.package-archive", fileName, enableRangeProcessing: true);
         }
 

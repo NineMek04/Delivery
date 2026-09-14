@@ -4,35 +4,78 @@
   <div class="map-topbar">
     <button class="back-btn" id="route-map-back-btn" (click)="goBack()">
       <lucide-icon [img]="icons.ArrowLeft" size="16"></lucide-icon>
-      Back to Riders
+      {{ isOrderMode ? 'กลับหน้ารายการออเดอร์' : 'กลับหน้ารายการไรเดอร์' }}
     </button>
 
-    <div class="order-info" *ngIf="order">
+    <!-- Case 1: Order Route Mode Info -->
+    <div class="order-info" *ngIf="isOrderMode">
       <div class="order-track">
         <span class="label">ORDER</span>
-        <span class="code">{{ order.trackingCode }}</span>
+        <span class="code">{{ displayTrackingCode }}</span>
       </div>
       <div class="order-meta-items">
-        <span class="meta-chip">
-          <lucide-icon [img]="icons.Package" size="10"></lucide-icon>
-          {{ order.shopName || '—' }}
+        <span class="meta-chip" *ngIf="orderRouteData?.shopName">
+          <lucide-icon [img]="icons.Package" size="12"></lucide-icon>
+          {{ orderRouteData?.shopName }}
         </span>
-        <span class="meta-chip">
-          <lucide-icon [img]="icons.Clock" size="10"></lucide-icon>
-          {{ formatDuration(order.assignedAt, order.completedAt) }}
+        <span class="meta-chip" *ngIf="orderRouteData?.assignedAt && orderRouteData?.completedAt">
+          <lucide-icon [img]="icons.Clock" size="12"></lucide-icon>
+          {{ formatDuration(orderRouteData?.assignedAt ?? null, orderRouteData?.completedAt ?? null) }}
         </span>
-        <span class="meta-chip highlight">
-          ฿{{ order.deliveryFee.toFixed(0) }}
+        <span class="meta-chip highlight" *ngIf="orderRouteData?.deliveryFee">
+          ฿{{ orderRouteData?.deliveryFee?.toFixed(0) }}
         </span>
-        <span class="meta-chip">
-          {{ order.distanceKm.toFixed(1) }} km
+        <span class="meta-chip" *ngIf="totalDistanceKm > 0">
+          {{ totalDistanceKm.toFixed(1) }} km
+        </span>
+        <span class="meta-chip status-chip" *ngIf="orderRouteData?.status">
+          {{ orderRouteData?.status }}
         </span>
       </div>
     </div>
 
+    <!-- Case 2: Rider GPS History Mode Controls -->
+    <div class="rider-history-controls" *ngIf="!isOrderMode">
+      <div class="preset-group">
+        <button type="button" class="preset-btn" [class.active]="selectedPreset === 'TODAY'" (click)="selectPreset('TODAY')">
+          วันนี้
+        </button>
+        <button type="button" class="preset-btn" [class.active]="selectedPreset === '6H'" (click)="selectPreset('6H')">
+          6 ชม.
+        </button>
+        <button type="button" class="preset-btn" [class.active]="selectedPreset === '24H'" (click)="selectPreset('24H')">
+          24 ชม.
+        </button>
+        <button type="button" class="preset-btn" [class.active]="selectedPreset === 'CUSTOM'" (click)="selectPreset('CUSTOM')">
+          กำหนดเอง
+        </button>
+      </div>
+
+      <!-- Custom Date Range Form -->
+      <div class="custom-range-form" *ngIf="selectedPreset === 'CUSTOM'">
+        <input type="date" [(ngModel)]="customDateFrom" class="time-input date-input" />
+        <input type="time" [(ngModel)]="customTimeFrom" class="time-input" />
+        <span class="range-sep">ถึง</span>
+        <input type="date" [(ngModel)]="customDateTo" class="time-input date-input" />
+        <input type="time" [(ngModel)]="customTimeTo" class="time-input" />
+        <button type="button" class="apply-btn" (click)="applyCustomRange()">ค้นหา</button>
+      </div>
+
+      <button type="button" class="refresh-icon-btn" (click)="loadRiderGpsTrail()" title="รีเฟรชข้อมูล">
+        <lucide-icon [img]="icons.RefreshCcw" size="14" [class.spin]="isLoading"></lucide-icon>
+      </button>
+
+      <!-- Stats Badge -->
+      <div class="stats-badge" *ngIf="pointCount > 0">
+        <span class="stat-pill">{{ pointCount }} พิกัด</span>
+        <span class="stat-pill highlight">{{ totalDistanceKm.toFixed(1) }} km</span>
+      </div>
+    </div>
+
+    <!-- Rider Chip -->
     <div class="rider-chip">
-      <lucide-icon [img]="icons.Navigation" size="12"></lucide-icon>
-      {{ riderName }}
+      <lucide-icon [img]="icons.Navigation" size="13"></lucide-icon>
+      <span>{{ riderName }}</span>
     </div>
   </div>
 
@@ -43,31 +86,50 @@
     <!-- Loading overlay -->
     <div class="map-overlay loading" *ngIf="isLoading">
       <div class="spinner"></div>
-      <span>Loading GPS track...</span>
+      <span>กำลังโหลดเส้นทางและพิกัด GPS...</span>
     </div>
 
     <!-- Error overlay -->
     <div class="map-overlay error" *ngIf="!isLoading && hasError">
       <span>⚠ {{ errorMsg }}</span>
-      <button class="retry-btn" (click)="loadRoute()" id="route-map-retry-btn">Retry</button>
+      <button class="retry-btn" (click)="loadData()" id="route-map-retry-btn">ลองใหม่</button>
     </div>
 
     <!-- Empty overlay -->
-    <div class="map-overlay empty" *ngIf="!isLoading && !hasError && pointCount === 0 && order">
-      <span>No GPS data for this order period</span>
+    <div class="map-overlay empty" *ngIf="!isLoading && !hasError && pointCount === 0">
+      <span>ไม่พบข้อมูลพิกัด GPS ในช่วงเวลาที่เลือก</span>
     </div>
 
     <!-- Legend -->
-    <div class="map-legend" *ngIf="!isLoading && !hasError && pointCount > 0">
-      <div class="legend-item">
-        <span class="dot pickup"></span>Pickup
-      </div>
-      <div class="legend-item">
-        <span class="dot dropoff"></span>Dropoff
-      </div>
-      <div class="legend-item">
-        <span class="line-sample"></span>GPS Track ({{ pointCount }} pts)
-      </div>
+    <div class="map-legend" *ngIf="!isLoading && !hasError && (pointCount > 0 || orderRouteData?.plannedPolyline)">
+      <!-- Order Mode Legend -->
+      <ng-container *ngIf="isOrderMode">
+        <div class="legend-item" *ngIf="pickupMarker">
+          <span class="dot pickup"></span>จุดรับสินค้า (Pickup)
+        </div>
+        <div class="legend-item" *ngIf="dropoffMarker">
+          <span class="dot dropoff"></span>จุดส่งสินค้า (Dropoff)
+        </div>
+        <div class="legend-item" *ngIf="plannedRouteLine">
+          <span class="line-sample planned"></span>เส้นทางแผนการเดินทาง (Planned)
+        </div>
+        <div class="legend-item" *ngIf="actualRouteLine">
+          <span class="line-sample actual"></span>เส้นทางไรเดอร์จริง ({{ pointCount }} จุด)
+        </div>
+      </ng-container>
+
+      <!-- Rider GPS History Mode Legend -->
+      <ng-container *ngIf="!isOrderMode">
+        <div class="legend-item" *ngIf="startMarker">
+          <span class="dot start"></span>จุดเริ่มต้น (Start)
+        </div>
+        <div class="legend-item" *ngIf="endMarker">
+          <span class="dot end"></span>จุดล่าสุด (Latest)
+        </div>
+        <div class="legend-item" *ngIf="actualRouteLine">
+          <span class="line-sample actual"></span>เส้นทางที่เดินทาง ({{ pointCount }} จุด / {{ totalDistanceKm.toFixed(1) }} km)
+        </div>
+      </ng-container>
     </div>
   </div>
 

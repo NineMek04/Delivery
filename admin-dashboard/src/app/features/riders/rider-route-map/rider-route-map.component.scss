@@ -1,12 +1,17 @@
 :host {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - 75px);
+  min-height: 600px;
+  width: 100%;
+  flex: 1;
 }
 
 .route-map-page {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  width: 100%;
   flex: 1;
   min-height: 0;
   animation: fadeIn 0.2s ease;
@@ -23,7 +28,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px 24px;
+  padding: 12px 24px;
   background: var(--color-surface-card);
   border-bottom: 1px solid var(--color-surface-line);
   flex-shrink: 0;
@@ -37,8 +42,8 @@
   background: none;
   border: 1px solid var(--color-surface-line);
   color: var(--color-text-muted);
-  font: 700 10px var(--font-mono);
-  letter-spacing: 0.14em;
+  font: 700 11px var(--font-mono);
+  letter-spacing: 0.1em;
   padding: 8px 14px;
   cursor: pointer;
   border-radius: 4px;
@@ -49,6 +54,7 @@
   &:hover {
     border-color: rgba(0, 255, 102, 0.45);
     color: var(--color-brand-primary);
+    background: rgba(0, 255, 102, 0.05);
   }
 }
 
@@ -88,8 +94,8 @@
 .meta-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font: 700 10px var(--font-mono);
+  gap: 6px;
+  font: 700 11px var(--font-mono);
   color: var(--color-text-muted);
   background: rgba(255,255,255,0.04);
   border: 1px solid var(--color-surface-line);
@@ -101,15 +107,149 @@
     border-color: rgba(0,255,102,0.3);
     background: rgba(0,255,102,0.06);
   }
+
+  &.status-chip {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.25);
+  }
+}
+
+// ── Rider History Controls ───────────────────────────────────────────
+
+.rider-history-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.preset-group {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-surface-line);
+  border-radius: 4px;
+  padding: 2px;
+  gap: 2px;
+
+  .preset-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font: 700 11px var(--font-mono);
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover {
+      color: #fff;
+    }
+
+    &.active {
+      background: rgba(0, 255, 102, 0.15);
+      color: var(--color-brand-primary);
+      border: 1px solid rgba(0, 255, 102, 0.3);
+    }
+  }
+}
+
+.custom-range-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .time-input {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--color-surface-line);
+    color: #fff;
+    font: 600 11px var(--font-mono);
+    padding: 5px 8px;
+    border-radius: 4px;
+    outline: none;
+
+    &.date-input {
+      max-width: 130px;
+    }
+
+    &:focus {
+      border-color: var(--color-brand-primary);
+    }
+  }
+
+  .range-sep {
+    font: 700 11px var(--font-mono);
+    color: var(--color-text-muted);
+  }
+
+  .apply-btn {
+    background: rgba(0, 255, 102, 0.12);
+    border: 1px solid rgba(0, 255, 102, 0.35);
+    color: var(--color-brand-primary);
+    font: 700 11px var(--font-mono);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-brand-primary);
+      color: #000;
+    }
+  }
+}
+
+.refresh-icon-btn {
+  background: none;
+  border: 1px solid var(--color-surface-line);
+  color: var(--color-text-muted);
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    color: var(--color-brand-primary);
+    border-color: var(--color-brand-primary);
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+}
+
+.stats-badge {
+  display: flex;
+  gap: 6px;
+
+  .stat-pill {
+    font: 700 10px var(--font-mono);
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-surface-line);
+
+    &.highlight {
+      color: var(--color-brand-primary);
+      border-color: rgba(0, 255, 102, 0.25);
+    }
+  }
 }
 
 .rider-chip {
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 700 11px var(--font-mono);
+  font: 700 12px var(--font-mono);
   color: var(--color-text-muted);
   margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-surface-line);
 }
 
 // ── Map Wrapper ───────────────────────────────────────────────────────
@@ -117,13 +257,15 @@
 .map-wrapper {
   flex: 1;
   position: relative;
-  min-height: 0;
+  height: calc(100% - 56px);
+  min-height: calc(100vh - 135px);
+  width: 100%;
 }
 
 .leaflet-container {
   width: 100%;
   height: 100%;
-  min-height: 400px;
+  min-height: calc(100vh - 135px);
   background: #1a1a2e;
 }
 
@@ -207,7 +349,7 @@
   z-index: 800;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   backdrop-filter: blur(6px);
 }
 
@@ -215,9 +357,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 700 9px var(--font-mono);
+  font: 700 10px var(--font-mono);
   color: var(--color-text-muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
 
   .dot {
     width: 12px;
@@ -227,14 +369,24 @@
 
     &.pickup  { background: #00ff66; box-shadow: 0 0 6px rgba(0,255,102,0.5); }
     &.dropoff { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+    &.start   { background: #38bdf8; box-shadow: 0 0 6px rgba(56,189,248,0.5); }
+    &.end     { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
   }
 
   .line-sample {
-    width: 20px;
+    width: 22px;
     height: 3px;
-    background: linear-gradient(90deg, #00ff66, #00cc44);
     border-radius: 2px;
     flex-shrink: 0;
+
+    &.actual {
+      background: #00ff66;
+      box-shadow: 0 0 6px rgba(0,255,102,0.4);
+    }
+
+    &.planned {
+      background: repeating-linear-gradient(90deg, #38bdf8, #38bdf8 4px, transparent 4px, transparent 8px);
+    }
   }
 }
 
@@ -251,19 +403,29 @@
   transform: rotate(-45deg);
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 
+  > * { transform: rotate(45deg); }
+
   &.pickup-marker {
     background: #00ff66;
     color: #000;
     border: 2px solid rgba(0,255,102,0.6);
-
-    &::before { transform: rotate(45deg); display: block; content: attr(class); }
-    > * { transform: rotate(45deg); }
   }
 
   &.dropoff-marker {
     background: #ef4444;
     color: #fff;
     border: 2px solid rgba(239,68,68,0.6);
-    > * { transform: rotate(45deg); }
+  }
+
+  &.start-marker {
+    background: #38bdf8;
+    color: #000;
+    border: 2px solid rgba(56,189,248,0.6);
+  }
+
+  &.end-marker {
+    background: #f59e0b;
+    color: #000;
+    border: 2px solid rgba(245,158,11,0.6);
   }
 }

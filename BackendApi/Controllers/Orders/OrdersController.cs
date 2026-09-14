@@ -3,6 +3,7 @@ using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
 using BackendApi.Core.Models.Response;
 using BackendApi.Core.Models.Entities;
+using BackendApi.Models.Entities;
 using BackendApi.Models.DTOs;
 using BackendApi.Security;
 using BackendApi.Security.Models;
@@ -13,6 +14,7 @@ using BackendApi.Services.Notifications;
 using BackendApi.Services.Orders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BackendApi.Controllers.Orders;
 
@@ -230,6 +232,84 @@ public class OrdersController : DeliveryControllerBase
             role,
             cancellationToken);
         return StatusCode(statusCode, response);
+    }
+
+    /// <summary>
+    /// ดึงประวัติเส้นทางจริงและพิกัด GPS ย้อนหลังของออเดอร์ (ตามช่วงเวลาที่ไรเดอร์วิ่งรับ-ส่งงานนี้)
+    /// </summary>
+    [HttpGet("{id}/route-history")]
+    [Authorize(Policy = AuthConstants.OperationsPolicy)]
+    public async Task<ActionResult<ApiResponse<OrderRouteHistoryDto>>> GetOrderRouteHistory(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await DB.GetQuery<Order>(asNoTracking: true)
+            .Include(o => o.Shop)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+        if (order == null)
+        {
+            return NotFound(ApiResponse<OrderRouteHistoryDto>.Fail("ไม่พบออเดอร์ดังกล่าว", code: "NOT_FOUND"));
+        }
+
+        string? riderName = null;
+        if (!string.IsNullOrEmpty(order.AssignedRiderId))
+        {
+            var rider = await DB.GetQuery<Rider>(asNoTracking: true)
+                .FirstOrDefaultAsync(r => r.Id == order.AssignedRiderId, cancellationToken);
+            riderName = rider?.Name;
+        }
+
+        var gpsPoints = new List<RiderLocationHistoryDto>();
+
+        // ถ้ามี AssignedRiderId ให้ดึงประวัติ GPS ของไรเดอร์ระหว่างช่วงเวลาที่รับงาน (AssignedAt) จนถึงส่งเสร็จ (CompletedAt หรือ เวลาปัจจุบัน)
+        if (!string.IsNullOrEmpty(order.AssignedRiderId))
+        {
+            var from = order.AssignedAt ?? order.CreatedAt;
+            var to = order.CompletedAt ?? DateTime.UtcNow;
+
+            // เผื่อบัฟเฟอร์ก่อนรับงาน 5 นาที เพื่อให้เห็นจุดเริ่มต้นก่อนเข้าร้าน
+            var queryFrom = from.AddMinutes(-5);
+            var queryTo = to.AddMinutes(2);
+
+            var rawPoints = await DB.GetQuery<RiderLocationHistory>(asNoTracking: true)
+                .Where(h => h.RiderId == order.AssignedRiderId && h.RecordedAt >= queryFrom && h.RecordedAt <= queryTo)
+                .OrderBy(h => h.RecordedAt)
+                .Take(2000)
+                .Select(h => new RiderLocationHistoryDto
+                {
+                    Lat = h.Location.Y,
+                    Lng = h.Location.X,
+                    RecordedAt = h.RecordedAt,
+                    OrderId = h.OrderId ?? order.Id
+                })
+                .ToListAsync(cancellationToken);
+
+            gpsPoints = rawPoints;
+        }
+
+        var dto = new OrderRouteHistoryDto
+        {
+            OrderId = order.Id,
+            TrackingCode = order.TrackingCode,
+            Status = order.Status,
+            ShopName = order.Shop?.Name,
+            DeliveryAddress = order.DeliveryAddress,
+            PickupLat = order.PickupLocation?.Y,
+            PickupLng = order.PickupLocation?.X,
+            DropoffLat = order.DropoffLocation?.Y,
+            DropoffLng = order.DropoffLocation?.X,
+            AssignedRiderId = order.AssignedRiderId,
+            RiderName = riderName,
+            AssignedAt = order.AssignedAt,
+            CompletedAt = order.CompletedAt,
+            PlannedPolyline = order.EncodedPolyline,
+            DistanceKm = order.DistanceKm,
+            DeliveryFee = order.DeliveryFee,
+            ActualGpsPoints = gpsPoints
+        };
+
+        return Ok(ApiResponse<OrderRouteHistoryDto>.Ok(dto));
     }
 }
 

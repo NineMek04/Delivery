@@ -1,4 +1,5 @@
 <section class="orders-page">
+  @if (view === 'list') {
 
   <!-- ── Page Header ──────────────────────────────────────────────────── -->
   <div class="section-header">
@@ -177,6 +178,10 @@
         <lucide-icon [img]="icons.Info" size="14"></lucide-icon>
         Info
       </button>
+      <button type="button" class="ghost-action" (click)="openOrderRoute(item)" title="ดูเส้นทางและพิกัด">
+        <lucide-icon [img]="icons.Navigation" size="14"></lucide-icon>
+        Route
+      </button>
       @if (['CREATED','MATCHING'].includes(item.status ?? '')) {
         <button type="button" class="ghost-action" (click)="retryDispatch(item.id)" title="Retry Dispatch" style="color: var(--color-brand-primary); border-color: rgba(0, 255, 102, 0.24); background: rgba(0, 255, 102, 0.05);">
           <lucide-icon [img]="icons.RotateCcw" size="14"></lucide-icon>
@@ -195,6 +200,19 @@
   <!-- ── Order Detail Modal ─────────────────────────────────────────────── -->
   @if (showDetailModal && selectedOrder) {
     <app-order-detail [order]="selectedOrder" [siblingOrders]="getSiblingOrders(selectedOrder)" (close)="closeOrderDetail()" (actionSuccess)="refreshSingleOrder($event)"></app-order-detail>
+  }
+
+  } <!-- end @if (view === 'list') -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       VIEW: ROUTE MAP — แผนที่เส้นทางของออเดอร์ (Planned + Actual GPS)
+  ════════════════════════════════════════════════════════════════ -->
+  @if (view === 'route-map') {
+    <app-rider-route-map
+      [orderId]="selectedRouteOrderId"
+      [isVisible]="view === 'route-map'"
+      (back)="onBackFromRouteMap()">
+    </app-rider-route-map>
   }
 
 </section>

@@ -26,7 +26,6 @@ namespace BackendApi.Controllers.Shops
     [Authorize]
     [Route("api/v1/menu-items")]
     [Route("api/v1/menuitems")]
-    [Route("api/v1/[controller]")]
     public class MenuItemsController : CrudControllerBase<MenuItem, MenuItemDto>
     {
         private readonly ITrackingSearchService? _searchService;

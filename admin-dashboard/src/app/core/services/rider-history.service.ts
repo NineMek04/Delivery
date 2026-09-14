@@ -32,6 +32,26 @@ export interface RiderGpsPoint {
   orderId: string | null;
 }
 
+export interface OrderRouteHistory {
+  orderId: string;
+  trackingCode: string;
+  status: string;
+  shopName: string | null;
+  deliveryAddress: string | null;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  dropoffLat: number | null;
+  dropoffLng: number | null;
+  assignedRiderId: string | null;
+  riderName: string | null;
+  assignedAt: string | null;
+  completedAt: string | null;
+  plannedPolyline: string | null;
+  distanceKm: number;
+  deliveryFee: number;
+  actualGpsPoints: RiderGpsPoint[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class RiderHistoryService {
 
@@ -94,8 +114,54 @@ export class RiderHistoryService {
             .filter((pt: RiderGpsPoint) =>
               Number.isFinite(pt.lat) &&
               Number.isFinite(pt.lng) &&
-              !(pt.lat === 0 && pt.lng === 0)
+              !(pt.lat === 0 && pt.lng === 0) &&
+              !(Math.abs(pt.lat - 17.4138) < 0.0005 && Math.abs(pt.lng - 102.7872) < 0.0005)
             );
+        })
+      );
+  }
+
+  /**
+   * ดึงประวัติเส้นทางจริงและพิกัด GPS ของออเดอร์
+   * → GET /api/v1/orders/{orderId}/route-history
+   */
+  getOrderRouteHistory(orderId: string): Observable<OrderRouteHistory> {
+    return req<any>(`/orders/${encodeURIComponent(orderId)}/route-history`)
+      .get()
+      .pipe(
+        map(res => {
+          const data = unwrapValue<any>(res);
+          return {
+            orderId: data.orderId ?? data.OrderId ?? '',
+            trackingCode: data.trackingCode ?? data.TrackingCode ?? '',
+            status: data.status ?? data.Status ?? '',
+            shopName: data.shopName ?? data.ShopName ?? null,
+            deliveryAddress: data.deliveryAddress ?? data.DeliveryAddress ?? null,
+            pickupLat: data.pickupLat ?? data.PickupLat ?? null,
+            pickupLng: data.pickupLng ?? data.PickupLng ?? null,
+            dropoffLat: data.dropoffLat ?? data.DropoffLat ?? null,
+            dropoffLng: data.dropoffLng ?? data.DropoffLng ?? null,
+            assignedRiderId: data.assignedRiderId ?? data.AssignedRiderId ?? null,
+            riderName: data.riderName ?? data.RiderName ?? null,
+            assignedAt: data.assignedAt ?? data.AssignedAt ?? null,
+            completedAt: data.completedAt ?? data.CompletedAt ?? null,
+            plannedPolyline: data.plannedPolyline ?? data.PlannedPolyline ?? null,
+            distanceKm: Number(data.distanceKm ?? data.DistanceKm ?? 0),
+            deliveryFee: Number(data.deliveryFee ?? data.DeliveryFee ?? 0),
+            actualGpsPoints: (data.actualGpsPoints ?? data.ActualGpsPoints ?? [])
+              .map((pt: any) => ({
+                lat: Number(pt.lat ?? pt.Lat),
+                lng: Number(pt.lng ?? pt.Lng),
+                recordedAt: pt.recordedAt ?? pt.RecordedAt ?? '',
+                orderId: pt.orderId ?? pt.OrderId ?? null
+              }))
+              .filter((pt: RiderGpsPoint) =>
+                Number.isFinite(pt.lat) &&
+                Number.isFinite(pt.lng) &&
+                !(pt.lat === 0 && pt.lng === 0) &&
+                !(Math.abs(pt.lat - 17.4138) < 0.0005 && Math.abs(pt.lng - 102.7872) < 0.0005)
+              )
+          };
         })
       );
   }

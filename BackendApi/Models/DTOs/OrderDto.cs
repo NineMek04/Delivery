@@ -198,4 +198,28 @@ namespace BackendApi.Models.DTOs
         /// <summary>คะแนนรีวิวจากลูกค้า (1-5)</summary>
         public int? Rating { get; set; }
     }
+
+    /// <summary>
+    /// DTO สำหรับแสดงข้อมูลเส้นทางจริงและประวัติ GPS ของออเดอร์ในหน้า Orders Admin Dashboard
+    /// </summary>
+    public class OrderRouteHistoryDto
+    {
+        public string OrderId { get; set; } = string.Empty;
+        public string TrackingCode { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? ShopName { get; set; }
+        public string? DeliveryAddress { get; set; }
+        public double? PickupLat { get; set; }
+        public double? PickupLng { get; set; }
+        public double? DropoffLat { get; set; }
+        public double? DropoffLng { get; set; }
+        public string? AssignedRiderId { get; set; }
+        public string? RiderName { get; set; }
+        public DateTime? AssignedAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public string? PlannedPolyline { get; set; }
+        public double DistanceKm { get; set; }
+        public decimal DeliveryFee { get; set; }
+        public List<RiderLocationHistoryDto> ActualGpsPoints { get; set; } = new();
+    }
 }

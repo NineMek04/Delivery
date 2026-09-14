@@ -144,7 +144,7 @@ class StoreSummaryScreen extends ConsumerWidget {
                             ),
                             onPressed: () async {
                               final authService = ref.read(authServiceProvider.notifier);
-                              final token = await authService.getAccessToken();
+                              final token = authService.currentToken;
                               final tokenQuery = token != null && token.isNotEmpty ? '&access_token=$token' : '';
                               final url = Uri.parse(
                                 '${Environment.apiUrl}/shops/${shop.id}/reports/export?period=$period&format=csv$tokenQuery',

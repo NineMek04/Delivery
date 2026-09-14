@@ -47,8 +47,8 @@ class AppUpdateService {
   ));
 
   /// เวอร์ชันปัจจุบันของแอปที่คอมไพล์อยู่
-  static const String currentVersion = '1.0.0';
-  static const int currentBuildNumber = 1;
+  static const String currentVersion = '1.0.2';
+  static const int currentBuildNumber = 2;
 
   /// ตรวจสอบว่ามีเวอร์ชันใหม่จากเซิร์ฟเวอร์หรือไม่
   Future<AppUpdateInfo?> checkForUpdate() async {

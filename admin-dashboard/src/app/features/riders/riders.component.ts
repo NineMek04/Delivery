@@ -204,12 +204,13 @@ export class RidersComponent implements OnInit {
     this.selectedRider = null;
   }
 
-  // ── History Modal ─────────────────────────────────────────────────
+  // ── History Modal / Direct GPS Route Map ──────────────────────────
 
   openHistory(rider: RiderDto): void {
-    this.historyRider = rider;
-    this.isHistoryModalOpen = true;
-    // ปิด edit modal ถ้ายังเปิดอยู่
+    this.routeMapRider = rider;
+    this.routeMapOrder = null;
+    this.view = 'route-map';
+    this.isHistoryModalOpen = false;
     this.isEditModalOpen = false;
   }
 

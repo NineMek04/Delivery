@@ -14,11 +14,12 @@ import Swal from 'sweetalert2';
 import {
   LucideAngularModule,
   RefreshCcw, Search, XCircle, RotateCcw, Info,
-  ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin
+  ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin, Navigation
 } from 'lucide-angular';
 import { OrderDetailComponent } from './order-detail/order-detail.component';
 import { DispatchQueueComponent } from './dispatch-queue/dispatch-queue.component';
 import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
+import { RiderRouteMapComponent } from '../riders/rider-route-map/rider-route-map.component';
 
 type SortDir = 'asc' | 'desc' | null;
 interface SortState { field: keyof OrderDto | 'rider'; dir: SortDir; }
@@ -38,14 +39,19 @@ interface FilterState {
   standalone:  true,
   changeDetection: ChangeDetectionStrategy.Default,
   imports: [
-    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent, DispatchQueueComponent, DataTableComponent
+    CommonModule, FormsModule, LucideAngularModule, OrderDetailComponent,
+    DispatchQueueComponent, DataTableComponent, RiderRouteMapComponent
   ],
   templateUrl: './orders.component.html',
   styleUrl:    './orders.component.scss'
 })
 export class OrdersComponent implements OnInit {
   readonly title = 'Order_Operations';
-  readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin };
+  readonly icons = { RefreshCcw, Search, XCircle, RotateCcw, Info, ChevronUp, ChevronDown, ChevronsUpDown, Bell, Filter, X, MapPin, Navigation };
+
+  // ── View state: 'list' = ตารางออเดอร์, 'route-map' = แผนที่เส้นทางออเดอร์ ──
+  view: 'list' | 'route-map' = 'list';
+  selectedRouteOrderId: string | null = null;
 
   columns: TableColumn[] = [
     { field: 'id', header: 'ORDER_ID', isSortable: true },
@@ -356,8 +362,7 @@ export class OrdersComponent implements OnInit {
       .sort((a, b) => (a.batchSequence ?? 0) - (b.batchSequence ?? 0));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Modal
+  // ── Modal & Route Map ───────────────────────────────────────────────────
   // ─────────────────────────────────────────────────────────────────────────
 
   openOrderDetail(order: OrderDto): void {
@@ -368,6 +373,17 @@ export class OrdersComponent implements OnInit {
   closeOrderDetail(): void {
     this.showDetailModal = false;
     this.selectedOrder  = null;
+  }
+
+  openOrderRoute(order: OrderDto): void {
+    if (!order.id) return;
+    this.selectedRouteOrderId = order.id;
+    this.view = 'route-map';
+  }
+
+  onBackFromRouteMap(): void {
+    this.view = 'list';
+    this.selectedRouteOrderId = null;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

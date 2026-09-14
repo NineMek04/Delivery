@@ -27,7 +27,6 @@ namespace BackendApi.Controllers.Shops
     [Authorize]
     [Route("api/v1/menu-categories")]
     [Route("api/v1/menucategories")]
-    [Route("api/v1/[controller]")]
     public class MenuCategoriesController : CrudControllerBase<MenuCategory, MenuCategoryDto>
     {
         public MenuCategoriesController()

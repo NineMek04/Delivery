@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -203,10 +203,10 @@ namespace BackendApi.Controllers.Riders
                     code: "INVALID_TIME_RANGE"));
             }
 
-            if (to - from > TimeSpan.FromDays(7))
+            if (to - from > TimeSpan.FromDays(30))
             {
                 return BadRequest(ApiResponse<List<RiderLocationHistoryDto>>.Fail(
-                    "GPS history range cannot exceed 7 days.",
+                    "GPS history range cannot exceed 30 days.",
                     code: "TIME_RANGE_TOO_LARGE"));
             }
 

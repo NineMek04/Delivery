@@ -1,4 +1,4 @@
-﻿using BackendApi.Setup;
+using BackendApi.Setup;
 using BackendApi.Setup.Middlewares;
 using BackendApi.Setup.Configuration;
 using BackendApi.Setup.Extensions;
@@ -36,9 +36,13 @@ try
     builder.Configuration.AddVaultConfiguration();
 
     // --- JWT Secret Fallback Mapping ---
-    if (string.IsNullOrEmpty(builder.Configuration["Jwt:Key"]))
+    var currentJwtKey = builder.Configuration["Jwt:Key"];
+    if (string.IsNullOrEmpty(currentJwtKey) || currentJwtKey.Contains("__SET_VIA_USER_SECRETS_OR_ENV__", StringComparison.OrdinalIgnoreCase))
     {
-        var jwtSecret = builder.Configuration["JWT_SECRET"] ?? Environment.GetEnvironmentVariable("JWT_SECRET");
+        var jwtSecret = builder.Configuration["JWT_SECRET"] 
+            ?? builder.Configuration["Jwt__Key"] 
+            ?? Environment.GetEnvironmentVariable("JWT_SECRET") 
+            ?? Environment.GetEnvironmentVariable("Jwt__Key");
         if (!string.IsNullOrEmpty(jwtSecret))
         {
             builder.Configuration["Jwt:Key"] = jwtSecret;

@@ -1,0 +1,74 @@
+<div class="route-map-page">
+
+  <!-- ── Top Bar ───────────────────────────────────────────────────── -->
+  <div class="map-topbar">
+    <button class="back-btn" id="route-map-back-btn" (click)="goBack()">
+      <lucide-icon [img]="icons.ArrowLeft" size="16"></lucide-icon>
+      Back to Riders
+    </button>
+
+    <div class="order-info" *ngIf="order">
+      <div class="order-track">
+        <span class="label">ORDER</span>
+        <span class="code">{{ order.trackingCode }}</span>
+      </div>
+      <div class="order-meta-items">
+        <span class="meta-chip">
+          <lucide-icon [img]="icons.Package" size="10"></lucide-icon>
+          {{ order.shopName || '—' }}
+        </span>
+        <span class="meta-chip">
+          <lucide-icon [img]="icons.Clock" size="10"></lucide-icon>
+          {{ formatDuration(order.assignedAt, order.completedAt) }}
+        </span>
+        <span class="meta-chip highlight">
+          ฿{{ order.deliveryFee.toFixed(0) }}
+        </span>
+        <span class="meta-chip">
+          {{ order.distanceKm.toFixed(1) }} km
+        </span>
+      </div>
+    </div>
+
+    <div class="rider-chip">
+      <lucide-icon [img]="icons.Navigation" size="12"></lucide-icon>
+      {{ riderName }}
+    </div>
+  </div>
+
+  <!-- ── Map Container ──────────────────────────────────────────────── -->
+  <div class="map-wrapper">
+    <div #routeMapEl class="leaflet-container" id="rider-route-leaflet-map"></div>
+
+    <!-- Loading overlay -->
+    <div class="map-overlay loading" *ngIf="isLoading">
+      <div class="spinner"></div>
+      <span>Loading GPS track...</span>
+    </div>
+
+    <!-- Error overlay -->
+    <div class="map-overlay error" *ngIf="!isLoading && hasError">
+      <span>⚠ {{ errorMsg }}</span>
+      <button class="retry-btn" (click)="loadRoute()" id="route-map-retry-btn">Retry</button>
+    </div>
+
+    <!-- Empty overlay -->
+    <div class="map-overlay empty" *ngIf="!isLoading && !hasError && pointCount === 0 && order">
+      <span>No GPS data for this order period</span>
+    </div>
+
+    <!-- Legend -->
+    <div class="map-legend" *ngIf="!isLoading && !hasError && pointCount > 0">
+      <div class="legend-item">
+        <span class="dot pickup"></span>Pickup
+      </div>
+      <div class="legend-item">
+        <span class="dot dropoff"></span>Dropoff
+      </div>
+      <div class="legend-item">
+        <span class="line-sample"></span>GPS Track ({{ pointCount }} pts)
+      </div>
+    </div>
+  </div>
+
+</div>

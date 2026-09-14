@@ -1,12 +1,15 @@
 import { Component, OnInit, inject, DestroyRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideAngularModule, RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X } from 'lucide-angular';
+import { LucideAngularModule, RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X, History } from 'lucide-angular';
 import { RiderService } from '../../core/services/rider.service';
 import { AnalyticsService, RiderPerformanceDto } from '../../core/services/analytics.service';
 import { RiderDto } from '../../api/generated/model/rider-dto';
 import { DataTableComponent, TableColumn } from '../../component/data-table/data-table.component';
 import { RiderEditModalComponent } from './rider-edit-modal/rider-edit-modal.component';
+import { RiderHistoryModalComponent } from './rider-history-modal/rider-history-modal.component';
+import { RiderRouteMapComponent } from './rider-route-map/rider-route-map.component';
+import { RiderCompletedOrder } from '../../core/services/rider-history.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TrackingSignalRService } from '../../core/services/tracking-signalr.service';
 import Swal from 'sweetalert2';
@@ -14,13 +17,20 @@ import Swal from 'sweetalert2';
 @Component({
   selector: 'app-riders',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, DataTableComponent, RiderEditModalComponent],
+  imports: [
+    CommonModule, FormsModule, LucideAngularModule,
+    DataTableComponent, RiderEditModalComponent,
+    RiderHistoryModalComponent, RiderRouteMapComponent
+  ],
   templateUrl: './riders.component.html',
   styleUrl: './riders.component.scss'
 })
 export class RidersComponent implements OnInit {
   readonly title = 'Rider_Fleet';
-  readonly icons = { RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X };
+  readonly icons = { RefreshCcw, Search, MapPin, Pencil, Trash2, Check, X, History };
+
+  // ── View state: 'list' = ตารางไรเดอร์, 'route-map' = แผนที่ GPS ออเดอร์ ──
+  view: 'list' | 'route-map' = 'list';
 
   private readonly riderService = inject(RiderService);
   private readonly analyticsService = inject(AnalyticsService);
@@ -56,9 +66,17 @@ export class RidersComponent implements OnInit {
     { field: 'lastUpdated', header: 'LAST_UPDATE', isSortable: true }
   ];
 
-  // modal edit state
+  // ── Modal edit state ───────────────────────────────────────────────
   isEditModalOpen = false;
   selectedRider: RiderDto | null = null;
+
+  // ── History modal state ────────────────────────────────────────────
+  isHistoryModalOpen = false;
+  historyRider: RiderDto | null = null;
+
+  // ── Route map state ────────────────────────────────────────────────
+  routeMapRider: RiderDto | null = null;
+  routeMapOrder: RiderCompletedOrder | null = null;
 
   recalculateStats(): void {
     this.idleCount = this.riders.filter(r => r.status === 'IDLE').length;
@@ -184,6 +202,34 @@ export class RidersComponent implements OnInit {
   closeEditModal(): void {
     this.isEditModalOpen = false;
     this.selectedRider = null;
+  }
+
+  // ── History Modal ─────────────────────────────────────────────────
+
+  openHistory(rider: RiderDto): void {
+    this.historyRider = rider;
+    this.isHistoryModalOpen = true;
+    // ปิด edit modal ถ้ายังเปิดอยู่
+    this.isEditModalOpen = false;
+  }
+
+  closeHistoryModal(): void {
+    this.isHistoryModalOpen = false;
+  }
+
+  // ── Route Map ─────────────────────────────────────────────────────
+
+  onOrderSelectedForMap(event: { order: RiderCompletedOrder; rider: RiderDto }): void {
+    this.routeMapRider = event.rider;
+    this.routeMapOrder = event.order;
+    this.isHistoryModalOpen = false;
+    this.view = 'route-map';
+  }
+
+  onBackFromRouteMap(): void {
+    this.view = 'list';
+    this.routeMapRider = null;
+    this.routeMapOrder = null;
   }
 
   saveModalEdit(updatedData: RiderDto): void {

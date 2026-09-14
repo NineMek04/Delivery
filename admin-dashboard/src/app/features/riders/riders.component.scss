@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
+  min-height: calc(100vh - 64px); // ให้ route-map panel ยืดเต็มจอ
 }
 
 .section-header {
@@ -360,4 +361,29 @@ tr:hover td {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+// ── History Action Button (ในตาราง Rider) ────────────────────────────
+
+.history-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid rgba(0, 255, 102, 0.25);
+  color: var(--color-brand-primary);
+  padding: 5px 10px;
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  opacity: 0.75;
+
+  &:hover {
+    opacity: 1;
+    border-color: rgba(0, 255, 102, 0.6);
+    background: rgba(0, 255, 102, 0.06);
+    box-shadow: 0 0 8px rgba(0, 255, 102, 0.15);
+  }
 }

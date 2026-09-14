@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideAngularModule, X } from 'lucide-angular';
+import { LucideAngularModule, X, Clock } from 'lucide-angular';
 import { RiderDto } from '../../../api/generated/model/rider-dto';
 
 @Component({
@@ -13,12 +13,14 @@ import { RiderDto } from '../../../api/generated/model/rider-dto';
 })
 export class RiderEditModalComponent {
   XIcon = X;
+  ClockIcon = Clock;
 
   @Input() isOpen = false;
   @Input() rider: RiderDto | null = null;
   
-  @Output() closed = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<RiderDto>();
+  @Output() closed            = new EventEmitter<void>();
+  @Output() saved             = new EventEmitter<RiderDto>();
+  @Output() historyRequested  = new EventEmitter<RiderDto>();
 
   editModel: Partial<RiderDto> | null = null;
 
@@ -31,6 +33,12 @@ export class RiderEditModalComponent {
   close() {
     this.isOpen = false;
     this.closed.emit();
+  }
+
+  openHistory() {
+    if (this.rider) {
+      this.historyRequested.emit(this.rider);
+    }
   }
 
   save() {

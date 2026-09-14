@@ -1,4 +1,8 @@
 <section class="riders-page">
+  <!-- ═══════════════════════════════════════════════════════════════
+       VIEW: LIST — ตารางไรเดอร์ทั้งหมด
+  ════════════════════════════════════════════════════════════════ -->
+  @if (view === 'list') {
   <div class="section-header">
     <div>
       <h2>{{ title }}</h2>
@@ -122,6 +126,10 @@
         <lucide-icon [img]="icons.Pencil" size="14"></lucide-icon>
         Edit
       </button>
+      <button type="button" class="ghost-action history-action" (click)="openHistory(item)">
+        <lucide-icon [img]="icons.History" size="14"></lucide-icon>
+        History
+      </button>
       <button type="button" class="danger-action" (click)="deleteRider(item)">
         <lucide-icon [img]="icons.Trash2" size="14"></lucide-icon>
         Delete
@@ -133,6 +141,32 @@
     [isOpen]="isEditModalOpen" 
     [rider]="selectedRider"
     (closed)="closeEditModal()" 
-    (saved)="saveModalEdit($event)">
+    (saved)="saveModalEdit($event)"
+    (historyRequested)="openHistory($event)">
   </app-rider-edit-modal>
+
+  } <!-- end @if (view === 'list') -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       VIEW: ROUTE MAP — แผนที่ GPS ออเดอร์ที่เลือก
+  ════════════════════════════════════════════════════════════════ -->
+  @if (view === 'route-map') {
+    <app-rider-route-map
+      [rider]="routeMapRider"
+      [order]="routeMapOrder"
+      [isVisible]="view === 'route-map'"
+      (back)="onBackFromRouteMap()">
+    </app-rider-route-map>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SHARED OVERLAYS — แสดงบนทั้งสอง view
+  ════════════════════════════════════════════════════════════════ -->
+  <app-rider-history-modal
+    [isOpen]="isHistoryModalOpen"
+    [rider]="historyRider"
+    (closed)="closeHistoryModal()"
+    (orderSelected)="onOrderSelectedForMap($event)">
+  </app-rider-history-modal>
+
 </section>

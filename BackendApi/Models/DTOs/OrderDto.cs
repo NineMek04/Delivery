@@ -153,4 +153,49 @@ namespace BackendApi.Models.DTOs
         public List<string> OrderIds { get; set; } = new();
         public string? RiderId { get; set; }
     }
+
+    /// <summary>
+    /// DTO สรุปออเดอร์ COMPLETED สำหรับแสดงประวัติการวิ่งงานของ Rider ใน Admin Dashboard
+    /// ใช้กับ GET /api/v1/riders/{riderId}/completed-orders
+    /// </summary>
+    public class RiderCompletedOrderDto
+    {
+        /// <summary>UUID ของออเดอร์ ใช้อ้างอิงดึง GPS history</summary>
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>รหัสติดตามที่แสดงหน้าบ้าน (เช่น ORD-000123)</summary>
+        public string TrackingCode { get; set; } = string.Empty;
+
+        /// <summary>ชื่อร้านค้าต้นทาง (จุดรับสินค้า)</summary>
+        public string? ShopName { get; set; }
+
+        /// <summary>ที่อยู่จัดส่งปลายทาง (ข้อความ)</summary>
+        public string? DeliveryAddress { get; set; }
+
+        /// <summary>ค่าจัดส่งที่ Rider ได้รับ</summary>
+        public decimal DeliveryFee { get; set; }
+
+        /// <summary>ระยะทาง (กิโลเมตร)</summary>
+        public double DistanceKm { get; set; }
+
+        /// <summary>พิกัดจุดรับสินค้า (ร้าน) — ใช้วาง marker บนแผนที่</summary>
+        public double? PickupLat { get; set; }
+        public double? PickupLng { get; set; }
+
+        /// <summary>พิกัดจุดส่งของ (ลูกค้า) — ใช้วาง marker บนแผนที่</summary>
+        public double? DropoffLat { get; set; }
+        public double? DropoffLng { get; set; }
+
+        /// <summary>เวลาที่ Rider รับงาน — ใช้เป็น GPS time window ฝั่ง from</summary>
+        public DateTime? AssignedAt { get; set; }
+
+        /// <summary>เวลาที่ส่งเสร็จ — ใช้เป็น GPS time window ฝั่ง to</summary>
+        public DateTime? CompletedAt { get; set; }
+
+        /// <summary>เวลาที่สร้างออเดอร์ (fallback ถ้า AssignedAt เป็น null)</summary>
+        public DateTime? CreatedAt { get; set; }
+
+        /// <summary>คะแนนรีวิวจากลูกค้า (1-5)</summary>
+        public int? Rating { get; set; }
+    }
 }

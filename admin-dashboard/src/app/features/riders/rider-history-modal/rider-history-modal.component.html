@@ -1,0 +1,106 @@
+<div class="history-overlay" *ngIf="isOpen" (click)="close()">
+  <div class="history-panel" (click)="$event.stopPropagation()">
+
+    <!-- ── Header ───────────────────────────────────────────────── -->
+    <div class="panel-header">
+      <div class="header-left">
+        <lucide-icon [img]="icons.Clock" size="16"></lucide-icon>
+        <div>
+          <h3>Ride History</h3>
+          <span class="rider-tag">{{ riderLabel() }}</span>
+        </div>
+      </div>
+      <button class="icon-btn" (click)="close()" id="history-modal-close-btn" title="Close">
+        <lucide-icon [img]="icons.X" size="18"></lucide-icon>
+      </button>
+    </div>
+
+    <!-- ── Filter Strip ──────────────────────────────────────────── -->
+    <div class="filter-strip">
+      <div class="preset-chips">
+        <button
+          *ngFor="let p of presets"
+          class="chip"
+          [class.active]="activePreset === p"
+          (click)="setPreset(p)"
+          [id]="'history-preset-' + p">
+          {{ p }}
+        </button>
+      </div>
+      <div class="date-range">
+        <input
+          id="history-from-date"
+          type="date"
+          [(ngModel)]="customFrom"
+          (change)="onCustomDateChange()"
+          class="date-input" />
+        <span class="range-sep">→</span>
+        <input
+          id="history-to-date"
+          type="date"
+          [(ngModel)]="customTo"
+          (change)="onCustomDateChange()"
+          class="date-input" />
+        <button class="icon-btn" (click)="refresh()" title="Refresh" id="history-refresh-btn">
+          <lucide-icon [img]="icons.RefreshCcw" size="14"></lucide-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Content Area ──────────────────────────────────────────── -->
+    <div class="panel-body">
+
+      <!-- Loading -->
+      <div class="state-view" *ngIf="isLoading">
+        <div class="spinner"></div>
+        <span>Loading completed orders...</span>
+      </div>
+
+      <!-- Error -->
+      <div class="state-view error" *ngIf="!isLoading && hasError">
+        <span>⚠ {{ errorMsg }}</span>
+        <button class="ghost-action" (click)="refresh()">Retry</button>
+      </div>
+
+      <!-- Empty -->
+      <div class="state-view" *ngIf="!isLoading && !hasError && orders.length === 0">
+        <span>No completed orders in this period</span>
+      </div>
+
+      <!-- Order List -->
+      <div class="order-list" *ngIf="!isLoading && !hasError && orders.length > 0">
+        <div class="list-count">{{ orders.length }} orders found</div>
+        <button
+          class="order-row"
+          *ngFor="let order of orders; let i = index"
+          [id]="'history-order-' + i"
+          (click)="selectOrder(order)">
+
+          <div class="order-index">{{ i + 1 }}</div>
+
+          <div class="order-body">
+            <div class="order-top">
+              <span class="tracking-code">{{ order.trackingCode }}</span>
+              <span class="order-fee">{{ formatFee(order.deliveryFee) }}</span>
+            </div>
+            <div class="order-shop">
+              <lucide-icon [img]="icons.MapPin" size="10"></lucide-icon>
+              {{ order.shopName || '—' }}
+            </div>
+            <div class="order-meta">
+              <span class="order-time">{{ formatDate(order.completedAt) }}</span>
+              <span class="order-dist">{{ formatKm(order.distanceKm) }}</span>
+              <span class="order-rating" *ngIf="order.rating">
+                <lucide-icon [img]="icons.Star" size="10"></lucide-icon>
+                {{ order.rating }}
+              </span>
+            </div>
+          </div>
+
+          <lucide-icon [img]="icons.ChevronRight" size="16" class="row-arrow"></lucide-icon>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>

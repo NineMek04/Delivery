@@ -29,6 +29,10 @@
     </div>
 
     <div class="modal-footer">
+      <button type="button" class="history-action" (click)="openHistory()" id="edit-modal-history-btn">
+        <lucide-icon [img]="ClockIcon" size="14"></lucide-icon>
+        History
+      </button>
       <button type="button" class="muted-action" (click)="close()">Cancel</button>
       <button type="button" class="primary-action" (click)="save()">Save Changes</button>
     </div>

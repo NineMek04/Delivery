@@ -1,8 +1,32 @@
+import 'package:flutter/material.dart';
 import '../../core/config/app_constants.dart';
 
 /// Labels and next status for order state machine (BackendApi).
 class OrderStatusHelper {
   OrderStatusHelper._();
+
+  static Color statusColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'CREATED':
+        return Colors.grey;
+      case 'MATCHING':
+        return Colors.blue;
+      case 'OFFERING':
+        return Colors.amber;
+      case 'ASSIGNED':
+        return Colors.blue;
+      case 'PICKING_UP':
+        return const Color(0xFF059669);
+      case 'DELIVERING':
+        return const Color(0xFF10B981);
+      case 'COMPLETED':
+        return const Color(0xFF10B981);
+      case 'CANCELLED':
+        return Colors.redAccent;
+      default:
+        return Colors.grey;
+    }
+  }
 
   static String label(String status) {
     switch (status.toUpperCase()) {

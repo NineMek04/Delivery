@@ -1,4 +1,4 @@
-﻿using BackendApi.Core.Models;
+using BackendApi.Core.Models;
 using BackendApi.Core.Models.Response;
 using BackendApi.Core.Models.Entities;
 using BackendApi.Models.DTOs;
@@ -41,7 +41,13 @@ public interface IOrderService
     Task<(int StatusCode, ApiResponse Response)> RetryDispatchAsync(string id, CancellationToken cancellationToken);
     
     Task<(int StatusCode, ApiResponse Response)> BatchDispatchAsync(BatchDispatchDto dto, CancellationToken cancellationToken);
-    
+
+    Task<(int StatusCode, ApiResponse<OrderDto> Response)> SubmitReviewAsync(
+        string id,
+        SubmitOrderReviewDto dto,
+        string? currentUserId,
+        string? role,
+        CancellationToken cancellationToken);
 }
 
 

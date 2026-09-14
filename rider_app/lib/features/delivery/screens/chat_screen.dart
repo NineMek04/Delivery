@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/signalr/chat_service.dart';
+import '../../../core/api/services/order_api_service.dart';
+import '../../tracking/providers/tracking_provider.dart';
 import '../providers/delivery_provider.dart';
 
 /// หน้าจอแชทแบบเรียลไทม์ประสานงานระหว่าง ไรเดอร์-ลูกค้า-ร้านค้า (Order-bound Chat Room)
 class ChatScreen extends ConsumerStatefulWidget {
   final String orderId;
+  final String? initialStatus;
 
-  const ChatScreen({super.key, required this.orderId});
+  const ChatScreen({
+    super.key,
+    required this.orderId,
+    this.initialStatus,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -17,16 +24,26 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  String? _resolvedStatus;
 
   @override
   void initState() {
     super.initState();
+    _resolvedStatus = widget.initialStatus;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatServiceProvider(widget.orderId).notifier).connectAndJoin();
       
       final deliveryState = ref.read(deliveryNotifierProvider);
       if (deliveryState.activeOrders.isEmpty && !deliveryState.isLoading) {
         ref.read(deliveryNotifierProvider.notifier).loadOrders();
+      }
+
+      if (_resolvedStatus == null) {
+        ref.read(orderApiServiceProvider).getById(widget.orderId).then((order) {
+          if (mounted) {
+            setState(() => _resolvedStatus = order.status);
+          }
+        }).catchError((_) {});
       }
     });
   }
@@ -75,15 +92,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatServiceProvider(widget.orderId));
     final deliveryState = ref.watch(deliveryNotifierProvider);
+    final trackingState = ref.watch(activeOrderProvider);
     
     // ค้นหาออเดอร์ในหน้างานปัจจุบันเพื่อตรวจสอบสถานะล็อกห้องแชท
     final activeOrderIndex = deliveryState.activeOrders.indexWhere((o) => o.id == widget.orderId);
     final activeOrder = activeOrderIndex != -1 ? deliveryState.activeOrders[activeOrderIndex] : null;
     
+    final currentStatus = _resolvedStatus ?? 
+        activeOrder?.status ?? 
+        (trackingState.order?.id == widget.orderId ? trackingState.order?.status : null) ?? 
+        widget.initialStatus;
+
     // แชทจะถูกปิดการส่งเมื่อเสร็จสิ้น (COMPLETED) หรือยกเลิก (CANCELLED)
-    final bool isChatLocked = activeOrder == null || 
-        activeOrder.status == 'COMPLETED' || 
-        activeOrder.status == 'CANCELLED';
+    final bool isChatLocked = currentStatus == 'COMPLETED' || currentStatus == 'CANCELLED';
 
     // จัดตำแหน่งเลื่อนแชทล่างสุดเมื่อมีข้อความใหม่เข้ามา
     ref.listen(chatServiceProvider(widget.orderId), (previous, next) {
@@ -256,6 +277,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
             ),
 
+            if (isChatLocked)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                color: Colors.amber.shade50,
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_clock, size: 16, color: Colors.amber.shade900),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'ออเดอร์นี้สิ้นสุดแล้ว สามารถอ่านประวัติได้ แต่ปิดการส่งข้อความ',
+                        style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // ส่วนสำหรับพิมพ์ข้อความส่งด้านล่าง
             Container(
               padding: const EdgeInsets.all(12),
@@ -277,8 +317,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       enabled: chatState.isConnected && !isChatLocked,
                       decoration: InputDecoration(
                         hintText: isChatLocked
-                            ? 'ห้องแชทถูกล็อกถาวรแล้ว'
-                            : (chatState.isConnected ? 'พิมพ์ข้อความส่งหาลูกค้า/ร้านค้า...' : 'กำลังเชื่อมต่อระบบแชท...'),
+                            ? 'ออเดอร์สิ้นสุดแล้ว (อ่านประวัติได้อย่างเดียว)'
+                            : (chatState.isConnected ? 'พิมพ์ข้อความส่งหาไรเดอร์/ร้านค้า...' : 'กำลังเชื่อมต่อระบบแชท...'),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),

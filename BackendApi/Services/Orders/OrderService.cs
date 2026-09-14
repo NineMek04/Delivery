@@ -1,4 +1,4 @@
-﻿using BackendApi.Core;
+using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Security;
 using BackendApi.Security.Models;
@@ -211,6 +211,9 @@ public class OrderService : IOrderService
             EncodedPolyline = encodedPolyline,
             RouteDistanceMeters = routeDistanceMeters,
             RouteDurationSeconds = routeDurationSeconds,
+            NoteToShop = dto.NoteToShop,
+            NoteToRider = dto.NoteToRider,
+            DeliveryAddress = dto.DeliveryAddress,
             Items = new List<OrderItem>()
         };
 
@@ -825,6 +828,60 @@ public class OrderService : IOrderService
             >= 22 or <= 5 => "light",
             _ => "normal"
         };
+    }
+
+    public async Task<(int StatusCode, ApiResponse<OrderDto> Response)> SubmitReviewAsync(
+        string id,
+        SubmitOrderReviewDto dto,
+        string? currentUserId,
+        string? role,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId) || string.IsNullOrWhiteSpace(role))
+            return (StatusCodes.Status401Unauthorized, ApiResponse<OrderDto>.Fail("User identity is missing."));
+
+        Order? order = null;
+        var parsedRef = _searchService.ParseSearchQuery(id, TrackingPrefixes.Order);
+        if (parsedRef.HasValue)
+        {
+            order = await _db.GetQuery<Order>()
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.RefNumber == parsedRef.Value, cancellationToken);
+        }
+        else
+        {
+            order = await _db.GetQuery<Order>()
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        }
+
+        if (order is null)
+            return (StatusCodes.Status404NotFound, ApiResponse<OrderDto>.Fail("ไม่พบออเดอร์ในระบบ"));
+
+        if (role != AuthConstants.AdminRole && order.CustomerId != currentUserId)
+        {
+            return (StatusCodes.Status403Forbidden, ApiResponse<OrderDto>.Fail("คุณไม่มีสิทธิ์ให้คะแนนออเดอร์นี้"));
+        }
+
+        if (order.State != BackendApi.Core.StateMachines.OrderState.COMPLETED)
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("สามารถให้คะแนนได้เฉพาะออเดอร์ที่จัดส่งสำเร็จแล้วเท่านั้น"));
+        }
+
+        if (dto.Rating < 1 || dto.Rating > 5)
+        {
+            return (StatusCodes.Status400BadRequest, ApiResponse<OrderDto>.Fail("คะแนนต้องอยู่ระหว่าง 1 ถึง 5 ดาว"));
+        }
+
+        order.Rating = dto.Rating;
+        order.ReviewComment = dto.ReviewComment?.Trim();
+        order.ReviewedAt = DateTime.UtcNow;
+
+        _db.UpdateObject(order);
+        await _db.CommitChangesAsync(cancellationToken);
+
+        var responseDto = _mapper.Map<OrderDto>(order);
+        return (StatusCodes.Status200OK, ApiResponse<OrderDto>.Ok(responseDto, "บันทึกคะแนนและรีวิวเรียบร้อยแล้ว"));
     }
 }
 

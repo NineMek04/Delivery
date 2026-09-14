@@ -8,6 +8,7 @@ import '../../../core/api/services/order_api_service.dart';
 import '../../../core/signalr/customer_signalr_service.dart';
 import '../../../models/order.dart';
 import '../../../shared/utils/order_status_helper.dart';
+import '../../../shared/widgets/order_review_dialog.dart';
 
 final customerOrdersProvider = FutureProvider.autoDispose<List<OrderDto>>((ref) async {
   return ref.read(orderApiServiceProvider).getCustomerOrders();
@@ -163,29 +164,117 @@ class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
   }
 }
 
-class _OrderListTile extends StatelessWidget {
+class _OrderListTile extends ConsumerWidget {
   final OrderDto order;
 
   const _OrderListTile({required this.order});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        title: Text(
-          'ออเดอร์ #${order.trackingCode ?? order.id.substring(0, 8)}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('สถานะ: ${OrderStatusHelper.label(order.status)}'),
-            Text('วันที่: ${order.createdAt != null ? DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt!) : '—'}'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'ออเดอร์ #${order.trackingCode ?? order.id.substring(0, 8)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: OrderStatusHelper.statusColor(order.status).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    OrderStatusHelper.label(order.status),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: OrderStatusHelper.statusColor(order.status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'วันที่: ${order.createdAt != null ? DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt!) : '—'}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'จุดส่ง: ${order.deliveryAddress}',
+                style: const TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+            ],
+            if (order.noteToRider != null && order.noteToRider!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'ข้อความถึงไรเดอร์: ${order.noteToRider}',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (order.status == 'COMPLETED') ...[
+                  if (order.rating != null)
+                    Row(
+                      children: [
+                        const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${order.rating}/5 ดาว',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber),
+                        ),
+                      ],
+                    )
+                  else
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        visualDensity: VisualDensity.compact,
+                        side: BorderSide(color: Colors.amber.shade800),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+                      label: Text(
+                        'ให้คะแนน',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                      ),
+                      onPressed: () {
+                        OrderReviewDialog.show(
+                          context,
+                          order: order,
+                          onReviewed: () => ref.refresh(customerOrdersProvider.future),
+                        );
+                      },
+                    ),
+                ] else ...[
+                  const SizedBox.shrink(),
+                ],
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  icon: const Icon(Icons.map_outlined, size: 16),
+                  label: const Text('ติดตาม', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: () => context.pushNamed('customerTracking', pathParameters: {'orderId': order.id}),
+                ),
+              ],
+            ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.pushNamed('customerTracking', pathParameters: {'orderId': order.id}),
       ),
     );
   }

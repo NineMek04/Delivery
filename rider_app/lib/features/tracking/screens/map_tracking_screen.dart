@@ -14,7 +14,6 @@ import '../../../core/api/services/client_route_telemetry_service.dart';
 import '../../../core/api/services/rider_route_api_service.dart';
 import '../../../core/signalr/signalr_service.dart';
 import '../../../core/location/location_service.dart';
-import '../../../core/location/gps_buffer_service.dart';
 import '../../../core/location/tile_cache_service.dart';
 import '../../../core/session/rider_session_service.dart';
 import '../../../core/auth/auth_service.dart';

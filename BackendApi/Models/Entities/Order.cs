@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Helpers;
 using BackendApi.Core.Models;
@@ -95,6 +95,28 @@ namespace BackendApi.Models.Entities
 
         /// <summary>ระยะเวลาเดินทางจริงโดยประมาณ (วินาที)</summary>
         public double RouteDurationSeconds { get; set; }
+
+        // ── Notes & Delivery Address ─────────────────────────────────
+
+        /// <summary>ข้อความ/หมายเหตุถึงร้านค้า เช่น ขอช้อนเพิ่ม, เผ็ดน้อย</summary>
+        public string? NoteToShop { get; set; }
+
+        /// <summary>ข้อความ/หมายเหตุถึงไรเดอร์ เช่น วางไว้หน้าประตู, โทรหาก่อนถึง</summary>
+        public string? NoteToRider { get; set; }
+
+        /// <summary>ที่อยู่จัดส่งระบุข้อความ/ชื่อสถานที่</summary>
+        public string? DeliveryAddress { get; set; }
+
+        // ── Customer Review & Rating ─────────────────────────────────
+
+        /// <summary>คะแนนความพึงพอใจ (1-5 ดาว)</summary>
+        public int? Rating { get; set; }
+
+        /// <summary>ความคิดเห็นติชมจากลูกค้า</summary>
+        public string? ReviewComment { get; set; }
+
+        /// <summary>เวลาที่ลูกค้าส่งรีวิว</summary>
+        public DateTime? ReviewedAt { get; set; }
     }
 }
 

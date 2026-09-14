@@ -127,5 +127,25 @@ class OrderApiService {
     }
   }
 
+  Future<OrderDto> submitReview({
+    required String orderId,
+    required int rating,
+    String? comment,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.ordersEndpoint}/$orderId/review',
+        data: {
+          'Rating': rating,
+          if (comment != null && comment.isNotEmpty) 'ReviewComment': comment,
+        },
+      );
+      final parsed = parseApiResponse(response.data, OrderDto.fromJson);
+      ensureSuccess(parsed);
+      return parsed.value!;
+    } on DioException catch (e) {
+      throw wrapDioError(e).error ?? e;
+    }
+  }
 }
 

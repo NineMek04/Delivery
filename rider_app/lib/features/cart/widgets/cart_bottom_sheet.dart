@@ -8,6 +8,8 @@ import '../providers/cart_provider.dart';
 import '../../../core/api/services/shop_api_service.dart';
 import '../../../models/shop.dart';
 import '../../../shared/widgets/loading_overlay.dart';
+import 'package:latlong2/latlong.dart';
+import 'location_pinpoint_sheet.dart';
 
 class CartBottomSheet extends ConsumerStatefulWidget {
   const CartBottomSheet({super.key});
@@ -23,6 +25,18 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
   bool _calculatingRoute = true;
   double _dropoffLat = 17.4138;
   double _dropoffLng = 102.7872;
+
+  final _noteToShopController = TextEditingController();
+  final _noteToRiderController = TextEditingController();
+  final _deliveryAddressController = TextEditingController();
+
+  @override
+  void dispose() {
+    _noteToShopController.dispose();
+    _noteToRiderController.dispose();
+    _deliveryAddressController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -80,6 +94,36 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
     }
   }
 
+  void _recalculateDeliveryFee() {
+    double totalDistance = 0.0;
+    double totalDeliveryFee = 0.0;
+    for (final shop in _shops) {
+      final shopLat = shop.lat ?? 17.4138;
+      final shopLng = shop.lng ?? 102.7872;
+      final dist = Geolocator.distanceBetween(shopLat, shopLng, _dropoffLat, _dropoffLng) / 1000.0;
+      totalDistance += dist;
+      totalDeliveryFee += 30.0 + (dist * 10.0);
+    }
+    setState(() {
+      _distance = totalDistance;
+      _deliveryFee = totalDeliveryFee;
+    });
+  }
+
+  Future<void> _pickLocationOnMap() async {
+    final selected = await LocationPinpointSheet.show(
+      context,
+      initialLocation: LatLng(_dropoffLat, _dropoffLng),
+    );
+    if (selected != null && mounted) {
+      setState(() {
+        _dropoffLat = selected.latitude;
+        _dropoffLng = selected.longitude;
+      });
+      _recalculateDeliveryFee();
+    }
+  }
+
   bool _validateOrderBeforeSubmit() {
     final cart = ref.read(cartProvider);
     if (cart.items.isEmpty) {
@@ -126,11 +170,13 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
   Future<void> _placeOrder() async {
     if (!_validateOrderBeforeSubmit()) return;
 
-    final cart = ref.read(cartProvider);
     try {
       await ref.read(cartProvider.notifier).checkout(
         dropoffLat: _dropoffLat,
         dropoffLng: _dropoffLng,
+        noteToShop: _noteToShopController.text.trim().isEmpty ? null : _noteToShopController.text.trim(),
+        noteToRider: _noteToRiderController.text.trim().isEmpty ? null : _noteToRiderController.text.trim(),
+        deliveryAddress: _deliveryAddressController.text.trim().isEmpty ? null : _deliveryAddressController.text.trim(),
       );
 
       if (mounted) {
@@ -338,37 +384,98 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
 
               const Divider(height: 24),
 
-              // Address details
+              // Address details & Map Pinpoint
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isDark ? Colors.grey[900] : Colors.grey[50],
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.location_on, color: Colors.red, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'ส่งที่พิกัดจัดส่งของคุณ (Dropoff)',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, color: Colors.redAccent, size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'จุดส่งสินค้า (Dropoff)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'พิกัด: ${_dropoffLat.toStringAsFixed(5)}, ${_dropoffLng.toStringAsFixed(5)}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'พิกัด: ${_dropoffLat.toStringAsFixed(4)}, ${_dropoffLng.toStringAsFixed(4)}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
-                            ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _pickLocationOnMap,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            visualDensity: VisualDensity.compact,
+                            side: const BorderSide(color: Color(0xFF6366F1)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                        ],
+                          icon: const Icon(Icons.pin_drop, size: 14, color: Color(0xFF6366F1)),
+                          label: const Text(
+                            'ปักหมุด',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _deliveryAddressController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'รายละเอียดที่อยู่ (เช่น คอนโด A ชั้น 3 ห้อง 305)',
+                        hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
+                        prefixIcon: const Icon(Icons.home_outlined, size: 16, color: Colors.grey),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _noteToShopController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'หมายเหตุถึงร้านค้า (เช่น ขอช้อนส้อม, เผ็ดน้อย)',
+                        hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
+                        prefixIcon: const Icon(Icons.restaurant, size: 16, color: Colors.orange),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _noteToRiderController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'ข้อความถึงไรเดอร์ (เช่น วางไว้หน้าบ้าน, โทรหาก่อนถึง)',
+                        hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
+                        prefixIcon: const Icon(Icons.delivery_dining, size: 16, color: Colors.blue),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
                       ),
                     ),
                   ],

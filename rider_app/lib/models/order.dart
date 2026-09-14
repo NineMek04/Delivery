@@ -27,6 +27,16 @@ class OrderDto {
   final DateTime? assignedAt;
   final DateTime? completedAt;
 
+  // Notes & Address
+  final String? noteToShop;
+  final String? noteToRider;
+  final String? deliveryAddress;
+
+  // Customer Review & Rating
+  final int? rating;
+  final String? reviewComment;
+  final DateTime? reviewedAt;
+
   const OrderDto({
     required this.id,
     this.status = 'CREATED',
@@ -52,6 +62,12 @@ class OrderDto {
     this.createdAt,
     this.assignedAt,
     this.completedAt,
+    this.noteToShop,
+    this.noteToRider,
+    this.deliveryAddress,
+    this.rating,
+    this.reviewComment,
+    this.reviewedAt,
   });
 
   factory OrderDto.fromJson(Map<String, dynamic> json) {
@@ -70,6 +86,10 @@ class OrderDto {
     final completedRaw =
         readField<String>(json, 'CompletedAt') ??
         readField<String>(json, 'completedAt');
+
+    final reviewedRaw =
+        readField<String>(json, 'ReviewedAt') ??
+        readField<String>(json, 'reviewedAt');
 
     final itemsRaw = readField<List>(json, 'Items') ?? readField<List>(json, 'items');
 
@@ -134,6 +154,22 @@ class OrderDto {
       createdAt: createdRaw != null ? DateTime.tryParse(createdRaw) : null,
       assignedAt: assignedRaw != null ? DateTime.tryParse(assignedRaw) : null,
       completedAt: completedRaw != null ? DateTime.tryParse(completedRaw) : null,
+      noteToShop:
+          readField<String>(json, 'NoteToShop') ??
+          readField<String>(json, 'noteToShop'),
+      noteToRider:
+          readField<String>(json, 'NoteToRider') ??
+          readField<String>(json, 'noteToRider'),
+      deliveryAddress:
+          readField<String>(json, 'DeliveryAddress') ??
+          readField<String>(json, 'deliveryAddress'),
+      rating:
+          readField<int>(json, 'Rating') ??
+          readField<int>(json, 'rating'),
+      reviewComment:
+          readField<String>(json, 'ReviewComment') ??
+          readField<String>(json, 'reviewComment'),
+      reviewedAt: reviewedRaw != null ? DateTime.tryParse(reviewedRaw) : null,
     );
   }
 
@@ -162,6 +198,12 @@ class OrderDto {
     if (createdAt != null) 'CreatedAt': createdAt?.toIso8601String(),
     if (assignedAt != null) 'AssignedAt': assignedAt?.toIso8601String(),
     if (completedAt != null) 'CompletedAt': completedAt?.toIso8601String(),
+    if (noteToShop != null) 'NoteToShop': noteToShop,
+    if (noteToRider != null) 'NoteToRider': noteToRider,
+    if (deliveryAddress != null) 'DeliveryAddress': deliveryAddress,
+    if (rating != null) 'Rating': rating,
+    if (reviewComment != null) 'ReviewComment': reviewComment,
+    if (reviewedAt != null) 'ReviewedAt': reviewedAt?.toIso8601String(),
   };
 }
 
@@ -229,6 +271,9 @@ class CreateOrderDto {
   final String customerId;
   final String shopId;
   final List<CreateOrderItemDto> items;
+  final String? noteToShop;
+  final String? noteToRider;
+  final String? deliveryAddress;
 
   const CreateOrderDto({
     required this.pickupLat,
@@ -239,6 +284,9 @@ class CreateOrderDto {
     required this.customerId,
     required this.shopId,
     required this.items,
+    this.noteToShop,
+    this.noteToRider,
+    this.deliveryAddress,
   });
 
   Map<String, dynamic> toJson() => {
@@ -250,6 +298,9 @@ class CreateOrderDto {
     'CustomerId': customerId,
     'ShopId': shopId,
     'Items': items.map((i) => i.toJson()).toList(),
+    if (noteToShop != null && noteToShop!.isNotEmpty) 'NoteToShop': noteToShop,
+    if (noteToRider != null && noteToRider!.isNotEmpty) 'NoteToRider': noteToRider,
+    if (deliveryAddress != null && deliveryAddress!.isNotEmpty) 'DeliveryAddress': deliveryAddress,
   };
 }
 

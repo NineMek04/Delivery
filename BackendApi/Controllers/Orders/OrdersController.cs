@@ -1,4 +1,4 @@
-﻿using BackendApi.Core;
+using BackendApi.Core;
 using BackendApi.Core.Constants;
 using BackendApi.Core.Models;
 using BackendApi.Core.Models.Response;
@@ -209,6 +209,26 @@ public class OrdersController : DeliveryControllerBase
         CancellationToken cancellationToken)
     {
         var (statusCode, response) = await _orderService.BatchDispatchAsync(dto, cancellationToken);
+        return StatusCode(statusCode, response);
+    }
+
+    /// <summary>
+    /// ส่งคะแนนความพึงพอใจและรีวิวออเดอร์หลังจัดส่งสำเร็จ
+    /// </summary>
+    [HttpPost("{id}/review")]
+    [Authorize(Roles = $"{AuthConstants.CustomerRole},{AuthConstants.AdminRole}")]
+    public async Task<ActionResult<ApiResponse<OrderDto>>> SubmitReview(
+        string id,
+        [FromBody] SubmitOrderReviewDto dto,
+        CancellationToken cancellationToken)
+    {
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var (statusCode, response) = await _orderService.SubmitReviewAsync(
+            id,
+            dto,
+            CurrentUserId,
+            role,
+            cancellationToken);
         return StatusCode(statusCode, response);
     }
 }

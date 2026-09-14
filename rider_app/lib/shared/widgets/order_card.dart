@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/order.dart';
 import '../../features/delivery/screens/chat_screen.dart';
-import '../utils/order_status_helper.dart';
 import 'status_badge.dart';
 
 /// การ์ดแสดงรายละเอียดออเดอร์ — ปรับปรุงใหม่ให้รองรับข้อมูลเชิงลึก (Active Delivery).
@@ -117,6 +116,89 @@ class OrderCard extends StatelessWidget {
               order.dropoffLng,
               isPickup: false,
             ),
+
+            if (order.deliveryAddress != null && order.deliveryAddress!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 32),
+                child: Text(
+                  'ที่อยู่: ${order.deliveryAddress}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                ),
+              ),
+            ],
+            if (order.noteToRider != null && order.noteToRider!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.delivery_dining, size: 16, color: Colors.blue),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'ข้อความถึงไรเดอร์: ${order.noteToRider}',
+                        style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (order.noteToShop != null && order.noteToShop!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.restaurant, size: 16, color: Colors.orange),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'หมายเหตุถึงร้านค้า: ${order.noteToShop}',
+                        style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (order.rating != null) ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star_rounded, size: 18, color: Colors.amber),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'คะแนนจากลูกค้า: ${order.rating}/5 ดาว ${order.reviewComment != null && order.reviewComment!.isNotEmpty ? "(${order.reviewComment})" : ""}',
+                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             
             // Items List (if expanded or active)
             if (showItems && order.items.isNotEmpty) ...[

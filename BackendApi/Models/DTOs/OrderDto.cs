@@ -53,6 +53,16 @@ namespace BackendApi.Models.DTOs
 
         /// <summary>จำนวนออเดอร์ทั้งหมดในกลุ่ม (0 หรือ 1 = เดี่ยว)</summary>
         public int BatchSize { get; set; }
+
+        // ── Notes & Delivery Address ─────────────────────────────────
+        public string? NoteToShop { get; set; }
+        public string? NoteToRider { get; set; }
+        public string? DeliveryAddress { get; set; }
+
+        // ── Customer Review & Rating ─────────────────────────────────
+        public int? Rating { get; set; }
+        public string? ReviewComment { get; set; }
+        public DateTime? ReviewedAt { get; set; }
     }
 
     /// <summary>
@@ -74,6 +84,14 @@ namespace BackendApi.Models.DTOs
         [MaxLength(64)]
         public string ShopId { get; set; } = string.Empty;
         public List<CreateOrderItemDto> Items { get; set; } = new List<CreateOrderItemDto>();
+
+        // Notes & Delivery Address
+        [MaxLength(500)]
+        public string? NoteToShop { get; set; }
+        [MaxLength(500)]
+        public string? NoteToRider { get; set; }
+        [MaxLength(500)]
+        public string? DeliveryAddress { get; set; }
     }
 
     /// <summary>
@@ -85,7 +103,7 @@ namespace BackendApi.Models.DTOs
     }
 
     /// <summary>
-    /// DTO สำหรับแสดงข้อมูลสินค้าในออเดอร์
+    /// DTO สำหรับรายการสินค้าใน Order (ส่งออก)
     /// </summary>
     public class OrderItemDto
     {
@@ -113,6 +131,18 @@ namespace BackendApi.Models.DTOs
         public string? Notes { get; set; }
         [MaxLength(1000)]
         public string? OptionsDescription { get; set; }
+    }
+
+    /// <summary>
+    /// DTO สำหรับลูกค้าส่งคะแนนและรีวิวออเดอร์หลังส่งมอบ
+    /// </summary>
+    public class SubmitOrderReviewDto
+    {
+        [Range(1, 5, ErrorMessage = "คะแนนต้องอยู่ระหว่าง 1 ถึง 5 ดาว")]
+        public int Rating { get; set; }
+
+        [MaxLength(1000, ErrorMessage = "ความคิดเห็นต้องไม่เกิน 1,000 ตัวอักษร")]
+        public string? ReviewComment { get; set; }
     }
 
     /// <summary>

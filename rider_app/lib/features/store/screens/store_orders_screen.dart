@@ -301,10 +301,25 @@ class _OrderCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            item.name,
-                            style: const TextStyle(fontSize: 13),
-                            overflow: TextOverflow.ellipsis,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (item.optionsDescription != null && item.optionsDescription!.isNotEmpty)
+                                Text(
+                                  item.optionsDescription!,
+                                  style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                                ),
+                              if (item.notes != null && item.notes!.isNotEmpty)
+                                Text(
+                                  'โน้ต: ${item.notes}',
+                                  style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w500),
+                                ),
+                            ],
                           ),
                         ),
                         Text(
@@ -318,6 +333,66 @@ class _OrderCard extends ConsumerWidget {
                     ),
                   );
                 }).toList(),
+              ),
+            ),
+
+          if (order.noteToShop != null && order.noteToShop!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.restaurant, size: 18, color: Colors.orange.shade800),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'หมายเหตุจากลูกค้าถึงร้านค้า:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            order.noteToShop!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          if (order.rating != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
+                  const SizedBox(width: 4),
+                  Text(
+                    'คะแนนความพึงพอใจ: ${order.rating}/5 ดาว ${order.reviewComment != null && order.reviewComment!.isNotEmpty ? "(${order.reviewComment})" : ""}',
+                    style: const TextStyle(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
             ),
 

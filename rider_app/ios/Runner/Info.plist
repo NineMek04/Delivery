@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Rider App</string>
+	<string>Delivery</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,21 +41,58 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- Location Permissions -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location when open to track your delivery route.</string>
+	<string>แอปพลิเคชันต้องการเข้าถึงตำแหน่งของคุณเพื่อระบุจุดรับ-ส่งสินค้า นำทาง และค้นหาร้านค้าใกล้เคียง / This app requires location access while in use to determine pickup and dropoff points and provide navigation.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs access to location when in the background to update your live location for dispatchers.</string>
+	<string>แอปพลิเคชันจำเป็นต้องเข้าถึงตำแหน่งเบื้องหลังเพื่อให้ไรเดอร์สามารถนำทางและส่งพิกัดสดให้ลูกค้าติดตามได้ตลอดเวลา / This app requires background location to provide live order tracking for customers.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to location when open and in the background to track delivery routes.</string>
+	<string>แอปพลิเคชันจำเป็นต้องเข้าถึงตำแหน่งทั้งในขณะเปิดใช้งานและเบื้องหลังเพื่อคำนวณเส้นทางและอัปเดตสถานะการจัดส่งแบบเรียลไทม์ / Location access is required both when active and in the background for delivery routing and real-time updates.</string>
+
+	<!-- Camera & Photos Permissions (image_picker / Proof of delivery) -->
+	<key>NSCameraUsageDescription</key>
+	<string>แอปพลิเคชันต้องการเข้าถึงกล้องเพื่อถ่ายภาพหลักฐานการจัดส่งสินค้า / This app needs camera access to take proof-of-delivery photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>แอปพลิเคชันต้องการเข้าถึงคลังรูปภาพเพื่อเลือกและอัปโหลดภาพหลักฐานการจัดส่ง / This app needs photo library access to upload delivery photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>แอปพลิเคชันต้องการบันทึกภาพถ่ายหลักฐานการจัดส่งลงในเครื่องของคุณ / This app needs permission to save delivery receipt photos to your library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>แอปพลิเคชันต้องการเข้าถึงไมโครโฟนสำหรับการบันทึกเสียงหรือวิดีโอหลักฐานการส่งสินค้า / This app requires microphone access for audio/video recording.</string>
+
+	<!-- Background Modes -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
 		<string>fetch</string>
+		<string>remote-notification</string>
 	</array>
+
+	<!-- Supported External URL Schemes (url_launcher) -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>https</string>
+		<string>http</string>
+		<string>comgooglemaps</string>
+		<string>waze</string>
+		<string>maps</string>
+	</array>
+
+	<!-- Localization -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>th</string>
+		<string>en</string>
+	</array>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

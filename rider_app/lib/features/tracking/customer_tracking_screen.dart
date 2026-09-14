@@ -8,6 +8,8 @@ import '../../app/app_theme.dart';
 import '../../shared/utils/order_status_helper.dart';
 import '../../shared/utils/polyline_util.dart';
 import '../../core/api/services/rider_route_api_service.dart';
+import '../../shared/widgets/order_review_dialog.dart';
+import '../delivery/screens/chat_screen.dart';
 import 'providers/tracking_provider.dart';
 
 class LatLngTween extends Tween<LatLng> {
@@ -44,6 +46,7 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
   String? _lastSnappedPolyline;
   double? _prevRiderLat;
   double? _prevRiderLng;
+  bool _hasPromptedReview = false;
 
   bool _mapReady = false;
   String? _lastFollowSignature;
@@ -338,6 +341,21 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
       });
     }
 
+    if (state.order?.status == 'COMPLETED' && !_hasPromptedReview && state.order?.rating == null) {
+      _hasPromptedReview = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && state.order != null) {
+          OrderReviewDialog.show(
+            context,
+            order: state.order!,
+            onReviewed: () {
+              ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId);
+            },
+          );
+        }
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -350,6 +368,23 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
               ),
           ],
         ),
+        actions: [
+          if (state.order != null)
+            IconButton(
+              icon: const Icon(Icons.chat_outlined),
+              tooltip: 'แชทกับไรเดอร์',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => ChatScreen(
+                      orderId: widget.orderId,
+                      initialStatus: state.order?.status,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -483,6 +518,56 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                                     const SizedBox(height: 12),
                                   ],
                                   _OrderProgressBar(status: state.order!.status),
+                                  if ((state.order!.deliveryAddress != null && state.order!.deliveryAddress!.isNotEmpty) ||
+                                      (state.order!.noteToRider != null && state.order!.noteToRider!.isNotEmpty)) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade50,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: Colors.amber.shade200),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (state.order!.deliveryAddress != null && state.order!.deliveryAddress!.isNotEmpty) ...[
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const Icon(Icons.location_on, size: 16, color: Colors.redAccent),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'ที่อยู่จัดส่ง: ${state.order!.deliveryAddress}',
+                                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                          if (state.order!.noteToRider != null && state.order!.noteToRider!.isNotEmpty) ...[
+                                            if (state.order!.deliveryAddress != null && state.order!.deliveryAddress!.isNotEmpty)
+                                              const SizedBox(height: 6),
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const Icon(Icons.delivery_dining, size: 16, color: Colors.blueAccent),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'ข้อความถึงไรเดอร์: ${state.order!.noteToRider}',
+                                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                   const Divider(height: 24),
                                   const Text(
                                     'รายการอาหาร',
@@ -515,6 +600,97 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                                       ),
                                     ],
                                   ),
+                                  const SizedBox(height: 16),
+                                  // Chat Button
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        side: const BorderSide(color: AppTheme.primaryColor),
+                                      ),
+                                      icon: const Icon(Icons.chat_bubble_outline, color: AppTheme.primaryColor, size: 20),
+                                      label: Text(
+                                        state.order!.status == 'COMPLETED' ? 'ดูประวัติการแชทกับไรเดอร์' : 'แชทกับไรเดอร์',
+                                        style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (context) => ChatScreen(
+                                              orderId: widget.orderId,
+                                              initialStatus: state.order?.status,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  if (state.order!.status == 'COMPLETED') ...[
+                                    const SizedBox(height: 10),
+                                    if (state.order!.rating != null)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade50,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: Colors.green.shade200),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                ...List.generate(5, (index) => Icon(
+                                                  index < (state.order!.rating ?? 0) ? Icons.star_rounded : Icons.star_outline_rounded,
+                                                  color: Colors.amber,
+                                                  size: 20,
+                                                )),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  '${state.order!.rating} / 5 ดาว',
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                ),
+                                              ],
+                                            ),
+                                            if (state.order!.reviewComment != null && state.order!.reviewComment!.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'ความคิดเห็นของคุณ: "${state.order!.reviewComment}"',
+                                                style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.amber.shade700,
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                          icon: const Icon(Icons.star_rounded, color: Colors.white),
+                                          label: const Text(
+                                            '⭐ ให้คะแนนความพึงพอใจ',
+                                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                          onPressed: () {
+                                            OrderReviewDialog.show(
+                                              context,
+                                              order: state.order!,
+                                              onReviewed: () {
+                                                ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId);
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                  ],
                                   const SizedBox(height: 16),
                                 ],
                               ),

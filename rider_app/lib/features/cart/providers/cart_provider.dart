@@ -135,6 +135,9 @@ class CartNotifier extends StateNotifier<CartState> {
   Future<void> checkout({
     required double dropoffLat,
     required double dropoffLng,
+    String? noteToShop,
+    String? noteToRider,
+    String? deliveryAddress,
   }) async {
     if (state.items.isEmpty) return;
 
@@ -182,6 +185,9 @@ class CartNotifier extends StateNotifier<CartState> {
           customerId: customerId,
           shopId: shopId,
           items: orderItems,
+          noteToShop: noteToShop,
+          noteToRider: noteToRider,
+          deliveryAddress: deliveryAddress,
         );
 
         await orderService.createOrder(createDto);

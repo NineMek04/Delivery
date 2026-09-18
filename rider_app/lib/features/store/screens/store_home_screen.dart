@@ -1,14 +1,11 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../models/shop.dart';
 import '../providers/store_providers.dart';
+import '../widgets/store_menu_card.dart';
+import '../widgets/store_menu_form_sheet.dart';
 
 /// Store Home Screen — Page 1: Manage menu items.
 ///
@@ -24,10 +21,8 @@ class StoreHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<StoreHomeScreen> createState() => _StoreHomeScreenState();
 }
 
-enum _MenuMode { view, delete, edit }
-
 class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
-  _MenuMode _mode = _MenuMode.view;
+  StoreMenuMode _mode = StoreMenuMode.view;
   final Set<String> _selectedForDelete = {};
   String? _selectedForEdit;
 
@@ -44,7 +39,7 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
           error: (_, __) => const Text('ร้านค้าของฉัน'),
         ),
         actions: [
-          if (_mode == _MenuMode.delete)
+          if (_mode == StoreMenuMode.delete)
             TextButton(
               onPressed: _selectedForDelete.isEmpty ? null : _confirmDelete,
               child: Text(
@@ -52,10 +47,10 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
                 style: const TextStyle(color: AppTheme.errorColor),
               ),
             ),
-          if (_mode != _MenuMode.view)
+          if (_mode != StoreMenuMode.view)
             IconButton(
               onPressed: () => setState(() {
-                _mode = _MenuMode.view;
+                _mode = StoreMenuMode.view;
                 _selectedForDelete.clear();
                 _selectedForEdit = null;
               }),
@@ -71,7 +66,7 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: _ActionChip(
+                  child: StoreActionChip(
                     icon: Icons.add_circle_outline,
                     label: 'เพิ่มเมนู',
                     color: AppTheme.accentColor,
@@ -80,13 +75,13 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _ActionChip(
+                  child: StoreActionChip(
                     icon: Icons.edit_outlined,
                     label: 'แก้ไข',
                     color: AppTheme.primaryColor,
-                    isActive: _mode == _MenuMode.edit,
+                    isActive: _mode == StoreMenuMode.edit,
                     onTap: () => setState(() {
-                      _mode = _mode == _MenuMode.edit ? _MenuMode.view : _MenuMode.edit;
+                      _mode = _mode == StoreMenuMode.edit ? StoreMenuMode.view : StoreMenuMode.edit;
                       _selectedForDelete.clear();
                       _selectedForEdit = null;
                     }),
@@ -94,13 +89,13 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _ActionChip(
+                  child: StoreActionChip(
                     icon: Icons.delete_outline,
                     label: 'ลบ',
                     color: AppTheme.errorColor,
-                    isActive: _mode == _MenuMode.delete,
+                    isActive: _mode == StoreMenuMode.delete,
                     onTap: () => setState(() {
-                      _mode = _mode == _MenuMode.delete ? _MenuMode.view : _MenuMode.delete;
+                      _mode = _mode == StoreMenuMode.delete ? StoreMenuMode.view : StoreMenuMode.delete;
                       _selectedForDelete.clear();
                       _selectedForEdit = null;
                     }),
@@ -146,7 +141,7 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    return _MenuCard(
+                    return StoreMenuCard(
                       item: item,
                       mode: _mode,
                       isSelectedForDelete: _selectedForDelete.contains(item.id),
@@ -227,7 +222,7 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
       }
       setState(() {
         _selectedForDelete.clear();
-        _mode = _MenuMode.view;
+        _mode = StoreMenuMode.view;
       });
     }
   }
@@ -269,13 +264,13 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => _MenuFormSheet(
+      builder: (ctx) => StoreMenuFormSheet(
         shopId: shop.id,
         existingItem: existingItem,
         shopLat: shop.lat,
         shopLng: shop.lng,
         onSave: (data) async {
-          debugPrint('[StoreHomeScreen] onSave callback triggered with data: $data');
+          debugPrint('[StoreHomeScreen] onSave callback triggered for item: ${data['Name']}');
           if (existingItem != null) {
             await ref.read(menuItemsProvider.notifier).updateItem(existingItem.id, data);
           } else {
@@ -283,749 +278,12 @@ class _StoreHomeScreenState extends ConsumerState<StoreHomeScreen> {
           }
           if (mounted) {
             setState(() {
-              _mode = _MenuMode.view;
+              _mode = StoreMenuMode.view;
               _selectedForEdit = null;
             });
           }
         },
       ),
     );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Menu Card Widget
-// ═══════════════════════════════════════════════════════════════════
-class _MenuCard extends StatelessWidget {
-  final MenuItemDto item;
-  final _MenuMode mode;
-  final bool isSelectedForDelete;
-  final bool isSelectedForEdit;
-  final VoidCallback onDeleteToggle;
-  final VoidCallback onEditSelect;
-
-  const _MenuCard({
-    required this.item,
-    required this.mode,
-    required this.isSelectedForDelete,
-    required this.isSelectedForEdit,
-    required this.onDeleteToggle,
-    required this.onEditSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: mode == _MenuMode.delete
-          ? onDeleteToggle
-          : mode == _MenuMode.edit
-              ? onEditSelect
-              : null,
-      behavior: HitTestBehavior.opaque,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        elevation: isSelectedForDelete || isSelectedForEdit ? 4 : 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: (isSelectedForDelete || isSelectedForEdit)
-              ? BorderSide(
-                  color: isSelectedForDelete ? AppTheme.errorColor : AppTheme.primaryColor,
-                  width: 2,
-                )
-              : BorderSide.none,
-        ),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Image
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    width: double.infinity,
-                    color: AppTheme.surfaceElevated,
-                    child: _buildImage(item.imageUrl),
-                  ),
-                ),
-                // Details
-                Expanded(
-                  flex: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '฿${item.price.toStringAsFixed(0)}',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: AppTheme.accentColor,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        if (item.description != null && item.description!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            item.description!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontSize: 12,
-                                ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            // Selection overlay
-            if (mode == _MenuMode.delete)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceDark.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Checkbox(
-                      value: isSelectedForDelete,
-                      onChanged: (_) {},
-                      activeColor: AppTheme.errorColor,
-                    ),
-                  ),
-                ),
-              ),
-            if (mode == _MenuMode.edit)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceDark.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Radio<String>(
-                      value: item.id,
-                      groupValue: isSelectedForEdit ? item.id : null,
-                      onChanged: (_) {},
-                      activeColor: AppTheme.primaryColor,
-                    ),
-                  ),
-                ),
-              ),
-            // Options badge
-            if (item.options != null && item.options!.isNotEmpty)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '+${item.options!.length} ตัวเลือก',
-                    style: const TextStyle(fontSize: 10, color: Colors.white),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImage(String? url) {
-    if (url == null || url.isEmpty) {
-      return const Center(
-        child: Icon(Icons.fastfood, size: 48, color: AppTheme.textMuted),
-      );
-    }
-    if (url.startsWith('data:image')) {
-      try {
-        final base64Part = url.split(',').last;
-        return Image.memory(
-          base64Decode(base64Part),
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(
-            child: Icon(Icons.broken_image, size: 48, color: AppTheme.textMuted),
-          ),
-        );
-      } catch (e) {
-        return const Center(
-          child: Icon(Icons.broken_image, size: 48, color: AppTheme.textMuted),
-        );
-      }
-    }
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const Center(
-        child: Icon(Icons.fastfood, size: 48, color: AppTheme.textMuted),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Action Chip Button
-// ═══════════════════════════════════════════════════════════════════
-class _ActionChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  final bool isActive;
-
-  const _ActionChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-    this.isActive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: isActive ? color.withValues(alpha: 0.2) : AppTheme.surfaceCard,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 4),
-              Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Menu Form Bottom Sheet
-// ═══════════════════════════════════════════════════════════════════
-class _MenuFormSheet extends ConsumerStatefulWidget {
-  final String shopId;
-  final MenuItemDto? existingItem;
-  final double? shopLat;
-  final double? shopLng;
-  final Future<void> Function(Map<String, dynamic> data) onSave;
-
-  const _MenuFormSheet({
-    required this.shopId,
-    this.existingItem,
-    this.shopLat,
-    this.shopLng,
-    required this.onSave,
-  });
-
-  @override
-  ConsumerState<_MenuFormSheet> createState() => _MenuFormSheetState();
-}
-
-class _MenuFormSheetState extends ConsumerState<_MenuFormSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _priceController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _imageUrlController;
-  late final TextEditingController _optionNameController;
-
-  bool _isSaving = false;
-  final ImagePicker _picker = ImagePicker();
-  bool _isPickingImage = false;
-  
-  String? _selectedCategoryId;
-
-  @override
-  void initState() {
-    super.initState();
-    final item = widget.existingItem;
-    _nameController = TextEditingController(text: item?.name ?? '');
-    _priceController = TextEditingController(text: item != null ? item.price.toStringAsFixed(0) : '');
-    _descriptionController = TextEditingController(text: item?.description ?? '');
-    _imageUrlController = TextEditingController(text: item?.imageUrl ?? '');
-    _optionNameController = TextEditingController();
-    _selectedCategoryId = item?.menuCategoryId;
-  }
-
-  Future<void> _pickImage() async {
-    setState(() => _isPickingImage = true);
-    try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
-      if (pickedFile != null) {
-        final bytes = await pickedFile.readAsBytes();
-        final base64String = base64Encode(bytes);
-        setState(() {
-          _imageUrlController.text = 'data:image/png;base64,$base64String';
-        });
-      }
-    } catch (e) {
-      debugPrint('[MenuFormSheet] Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ไม่สามารถเลือกรูปภาพได้: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isPickingImage = false);
-    }
-  }
-
-  Future<void> _showAddCategoryDialog() async {
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-    final dialogFormKey = GlobalKey<FormState>();
-    bool isDialogSaving = false;
-
-    final result = await showDialog<MenuCategoryDto?>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              backgroundColor: AppTheme.surfaceCard,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: const Text(
-                'สร้างหมวดหมู่ใหม่',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: Form(
-                key: dialogFormKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: nameController,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        labelText: 'ชื่อหมวดหมู่ *',
-                        hintText: 'เช่น อาหารจานเดียว, เครื่องดื่ม',
-                        prefixIcon: Icon(Icons.edit_outlined),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'กรุณากรอกชื่อหมวดหมู่';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: descController,
-                      decoration: const InputDecoration(
-                        labelText: 'คำอธิบาย (ไม่บังคับ)',
-                        hintText: 'รายละเอียดสั้นๆ ของหมวดหมู่',
-                        prefixIcon: Icon(Icons.description_outlined),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isDialogSaving ? null : () => Navigator.pop(ctx),
-                  child: const Text('ยกเลิก'),
-                ),
-                ElevatedButton(
-                  onPressed: isDialogSaving
-                      ? null
-                      : () async {
-                          if (!dialogFormKey.currentState!.validate()) return;
-                          setStateDialog(() => isDialogSaving = true);
-                          try {
-                            final newCat = await ref
-                                .read(menuCategoriesProvider.notifier)
-                                .addCategory(
-                                  nameController.text.trim(),
-                                  description: descController.text.trim().isNotEmpty
-                                      ? descController.text.trim()
-                                      : null,
-                                );
-                            if (context.mounted) {
-                              Navigator.pop(ctx, newCat);
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('สร้างหมวดหมู่ล้มเหลว: $e'),
-                                  backgroundColor: AppTheme.errorColor,
-                                ),
-                              );
-                            }
-                          } finally {
-                            setStateDialog(() => isDialogSaving = false);
-                          }
-                        },
-                  child: isDialogSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('สร้าง'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (result != null && mounted) {
-      setState(() {
-        _selectedCategoryId = result.id;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('สร้างหมวดหมู่ "${result.name}" สำเร็จ')),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _priceController.dispose();
-    _descriptionController.dispose();
-    _imageUrlController.dispose();
-    _optionNameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final isEditing = widget.existingItem != null;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        expand: false,
-        builder: (context, scrollController) {
-          return SingleChildScrollView(
-            controller: scrollController,
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Handle bar
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.textMuted,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    isEditing ? 'แก้ไขเมนู' : 'เพิ่มเมนูใหม่',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 1. Image Selection
-                  const Text(
-                    'รูปภาพเมนูสินค้า',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_imageUrlController.text.isNotEmpty) ...[
-                    Container(
-                      height: 150,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceElevated,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.textMuted.withValues(alpha: 0.3)),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: _imageUrlController.text.startsWith('data:image')
-                                ? Image.memory(
-                                    base64Decode(_imageUrlController.text.split(',').last),
-                                    fit: BoxFit.cover,
-                                  )
-                                : Image.network(
-                                    _imageUrlController.text,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Center(
-                                      child: Icon(Icons.broken_image, size: 48, color: AppTheme.textMuted),
-                                    ),
-                                  ),
-                          ),
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: CircleAvatar(
-                              backgroundColor: AppTheme.surfaceDark.withValues(alpha: 0.7),
-                              child: IconButton(
-                                icon: const Icon(Icons.delete, color: AppTheme.errorColor),
-                                onPressed: () {
-                                  setState(() {
-                                    _imageUrlController.clear();
-                                  });
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isPickingImage ? null : _pickImage,
-                      icon: _isPickingImage
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text(_imageUrlController.text.isEmpty
-                          ? 'เลือกรูปภาพจากเครื่อง'
-                          : 'เปลี่ยนรูปภาพใหม่'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 1.5. Category Selection
-                  ref.watch(menuCategoriesProvider).maybeWhen(
-                    data: (categories) {
-                      final dropdownValue = (_selectedCategoryId != null &&
-                              categories.any((cat) => cat.id == _selectedCategoryId))
-                          ? _selectedCategoryId
-                          : null;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String?>(
-                                  value: dropdownValue,
-                                  dropdownColor: AppTheme.surfaceCard,
-                                  decoration: const InputDecoration(
-                                    labelText: 'หมวดหมู่สินค้า (ไม่บังคับ)',
-                                    prefixIcon: Icon(Icons.category_outlined),
-                                  ),
-                                  items: [
-                                    const DropdownMenuItem<String?>(
-                                      value: null,
-                                      child: Text('ไม่มีหมวดหมู่'),
-                                    ),
-                                    ...categories.map((cat) => DropdownMenuItem<String?>(
-                                          value: cat.id,
-                                          child: Text(cat.name),
-                                        )),
-                                  ],
-                                  onChanged: (val) {
-                                    setState(() {
-                                      _selectedCategoryId = val;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                height: 52,
-                                width: 52,
-                                child: IconButton(
-                                  onPressed: _showAddCategoryDialog,
-                                  icon: const Icon(Icons.add),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                                    foregroundColor: AppTheme.primaryColor,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  tooltip: 'เพิ่มหมวดหมู่ใหม่',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      );
-                    },
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-
-                  // 2. Name
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'ชื่อเมนู *',
-                      prefixIcon: Icon(Icons.restaurant_menu),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'กรุณากรอกชื่อเมนู';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 3. Price
-                  TextFormField(
-                    controller: _priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'ราคา (บาท) *',
-                      prefixIcon: Icon(Icons.attach_money),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'กรุณากรอกราคา';
-                      final price = double.tryParse(v);
-                      if (price == null || price <= 0) return 'ราคาต้องมากกว่า 0';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 4. Description
-                  TextFormField(
-                    controller: _descriptionController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'รายละเอียดเมนู (ไม่บังคับ)',
-                      prefixIcon: Icon(Icons.description_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 5. Options (simple text)
-                  TextFormField(
-                    controller: _optionNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'ออฟชั่นเสริม (ไม่บังคับ เช่น ไซส์, ท็อปปิ้ง)',
-                      prefixIcon: Icon(Icons.add_circle_outline),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  const SizedBox(height: 24),
-
-                  // Save button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _submit,
-                      child: _isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มเมนู'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final data = <String, dynamic>{
-        'Name': _nameController.text.trim(),
-        'Price': double.parse(_priceController.text.trim()),
-      };
-
-      if (widget.existingItem == null) {
-        data['ShopId'] = widget.shopId;
-      }
-      if (_selectedCategoryId != null) {
-        data['MenuCategoryId'] = _selectedCategoryId;
-      } else if (widget.existingItem?.menuCategoryId != null) {
-        // An empty value explicitly removes an existing category on update.
-        data['MenuCategoryId'] = '';
-      }
-
-      if (_descriptionController.text.trim().isNotEmpty) {
-        data['Description'] = _descriptionController.text.trim();
-      }
-      if (_imageUrlController.text.trim().isNotEmpty) {
-        data['ImageUrl'] = _imageUrlController.text.trim();
-      }
-      if (_optionNameController.text.trim().isNotEmpty) {
-        data['Options'] = [
-          {
-            'Name': _optionNameController.text.trim(),
-            'Required': false,
-            'MaxSelections': 1,
-            'Items': <Map<String, dynamic>>[],
-          }
-        ];
-      }
-
-      await widget.onSave(data);
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: AppTheme.errorColor),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
   }
 }

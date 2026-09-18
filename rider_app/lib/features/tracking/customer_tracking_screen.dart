@@ -1,28 +1,15 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
-import '../../app/app_theme.dart';
-import '../../shared/utils/order_status_helper.dart';
 import '../../shared/utils/polyline_util.dart';
 import '../../core/api/services/rider_route_api_service.dart';
 import '../../shared/widgets/order_review_dialog.dart';
 import '../delivery/screens/chat_screen.dart';
 import 'providers/tracking_provider.dart';
-
-class LatLngTween extends Tween<LatLng> {
-  LatLngTween({super.begin, super.end});
-
-  @override
-  LatLng lerp(double t) {
-    if (begin == null || end == null) return end ?? const LatLng(0, 0);
-    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
-    final lng = begin!.longitude + (end!.longitude - begin!.longitude) * t;
-    return LatLng(lat, lng);
-  }
-}
+import 'widgets/customer_tracking_details.dart';
+import 'widgets/customer_tracking_map_view.dart';
+import 'widgets/customer_tracking_route_helper.dart';
 
 class CustomerTrackingScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -66,7 +53,7 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
       vsync: this,
       duration: _animationDuration,
     )..addListener(_onPositionAnimTick);
-    // Repeating controller drives the flowing dashed line animation (marching ants)
+
     _routeAnimController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -150,77 +137,6 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
     super.dispose();
   }
 
-  /// Builds an animated dashed polyline layer driven by [_routeAnimController].
-  /// Simulates the "marching ants" flowing dash effect from the test-dashboard.
-  /// [isPickup] = true → orange dashes (heading to store)
-  ///              false → cyan dashes (delivering to customer)
-  Widget _buildAnimatedPolylineLayer(List<LatLng> points, {required bool isPickup}) {
-    const double dashLength = 20.0;
-    const double gapLength = 12.0;
-    const double totalPattern = dashLength + gapLength;
-    final Color routeColor = isPickup
-        ? const Color(0xFFFF9800)   // orange — pickup
-        : const Color(0xFF00E5FF);  // cyan   — delivery
-
-    return AnimatedBuilder(
-      animation: _routeAnimController,
-      builder: (context, _) {
-        // Shift the dash/gap lengths to create a sliding offset illusion.
-        final double offset = _routeAnimController.value * totalPattern;
-        // segments alternates [dash, gap, dash, gap...].
-        // Leading dash of 'offset' shifts the phase; the trailing full cycle
-        // ensures the pattern tiles seamlessly.
-        final List<double> segments = [
-          offset,       // leading partial dash (phase shift)
-          gapLength,
-          dashLength,
-          gapLength,
-        ];
-        return PolylineLayer(
-          polylines: [
-            Polyline(
-              points: points,
-              color: routeColor.withValues(alpha: 0.90),
-              strokeWidth: 5.0,
-              pattern: StrokePattern.dashed(
-                segments: segments,
-                patternFit: PatternFit.extendFinalDash,
-              ),
-            ),
-            // Faded base line for depth/contrast
-            Polyline(
-              points: points,
-              color: routeColor.withValues(alpha: 0.20),
-              strokeWidth: 5.0,
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  List<LatLng> _getTailRoute(List<LatLng> fullRoute, LatLng currentPos) {
-    if (fullRoute.isEmpty) return [];
-    
-    int closestIdx = 0;
-    double minDistanceSq = double.infinity;
-    final double lat = currentPos.latitude;
-    final double lng = currentPos.longitude;
-    
-    for (int i = 0; i < fullRoute.length; i++) {
-      final p = fullRoute[i];
-      final double dLat = lat - p.latitude;
-      final double dLng = lng - p.longitude;
-      final double distSq = dLat * dLat + dLng * dLng;
-      if (distSq < minDistanceSq) {
-        minDistanceSq = distSq;
-        closestIdx = i;
-      }
-    }
-
-    return fullRoute.sublist(closestIdx);
-  }
-
   Future<void> _updateRoutePoints(String orderId, String status, double? riderLat, double? riderLng) async {
     if (riderLat == null || riderLng == null) return;
     
@@ -241,7 +157,6 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
     final needsFetch = !_isRouteResolved || _lastRoutePhase != routePhase;
     if (!needsFetch) return;
 
-    // Throttle retries to at least 10 seconds if we are currently showing fallback
     if (!_isRouteResolved && _lastFetchTime != null && now.difference(_lastFetchTime!).inSeconds < 10) {
       return;
     }
@@ -266,13 +181,12 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
         });
       }
     } catch (_) {
-      // Fallback
       _isRouteResolved = false;
-      final pickupPoint = _toPoint(
+      final pickupPoint = toPoint(
         ref.read(activeOrderProvider).order?.pickupLat,
         ref.read(activeOrderProvider).order?.pickupLng,
       );
-      final dropoffPoint = _toPoint(
+      final dropoffPoint = toPoint(
         ref.read(activeOrderProvider).order?.dropoffLat,
         ref.read(activeOrderProvider).order?.dropoffLng,
       );
@@ -290,16 +204,15 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(activeOrderProvider);
-    final pickupPoint = _toPoint(
+    final pickupPoint = toPoint(
       state.order?.pickupLat,
       state.order?.pickupLng,
     );
-    final dropoffPoint = _toPoint(
+    final dropoffPoint = toPoint(
       state.order?.dropoffLat,
       state.order?.dropoffLng,
     );
 
-    // Apply real-time snapped polyline if received from SignalR
     if (state.snappedPolyline != null && state.snappedPolyline != _lastSnappedPolyline) {
       _lastSnappedPolyline = state.snappedPolyline;
       final pts = decodePolyline(state.snappedPolyline!);
@@ -309,7 +222,6 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
       }
     }
 
-    // Measure dynamic interval when coordinates change
     if (state.riderLat != null && state.riderLng != null &&
         (state.riderLat != _prevRiderLat || state.riderLng != _prevRiderLng)) {
       _prevRiderLat = state.riderLat;
@@ -399,76 +311,21 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                           flex: 3,
                           child: Builder(
                             builder: (context) {
-                              return FlutterMap(
+                              final bool useLiveRoute = state.snappedPolyline != null && state.snappedPolyline!.isNotEmpty;
+                              final List<LatLng> displayPoints = useLiveRoute
+                                  ? _routePoints
+                                  : getTailRoute(_routePoints, _animatedRiderPosition);
+                              final bool isPickupPhase = !(state.order?.status == 'DELIVERING');
+                              return CustomerTrackingMapView(
                                 mapController: _mapController,
-                                options: MapOptions(
-                                  initialCenter: pickupPoint ??
-                                      dropoffPoint ??
-                                      const LatLng(17.4138, 102.7872),
-                                  initialZoom: 14,
-                                  onMapReady: () {
-                                    setState(() => _mapReady = true);
-                                  },
-                                ),
-                                children: [
-                                  TileLayer(
-                                    urlTemplate: kIsWeb
-                                        ? '/map-tiles/{z}/{x}/{y}.png'
-                                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                    userAgentPackageName: 'com.delivery.customer_app',
-                                  ),
-                                  if (_routePoints.isNotEmpty && state.riderLat != null && state.riderLng != null)
-                                    Builder(
-                                      builder: (context) {
-                                        final bool useLiveRoute = state.snappedPolyline != null && state.snappedPolyline!.isNotEmpty;
-                                        final List<LatLng> displayPoints = useLiveRoute
-                                            ? _routePoints
-                                            : _getTailRoute(_routePoints, _animatedRiderPosition);
-                                        // Determine phase: PICKUP (to store) or DELIVERY (to customer)
-                                        final bool isPickupPhase = !(state.order?.status == 'DELIVERING');
-                                        return _buildAnimatedPolylineLayer(
-                                          displayPoints,
-                                          isPickup: isPickupPhase,
-                                        );
-                                      }
-                                    ),
-                                  MarkerLayer(
-                                    markers: [
-                                      // Store Marker
-                                      if (pickupPoint != null)
-                                        Marker(
-                                          point: pickupPoint,
-                                          width: 40,
-                                          height: 40,
-                                          child: const Icon(
-                                            Icons.store,
-                                            color: Colors.red,
-                                            size: 30,
-                                          ),
-                                        ),
-                                      // Customer Marker
-                                      if (dropoffPoint != null)
-                                        Marker(
-                                          point: dropoffPoint,
-                                          width: 40,
-                                          height: 40,
-                                          child: const Icon(
-                                            Icons.home,
-                                            color: Colors.blue,
-                                            size: 30,
-                                          ),
-                                        ),
-                                      // Rider Marker (if available)
-                                      if (state.riderLat != null && state.riderLng != null)
-                                        Marker(
-                                          point: _animatedRiderPosition,
-                                          width: 40,
-                                          height: 40,
-                                          child: const Icon(Icons.delivery_dining, color: AppTheme.primaryColor, size: 35),
-                                        ),
-                                    ],
-                                  ),
-                                ],
+                                pickupPoint: pickupPoint,
+                                dropoffPoint: dropoffPoint,
+                                animatedRiderPosition: _animatedRiderPosition,
+                                hasRiderPosition: state.riderLat != null && state.riderLng != null,
+                                displayPoints: displayPoints,
+                                isPickupPhase: isPickupPhase,
+                                routeAnimController: _routeAnimController,
+                                onMapReady: () => setState(() => _mapReady = true),
                               );
                             },
                           ),
@@ -476,354 +333,15 @@ class _CustomerTrackingScreenState extends ConsumerState<CustomerTrackingScreen>
                         // Details Section
                         Expanded(
                           flex: 2,
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, -5),
-                                ),
-                              ],
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                            ),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (state.routeDuration != null || state.routeDistance != null) ...[
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.blue[100]!),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.timer, color: AppTheme.primaryColor),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'ไรเดอร์กำลังนำส่ง! จะถึงในประมาณ ${_formatDuration(state.routeDuration)} (${_formatDistance(state.routeDistance)})',
-                                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                  ],
-                                  _OrderProgressBar(status: state.order!.status),
-                                  if ((state.order!.deliveryAddress != null && state.order!.deliveryAddress!.isNotEmpty) ||
-                                      (state.order!.noteToRider != null && state.order!.noteToRider!.isNotEmpty)) ...[
-                                    const SizedBox(height: 10),
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber.shade50,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: Colors.amber.shade200),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          if (state.order!.deliveryAddress != null && state.order!.deliveryAddress!.isNotEmpty) ...[
-                                            Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                const Icon(Icons.location_on, size: 16, color: Colors.redAccent),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    'ที่อยู่จัดส่ง: ${state.order!.deliveryAddress}',
-                                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                          if (state.order!.noteToRider != null && state.order!.noteToRider!.isNotEmpty) ...[
-                                            if (state.order!.deliveryAddress != null && state.order!.deliveryAddress!.isNotEmpty)
-                                              const SizedBox(height: 6),
-                                            Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                const Icon(Icons.delivery_dining, size: 16, color: Colors.blueAccent),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    'ข้อความถึงไรเดอร์: ${state.order!.noteToRider}',
-                                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  const Divider(height: 24),
-                                  const Text(
-                                    'รายการอาหาร',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ...state.order!.items.map((item) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
-                                          child: Text('${item.quantity}x', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(child: Text(item.name)),
-                                        Text(NumberFormat.currency(locale: 'th', symbol: '฿', decimalDigits: 0).format(item.totalPrice)),
-                                      ],
-                                    ),
-                                  )),
-                                  const Divider(height: 32),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text('ยอดรวมทั้งหมด', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                                      Text(
-                                        NumberFormat.currency(locale: 'th', symbol: '฿', decimalDigits: 0).format(state.order!.deliveryFee + state.order!.items.fold(0.0, (sum, item) => sum + item.totalPrice)),
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primaryColor),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  // Chat Button
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        side: const BorderSide(color: AppTheme.primaryColor),
-                                      ),
-                                      icon: const Icon(Icons.chat_bubble_outline, color: AppTheme.primaryColor, size: 20),
-                                      label: Text(
-                                        state.order!.status == 'COMPLETED' ? 'ดูประวัติการแชทกับไรเดอร์' : 'แชทกับไรเดอร์',
-                                        style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) => ChatScreen(
-                                              orderId: widget.orderId,
-                                              initialStatus: state.order?.status,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  if (state.order!.status == 'COMPLETED') ...[
-                                    const SizedBox(height: 10),
-                                    if (state.order!.rating != null)
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green.shade50,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: Colors.green.shade200),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                ...List.generate(5, (index) => Icon(
-                                                  index < (state.order!.rating ?? 0) ? Icons.star_rounded : Icons.star_outline_rounded,
-                                                  color: Colors.amber,
-                                                  size: 20,
-                                                )),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  '${state.order!.rating} / 5 ดาว',
-                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                                ),
-                                              ],
-                                            ),
-                                            if (state.order!.reviewComment != null && state.order!.reviewComment!.isNotEmpty) ...[
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'ความคิดเห็นของคุณ: "${state.order!.reviewComment}"',
-                                                style: const TextStyle(fontSize: 12, color: Colors.black87),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.amber.shade700,
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          ),
-                                          icon: const Icon(Icons.star_rounded, color: Colors.white),
-                                          label: const Text(
-                                            '⭐ ให้คะแนนความพึงพอใจ',
-                                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                          ),
-                                          onPressed: () {
-                                            OrderReviewDialog.show(
-                                              context,
-                                              order: state.order!,
-                                              onReviewed: () {
-                                                ref.read(activeOrderProvider.notifier).watchOrder(widget.orderId);
-                                              },
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                  ],
-                                  const SizedBox(height: 16),
-                                ],
-                              ),
-                            ),
+                          child: CustomerTrackingDetailsSheet(
+                            orderId: widget.orderId,
+                            order: state.order!,
+                            routeDuration: state.routeDuration,
+                            routeDistance: state.routeDistance,
                           ),
                         ),
                       ],
                     ),
     );
   }
-
-  static LatLng? _toPoint(double? latitude, double? longitude) {
-    if (latitude == null ||
-        longitude == null ||
-        !latitude.isFinite ||
-        !longitude.isFinite ||
-        latitude < -90 ||
-        latitude > 90 ||
-        longitude < -180 ||
-        longitude > 180) {
-      return null;
-    }
-    return LatLng(latitude, longitude);
-  }
 }
-
-class _OrderProgressBar extends StatelessWidget {
-  final String status;
-  const _OrderProgressBar({required this.status});
-
-  int get _currentStep {
-    switch (status) {
-      case 'ASSIGNED': return 0;
-      case 'PICKING_UP': return 1;
-      case 'DELIVERING': return 2;
-      case 'COMPLETED': return 3;
-      default:
-        if (status == 'CANCELLED') return -2;
-        return -1;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final step = _currentStep;
-    if (step < 0) {
-      return Text(
-        OrderStatusHelper.label(status),
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStep(0, 'รับออเดอร์', step),
-          _buildLine(0, step),
-          _buildStep(1, 'กำลังไปรับ', step),
-          _buildLine(1, step),
-          _buildStep(2, 'กำลังนำส่ง', step),
-          _buildLine(2, step),
-          _buildStep(3, 'ส่งสำเร็จ', step),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep(int stepIndex, String label, int currentStep) {
-    final isActive = currentStep >= stepIndex;
-    return Column(
-      children: [
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? AppTheme.primaryColor : Colors.grey[300],
-          ),
-          child: isActive ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: 50,
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10,
-              color: isActive ? Colors.black87 : Colors.grey,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLine(int stepIndex, int currentStep) {
-    final isActive = currentStep > stepIndex;
-    return Expanded(
-      child: Container(
-        height: 2,
-        color: isActive ? AppTheme.primaryColor : Colors.grey[300],
-        margin: const EdgeInsets.only(top: 12),
-      ),
-    );
-  }
-}
-
-String _formatDistance(double? meters) {
-  if (meters == null) return '--';
-  if (meters < 1000) {
-    return '${meters.toStringAsFixed(0)} m';
-  } else {
-    return '${(meters / 1000).toStringAsFixed(1)} km';
-  }
-}
-
-String _formatDuration(double? seconds) {
-  if (seconds == null) return '--';
-  final minutes = (seconds / 60).round();
-  if (minutes < 60) {
-    return '$minutes mins';
-  } else {
-    final hours = minutes ~/ 60;
-    final remainingMins = minutes % 60;
-    if (remainingMins == 0) {
-      return '$hours hrs';
-    } else {
-      return '$hours hrs $remainingMins mins';
-    }
-  }
-}
-

@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/environment.dart';
@@ -72,6 +72,15 @@ final deliveryApiClientProvider = Provider<Dio>((ref) {
         responseBody: true,
         requestHeader: false,
         responseHeader: false,
+        logPrint: (obj) {
+          final str = obj.toString();
+          if (str.length > 500) {
+            // Truncate large payloads (like Base64 images) to prevent memory crash
+            debugPrint('${str.substring(0, 500)}... [truncated ${str.length - 500} chars]');
+          } else {
+            debugPrint(str);
+          }
+        },
       ),
   ]);
 

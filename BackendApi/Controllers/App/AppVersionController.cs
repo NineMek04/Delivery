@@ -36,8 +36,8 @@ namespace BackendApi.Controllers.App
         [HttpGet("version")]
         public IActionResult GetLatestVersion([FromQuery] string platform = "android")
         {
-            var latestVersion = _configuration.GetValue<string>("AppVersion:LatestVersion") ?? "1.0.2";
-            var buildNumber = _configuration.GetValue<int?>("AppVersion:BuildNumber") ?? 2;
+            var latestVersion = _configuration.GetValue<string>("AppVersion:LatestVersion") ?? "1.0.3";
+            var buildNumber = _configuration.GetValue<int?>("AppVersion:BuildNumber") ?? 3;
             var minSupported = _configuration.GetValue<string>("AppVersion:MinSupportedVersion") ?? "1.0.0";
             var forceUpdate = _configuration.GetValue<bool?>("AppVersion:ForceUpdate") ?? true;
 

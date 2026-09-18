@@ -11,6 +11,12 @@ import '../auth/auth_service.dart';
 import '../auth/auth_constants.dart';
 import '../session/rider_session_service.dart';
 import '../signalr/signalr_service.dart';
+import 'location_state.dart';
+import 'location_settings_helper.dart';
+import 'location_permission_helper.dart';
+
+export 'location_state.dart';
+export 'location_settings_helper.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -20,14 +26,6 @@ final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
 /// 1. ดึงตำแหน่ง GPS ของ Rider แบบ real-time
 /// 2. ส่งพิกัดผ่าน SignalR → .NET Backend → PostgreSQL/PostGIS
 /// 3. Backend broadcast ไปยัง Angular Dashboard (admin-dashboard)
-///
-/// Data Flow (จาก AI-BLUEPRINT.md):
-/// ```
-/// Flutter App ──(SignalR)──► .NET Backend ──► PostgreSQL/PostGIS
-///                                │
-///                          Angular Dashboard
-///                          (Real-time Map)
-/// ```
 class LocationService extends Notifier<LocationState> {
   StreamSubscription<Position>? _positionSubscription;
   Timer? _mockTimer;
@@ -63,112 +61,56 @@ class LocationService extends Notifier<LocationState> {
         return true;
       }
 
-      String? locationFailure;
-      try {
-        // ลองดึงสิทธิ์และพิกัดจริงบน Web แบบปลอดภัยที่สุด
-        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (serviceEnabled) {
-          var permission = await Geolocator.checkPermission();
-          if (permission == LocationPermission.denied) {
-            permission = await Geolocator.requestPermission();
-          }
+      final webResult = await LocationPermissionHelper.checkAndRequestWeb();
+      if (webResult.success && webResult.initialPosition != null) {
+        final position = webResult.initialPosition!;
+        state = LocationState(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy,
+          heading: LocationSettingsHelper.normalizeHeading(
+            LocationSettingsHelper.readHeading(position),
+          ),
+          isTracking: true,
+          lastUpdated: DateTime.now(),
+        );
 
-          if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-            final position = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.high,
-              ),
-            );
-
-            // ถ้าผ่านหมดและได้ตำแหน่งมา ให้ใช้ตำแหน่งจริง
-            state = LocationState(
-              latitude: position.latitude,
-              longitude: position.longitude,
-              accuracy: position.accuracy,
-              heading: _normalizeHeading(_readHeading(position)),
-              isTracking: true,
-              lastUpdated: DateTime.now(),
-            );
-
-            try {
-              _startRealStream();
-              return true;
-            } catch (streamError) {
-              _logger.w('Failed to start browser GPS stream: $streamError');
-              locationFailure = 'Unable to start browser GPS tracking.';
-            }
-          } else {
-            locationFailure = 'Location permission is required to go online.';
-          }
-        } else {
-          locationFailure = 'Location services are disabled.';
+        try {
+          _startRealStream();
+          return true;
+        } catch (streamError) {
+          _logger.w('Failed to start browser GPS stream: $streamError');
         }
-      } catch (e) {
-        _logger.w('Browser geolocation check failed: $e');
-        locationFailure = 'Unable to access browser location services.';
       }
-
 
       ref.read(gpsBufferServiceProvider).stopSyncTimer();
       state = LocationState(
-        error: locationFailure ?? 'A valid GPS position is required.',
+        error: webResult.errorMessage ?? 'A valid GPS position is required.',
       );
       return false;
     }
 
     // ── สำหรับ Mobile App จริง (Android / iOS) ──────────────────────
-    try {
-      // ── 1. ตรวจสอบ Location Service เปิดอยู่ ──────────────────────
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        _logger.w('📍 Location services are disabled');
-        state = state.copyWith(
-          error: 'Location services are disabled. Please enable GPS.',
-        );
-        return false;
-      }
-
-      // ── 2. ตรวจสอบ Permissions ────────────────────────────────────
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          _logger.w('📍 Location permission denied');
-          state = state.copyWith(error: 'Location permission denied.');
-          return false;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        _logger.w('📍 Location permission permanently denied');
-        state = state.copyWith(
-          error: 'Location permission permanently denied. Please enable in Settings.',
-        );
-        return false;
-      }
-
-      // ── 3. ดึงตำแหน่งเริ่มต้น ─────────────────────────────────────
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+    final mobileResult = await LocationPermissionHelper.checkAndRequestMobile();
+    if (!mobileResult.success) {
+      ref.read(gpsBufferServiceProvider).stopSyncTimer();
+      state = state.copyWith(
+        error: mobileResult.errorMessage,
+        isTracking: false,
       );
+      return false;
+    }
 
-      if (position.isMocked) {
-        _logger.e('Mock GPS position detected on start!');
-        state = state.copyWith(
-          error: 'ตรวจพบการโกงตำแหน่งพิกัด (Mock GPS) ไม่อนุญาตให้ใช้แอปพลิเคชัน',
-          isTracking: false,
-        );
-        return false;
-      }
-
+    final position = mobileResult.initialPosition;
+    if (position != null) {
       if (position.accuracy <= 300.0) {
         state = LocationState(
           latitude: position.latitude,
           longitude: position.longitude,
           accuracy: position.accuracy,
-          heading: _normalizeHeading(_readHeading(position)),
+          heading: LocationSettingsHelper.normalizeHeading(
+            LocationSettingsHelper.readHeading(position),
+          ),
           isTracking: true,
           lastUpdated: DateTime.now(),
         );
@@ -176,14 +118,9 @@ class LocationService extends Notifier<LocationState> {
           'Initial GPS accepted: ${position.latitude}, ${position.longitude} (${position.accuracy}m)',
         );
       } else {
-        // Tracking is active, but we intentionally wait for a usable point.
         state = const LocationState(isTracking: true);
-        _logger.d(
-          'Initial GPS filtered: accuracy ${position.accuracy}m is > 300m',
-        );
+        _logger.d('Initial GPS filtered: accuracy ${position.accuracy}m is > 300m');
       }
-    } catch (e) {
-      _logger.e('❌ Failed to get initial position', error: e);
     }
 
     _startRealStream();
@@ -210,40 +147,8 @@ class LocationService extends Notifier<LocationState> {
     _logger.i('🛰️ GPS tracking started (filter: ${Environment.gpsDistanceFilter}m)');
   }
 
-  // Dynamic Settings Methods:
   LocationSettings buildLocationSettings({required int intervalSeconds}) {
-    if (kIsWeb) {
-      return LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: Environment.gpsDistanceFilter,
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 2,
-        forceLocationManager: false,
-        intervalDuration: Duration(seconds: intervalSeconds),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationText: "แอปกำลังติดตามตำแหน่งของคุณเบื้องหลัง (สามารถกดยกเลิกการติดตามได้ในแอป)",
-          notificationTitle: "Rider App เปิดใช้งาน GPS",
-          enableWakeLock: true,
-        ),
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return AppleSettings(
-        accuracy: LocationAccuracy.high,
-        activityType: ActivityType.automotiveNavigation,
-        distanceFilter: 2,
-        pauseLocationUpdatesAutomatically: false,
-        showBackgroundLocationIndicator: true,
-        allowBackgroundLocationUpdates: true,
-      );
-    } else {
-      return const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 2,
-      );
-    }
+    return LocationSettingsHelper.buildLocationSettings(intervalSeconds: intervalSeconds);
   }
 
   void updateSettings(
@@ -282,7 +187,6 @@ class LocationService extends Notifier<LocationState> {
 
     _logger.i('🤖 Starting Mock GPS Stream for Web (Demo Mode)');
     
-    // หากมีตำแหน่งล่าสุดใน state หรือคลาสตัวแปรอยู่แล้ว ให้ยึดตามนั้น ไม่ต้องดีดกลับไปจุดเริ่มต้นศาลากลาง
     if (state.latitude != null && state.longitude != null) {
       _mockLat = state.latitude!;
       _mockLng = state.longitude!;
@@ -297,14 +201,12 @@ class LocationService extends Notifier<LocationState> {
       lastUpdated: DateTime.now(),
     );
 
-    // ส่งตำแหน่งเริ่มต้นทันที
     final bufferService = ref.read(gpsBufferServiceProvider);
     unawaited(ref
         .read(signalRServiceProvider.notifier)
         .updateLocation(_mockLat, _mockLng, 10.0));
     bufferService.bufferLocation(_mockLat, _mockLng, 10.0, heading: state.heading ?? 0.0);
 
-    // Simulate a small loop at the active GPS interval for map visibility.
     _mockTimer = Timer.periodic(Duration(seconds: _mockIntervalSeconds), (timer) {
       if (!state.isTracking) {
         timer.cancel();
@@ -314,7 +216,6 @@ class LocationService extends Notifier<LocationState> {
         return;
       }
       
-      // ขยับเล็กน้อย 0.0003 (~30 เมตร)
       _mockAngle += 0.1;
       final latOffset = 0.0003 * math.sin(_mockAngle);
       final lngOffset = 0.0003 * math.cos(_mockAngle);
@@ -358,7 +259,6 @@ class LocationService extends Notifier<LocationState> {
     _logger.i('📍 Manually updated geolocator state position to: $lat, $lng');
   }
 
-  /// หยุด GPS tracking.
   Future<void> stopTracking() async {
     ref.read(gpsBufferServiceProvider).stopSyncTimer();
     await _positionSubscription?.cancel();
@@ -369,7 +269,6 @@ class LocationService extends Notifier<LocationState> {
     _logger.i('🛑 GPS tracking stopped');
   }
 
-  /// Handler สำหรับ position update.
   void _onPositionUpdate(Position position) {
     if (state.isAutoDrive) {
       return;
@@ -381,21 +280,17 @@ class LocationService extends Notifier<LocationState> {
         isTracking: false,
       );
       stopTracking();
-      // บังคับเปลี่ยนสถานะออฟไลน์
       Future.microtask(() {
         ref.read(riderSessionServiceProvider.notifier).goOffline();
       });
       return;
     }
 
-    // ── 5. ตัวกรองพิกัด (Noise Filtering) ────────────────────────
     if (position.accuracy > 300.0) {
       _logger.d('🛑 GPS Noise filtered: accuracy ${position.accuracy}m is > 300m');
       return;
     }
 
-    // กรองด้วย Exponential Moving Average (EMA) เพื่อลด Jitter โดยไม่สร้าง lag มากเท่า SMA
-    // alpha = 0.6 → ให้น้ำหนักกับค่าใหม่มากกว่าค่าเก่า (ตอบสนองเร็ว, lag น้อย)
     const double alpha = 0.6;
     double emaLat;
     double emaLng;
@@ -411,11 +306,13 @@ class LocationService extends Notifier<LocationState> {
       emaAccuracy = position.accuracy;
     }
 
-    double? heading = _normalizeHeading(_readHeading(position));
+    double? heading = LocationSettingsHelper.normalizeHeading(
+      LocationSettingsHelper.readHeading(position),
+    );
     if ((heading == null || heading == 0.0) && state.latitude != null && state.longitude != null) {
       final dist = Geolocator.distanceBetween(state.latitude!, state.longitude!, emaLat, emaLng);
       if (dist >= 1.5) {
-        heading = _calculateBearing(state.latitude!, state.longitude!, emaLat, emaLng);
+        heading = LocationSettingsHelper.calculateBearing(state.latitude!, state.longitude!, emaLat, emaLng);
       } else {
         heading = state.heading;
       }
@@ -434,79 +331,7 @@ class LocationService extends Notifier<LocationState> {
         .read(signalRServiceProvider.notifier)
         .updateLocation(emaLat, emaLng, emaAccuracy));
 
-    // ส่งพิกัดไปยัง Local DB Buffer สำหรับ Offline Buffering และ Batch Ingestion
     ref.read(gpsBufferServiceProvider).bufferLocation(emaLat, emaLng, emaAccuracy, heading: heading);
-  }
-
-  double _calculateBearing(double startLat, double startLng, double endLat, double endLng) {
-    final lat1 = startLat * math.pi / 180;
-    final lng1 = startLng * math.pi / 180;
-    final lat2 = endLat * math.pi / 180;
-    final lng2 = endLng * math.pi / 180;
-    final dLng = lng2 - lng1;
-    final y = math.sin(dLng) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
-    final brng = math.atan2(y, x);
-    return (brng * 180 / math.pi + 360) % 360;
-  }
-
-  double? _normalizeHeading(double? heading) {
-    if (heading == null || !heading.isFinite || heading < 0) return null;
-    return heading % 360;
-  }
-
-  double? _readHeading(Position position) {
-    try {
-      final dynamic pos = position;
-      return pos.heading as double?;
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-/// สถานะ GPS location ของ Rider.
-class LocationState {
-  final double? latitude;
-  final double? longitude;
-  final double? accuracy;
-  final double? heading;
-  final bool isTracking;
-  final bool isAutoDrive;
-  final DateTime? lastUpdated;
-  final String? error;
-
-  const LocationState({
-    this.latitude,
-    this.longitude,
-    this.accuracy,
-    this.heading,
-    this.isTracking = false,
-    this.isAutoDrive = false,
-    this.lastUpdated,
-    this.error,
-  });
-
-  LocationState copyWith({
-    double? latitude,
-    double? longitude,
-    double? accuracy,
-    double? heading,
-    bool? isTracking,
-    bool? isAutoDrive,
-    DateTime? lastUpdated,
-    String? error,
-  }) {
-    return LocationState(
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      accuracy: accuracy ?? this.accuracy,
-      heading: heading ?? this.heading,
-      isTracking: isTracking ?? this.isTracking,
-      isAutoDrive: isAutoDrive ?? this.isAutoDrive,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-      error: error,
-    );
   }
 }
 

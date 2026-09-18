@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/services/order_api_service.dart';
 import '../../../core/signalr/store_signalr_service.dart';
 import '../../../models/order.dart';
+import '../../../models/shop.dart';
 
 import 'store_providers.dart';
 
@@ -93,22 +94,32 @@ class StoreOrdersNotifier extends Notifier<StoreOrdersState> {
     _orderCreatedSub = signalR.onOrderCreated.listen((event) async {
       debugPrint('[StoreOrdersNotifier] 🔔 New order via SignalR: ${event.order.id}');
       try {
-        final shop = await ref.read(currentShopProvider.future);
-        if (shop == null || event.order.shopId != shop.id) {
-          debugPrint('[StoreOrdersNotifier] Ignoring order for different shop: ${event.order.shopId} (my shop: ${shop?.id})');
-          return;
+        ShopDto? shop;
+        try {
+          shop = await ref.read(currentShopProvider.future).timeout(const Duration(seconds: 2));
+        } catch (_) {}
+
+        // If shop is known and event has a shopId, verify case-insensitively
+        if (shop != null && event.order.shopId != null && event.order.shopId!.isNotEmpty) {
+          if (event.order.shopId!.toLowerCase() != shop.id.toLowerCase()) {
+            debugPrint('[StoreOrdersNotifier] Ignoring order for different shop: ${event.order.shopId} (my shop: ${shop.id})');
+            return;
+          }
         }
 
         // Avoid adding duplicate orders
         final exists = state.orders.any((o) => o.id == event.order.id);
-        if (exists) return;
+        if (!exists) {
+          // Prepend new order and increment badge immediately
+          final updatedOrders = [event.order, ...state.orders];
+          state = state.copyWith(
+            orders: updatedOrders,
+            newOrderBadgeCount: state.newOrderBadgeCount + 1,
+          );
+        }
 
-        // Prepend new order and increment badge
-        final updatedOrders = [event.order, ...state.orders];
-        state = state.copyWith(
-          orders: updatedOrders,
-          newOrderBadgeCount: state.newOrderBadgeCount + 1,
-        );
+        // Refresh orders from API in background to ensure all nested items/relations are synchronized
+        unawaited(loadOrders());
       } catch (e) {
         debugPrint('[StoreOrdersNotifier] Error processing SignalR onOrderCreated: $e');
       }

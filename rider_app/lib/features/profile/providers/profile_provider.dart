@@ -22,20 +22,37 @@ final profileNotifierProvider =
 class ProfileNotifier extends Notifier<ProfileState> {
   @override
   ProfileState build() {
+    final authService = ref.read(authServiceProvider.notifier);
+    final initialName = authService.currentUser?.fullName ?? authService.userName;
+    final initialEmail = authService.currentUser?.email ?? authService.userEmail;
+    final initialRiderId = authService.currentUser?.id ?? authService.userId;
+    final initialRole = authService.userRole;
+
     // โหลดข้อมูลทันทีที่ provider ถูกสร้าง
     Future.microtask(loadProfile);
-    return const ProfileState();
+    return ProfileState(
+      fullName: initialName,
+      email: initialEmail,
+      riderId: initialRiderId,
+      role: initialRole,
+      isLoading: false,
+    );
   }
 
   /// โหลดข้อมูล Rider profile จาก AuthService (JWT claims + stored user data) และ SafeStorage.
   Future<void> loadProfile() async {
-    state = state.copyWith(isLoading: true, error: null);
+    if (state.fullName == null && state.email == null) {
+      state = state.copyWith(isLoading: true, error: null);
+    }
 
     try {
       final authService = ref.read(authServiceProvider.notifier);
 
-      // ลอง getUserData() จาก SecureStorage ก่อน (ข้อมูลเต็ม)
-      final userData = await authService.getUserData();
+      // ลอง getUserData() จาก SecureStorage พร้อม Timeout 3 วินาที
+      final userData = await authService
+          .getUserData()
+          .timeout(const Duration(seconds: 3), onTimeout: () => null);
+
       UserInfo? userInfo;
       if (userData != null) {
         userInfo = UserInfo.fromJson(userData);
@@ -47,11 +64,21 @@ class ProfileNotifier extends Notifier<ProfileState> {
       final riderId = userInfo?.id ?? authService.userId;
       final role = authService.userRole;
 
-      // โหลดการตั้งค่าการแจ้งเตือนจาก Local Storage
+      // โหลดการตั้งค่าการแจ้งเตือนจาก Local Storage พร้อม Timeout 2 วินาที
       final storage = SafeStorage();
-      final receiveOffers = (await storage.read(key: 'notif_receive_offers')) != 'false';
-      final orderUpdates = (await storage.read(key: 'notif_order_updates')) != 'false';
-      final systemBroadcasts = (await storage.read(key: 'notif_system_broadcasts')) != 'false';
+      final receiveOffersStr = await storage
+          .read(key: 'notif_receive_offers')
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      final orderUpdatesStr = await storage
+          .read(key: 'notif_order_updates')
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      final systemBroadcastsStr = await storage
+          .read(key: 'notif_system_broadcasts')
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+
+      final receiveOffers = receiveOffersStr != 'false';
+      final orderUpdates = orderUpdatesStr != 'false';
+      final systemBroadcasts = systemBroadcastsStr != 'false';
 
       state = state.copyWith(
         isLoading: false,
@@ -68,6 +95,10 @@ class ProfileNotifier extends Notifier<ProfileState> {
         isLoading: false,
         error: 'ไม่สามารถโหลดข้อมูลได้: $e',
       );
+    } finally {
+      if (state.isLoading) {
+        state = state.copyWith(isLoading: false);
+      }
     }
   }
 

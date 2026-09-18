@@ -53,12 +53,18 @@ class StoreSignalRService extends Notifier<StoreSignalRState> {
     await disconnect();
 
     final authService = ref.read(authServiceProvider.notifier);
+    final token = await authService.getValidToken();
+    if (token == null || token.isEmpty) {
+      _logger.w('[StoreSignalR] Cannot connect: no valid access token');
+      state = StoreSignalRState.disconnected;
+      return;
+    }
 
     _hubConnection = HubConnectionBuilder()
         .withUrl(
           Environment.signalRUrl,
           options: HttpConnectionOptions(
-            accessTokenFactory: () async => authService.currentToken ?? '',
+            accessTokenFactory: () async => (await authService.getValidToken()) ?? authService.currentToken ?? '',
           ),
         )
         .withAutomaticReconnect(reconnectPolicy: JitteredRetryPolicy())
@@ -104,6 +110,7 @@ class StoreSignalRService extends Notifier<StoreSignalRState> {
 
     // Backend sends "OrderCreated" with the full OrderDto as the first argument
     hub.on('OrderCreated', (args) {
+      _logger.i('[StoreSignalR] OrderCreated event received, args count: ${args?.length ?? 0}');
       if (args == null || args.isEmpty) return;
       try {
         final raw = args.first;
@@ -118,9 +125,9 @@ class StoreSignalRService extends Notifier<StoreSignalRState> {
         }
         final order = OrderDto.fromJson(map);
         _orderCreatedController.add(StoreOrderCreatedEvent(order));
-        _logger.i('[StoreSignalR] OrderCreated received: orderId=${order.id}');
-      } catch (e) {
-        _logger.e('[StoreSignalR] Failed to parse OrderCreated payload', error: e);
+        _logger.i('[StoreSignalR] OrderCreated successfully added to stream: orderId=${order.id}');
+      } catch (e, stack) {
+        _logger.e('[StoreSignalR] Failed to parse OrderCreated payload: $e', error: e, stackTrace: stack);
       }
     });
 

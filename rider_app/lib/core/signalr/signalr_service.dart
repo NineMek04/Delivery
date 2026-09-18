@@ -1,3 +1,11 @@
+export 'signalr_connection_state.dart';
+import 'signalr_connection_state.dart';
+import 'signalr_payload_parser.dart';
+export 'signalr_events.dart';
+export 'jittered_retry_policy.dart';
+import 'signalr_events.dart';
+import 'jittered_retry_policy.dart';
+
 import 'dart:async';
 import 'dart:math';
 
@@ -11,106 +19,6 @@ import '../auth/auth_service.dart';
 import '../config/environment.dart';
 
 final _logger = Logger(printer: PrettyPrinter(methodCount: 0));
-
-/// Order status change from SignalR `OrderStatusChanged`.
-class OrderStatusChangedEvent {
-  final String orderId;
-  final String status;
-
-  const OrderStatusChangedEvent({
-    required this.orderId,
-    required this.status,
-  });
-}
-
-/// Result from `OfferAcceptedResult` hub callback.
-class OfferAcceptedResult {
-  final bool success;
-  final String? message;
-
-  const OfferAcceptedResult({required this.success, this.message});
-}
-
-/// Result from `RiderStatusUpdatedResult` hub callback.
-class RiderStatusResult {
-  final bool success;
-  final String? status;
-  final String? message;
-
-  const RiderStatusResult({
-    required this.success,
-    this.status,
-    this.message,
-  });
-}
-
-/// Rider location event used by simulation mirror UI and real-time route updates.
-class RiderLocationUpdateEvent {
-  final String riderId;
-  final double latitude;
-  final double longitude;
-  final String status;
-  final DateTime timestamp;
-  final String? snappedPolyline;
-  final double? routeDistance;
-  final double? routeDuration;
-
-  const RiderLocationUpdateEvent({
-    required this.riderId,
-    required this.latitude,
-    required this.longitude,
-    required this.status,
-    required this.timestamp,
-    this.snappedPolyline,
-    this.routeDistance,
-    this.routeDuration,
-  });
-}
-
-/// Dispatch scan start event used by simulation mirror UI.
-class DispatchScanStartedEvent {
-  final String orderId;
-  final double? pickupLat;
-  final double? pickupLng;
-  final double? dropoffLat;
-  final double? dropoffLng;
-  final int nearbyCount;
-
-  const DispatchScanStartedEvent({
-    required this.orderId,
-    required this.pickupLat,
-    required this.pickupLng,
-    required this.dropoffLat,
-    required this.dropoffLng,
-    required this.nearbyCount,
-  });
-}
-
-/// Custom retry policy that implements SignalR's `IRetryPolicy` with a
-/// randomized exponential backoff strategy (1s - 5s delay with jitter).
-class JitteredRetryPolicy implements IRetryPolicy {
-  @override
-  int? nextRetryDelayInMilliseconds(RetryContext retryContext) {
-    // Under the hood, SignalR client automatically resets the RetryContext state (including previousRetryCount)
-    // to 0 when it successfully reconnects.
-    final count = retryContext.previousRetryCount;
-    
-    // Exponential backoff base: 1000ms * 1.5^count
-    final double baseDelay = 1000 * pow(1.5, count).toDouble();
-    
-    // Jitter: +/- 500ms
-    final random = Random();
-    final int jitter = random.nextInt(1001) - 500; // range: -500 to +500 ms
-    
-    int nextDelay = (baseDelay + jitter).round();
-    
-    // Bound the delay between 1,000ms and 5,000ms (Traffic smoothing guard)
-    if (nextDelay < 1000) nextDelay = 1000;
-    if (nextDelay > 5000) nextDelay = 5000;
-    
-    return nextDelay;
-  }
-}
 
 /// SignalR client for TrackingHub (`/hubs/tracking`).
 class SignalRService extends Notifier<SignalRConnectionState> {
@@ -296,7 +204,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     hub.on('OfferReceived', (args) {
       if (args == null || args.isEmpty) return;
       try {
-        final offer = DispatchOffer.fromJson(_asJsonMap(args.first));
+        final offer = DispatchOffer.fromJson(SignalRPayloadParser.asJsonMap(args.first));
         _offerController.add(offer);
         _logger.i('Offer received: ${offer.offerId}');
       } catch (e) {
@@ -312,7 +220,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
         orderId = args[0]?.toString() ?? '';
         status = args[1]?.toString() ?? '';
       } else {
-        final map = _maybeAsJsonMap(args.first);
+        final map = SignalRPayloadParser.maybeAsJsonMap(args.first);
         if (map != null) {
           orderId = map['orderId']?.toString() ?? map['OrderId']?.toString() ?? '';
           status = map['newStatus']?.toString() ??
@@ -331,7 +239,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     hub.on('OfferAcceptedResult', (args) {
       if (args == null || args.isEmpty) return;
       try {
-        final map = _asJsonMap(args.first);
+        final map = SignalRPayloadParser.asJsonMap(args.first);
         _offerAcceptedController.add(
           OfferAcceptedResult(
             success: map['Success'] == true || map['success'] == true,
@@ -346,7 +254,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     hub.on('RiderStatusUpdatedResult', (args) {
       if (args == null || args.isEmpty) return;
       try {
-        final map = _asJsonMap(args.first);
+        final map = SignalRPayloadParser.asJsonMap(args.first);
         _riderStatusResultController.add(
           RiderStatusResult(
             success: map['Success'] == true || map['success'] == true,
@@ -361,21 +269,21 @@ class SignalRService extends Notifier<SignalRConnectionState> {
 
     hub.on('RiderLocationUpdated', (args) {
       if (args == null || args.isEmpty) return;
-      final map = _maybeAsJsonMap(args.first);
+      final map = SignalRPayloadParser.maybeAsJsonMap(args.first);
       if (map == null) return;
       final riderId = map['riderId']?.toString() ?? map['RiderId']?.toString() ?? '';
-      final latitude = _toDouble(
+      final latitude = SignalRPayloadParser.toDouble(
         map['latitude'] ?? map['Latitude'] ?? map['lat'] ?? map['Lat'],
       );
-      final longitude = _toDouble(
+      final longitude = SignalRPayloadParser.toDouble(
         map['longitude'] ?? map['Longitude'] ?? map['lng'] ?? map['Lng'],
       );
       if (riderId.isEmpty || latitude == null || longitude == null) return;
 
       final timestampRaw = map['timestamp']?.toString() ?? map['Timestamp']?.toString();
       final snappedPoly = map['snappedPolyline']?.toString() ?? map['SnappedPolyline']?.toString();
-      final routeDist = _toDouble(map['routeDistance'] ?? map['RouteDistance']);
-      final routeDur = _toDouble(map['routeDuration'] ?? map['RouteDuration']);
+      final routeDist = SignalRPayloadParser.toDouble(map['routeDistance'] ?? map['RouteDistance']);
+      final routeDur = SignalRPayloadParser.toDouble(map['routeDuration'] ?? map['RouteDuration']);
       _riderLocationController.add(
         RiderLocationUpdateEvent(
           riderId: riderId,
@@ -392,21 +300,21 @@ class SignalRService extends Notifier<SignalRConnectionState> {
 
     hub.on('DispatchScanStarted', (args) {
       if (args == null || args.isEmpty) return;
-      final map = _maybeAsJsonMap(args.first);
+      final map = SignalRPayloadParser.maybeAsJsonMap(args.first);
       if (map == null) return;
 
-      final order = _maybeAsJsonMap(map['order']) ?? _maybeAsJsonMap(map['Order']);
+      final order = SignalRPayloadParser.maybeAsJsonMap(map['order']) ?? SignalRPayloadParser.maybeAsJsonMap(map['Order']);
       final orderId = order?['id']?.toString() ?? order?['Id']?.toString() ?? '';
-      final pickupLat = _toDouble(
+      final pickupLat = SignalRPayloadParser.toDouble(
         map['pickupLat'] ?? map['PickupLat'] ?? order?['pickupLat'] ?? order?['PickupLat'],
       );
-      final pickupLng = _toDouble(
+      final pickupLng = SignalRPayloadParser.toDouble(
         map['pickupLng'] ?? map['PickupLng'] ?? order?['pickupLng'] ?? order?['PickupLng'],
       );
-      final dropoffLat = _toDouble(
+      final dropoffLat = SignalRPayloadParser.toDouble(
         order?['dropoffLat'] ?? order?['DropoffLat'],
       );
-      final dropoffLng = _toDouble(
+      final dropoffLng = SignalRPayloadParser.toDouble(
         order?['dropoffLng'] ?? order?['DropoffLng'],
       );
       final nearby = map['nearbyRiders'] ?? map['NearbyRiders'];
@@ -426,7 +334,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
 
     hub.on('DispatchCandidatesRanked', (args) {
       if (args == null || args.isEmpty) return;
-      final map = _maybeAsJsonMap(args.first);
+      final map = SignalRPayloadParser.maybeAsJsonMap(args.first);
       if (map == null) return;
       final candidates = map['rankedCandidates'] ?? map['RankedCandidates'];
       final count = candidates is List ? candidates.length : 0;
@@ -436,7 +344,7 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     hub.on('DispatchOfferSent', (args) {
       if (args == null || args.isEmpty) return;
       try {
-        final map = _asJsonMap(args.first);
+        final map = SignalRPayloadParser.asJsonMap(args.first);
         final offer = DispatchOffer.fromJson(map);
         _dispatchOfferSentController.add(offer);
       } catch (_) {
@@ -445,31 +353,6 @@ class SignalRService extends Notifier<SignalRConnectionState> {
     });
   }
 
-  Map<String, dynamic> _asJsonMap(Object? value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
-    throw FormatException('Expected map payload, got $value');
-  }
-
-  Map<String, dynamic>? _maybeAsJsonMap(Object? value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
-    return null;
-  }
-
-  double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
-  }
-}
-
-enum SignalRConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  reconnecting,
-  error,
 }
 
 final signalRServiceProvider =

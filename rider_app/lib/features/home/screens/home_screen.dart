@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../core/config/app_constants.dart';
@@ -17,6 +16,8 @@ import '../../../shared/widgets/offer_bottom_sheet.dart';
 import '../../../core/services/app_update_service.dart';
 import '../../../shared/widgets/app_update_dialog.dart';
 import '../providers/home_provider.dart';
+import '../widgets/location_disclosure_dialog.dart';
+import '../widgets/home_summary_stats.dart';
 
 /// Home — dashboard, online toggle, incoming offers.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -111,62 +112,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
       await ref.read(authNotifierProvider.notifier).logout();
     }
-  }
-
-  Future<bool> _showProminentDisclosureDialog() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-      return true;
-    }
-
-    if (!mounted) return false;
-
-    final accepted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.location_on, color: Colors.blueAccent),
-              SizedBox(width: 8),
-              Text('คำชี้แจงการเข้าถึงตำแหน่ง'),
-            ],
-          ),
-          content: const SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'แอปพลิเคชัน Rider นี้จำเป็นต้องเข้าถึงข้อมูลตำแหน่งพิกัดของคุณ (GPS Location) แม้ในขณะที่ปิดแอปพลิเคชันหรือไม่ได้ใช้งาน (Background Location)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 12),
-                Text('ข้อมูลตำแหน่งจะถูกนำไปใช้เพื่อ:'),
-                Text('• ตรวจสอบพิกัดปัจจุบันสำหรับการแจกจ่ายงานส่งอาหารของระบบ AI Dispatcher'),
-                Text('• คำนวณเส้นทางและเวลาจัดส่ง (ETA) ให้กับร้านค้าและลูกค้า'),
-                Text('• ติดตามการเดินทางเพื่อความปลอดภัยในระหว่างการส่งสินค้า'),
-                SizedBox(height: 12),
-                Text('หากคุณไม่อนุญาต คุณจะไม่สามารถออนไลน์เพื่อรับงานผ่านระบบได้'),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('ปฏิเสธ (Deny)', style: TextStyle(color: Colors.red)),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('ตกลง (Accept)'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return accepted ?? false;
   }
 
   @override
@@ -299,7 +244,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               : (v) async {
                                   HapticFeedback.mediumImpact();
                                   if (v) {
-                                    final accepted = await _showProminentDisclosureDialog();
+                                    final accepted = await LocationDisclosureDialog.show(context);
                                     if (!accepted) return;
                                   }
                                   try {
@@ -328,14 +273,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const SizedBox(height: 16),
                       Text('สรุปวันนี้', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _stat(context, 'งานที่ได้รับ', '${home.assignedOrderCount}', Icons.assignment, Colors.blue),
-                          const SizedBox(width: 8),
-                          _stat(context, 'ส่งสำเร็จ', '${home.completedOrderCount}', Icons.check_circle, Colors.green),
-                          const SizedBox(width: 8),
-                          _stat(context, 'รายได้', '฿${home.totalEarnings.toStringAsFixed(0)}', Icons.account_balance_wallet, Colors.orange),
-                        ],
+                      HomeSummaryStats(
+                        assignedOrderCount: home.assignedOrderCount,
+                        completedOrderCount: home.completedOrderCount,
+                        totalEarnings: home.totalEarnings,
                       ),
                       const SizedBox(height: 24),
                       if (delivery.activeOrder != null) ...[
@@ -408,24 +349,4 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _stat(BuildContext context, String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 8),
-              Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(label, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

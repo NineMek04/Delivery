@@ -23,7 +23,7 @@ if ($TunnelUrl) {
 $buildCmd = "flutter pub get && flutter build apk --release --android-skip-build-dependency-validation $apiFlag"
 
 Write-Host "`n--> Compiling Android Release APK inside Docker container..." -ForegroundColor Cyan
-docker run --rm -v "${appDir}:/app" -w /app ghcr.io/cirruslabs/flutter:stable bash -c "$buildCmd"
+docker run --rm -v delivery-gradle-cache:/root/.gradle -v "${appDir}:/app" -w /app ghcr.io/cirruslabs/flutter:stable bash -c "$buildCmd"
 
 if ($LASTEXITCODE -eq 0) {
     $apkPath = Join-Path $appDir "build\app\outputs\flutter-apk\app-release.apk"

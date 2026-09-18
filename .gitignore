@@ -94,3 +94,6 @@ RootScripts/scripts.test/test/Test_Breaking-Point/LogsTest/*
 
 
 *.txt
+
+# Ignore generated APKs
+apk/*.apk

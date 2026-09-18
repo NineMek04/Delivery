@@ -160,18 +160,26 @@ public partial class TrackingHub : Hub
         else if (role == AuthConstants.StorePartnerRole)
         {
             var shopId = Context.User?.FindFirst("shop_id")?.Value;
-            if (!string.IsNullOrWhiteSpace(shopId) && Guid.TryParse(shopId, out var sId))
+            if (!string.IsNullOrWhiteSpace(shopId))
             {
                 try
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var dbContext = scope.ServiceProvider.GetRequiredService<BackendApi.Data.ApplicationDbContext>();
-                    var shop = await dbContext.Shops.FindAsync(sId);
+                    var shop = await dbContext.Shops.FindAsync(shopId);
                     if (shop != null && shop.IsOpen)
                     {
                         shop.IsOpen = false;
                         await dbContext.SaveChangesAsync();
                         _logger.LogInformation("StorePartner {UserId} disconnected. Auto-offline Shop {ShopId}", userId, shopId);
+
+                        // แจ้ง Admin Dashboard ว่าร้านออฟไลน์
+                        await Clients.Group(AdminGroup).SendAsync("ShopStatusChanged", new
+                        {
+                            ShopId = shopId,
+                            IsOpen = false,
+                            Timestamp = DateTime.UtcNow
+                        });
                     }
                 }
                 catch (Exception ex)

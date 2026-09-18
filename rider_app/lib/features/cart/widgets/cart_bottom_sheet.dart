@@ -24,8 +24,8 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
   double _distance = 0.0;
   double _deliveryFee = 30.0;
   bool _calculatingRoute = true;
-  double _dropoffLat = 17.4138;
-  double _dropoffLng = 102.7872;
+  double _dropoffLat = 0.0;
+  double _dropoffLng = 0.0;
 
   final _noteToShopController = TextEditingController();
   final _noteToRiderController = TextEditingController();
@@ -50,11 +50,17 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
     if (cart.items.isEmpty) return;
     try {
       try {
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-        );
-        _dropoffLat = position.latitude;
-        _dropoffLng = position.longitude;
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          );
+          _dropoffLat = position.latitude;
+          _dropoffLng = position.longitude;
+        }
       } catch (_) {}
 
       final uniqueShopIds = cart.items.values.map((item) => item.dish.shopId).toSet().toList();
@@ -95,8 +101,8 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
     double totalDistance = 0.0;
     double totalDeliveryFee = 0.0;
     for (final shop in _shops) {
-      final shopLat = shop.lat ?? 17.4138;
-      final shopLng = shop.lng ?? 102.7872;
+      final shopLat = shop.lat ?? 0.0;
+      final shopLng = shop.lng ?? 0.0;
       final dist = Geolocator.distanceBetween(shopLat, shopLng, _dropoffLat, _dropoffLng) / 1000.0;
       totalDistance += dist;
       totalDeliveryFee += 30.0 + (dist * 10.0);
@@ -141,8 +147,8 @@ class _CartBottomSheetState extends ConsumerState<CartBottomSheet> {
     }
 
     for (final shop in _shops) {
-      final shopLat = shop.lat ?? 17.4138;
-      final shopLng = shop.lng ?? 102.7872;
+      final shopLat = shop.lat ?? 0.0;
+      final shopLng = shop.lng ?? 0.0;
       final dist = Geolocator.distanceBetween(shopLat, shopLng, _dropoffLat, _dropoffLng) / 1000.0;
       if (dist > 25.0) {
         _showValidationError('ร้าน "${shop.name}" อยู่ไกลเกินไป (ระยะทาง ${dist.toStringAsFixed(1)} กม. เกินระยะสูงสุด 25 กม.)');

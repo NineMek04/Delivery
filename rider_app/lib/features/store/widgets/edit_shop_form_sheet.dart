@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../core/api/services/shop_api_service.dart';
@@ -27,6 +28,7 @@ class _EditShopFormSheetState extends ConsumerState<EditShopFormSheet> {
   bool _isSaving = false;
   bool _showMap = false;
   LatLng? _selectedLocation;
+  LatLng? _currentGps;
   late final MapController _mapController;
 
   @override
@@ -41,9 +43,32 @@ class _EditShopFormSheetState extends ConsumerState<EditShopFormSheet> {
     if (widget.shop.lat != null && widget.shop.lng != null) {
       _selectedLocation = LatLng(widget.shop.lat!, widget.shop.lng!);
     } else {
-      _selectedLocation = const LatLng(17.4138, 102.7872);
+      _selectedLocation = null;
     }
     _mapController = MapController();
+    _fetchGps();
+  }
+
+  Future<void> _fetchGps() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        if (mounted) {
+          setState(() {
+            _currentGps = LatLng(position.latitude, position.longitude);
+          });
+          if (_selectedLocation == null && _showMap) {
+            _mapController.move(_currentGps!, 15);
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -199,7 +224,7 @@ class _EditShopFormSheetState extends ConsumerState<EditShopFormSheet> {
                       child: FlutterMap(
                         mapController: _mapController,
                         options: MapOptions(
-                          initialCenter: _selectedLocation ?? const LatLng(17.4138, 102.7872),
+                          initialCenter: _selectedLocation ?? _currentGps ?? const LatLng(17.4138, 102.7872),
                           initialZoom: 15,
                           onTap: (tapPosition, point) {
                             setState(() {

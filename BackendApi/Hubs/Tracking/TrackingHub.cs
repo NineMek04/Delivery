@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using BackendApi.Core.StateMachines;
 using BackendApi.Security;
 using BackendApi.Security.Models;
@@ -8,6 +8,7 @@ using BackendApi.Services.Telemetry;
 using BackendApi.Services.Tracking;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BackendApi.Hubs.Tracking;
 
@@ -27,6 +28,7 @@ public partial class TrackingHub : Hub
     private readonly DispatchOfferHandler _offerHandler;
     private readonly TelemetryService _telemetryService;
     private readonly ILogger<TrackingHub> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     private const string AdminGroup = "admins";
     private static string RiderGroup(string riderId) => $"rider:{riderId}";
@@ -35,12 +37,14 @@ public partial class TrackingHub : Hub
         IRiderPresenceManager presenceManager,
         DispatchOfferHandler offerHandler,
         TelemetryService telemetryService,
-        ILogger<TrackingHub> logger)
+        ILogger<TrackingHub> logger,
+        IServiceProvider serviceProvider)
     {
         _presenceManager = presenceManager;
         _offerHandler = offerHandler;
         _telemetryService = telemetryService;
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     // ── Connection Lifecycle ────────────────────────────────────────
@@ -151,6 +155,29 @@ public partial class TrackingHub : Hub
             else
             {
                 _logger.LogInformation("Rider User {UserId} SignalR disconnected (no active rider session or already OFFLINE).", userId);
+            }
+        }
+        else if (role == AuthConstants.StorePartnerRole)
+        {
+            var shopId = Context.User?.FindFirst("shop_id")?.Value;
+            if (!string.IsNullOrWhiteSpace(shopId) && Guid.TryParse(shopId, out var sId))
+            {
+                try
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<BackendApi.Data.ApplicationDbContext>();
+                    var shop = await dbContext.Shops.FindAsync(sId);
+                    if (shop != null && shop.IsOpen)
+                    {
+                        shop.IsOpen = false;
+                        await dbContext.SaveChangesAsync();
+                        _logger.LogInformation("StorePartner {UserId} disconnected. Auto-offline Shop {ShopId}", userId, shopId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error while auto-offlining Shop {ShopId} on StorePartner disconnect", shopId);
+                }
             }
         }
 

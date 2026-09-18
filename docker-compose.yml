@@ -107,6 +107,7 @@ services:
     volumes:
       - vault_approle_data:/vault/approle:ro
       - data_protection_keys:/root/.aspnet/DataProtection-Keys
+      - ./apk:/app/apk:ro
 
   # 3. Redis — Realtime Speed Layer (GPS Cache, Distributed Lock, Rider Presence)
   redis:

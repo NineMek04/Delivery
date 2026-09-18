@@ -1,4 +1,4 @@
-﻿using BackendApi.Core.StateMachines;
+using BackendApi.Core.StateMachines;
 using BackendApi.Data;
 using BackendApi.Infrastructure.Redis;
 using BackendApi.Models;
@@ -87,49 +87,70 @@ public partial class DispatchService
             return;
         }
 
-        var searchRadiusKm = _config.GetValue("Dispatch:SearchRadiusKm", 10);
+        var radiusSteps = _config.GetSection("Dispatch:SearchRadiusSteps").Get<int[]>();
+        if (radiusSteps == null || radiusSteps.Length == 0)
+        {
+            var fallbackRadius = _config.GetValue("Dispatch:SearchRadiusKm", 5);
+            radiusSteps = new[] { fallbackRadius };
+        }
+
         var pickupLat = firstOrder.PickupLocation.Y;
         var pickupLng = firstOrder.PickupLocation.X;
 
-        // 1. ดึง Nearby Riders จาก Redis GEORADIUS
-        var nearbyRiders = await _presenceService.GetNearbyRidersAsync(pickupLat, pickupLng, searchRadiusKm);
-
-        await _adminNotifier.NotifyDispatchScanStartedAsync(firstOrder, pickupLat, pickupLng, searchRadiusKm, nearbyRiders);
-
-        if (nearbyRiders.Length == 0)
-        {
-            _logger.LogWarning("No nearby riders found for order {OrderId} within {Radius}km",
-                firstOrder.Id, searchRadiusKm);
-            return;
-        }
-
-        // 2. กรองเฉพาะ Rider ที่ IDLE (ไม่ถูกจอง/ไม่มีงาน)
+        StackExchange.Redis.GeoRadiusResult[] nearbyRiders = Array.Empty<StackExchange.Redis.GeoRadiusResult>();
+        Dictionary<string, Rider> ridersDict = new();
         var candidates = new List<(string RiderId, double DistanceKm, double Lat, double Lng)>();
-        
-        var riderIds = nearbyRiders.Select(r => r.Member.ToString()).ToList();
-        var ridersDict = await _dbContext.Riders
-            .Where(r => riderIds.Contains(r.Id))
-            .ToDictionaryAsync(r => r.Id);
+        int usedRadiusKm = radiusSteps[^1];
 
-        foreach (var result in nearbyRiders)
+        // Escalating search: ค้นหาในระยะใกล้ก่อน (เช่น 2 กม.) หากไม่พบจึงขยายเป็นระยะถัดไป (เช่น 5 กม.)
+        foreach (var radius in radiusSteps)
         {
-            var riderId = result.Member.ToString();
-            
-            if (!ridersDict.TryGetValue(riderId, out var rider))
-                continue;
+            usedRadiusKm = radius;
+            nearbyRiders = await _presenceService.GetNearbyRidersAsync(pickupLat, pickupLng, radius);
 
-            if (rider.State != RiderState.IDLE)
+            if (nearbyRiders.Length == 0)
+            {
+                _logger.LogInformation("No riders found within {Radius}km for order {OrderId}, checking next radius step", radius, firstOrder.Id);
                 continue;
+            }
 
-            if (await _lockService.IsLockedAsync(riderId))
-                continue;
+            var riderIds = nearbyRiders.Select(r => r.Member.ToString()).ToList();
+            ridersDict = await _dbContext.Riders
+                .Where(r => riderIds.Contains(r.Id))
+                .ToDictionaryAsync(r => r.Id);
 
-            candidates.Add((riderId, result.Distance ?? 0, result.Position?.Latitude ?? 0, result.Position?.Longitude ?? 0));
+            candidates.Clear();
+            foreach (var result in nearbyRiders)
+            {
+                var riderId = result.Member.ToString();
+
+                if (!ridersDict.TryGetValue(riderId, out var rider))
+                    continue;
+
+                if (rider.State != RiderState.IDLE)
+                    continue;
+
+                if (await _lockService.IsLockedAsync(riderId))
+                    continue;
+
+                candidates.Add((riderId, result.Distance ?? 0, result.Position?.Latitude ?? 0, result.Position?.Longitude ?? 0));
+            }
+
+            // หากพบ Candidate ที่ IDLE ในระยะนี้ ให้หยุดขยายรัศมีทันที เพื่อให้ความสำคัญกับไรเดอร์ที่อยู่ใกล้สุด
+            if (candidates.Count > 0)
+            {
+                _logger.LogInformation("Found {Count} idle riders within {Radius}km for order {OrderId}", candidates.Count, radius, firstOrder.Id);
+                break;
+            }
+
+            _logger.LogInformation("Found {RidersCount} riders within {Radius}km for order {OrderId} but none were idle. Expanding search radius...", nearbyRiders.Length, radius, firstOrder.Id);
         }
+
+        await _adminNotifier.NotifyDispatchScanStartedAsync(firstOrder, pickupLat, pickupLng, usedRadiusKm, nearbyRiders);
 
         if (candidates.Count == 0)
         {
-            _logger.LogWarning("No idle riders available for order {OrderId}", firstOrder.Id);
+            _logger.LogWarning("No idle riders available for order {OrderId} within max search radius {Radius}km", firstOrder.Id, usedRadiusKm);
             return;
         }
 

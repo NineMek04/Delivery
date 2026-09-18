@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using BackendApi.Core.Attributes;
 
 namespace BackendApi.Models.DTOs
 {
@@ -36,6 +37,7 @@ namespace BackendApi.Models.DTOs
         [Range(0.01, 100000.0, ErrorMessage = "ราคาต้องมากกว่า 0 บาท")]
         public decimal Price { get; set; }
 
+        [Base64Image(MaxSizeBytes = 2 * 1024 * 1024)]
         public string? ImageUrl { get; set; }
 
         [Required(ErrorMessage = "กรุณาระบุร้านค้า")]
@@ -60,6 +62,7 @@ namespace BackendApi.Models.DTOs
         [Range(0.01, 100000.0, ErrorMessage = "ราคาต้องมากกว่า 0 บาท")]
         public decimal? Price { get; set; }
 
+        [Base64Image(MaxSizeBytes = 2 * 1024 * 1024)]
         public string? ImageUrl { get; set; }
 
         public string? MenuCategoryId { get; set; }

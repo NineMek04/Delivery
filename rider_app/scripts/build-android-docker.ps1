@@ -32,6 +32,22 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host " [OK] Android Release APK Built Successfully!" -ForegroundColor Green
         Write-Host "==================================================" -ForegroundColor Green
         Write-Host "Output File: $apkPath" -ForegroundColor White
+
+        $rootApkDir = Join-Path $appDir "..\apk"
+        if (-not (Test-Path $rootApkDir)) {
+            New-Item -ItemType Directory -Path $rootApkDir -Force | Out-Null
+        }
+        $targetApk = Join-Path $rootApkDir "rider-app.apk"
+        Copy-Item $apkPath -Destination $targetApk -Force
+        Write-Host " [OK] Copied APK to Server Host Directory: $targetApk" -ForegroundColor Green
+
+        # Copy into running backend docker container if running
+        $backendRunning = (docker ps --filter "name=delivery-backend" --filter "status=running" -q)
+        if ($backendRunning) {
+            docker exec delivery-backend mkdir -p /app/apk
+            docker cp $targetApk delivery-backend:/app/apk/rider-app.apk
+            Write-Host " [OK] Deployed APK into live delivery-backend container (/app/apk/rider-app.apk)" -ForegroundColor Green
+        }
     }
 } else {
     Write-Host "`n[ERROR] APK build failed with code $LASTEXITCODE" -ForegroundColor Red

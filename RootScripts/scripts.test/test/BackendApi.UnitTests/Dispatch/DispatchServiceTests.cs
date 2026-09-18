@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -234,7 +234,169 @@ namespace BackendApi.UnitTests.Dispatch
             Assert.True(rankedResult[0].EtaMinutes < rankedResult[1].EtaMinutes);
             Assert.True(rankedResult[1].EtaMinutes < rankedResult[2].EtaMinutes);
         }
+
+        [Fact]
+        public async Task FindAndOfferAsync_WhenNoRiderInFirstRadius_ExpandsToNextRadius()
+        {
+            // Arrange
+            var configData = new Dictionary<string, string?>
+            {
+                {"Dispatch:SearchRadiusSteps:0", "2"},
+                {"Dispatch:SearchRadiusSteps:1", "5"},
+                {"Dispatch:SearchRadiusKm", "5"},
+                {"Dispatch:OfferTimeoutSeconds", "30"}
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(configData).Build();
+
+            var orderId = "order_escalate_1";
+            var riderFarId = "rider_3km";
+
+            var order = new Order
+            {
+                Id = orderId,
+                State = OrderState.CREATED,
+                PickupLocation = new Point(100.5, 13.7) { SRID = 4326 },
+                DropoffLocation = new Point(100.6, 13.8) { SRID = 4326 },
+                RowVersion = new byte[8]
+            };
+
+            var rider = new Rider
+            {
+                Id = riderFarId,
+                Name = "Rider at 3.5km",
+                State = RiderState.IDLE,
+                CurrentLocation = new Point(100.53, 13.73) { SRID = 4326 },
+                RowVersion = new byte[8]
+            };
+
+            await _dbContext.Orders.AddAsync(order);
+            await _dbContext.Riders.AddAsync(rider);
+            await _dbContext.SaveChangesAsync();
+
+            _stateMachineMock.Setup(s => s.TransitionOrderAsync(It.IsAny<Order>(), It.IsAny<OrderState>())).ReturnsAsync(true);
+            _stateMachineMock.Setup(s => s.TransitionRiderAsync(It.IsAny<string>(), It.IsAny<RiderState>())).ReturnsAsync(true);
+
+            // Radius 2 returns empty array; Radius 5 returns rider at 3.5km
+            var geoResultFar = new StackExchange.Redis.GeoRadiusResult(
+                new StackExchange.Redis.RedisValue(riderFarId),
+                distance: 3.5,
+                hash: null,
+                position: new StackExchange.Redis.GeoPosition(100.53, 13.73)
+            );
+
+            _presenceServiceMock.Setup(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 2))
+                .ReturnsAsync(Array.Empty<StackExchange.Redis.GeoRadiusResult>());
+            _presenceServiceMock.Setup(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 5))
+                .ReturnsAsync(new[] { geoResultFar });
+
+            _lockServiceMock.Setup(l => l.TryAcquireRiderLockAsync(riderFarId, It.IsAny<string>(), It.IsAny<TimeSpan>()))
+                .ReturnsAsync(true);
+
+            var ranker = new DispatchCandidateRanker(_aiServiceMock.Object, _presenceServiceMock.Object, _rankerLoggerMock.Object);
+
+            var dispatchService = new DispatchService(
+                _dbContext,
+                _stateMachineMock.Object,
+                _lockServiceMock.Object,
+                _presenceServiceMock.Object,
+                _routingServiceMock.Object,
+                _aiServiceMock.Object,
+                ranker,
+                _riderNotifierMock.Object,
+                _adminNotifierMock.Object,
+                config,
+                _loggerMock.Object
+            );
+
+            // Act
+            await dispatchService.FindAndOfferAsync(new List<Order> { order });
+
+            // Assert
+            // Verified that both 2km and 5km were queried
+            _presenceServiceMock.Verify(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 2), Times.Once);
+            _presenceServiceMock.Verify(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 5), Times.Once);
+            // Verified offer locked the rider in the 5km radius
+            _lockServiceMock.Verify(l => l.TryAcquireRiderLockAsync(riderFarId, It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task FindAndOfferAsync_WhenRiderFoundInFirstRadius_DoesNotExpandToNextRadius()
+        {
+            // Arrange
+            var configData = new Dictionary<string, string?>
+            {
+                {"Dispatch:SearchRadiusSteps:0", "2"},
+                {"Dispatch:SearchRadiusSteps:1", "5"},
+                {"Dispatch:SearchRadiusKm", "5"},
+                {"Dispatch:OfferTimeoutSeconds", "30"}
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(configData).Build();
+
+            var orderId = "order_escalate_near";
+            var riderNearId = "rider_1km";
+
+            var order = new Order
+            {
+                Id = orderId,
+                State = OrderState.CREATED,
+                PickupLocation = new Point(100.5, 13.7) { SRID = 4326 },
+                DropoffLocation = new Point(100.6, 13.8) { SRID = 4326 },
+                RowVersion = new byte[8]
+            };
+
+            var rider = new Rider
+            {
+                Id = riderNearId,
+                Name = "Rider at 1.2km",
+                State = RiderState.IDLE,
+                CurrentLocation = new Point(100.51, 13.71) { SRID = 4326 },
+                RowVersion = new byte[8]
+            };
+
+            await _dbContext.Orders.AddAsync(order);
+            await _dbContext.Riders.AddAsync(rider);
+            await _dbContext.SaveChangesAsync();
+
+            _stateMachineMock.Setup(s => s.TransitionOrderAsync(It.IsAny<Order>(), It.IsAny<OrderState>())).ReturnsAsync(true);
+            _stateMachineMock.Setup(s => s.TransitionRiderAsync(It.IsAny<string>(), It.IsAny<RiderState>())).ReturnsAsync(true);
+
+            var geoResultNear = new StackExchange.Redis.GeoRadiusResult(
+                new StackExchange.Redis.RedisValue(riderNearId),
+                distance: 1.2,
+                hash: null,
+                position: new StackExchange.Redis.GeoPosition(100.51, 13.71)
+            );
+
+            _presenceServiceMock.Setup(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 2))
+                .ReturnsAsync(new[] { geoResultNear });
+
+            _lockServiceMock.Setup(l => l.TryAcquireRiderLockAsync(riderNearId, It.IsAny<string>(), It.IsAny<TimeSpan>()))
+                .ReturnsAsync(true);
+
+            var ranker = new DispatchCandidateRanker(_aiServiceMock.Object, _presenceServiceMock.Object, _rankerLoggerMock.Object);
+
+            var dispatchService = new DispatchService(
+                _dbContext,
+                _stateMachineMock.Object,
+                _lockServiceMock.Object,
+                _presenceServiceMock.Object,
+                _routingServiceMock.Object,
+                _aiServiceMock.Object,
+                ranker,
+                _riderNotifierMock.Object,
+                _adminNotifierMock.Object,
+                config,
+                _loggerMock.Object
+            );
+
+            // Act
+            await dispatchService.FindAndOfferAsync(new List<Order> { order });
+
+            // Assert
+            // 2km was queried, 5km was NEVER queried because candidate was found in 2km
+            _presenceServiceMock.Verify(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 2), Times.Once);
+            _presenceServiceMock.Verify(p => p.GetNearbyRidersAsync(It.IsAny<double>(), It.IsAny<double>(), 5), Times.Never);
+            _lockServiceMock.Verify(l => l.TryAcquireRiderLockAsync(riderNearId, It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Once);
+        }
     }
 }
-
-

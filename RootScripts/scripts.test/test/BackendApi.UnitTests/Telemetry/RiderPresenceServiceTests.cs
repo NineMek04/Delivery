@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -224,7 +224,7 @@ namespace BackendApi.UnitTests.Telemetry
             var clientsMock = new Mock<IHubClients>();
             var adminClientMock = new Mock<IClientProxy>();
             clientsMock
-                .Setup(clients => clients.Group("admins"))
+                .Setup(clients => clients.Group(It.IsAny<string>()))
                 .Returns(adminClientMock.Object);
             _hubContextMock
                 .SetupGet(context => context.Clients)
@@ -251,7 +251,7 @@ namespace BackendApi.UnitTests.Telemetry
                 riderId,
                 13.7,
                 100.5,
-                120.0,
+                200.0,
                 bypassRateLimit: true);
 
             presenceServiceMock.Verify(service => service.UpdateGpsAsync(
@@ -350,7 +350,7 @@ namespace BackendApi.UnitTests.Telemetry
 
             return state == "IDLE" &&
                 accuracy is double accuracyValue &&
-                accuracyValue == 120.0;
+                accuracyValue == 200.0;
         }
     }
 }

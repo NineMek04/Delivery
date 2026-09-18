@@ -1,7 +1,7 @@
 name: rider_app
 description: "AI-Optimized Smart Delivery Routing — Rider Mobile App"
 publish_to: 'none'
-version: 1.0.2+2
+version: 1.0.4+4
 
 environment:
   sdk: ^3.9.0

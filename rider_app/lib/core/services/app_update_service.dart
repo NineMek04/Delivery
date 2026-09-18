@@ -23,7 +23,10 @@ class AppUpdateInfo {
     required this.fileSizeBytes,
   });
 
-  factory AppUpdateInfo.fromJson(Map<String, dynamic> json) {
+  factory AppUpdateInfo.fromJson(Map<String, dynamic> rawJson) {
+    final json = rawJson.containsKey('value') && rawJson['value'] is Map<String, dynamic>
+        ? rawJson['value'] as Map<String, dynamic>
+        : rawJson;
     return AppUpdateInfo(
       latestVersion: json['latestVersion']?.toString() ?? '1.0.0',
       buildNumber: json['buildNumber'] is int
@@ -47,8 +50,8 @@ class AppUpdateService {
   ));
 
   /// เวอร์ชันปัจจุบันของแอปที่คอมไพล์อยู่
-  static const String currentVersion = '1.0.2';
-  static const int currentBuildNumber = 2;
+  static const String currentVersion = '1.0.4';
+  static const int currentBuildNumber = 4;
 
   /// ตรวจสอบว่ามีเวอร์ชันใหม่จากเซิร์ฟเวอร์หรือไม่
   Future<AppUpdateInfo?> checkForUpdate() async {

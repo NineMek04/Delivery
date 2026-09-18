@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using BackendApi.Core.Attributes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -9,6 +10,7 @@ namespace BackendApi.Controllers.App
     [ApiController]
     [Route("api/v1/app")]
     [AllowAnonymous]
+    [DisableWrapper]
     public class AppVersionController : ControllerBase
     {
         private readonly IConfiguration _configuration;

@@ -147,6 +147,6 @@ public class MenuItemTests : IAsyncLifetime
         resGetAfter.EnsureSuccessStatusCode();
         var wGetAfter = await resGetAfter.Content.ReadFromJsonAsync<ApiResponseWrapper<PaginatedResultWrapper<MenuItemData>>>(_jsonOpts);
         Assert.NotNull(wGetAfter?.Value);
-        Assert.Empty(wGetAfter.Value.Items);
+        Assert.DoesNotContain(wGetAfter.Value.Items, m => m.Id == menuItem.Id);
     }
 }

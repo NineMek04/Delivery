@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Security.Claims;
@@ -79,7 +79,8 @@ namespace BackendApi.UnitTests.Hubs
                 presence.Object,
                 new Mock<DispatchOfferHandler>(null!, null!, null!, null!, null!, null!, null!).Object,
                 new Mock<TelemetryService>(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!).Object,
-                logger.Object
+                logger.Object,
+                new Mock<IServiceProvider>().Object
             );
             hub.Context = ctx;
             hub.Groups  = groups.Object;
